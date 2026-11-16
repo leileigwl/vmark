@@ -157,13 +157,12 @@ function buildApplicationMenu(): void {
         { type: 'separator' },
         { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', role: 'close' },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
-        { label: '在 Finder 中显示 / 移动...', click: () => sendMenuAction('file:reveal') },
+        { label: '在 Finder 中显示', click: () => sendMenuAction('file:reveal') },
         {
-          label: '导出文件',
+          label: '导出',
           submenu: [
             { label: '按默认格式导出...', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuAction('file:export', 'default') },
             { type: 'separator' },
-            { label: '导出为 Markdown (.md)...', click: () => sendMenuAction('file:export', 'md') },
             { label: '导出为 Word 文档 (.docx)...', click: () => sendMenuAction('file:export', 'docx') },
             { label: '导出为独立网页 (.html)...', click: () => sendMenuAction('file:export', 'html') },
             { label: '导出为 PDF (.pdf)...', click: () => sendMenuAction('file:export', 'pdf') },

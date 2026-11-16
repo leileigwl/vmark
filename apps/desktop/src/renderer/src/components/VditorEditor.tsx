@@ -72,7 +72,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const prefsRef = useRef<EditorPreferences>({
       autoPairSymbols: preferences?.autoPairSymbols ?? true,
       copyFormat: preferences?.copyFormat ?? 'markdown',
-      defaultExportFormat: preferences?.defaultExportFormat ?? 'md',
+      defaultExportFormat: preferences?.defaultExportFormat ?? 'pdf',
     });
 
     onChangeRef.current = onChange;
@@ -80,7 +80,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     prefsRef.current = {
       autoPairSymbols: preferences?.autoPairSymbols ?? true,
       copyFormat: preferences?.copyFormat ?? 'markdown',
-      defaultExportFormat: preferences?.defaultExportFormat ?? 'md',
+      defaultExportFormat: preferences?.defaultExportFormat ?? 'pdf',
     };
     pendingValueRef.current = value;
 
@@ -110,6 +110,23 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (cmd === 'bold' || cmd === 'italic' || cmd === 'strike' || cmd === 'inline-code') {
           toggleInlineWrap(cmd);
           return;
+        }
+        // When applying H1-H6 inside an existing heading, replace its heading marker instead of stacking ####
+        if (/^h[1-6]$/.test(cmd)) {
+          const sel = window.getSelection();
+          const anchorEl =
+            sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+          const existingH = anchorEl?.closest('h1, h2, h3, h4, h5, h6') as HTMLElement | null;
+          if (existingH && el.contains(existingH)) {
+            const marker = existingH.querySelector('.vditor-ir__marker--heading');
+            if (marker) {
+              pushVditorUndo();
+              marker.textContent = FORMAT_SNIPPETS[cmd];
+              pushVditorUndo();
+              onChangeRef.current(instance.getValue());
+              return;
+            }
+          }
         }
         // When inserting a block element (like a table) while cursor is inside an existing table,
         // jump out after the table first so it doesn't corrupt cells!
@@ -701,14 +718,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
 
-        // Auto-pair matching brackets/quotes when enabled in EditorPreferences
+        // Auto-pair matching brackets/quotes when enabled (exclude backtick ` so typing ``` code fences works natively)
         const PAIR_MAP: Record<string, string> = {
           '(': ')',
           '[': ']',
           '{': '}',
           '"': '"',
           "'": "'",
-          '`': '`',
           '（': '）',
           '【': '】',
           '「': '」',
@@ -727,14 +743,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           if (selNow && selNow.rangeCount > 0) {
             const range = selNow.getRangeAt(0);
             const selectedText = range.toString();
-            // Do not auto-pair backtick when typing ``` for fenced code blocks
-            const prevChar =
-              range.collapsed && range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0
-                ? (range.startContainer.textContent || '')[range.startOffset - 1]
-                : '';
-            if (e.key === '`' && prevChar === '`') {
-              return;
-            }
             const closeChar = PAIR_MAP[e.key];
             e.preventDefault();
             e.stopPropagation();

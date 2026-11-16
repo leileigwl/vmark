@@ -550,14 +550,8 @@
 }
 
 /* KaTeX & Math (\lambda, equations) styling — preserve KaTeX inline-block/vlist layout */
-.vditor-reset .katex,
-.vditor-reset .katex * {
-  white-space: normal !important;
-  word-break: normal !important;
-  letter-spacing: normal !important;
-  color: var(--text-main) !important;
-}
 .vditor-reset .katex {
+  color: var(--text-main) !important;
   font-size: 1.08em !important;
   line-height: 1.2 !important;
 }
@@ -566,6 +560,5 @@
 .vditor-ir__preview code.language-tex {
   display: block !important;
   text-align: center !important;
-  padding: 12px 0 !important;
-  white-space: normal !important;
+  padding: 14px 0 !important;
 }

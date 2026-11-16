@@ -139,7 +139,7 @@ export interface ContextMenuOptions {
 export interface EditorPreferences {
   autoPairSymbols: boolean;
   copyFormat: 'markdown' | 'plain' | 'html';
-  defaultExportFormat: 'md' | 'html' | 'pdf';
+  defaultExportFormat: 'docx' | 'html' | 'pdf';
 }
 
 export interface ExportArticleOptions {

@@ -58,7 +58,7 @@ export default function App() {
     } catch {
       // ignore
     }
-    return { autoPairSymbols: true, copyFormat: 'markdown', defaultExportFormat: 'md' };
+    return { autoPairSymbols: true, copyFormat: 'markdown', defaultExportFormat: 'pdf' };
   });
   const [tableModalOpen, setTableModalOpen] = useState<boolean>(false);
   const [tableCols, setTableCols] = useState<number>(3);

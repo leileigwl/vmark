@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R15_1",
+            title: "R15-1. 菜单精简：「在 Finder 中显示」与「导出 (Word .docx / HTML / PDF)」",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850330610_167e0910.jpg",
+            desc: "去掉冗余的「/ 移动...」与「文件」字样，改为「在 Finder 中显示」与「导出」，导出格式精简聚焦为 Word (.docx)、独立网页 (.html)、PDF (.pdf)。",
+            plan: "请打开顶部「文件」菜单核对文字与子菜单。"
+          },
+          {
+            id: "R15_2",
+            title: "R15-2. 彻底修复 KaTeX 竖排（直接打包 katex.min.css + 取消 white-space: normal 覆盖）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850492336_0c2696f3.png",
+            desc: "在 index.css 中直接打包引入 katex.min.css，并移除 .katex * 上的 white-space: normal !important 覆盖，积分与上下标水平完整排版。",
+            plan: "请在编辑器中查看 ```latex 高斯积分公式的水平排版效果。"
+          },
+          {
+            id: "R15_3",
+            title: "R15-3. 连续嵌套大标题/加粗不叠加 #### 标记，且输入 ``` 不再被反引号配对吞字乱跳",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850575070_edc19a89.png",
+            desc: "1) 在已有标题行切换 H1~H6 时直接替换 .vditor-ir__marker--heading，不再叠加成 ########；2) 从自动配对符号中移除反引号 `，输入 ``` 创建代码块顺畅不吞字。",
+            plan: "请测试在 H4 标题上反复切换加粗/标题级别，以及直接输入 ```latex 回车。"
+          },
+          {
             id: "R14_1",
             title: "R14-1. KaTeX 公式渲染排版恢复正常（彻底修复单字符竖排问题 + 居中显示）",
             status: "done",

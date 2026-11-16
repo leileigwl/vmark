@@ -49,7 +49,7 @@ interface SettingsViewProps {
   onPickSpecificDir?: () => void;
   editorPrefs: EditorPreferences;
   onUpdateEditorPrefs: (next: EditorPreferences) => void;
-  onExportArticle: (format: 'md' | 'html' | 'pdf') => void;
+  onExportArticle: (format: 'docx' | 'html' | 'pdf') => void;
   imageBed: ImageBedConfig;
   imageBedTestMsg: string;
   onUpdateImageBed: (next: ImageBedConfig, persist?: boolean) => void;
@@ -238,7 +238,7 @@ export function SettingsView({
                 <div className="flex flex-wrap gap-2">
                   {(
                     [
-                      ['md', 'Markdown (.md)'],
+                      ['docx', 'Word 文档 (.docx)'],
                       ['html', '独立网页 (.html)'],
                       ['pdf', 'PDF 文档 (.pdf)'],
                     ] as const
