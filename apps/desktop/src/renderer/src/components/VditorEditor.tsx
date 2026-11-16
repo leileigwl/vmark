@@ -1,9 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Vditor from 'vditor';
 
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
+  getValue: () => string;
+  replaceAllText: (findStr: string, replaceStr: string) => number;
 }
 
 interface VditorEditorProps {
@@ -42,6 +44,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const isReadyRef = useRef(false);
     const pendingValueRef = useRef<string | null>(null);
     const lastSelectionElRef = useRef<HTMLElement | null>(null);
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [zoomedSvgHtml, setZoomedSvgHtml] = useState<string | null>(null);
+    const [zoomedImgSrc, setZoomedImgSrc] = useState<string | null>(null);
+
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
 
@@ -58,6 +65,23 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           instance.focus();
           instance.insertValue(snippet);
         }
+      },
+      getValue() {
+        const instance = vditorRef.current;
+        return instance && isReadyRef.current ? instance.getValue() : value;
+      },
+      replaceAllText(findStr: string, replaceStr: string) {
+        const instance = vditorRef.current;
+        if (!instance || !isReadyRef.current || !findStr) return 0;
+        const current = instance.getValue();
+        const parts = current.split(findStr);
+        const count = parts.length - 1;
+        if (count > 0) {
+          const next = parts.join(replaceStr);
+          instance.setValue(next);
+          onChangeRef.current(next);
+        }
+        return count;
       },
       applyTableAction(action: string) {
         const el = containerRef.current;
@@ -142,8 +166,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             instance.setValue(pendingValueRef.current);
           }
         },
+        // Debounce React state sync so typing & Cmd+Z undo remain 0ms lag on 68KB+ docs
         input: (md) => {
-          onChangeRef.current(md);
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = setTimeout(() => {
+            onChangeRef.current(md);
+          }, 220);
         },
         ctrlEnter: (md) => {
           onSaveRef.current?.(md);
@@ -170,7 +198,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       vditorRef.current = instance;
 
-      // Resolve relative local ./assets/* images & polish <details>/<summary> HTML blocks
       const enhanceDom = () => {
         const imgs = el.querySelectorAll('img');
         imgs.forEach((img) => {
@@ -194,6 +221,30 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const observer = new MutationObserver(enhanceDom);
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
+      // Single-click Mermaid/Image -> Lightbox zoom; Double-click -> edit source
+      const handleMouseDownCapture = (e: MouseEvent) => {
+        if (e.button !== 0) return;
+        const target = e.target as HTMLElement | null;
+        const mermaidBox = target?.closest('.language-mermaid');
+        const imgEl = target?.closest('img') as HTMLImageElement | null;
+        if (!mermaidBox && !imgEl) return;
+
+        // Prevent Vditor from immediately expanding raw code on single-click
+        if (e.detail === 1) {
+          e.stopPropagation();
+          if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = setTimeout(() => {
+            if (mermaidBox) {
+              setZoomedSvgHtml(mermaidBox.innerHTML);
+            } else if (imgEl) {
+              setZoomedImgSrc(imgEl.src);
+            }
+          }, 210);
+        } else if (e.detail >= 2) {
+          if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+        }
+      };
+
       const handleContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         const target = e.target as HTMLElement | null;
@@ -203,11 +254,16 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const hasSelection = Boolean(sel && !sel.isCollapsed);
         void window.electronAPI?.showEditorContextMenu?.({ inTable, hasSelection });
       };
+
+      el.addEventListener('mousedown', handleMouseDownCapture, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
+        el.removeEventListener('mousedown', handleMouseDownCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
         isReadyRef.current = false;
         try {
           vditorRef.current?.destroy();
@@ -230,6 +286,34 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     }, [articleKey]);
 
-    return <div ref={containerRef} className="h-full w-full" />;
+    return (
+      <>
+        <div ref={containerRef} className="h-full w-full" />
+        {(zoomedSvgHtml || zoomedImgSrc) && (
+          <div
+            onClick={() => {
+              setZoomedSvgHtml(null);
+              setZoomedImgSrc(null);
+            }}
+            className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/45 p-8 backdrop-blur-xs"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[90vh] max-w-[90vw] overflow-auto rounded-xl bg-white p-6 shadow-2xl"
+            >
+              {zoomedSvgHtml && (
+                <div
+                  className="min-w-[60vw] [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[80vh] [&_svg]:w-full"
+                  dangerouslySetInnerHTML={{ __html: zoomedSvgHtml }}
+                />
+              )}
+              {zoomedImgSrc && (
+                <img src={zoomedImgSrc} alt="Preview" className="max-h-[82vh] max-w-[85vw] rounded" />
+              )}
+            </div>
+          </div>
+        )}
+      </>
+    );
   }
 );

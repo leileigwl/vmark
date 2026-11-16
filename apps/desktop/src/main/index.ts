@@ -152,6 +152,8 @@ function buildApplicationMenu(): void {
         { label: '粘贴', role: 'paste' },
         { label: '粘贴为纯文本', accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
         { label: '全选', role: 'selectAll' },
+        { type: 'separator' },
+        { label: '查找与替换...', accelerator: 'CmdOrCtrl+F', click: () => sendMenuAction('editor:find') },
       ],
     },
     {

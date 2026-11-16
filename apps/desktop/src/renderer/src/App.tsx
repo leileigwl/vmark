@@ -90,6 +90,10 @@ export default function App() {
   const [gitStatus, setGitStatus] = useState<GitStatusInfo>({ isGitRepo: false, changedFiles: 0 });
   const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
+  const [findBarOpen, setFindBarOpen] = useState<boolean>(false);
+  const [findQuery, setFindQuery] = useState<string>('');
+  const [replaceQuery, setReplaceQuery] = useState<string>('');
+  const [replaceNotice, setReplaceNotice] = useState<string>('');
   const [theme, setTheme] = useState<ThemeId>('apple-light');
   const [customThemeName, setCustomThemeName] = useState<string>('');
   const editorRef = useRef<VditorEditorHandle>(null);
@@ -148,7 +152,12 @@ export default function App() {
 
       if (key === 's') {
         e.preventDefault();
-        void handleSaveArticle(markdown);
+        const latest = editorRef.current?.getValue() ?? markdown;
+        void handleSaveArticle(latest);
+      } else if (key === 'f') {
+        e.preventDefault();
+        setActiveView('editor');
+        setFindBarOpen((v) => !v);
       } else if (key === 'n') {
         e.preventDefault();
         void handleCreateBlankArticle();
@@ -187,6 +196,9 @@ export default function App() {
       } else if (action === 'editor:table' && payload) {
         setActiveView('editor');
         editorRef.current?.applyTableAction(payload);
+      } else if (action === 'editor:find') {
+        setActiveView('editor');
+        setFindBarOpen(true);
       }
     });
   }, [activeArticle, markdown]);
@@ -489,7 +501,43 @@ export default function App() {
         {/* 主视图切换 */}
         <main className="flex flex-1 overflow-hidden">
           {activeView === 'editor' && (
-            <section className="flex-1 overflow-hidden bg-[var(--bg-main)]">
+            <section className="relative flex-1 overflow-hidden bg-[var(--bg-main)]">
+              {findBarOpen && (
+                <div className="absolute top-2 right-6 z-40 flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xs">
+                  <input
+                    type="text"
+                    placeholder="查找..."
+                    value={findQuery}
+                    onChange={(e) => setFindQuery(e.target.value)}
+                    className="w-36 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="替换为..."
+                    value={replaceQuery}
+                    onChange={(e) => setReplaceQuery(e.target.value)}
+                    className="w-36 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const count = editorRef.current?.replaceAllText(findQuery, replaceQuery) ?? 0;
+                      setReplaceNotice(`已替换 ${count} 处`);
+                    }}
+                    className="rounded bg-[#007aff] px-2.5 py-1 text-white hover:bg-[#0062cc]"
+                  >
+                    全部替换
+                  </button>
+                  {replaceNotice && <span className="text-[11px] text-[#007aff]">{replaceNotice}</span>}
+                  <button
+                    type="button"
+                    onClick={() => setFindBarOpen(false)}
+                    className="px-1 text-[#777777] hover:text-[#333333]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               {activeArticle ? (
                 <VditorEditor
                   ref={editorRef}

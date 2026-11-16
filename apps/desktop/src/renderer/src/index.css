@@ -177,11 +177,16 @@ body {
   background: transparent !important;
 }
 .vditor-reset code:not(.hljs) {
-  border: 1px solid #e7eaed !important;
-  background-color: #f3f4f4 !important;
-  border-radius: 3px !important;
-  padding: 0 3px !important;
-  font-size: 0.9em !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent) !important;
+  background-color: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+  color: var(--accent) !important;
+  border-radius: 5px !important;
+  padding: 1px 6px !important;
+  font-size: 0.88em !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace !important;
+}
+.vditor-reset ul > li::marker {
+  color: var(--accent) !important;
 }
 /* macOS 3-dot windowed code block styling (Apple / Bloom style) */
 .vditor-ir__node[data-type="code-block"] {
@@ -201,6 +206,12 @@ body {
   z-index: 2 !important;
   pointer-events: none !important;
 }
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
+  display: inline-block !important;
+  margin-left: 60px !important;
+  font-size: 11.5px !important;
+  color: var(--control-text-color) !important;
+}
 .vditor-reset pre > code,
 .vditor-ir__node[data-type="code-block"] pre {
   border: 1px solid #e2e8f0 !important;
@@ -210,6 +221,9 @@ body {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 13.5px !important;
   line-height: 1.55 !important;
+}
+.vditor-reset .language-mermaid {
+  cursor: zoom-in !important;
 }
 .vditor-reset table {
   display: table !important;
