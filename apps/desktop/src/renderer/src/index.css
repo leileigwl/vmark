@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@import "vditor/dist/index.css";
+
+:root {
+  --side-bar-bg-color: #fafafa;
+  --control-text-color: #777777;
+  --bg-main: #ffffff;
+  --text-main: #333333;
+  --accent: #4183c4;
+  --border-color: #e5e7eb;
+}
+
+body {
+  margin: 0;
+  font-family: "Open Sans", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: var(--text-main);
+  background: var(--bg-main);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Typora github.css style polish for Vditor IR */
+.vditor {
+  border: none !important;
+  background: #ffffff !important;
+}
+.vditor-toolbar {
+  display: none !important;
+}
+.vditor-ir pre.vditor-reset {
+  padding: 32px 48px 96px !important;
+  max-width: 860px;
+  margin: 0 auto;
+  font-size: 16px;
+  line-height: 1.65;
+  color: rgb(51, 51, 51);
+  background: #ffffff !important;
+}
+.vditor-reset h1,
+.vditor-reset h2 {
+  border-bottom: 1px solid #eeeeee;
+  padding-bottom: 0.3em;
+}
+.vditor-reset a {
+  color: #4183c4;
+}
+.vditor-reset blockquote {
+  border-left: 4px solid #dfe2e5;
+  color: #777777;
+}

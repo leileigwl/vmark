@@ -1,25 +1,24 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-16
-- **当前阶段**：**Phase 0（需求对齐 + 规范立项 + 样式/流程/框架图完毕）**
-- **当前所处视觉门控**：已完成 **Step 1（样式图、流程与框架图）**，等待进入 **Step 2（Figma 草图 / 可交互 HTML 原型确认）**。
+- **当前阶段**：**Phase 1 完成（Monorepo 骨架 + Electron 桌面端 + Typora White 写作台/文章管理/本地图床骨架已构建通过）**
 
 ## 本轮已完成事项
 
-1. **全量平台矩阵与 BaiFu 风格 README 落地**：
-   - 新增根目录 [`README.md`](../README.md)，参考 BaiFu (`666ghj`) 标杆风格，明确 8 大主力平台（**微信公众号、小红书、X/Twitter、Linux.do、博客园、稀土掘金、B站专栏、抖音图文**）及 `Wechatsync` 全量 29+ 主流平台的接入规划。
-   - 确认原型中已去掉所有模板功能，增加「推送前全平台效果预览」与第 5 步 `VERIFY_DELIVERY` 送达检测。
-2. **当前工程状态**：
-   - Phase 0 规划与 HTML 交互原型（[`vcat-prototype.html`](02-design/prototypes/vcat-prototype.html)）已完整对齐。
-   - **尚未开始业务代码编写，未实机验证**。
+1. **Monorepo 工程脚手架落地（`pnpm workspace + Turborepo`）**：
+   - `packages/shared`：全局类型契约与 `ElectronAPI` 接口定义。
+   - `packages/core`：本地 Markdown 工作区递归扫描、标题/字数/大纲提取、本地图片引用计数。
+   - `packages/image-pipeline`：图片哈希持久化至本地 `assets/`、内存副本 URL 替换（不污染本地源文件）。
+   - `packages/adapters`：全量平台注册目录与 `PlatformAdapter` 接口契约（明确标明各平台参考来源：`references/Wechatsync`、`references/siyuan-plugin-publisher`）。
+   - `apps/desktop`：Electron 主进程 + ContextBridge Preload + React 18 + Tailwind + Vditor (`ir` 模式，复刻 Typora `github.css` 白色配色)，打通「文章管理台」、「写作台（含本地贴图落盘）」、「图床与平台设置」。
 
 ## 真实测试与验证状态
 
-- **OpenSpec 验证**：`openspec validate init-cat-publisher` 已通过。
-- **代码与构建**：**尚未开始代码编写（未进入 Step 4），未实机验证**。
+- `pnpm typecheck`：5/5 包全部通过（`@vcat/shared`, `@vcat/core`, `@vcat/image-pipeline`, `@vcat/adapters`, `@vcat/desktop`）。
+- `pnpm build`：`electron-vite build` 成功构建 `out/main/index.js`、`out/preload/index.js`、`out/renderer/index.html`。
+- **Electron 窗口实机启动与真实平台发布联调**：**未实机验证**（需要本机运行 `pnpm dev` 打开 GUI 窗口核验）。
 
 ## 下一步计划（Next Steps）
 
-1. **Step 2（草图阶段）**：使用 Figma（或先生成高保真可交互 HTML 草图原型）绘制四大核心画面，提交用户评审确认。
-2. **Step 3（标准视觉稿）**：草图确认后输出最终标准视觉设计图。
-3. **Step 4（Monorepo 脚手架与开发）**：搭建 `pnpm-workspace.yaml` + `turbo.json` + `apps/desktop` + `packages/*`，按阶段门控推进开发。
+1. 在本地运行 `cd vcat-publisher-desktop && pnpm dev` 实机检查「文章管理台」、「写作台（Vditor + 本地 `assets/` 贴图）」、「图床设置」交互。
+2. 接入 `better-sqlite3` 持久化 `sync_records` 与 `image_cache`，并率先实现 **博客园（MetaWeblog）** 与 **微信公众号 / Linux.do** 的真实沙箱登录与 5 步送达检测管线。

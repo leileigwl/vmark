@@ -1,0 +1,21 @@
+{
+  "name": "vcat-publisher-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-First desktop Markdown writing, image pipeline & multi-platform publisher",
+  "scripts": {
+    "dev": "pnpm --filter @vcat/desktop dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

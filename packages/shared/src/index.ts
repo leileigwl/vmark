@@ -1,0 +1,80 @@
+/** Core platform identifiers supported by VCat Publisher. */
+export type PlatformId =
+  | 'weixin'
+  | 'xiaohongshu'
+  | 'x'
+  | 'linuxdo'
+  | 'cnblogs'
+  | 'juejin'
+  | 'bilibili'
+  | 'douyin'
+  | 'csdn'
+  | 'zhihu'
+  | 'baijiahao'
+  | 'weibo';
+
+export type PublishMode = 'draft' | 'direct';
+
+export type SyncStatus = 'idle' | 'draft' | 'published' | 'failed';
+
+export interface SyncRecord {
+  id?: number;
+  articlePath: string;
+  platformId: PlatformId;
+  mode: PublishMode;
+  status: SyncStatus;
+  remotePostId?: string;
+  remoteUrl?: string;
+  lastError?: string;
+  syncedAt: number;
+}
+
+export interface OutlineNode {
+  level: number;
+  text: string;
+  line: number;
+}
+
+export interface ArticleMeta {
+  relativePath: string;
+  fullPath: string;
+  title: string;
+  wordCount: number;
+  localImageCount: number;
+  updatedAt: number;
+  syncRecords: Partial<Record<PlatformId, SyncRecord>>;
+}
+
+export interface ImageBedConfig {
+  strategy: 'platform_private' | 'custom_oss';
+  provider?: 'aliyun_oss' | 'tencent_cos' | 's3' | 'github';
+}
+
+export type PipelineStepId =
+  | 'PRECHECK'
+  | 'IMAGE_TRANSFER'
+  | 'TRANSFORM'
+  | 'PUSH'
+  | 'VERIFY_DELIVERY';
+
+export interface PipelineProgressEvent {
+  platformId: PlatformId;
+  step: PipelineStepId;
+  status: 'pending' | 'running' | 'done' | 'error';
+  message: string;
+}
+
+export interface ElectronAPI {
+  selectWorkspace: () => Promise<string | null>;
+  getWorkspacePath: () => Promise<string | null>;
+  listArticles: () => Promise<ArticleMeta[]>;
+  readArticle: (relativePath: string) => Promise<string>;
+  saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;
+  createArticle: (fileName: string) => Promise<ArticleMeta>;
+  saveLocalImage: (
+    base64Data: string,
+    ext: string
+  ) => Promise<{ relativeMarkdownPath: string; fullPath: string }>;
+  getImageBedConfig: () => Promise<ImageBedConfig>;
+  saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
+}
