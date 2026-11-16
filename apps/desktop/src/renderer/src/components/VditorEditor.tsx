@@ -651,11 +651,112 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const CODE_TOKEN_REGEX =
+        /(#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(def|class|function)\s+([A-Za-z_]\w*)|\b(async|await|return|if|elif|else|for|while|in|not|and|or|try|except|finally|raise|import|from|as|def|class|with|pass|break|continue|lambda|yield|const|let|var|function|export|default|interface|type|new|typeof|subgraph|direction|flowchart|sequenceDiagram|end)\b|\b(True|False|None|true|false|null|undefined|self|cls|\d+(?:\.\d+)?)\b|(@[A-Za-z_]\w*|\b(?:str|int|float|bool|list|dict|set|tuple|Any|Optional|Annotated|Field|Tool|ToolContext|ValidationError|ValueError|KeyError|Exception|Promise|Record|Array)\b)|\b([A-Za-z_]\w*)(?=\s*\()/g;
+
+      const applyCodeSyntaxHighlights = () => {
+        const cssApi = globalThis as unknown as {
+          CSS?: { highlights?: Map<string, unknown> };
+          Highlight?: new (...ranges: Range[]) => unknown;
+        };
+        if (!cssApi.CSS?.highlights || !cssApi.Highlight) return;
+
+        const cmtRanges: Range[] = [];
+        const strRanges: Range[] = [];
+        const kwRanges: Range[] = [];
+        const fnRanges: Range[] = [];
+        const numRanges: Range[] = [];
+        const typeRanges: Range[] = [];
+
+        const codeEls = el.querySelectorAll(
+          '.vditor-ir__node[data-type="code-block"] > pre.vditor-ir__marker--pre > code'
+        );
+        codeEls.forEach((codeNode) => {
+          const codeEl = codeNode as HTMLElement;
+          if (
+            codeEl.classList.contains('language-mermaid') &&
+            !codeEl.closest('.vditor-ir__node--expand')
+          ) {
+            return;
+          }
+          if (codeEl.classList.contains('language-text')) return;
+
+          const segments: Array<{ node: Text; start: number; end: number }> = [];
+          let fullText = '';
+          const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
+          let tNode = walker.nextNode() as Text | null;
+          while (tNode) {
+            const len = (tNode.nodeValue || '').length;
+            if (len > 0) {
+              segments.push({ node: tNode, start: fullText.length, end: fullText.length + len });
+              fullText += tNode.nodeValue;
+            }
+            tNode = walker.nextNode() as Text | null;
+          }
+          if (!fullText) return;
+
+          const addRange = (bucket: Range[], startOffset: number, endOffset: number) => {
+            if (endOffset <= startOffset) return;
+            for (const seg of segments) {
+              if (seg.end <= startOffset) continue;
+              if (seg.start >= endOffset) break;
+              const s = Math.max(0, startOffset - seg.start);
+              const eOff = Math.min(seg.end - seg.start, endOffset - seg.start);
+              if (eOff > s) {
+                const r = document.createRange();
+                r.setStart(seg.node, s);
+                r.setEnd(seg.node, eOff);
+                bucket.push(r);
+              }
+            }
+          };
+
+          CODE_TOKEN_REGEX.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = CODE_TOKEN_REGEX.exec(fullText)) !== null) {
+            const idx = m.index;
+            const full = m[0];
+            if (m[1]) {
+              addRange(cmtRanges, idx, idx + full.length);
+            } else if (m[2]) {
+              addRange(strRanges, idx, idx + full.length);
+            } else if (m[3] && m[4]) {
+              addRange(kwRanges, idx, idx + m[3].length);
+              const nameStart = idx + full.lastIndexOf(m[4]);
+              addRange(fnRanges, nameStart, nameStart + m[4].length);
+            } else if (m[5]) {
+              addRange(kwRanges, idx, idx + full.length);
+            } else if (m[6]) {
+              addRange(numRanges, idx, idx + full.length);
+            } else if (m[7]) {
+              addRange(typeRanges, idx, idx + full.length);
+            } else if (m[8]) {
+              addRange(fnRanges, idx, idx + full.length);
+            }
+          }
+        });
+
+        const setOrClear = (name: string, ranges: Range[]) => {
+          if (ranges.length > 0 && cssApi.Highlight) {
+            cssApi.CSS?.highlights?.set(name, new cssApi.Highlight(...ranges));
+          } else {
+            cssApi.CSS?.highlights?.delete(name);
+          }
+        };
+        setOrClear('vcat-hl-comment', cmtRanges);
+        setOrClear('vcat-hl-string', strRanges);
+        setOrClear('vcat-hl-keyword', kwRanges);
+        setOrClear('vcat-hl-title', fnRanges);
+        setOrClear('vcat-hl-number', numRanges);
+        setOrClear('vcat-hl-builtin', typeRanges);
+      };
+
       const enhanceDom = () => {
         rewriteLocalImagesSync();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
+          applyCodeSyntaxHighlights();
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
           htmlNodes.forEach((node) => {
             const rawText = (node.textContent || '').trim();
@@ -669,7 +770,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       };
 
       const observer = new MutationObserver(enhanceDom);
-      observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+      observer.observe(el, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['src'],
+      });
+      enhanceDom();
 
       const handleKeyDownCapture = (e: KeyboardEvent) => {
         const targetNode = e.target as HTMLElement | null;
@@ -822,7 +930,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const codeBlockNode = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
         if (codeBlockNode) {
           const rect = codeBlockNode.getBoundingClientRect();
-          if (e.clientX - rect.left <= 68 && e.clientY - rect.top <= 30) {
+          const relX = e.clientX - rect.left;
+          const relY = e.clientY - rect.top;
+          if (relX >= 4 && relX <= 68 && relY >= 4 && relY <= 30) {
             const infoSpan = codeBlockNode.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
             if (infoSpan) {
               e.preventDefault();

@@ -313,21 +313,21 @@
         items: [
           {
             id: "T1",
-            title: "T1. 暗黑模式 Mermaid 连线标签（是/否/能/不能）深底白字高对比适配",
+            title: "T1. 暗黑模式 Mermaid 连线标签（含灯箱预览层与子图连线文字）完整显示不裁切",
             status: "done",
             statusText: "本轮新改待打勾",
-            img: "media_1794844715218_c1b43fdb.png",
-            desc: "针对 Mermaid v11 <foreignObject> 内的 .edgeLabel / p / span / .labelBkg 设置深石板底色（#1e2633）与亮白文字（#f0f6fc），彻底消除暗黑模式下连线文字白底白字看不清的问题。",
-            plan: "请切到暗黑主题查看「2.8 选型决策树」流程图连线上的「是 / 否 / 能 / 不能」标签清晰度。"
+            img: "media_1794846323869_56e7c249.png",
+            desc: "修复暗黑模式下 Mermaid v11 <foreignObject> 内 span.edgeLabel 因内联 padding 产生 13.2px 空行撑开、导致 <p>（如「移交控制权和对话」「调用工具 task」）被挤出 foreignObject 视口而消失的 Bug；设置 foreignObject overflow: visible 与零边距/零内边距，正文与灯箱放大预览均清晰完整显示亮白连线文字。",
+            plan: "请切到暗黑主题查看「三种常见拓扑」及灯箱放大预览中连线上的「移交控制权和对话」「调用工具 task」等文字是否清晰可见。"
           },
           {
             id: "T2",
-            title: "T2. 普通代码块常驻单层可编辑 DOM（首次点击直接落光标编辑，零闪烁、零跳回首行）",
+            title: "T2. 普通代码块常驻单层可编辑 DOM + 原生 CSS.highlights 实时语法着色（零闪烁、有配色）",
             status: "done",
             statusText: "本轮新改待打勾",
             img: "media_1794845442647_36a31490.jpg",
-            desc: "对普通代码块（非 Mermaid）永久隐藏只读预览层 pre.vditor-ir__preview、常驻显示唯一可编辑层 pre.vditor-ir__marker--pre；首次点击代码任意一行直接将光标落在该字符处，不再触发 DOM 切换闪烁或跳回首行开头（图 2、图 5）。",
-            plan: "请直接单击任意 Python 代码块中间或末尾某行，确认光标直接落在点击处，无闪烁、不跳回第一行。"
+            desc: "在常驻单层可编辑 pre.vditor-ir__marker--pre 之上，接入浏览器原生 CSS Custom Highlight API（CSS.highlights + ::highlight(vcat-hl-*)），无需插入任何 <span> 标签即可在纯文本节点上实时渲染关键字、字符串、注释、函数名、数字与内置类型语法高亮（明暗主题自适应），同时保持首次点击直接落光标、零闪烁、零跳回首行。",
+            plan: "请查看并直接点击任意 Python 代码块，确认既有完整语法高亮配色，又能首次点击直接落光标编辑且无闪烁。"
           },
           {
             id: "T3",

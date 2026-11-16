@@ -308,16 +308,25 @@ body {
   padding: 0 3px !important;
   border-radius: 4px !important;
 }
-/* Prevent markdown paragraph/line-height overrides from clipping Mermaid SVG labels */
+/* Prevent markdown paragraph/line-height overrides from clipping Mermaid SVG labels in both editor and Lightbox */
 .vditor-ir__preview div.language-mermaid,
-.vditor-ir__preview div.language-mermaid * {
-  line-height: 1.35 !important;
+.vditor-ir__preview div.language-mermaid *,
+.vcat-lightbox-mermaid,
+.vcat-lightbox-mermaid * {
+  line-height: 1.3 !important;
 }
 .vditor-ir__preview div.language-mermaid p,
 .vditor-ir__preview div.language-mermaid div,
-.vditor-ir__preview div.language-mermaid span {
+.vditor-ir__preview div.language-mermaid span,
+.vcat-lightbox-mermaid p,
+.vcat-lightbox-mermaid div,
+.vcat-lightbox-mermaid span {
   margin: 0 !important;
   padding: 0 !important;
+}
+.vditor-ir__preview div.language-mermaid svg foreignObject,
+.vcat-lightbox-mermaid svg foreignObject {
+  overflow: visible !important;
 }
 .vditor-reset a,
 .vditor-ir__link,
@@ -442,7 +451,6 @@ body {
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
   background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
   color: var(--text-main) !important;
-  -webkit-text-fill-color: currentColor !important;
   border-radius: 10px !important;
   padding: 36px 18px 12px !important;
   margin: 0 !important;
@@ -478,7 +486,6 @@ body {
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
   background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
   color: var(--text-main) !important;
-  -webkit-text-fill-color: currentColor !important;
   border-radius: 10px !important;
   padding: 36px 18px 12px !important;
   margin: 0 !important;
@@ -507,7 +514,6 @@ body {
   padding: 0 !important;
   margin: 0 !important;
   color: var(--text-main) !important;
-  -webkit-text-fill-color: currentColor !important;
   overflow: visible !important;
   cursor: text !important;
 }
@@ -519,12 +525,10 @@ body {
   background-color: #161b22 !important;
   border-color: rgba(240, 246, 252, 0.14) !important;
   color: #e6edf3 !important;
-  -webkit-text-fill-color: #e6edf3 !important;
 }
 [data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] > pre.vditor-ir__preview > code,
 [data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] > pre.vditor-ir__marker--pre > code {
   color: #e6edf3 !important;
-  -webkit-text-fill-color: #e6edf3 !important;
 }
 [data-theme*='-dark'] .vditor-reset pre code,
 [data-theme*='-dark'] .vditor-reset pre code.hljs,
@@ -652,8 +656,46 @@ body {
   background: #1e2633 !important;
   color: #f0f6fc !important;
   fill: #f0f6fc !important;
-  border-radius: 4px !important;
-  padding: 1px 4px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Native CSS Custom Highlight API syntax highlighting for single-layer editable code blocks */
+::highlight(vcat-hl-comment) {
+  color: #6e7781;
+}
+::highlight(vcat-hl-string) {
+  color: #0a3069;
+}
+::highlight(vcat-hl-keyword) {
+  color: #cf222e;
+}
+::highlight(vcat-hl-title) {
+  color: #8250df;
+}
+::highlight(vcat-hl-number) {
+  color: #0550ae;
+}
+::highlight(vcat-hl-builtin) {
+  color: #953800;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-comment) {
+  color: #8b949e;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-string) {
+  color: #a5d6ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-keyword) {
+  color: #ff7b72;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-title) {
+  color: #d2a8ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-number) {
+  color: #79c0ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-builtin) {
+  color: #ffa657;
 }
 
 /* Scope Mermaid hover & cursor strictly to the rendered diagram preview div, NEVER the code editor! */
