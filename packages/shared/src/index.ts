@@ -81,10 +81,13 @@ export interface ContextMenuOptions {
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
+  getRecentWorkspaces: () => Promise<string[]>;
+  switchWorkspace: (dirPath: string) => Promise<string | null>;
+  showInFinder: (relativePath?: string) => Promise<void>;
   listArticles: () => Promise<ArticleMeta[]>;
   readArticle: (relativePath: string) => Promise<string>;
   saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;
-  createArticle: (fileName: string) => Promise<ArticleMeta>;
+  createArticle: (fileName?: string) => Promise<ArticleMeta>;
   saveLocalImage: (
     base64Data: string,
     ext: string

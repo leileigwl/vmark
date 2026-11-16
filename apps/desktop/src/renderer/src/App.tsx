@@ -9,9 +9,11 @@ import {
   Globe,
   Image as ImageIcon,
   ListTree,
+  MoreVertical,
   Palette,
   PanelLeft,
   Plus,
+  Search,
   Send,
   Settings,
   Table2,
@@ -79,7 +81,12 @@ export default function App() {
   const [sideTab, setSideTab] = useState<SideTab>('files');
   const [settingCategory, setSettingCategory] = useState<SettingCategory>('image');
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>([]);
   const [articles, setArticles] = useState<ArticleMeta[]>([]);
+  const [sortBy, setSortBy] = useState<'name' | 'time'>('name');
+  const [fileSearchOpen, setFileSearchOpen] = useState<boolean>(false);
+  const [fileSearchQuery, setFileSearchQuery] = useState<string>('');
+  const [sidebarMenuOpen, setSidebarMenuOpen] = useState<boolean>(false);
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
@@ -122,14 +129,16 @@ export default function App() {
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, list, imgCfg, auths, git] = await Promise.all([
+    const [wsPath, recent, list, imgCfg, auths, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
+      window.electronAPI.getRecentWorkspaces(),
       window.electronAPI.listArticles(),
       window.electronAPI.getImageBedConfig(),
       window.electronAPI.getPlatformAuthStates(),
       window.electronAPI.getGitStatus(),
     ]);
     setWorkspacePath(wsPath);
+    setRecentWorkspaces(recent);
     setArticles(list);
     setImageBed(imgCfg);
     setAuthStates(auths);
@@ -230,12 +239,20 @@ export default function App() {
   }
 
   async function handleCreateBlankArticle() {
-    const name = `untitled-${Date.now().toString().slice(-4)}.md`;
-    const created = await window.electronAPI.createArticle(name);
+    const created = await window.electronAPI.createArticle();
     const list = await window.electronAPI.listArticles();
     setArticles(list);
     await openArticle(created);
     setActiveView('editor');
+  }
+
+  async function handleSwitchRecentWorkspace(dirPath: string) {
+    setSidebarMenuOpen(false);
+    const switched = await window.electronAPI.switchWorkspace(dirPath);
+    if (switched) {
+      setActiveArticle(null);
+      await refreshWorkspace();
+    }
   }
 
   async function handleSaveArticle(nextContent: string) {
@@ -272,7 +289,20 @@ export default function App() {
     setGitStatus(git);
   }
 
-  const fileTree = useMemo(() => buildFileTree(articles), [articles]);
+  const filteredArticles = useMemo(() => {
+    const q = fileSearchQuery.trim().toLowerCase();
+    const base = q
+      ? articles.filter(
+          (a) => a.title.toLowerCase().includes(q) || a.relativePath.toLowerCase().includes(q)
+        )
+      : [...articles];
+    if (sortBy === 'time') {
+      return base.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+    return base.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  }, [articles, fileSearchQuery, sortBy]);
+
+  const fileTree = useMemo(() => buildFileTree(filteredArticles), [filteredArticles]);
   const outlineNodes = useMemo(() => extractOutline(markdown), [markdown]);
   const liveWordCount = useMemo(() => countWords(markdown), [markdown]);
   const totalLocalImages = useMemo(
@@ -333,21 +363,21 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white text-[#333333]">
-      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 底部动作条） */}
+      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 搜索 + 底部动作菜单） */}
       {sidebarOpen && (
-        <aside className="flex h-screen w-[248px] shrink-0 flex-col border-r border-[#e5e7eb] bg-[#fafafa] select-none">
+        <aside className="relative flex h-screen w-[248px] shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] select-none">
           {/* 顶部 macOS 红绿灯留白拖动区 */}
           <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
 
-          {/* Typora 式 文件 / 大纲 切换栏 */}
-          <div className="flex h-8 shrink-0 items-center border-b border-[#e5e7eb] px-4 text-[12px]">
+          {/* Typora 式 文件 / 大纲 切换栏 + 搜索按钮 */}
+          <div className="flex h-8 shrink-0 items-center border-b border-[var(--border-color)] px-3 text-[12px]">
             <button
               type="button"
               onClick={() => setSideTab('files')}
               className={`flex-1 py-1 text-center font-medium ${
                 sideTab === 'files'
-                  ? 'border-b-2 border-[#4183c4] text-[#333333]'
-                  : 'text-[#777777] hover:text-[#333333]'
+                  ? 'border-b-2 border-[var(--accent)] text-[var(--text-main)]'
+                  : 'text-[var(--control-text-color)] hover:text-[var(--text-main)]'
               }`}
             >
               文件
@@ -357,13 +387,39 @@ export default function App() {
               onClick={() => setSideTab('outline')}
               className={`flex-1 py-1 text-center font-medium ${
                 sideTab === 'outline'
-                  ? 'border-b-2 border-[#4183c4] text-[#333333]'
-                  : 'text-[#777777] hover:text-[#333333]'
+                  ? 'border-b-2 border-[var(--accent)] text-[var(--text-main)]'
+                  : 'text-[var(--control-text-color)] hover:text-[var(--text-main)]'
               }`}
             >
               大纲
             </button>
+            <button
+              type="button"
+              title="搜索文件"
+              onClick={() => {
+                setSideTab('files');
+                setFileSearchOpen((v) => !v);
+              }}
+              className={`ml-1 rounded p-1 ${
+                fileSearchOpen ? 'text-[var(--accent)]' : 'text-[var(--control-text-color)] hover:text-[var(--text-main)]'
+              }`}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
           </div>
+
+          {fileSearchOpen && sideTab === 'files' && (
+            <div className="border-b border-[var(--border-color)] px-2.5 py-1.5">
+              <input
+                type="text"
+                autoFocus
+                placeholder="筛选文件名或标题..."
+                value={fileSearchQuery}
+                onChange={(e) => setFileSearchQuery(e.target.value)}
+                className="w-full rounded border border-[var(--border-color)] bg-white px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
+              />
+            </div>
+          )}
 
           {/* 目录树 / 大纲区 */}
           <div className="flex-1 overflow-y-auto px-1.5 py-2">
@@ -397,8 +453,107 @@ export default function App() {
             )}
           </div>
 
-          {/* Typora 底部工作区动作条（+ 新建 / 切换文件夹 / 列表大纲） */}
-          <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[#e5e7eb] px-2.5 text-[11.5px] text-[#777777]">
+          {/* Typora 底部工作区动作条与弹出菜单 */}
+          {sidebarMenuOpen && (
+            <div className="absolute bottom-8 left-2 right-2 z-40 rounded-lg border border-[#e5e7eb] bg-white/95 py-2 text-xs shadow-xl backdrop-blur-xs">
+              <div className="flex items-center justify-between px-3 pb-1 text-[11px] font-semibold text-[#777777]">
+                <span>操作</span>
+                <button type="button" onClick={() => setSidebarMenuOpen(false)} className="hover:text-[#333333]">✕</button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarMenuOpen(false);
+                  void handleCreateBlankArticle();
+                }}
+                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+              >
+                新建文件
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarMenuOpen(false);
+                  setFileSearchOpen(true);
+                }}
+                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+              >
+                搜索
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarMenuOpen(false);
+                  void window.electronAPI.showInFinder(activeArticle?.relativePath);
+                }}
+                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+              >
+                在 Finder 中显示
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarMenuOpen(false);
+                  void handleSelectWorkspace();
+                }}
+                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+              >
+                打开文件夹...
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarMenuOpen(false);
+                  void refreshWorkspace();
+                }}
+                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+              >
+                刷新
+              </button>
+
+              <div className="my-1.5 flex items-center justify-between border-t border-[#eeeeee] px-3 pt-1.5 text-[11px] text-[#777777]">
+                <span>排序</span>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('name')}
+                    className={`rounded px-1.5 py-0.5 ${sortBy === 'name' ? 'bg-[#e6eff8] text-[#007aff]' : 'hover:bg-[#f3f4f6]'}`}
+                  >
+                    A-Z
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSortBy('time')}
+                    className={`rounded px-1.5 py-0.5 ${sortBy === 'time' ? 'bg-[#e6eff8] text-[#007aff]' : 'hover:bg-[#f3f4f6]'}`}
+                  >
+                    最近
+                  </button>
+                </div>
+              </div>
+
+              {recentWorkspaces.length > 0 && (
+                <div className="border-t border-[#eeeeee] pt-1.5">
+                  <div className="px-3 pb-1 text-[11px] font-semibold text-[#777777]">最近使用的目录</div>
+                  {recentWorkspaces.map((dir) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => void handleSwitchRecentWorkspace(dir)}
+                      className="flex w-full items-center justify-between px-3 py-1 text-left hover:bg-[#f0f4f8]"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Folder className="h-3 w-3 shrink-0 text-[#777777]" />
+                        <span className="truncate">{dir.split('/').pop() || dir}</span>
+                      </span>
+                      {dir === workspacePath && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#007aff]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[var(--border-color)] px-2.5 text-[11.5px] text-[var(--control-text-color)]">
             <button
               type="button"
               title="新建空白文章"
@@ -409,20 +564,30 @@ export default function App() {
             </button>
             <button
               type="button"
-              title="切换本地博客目录"
-              onClick={() => void handleSelectWorkspace()}
-              className="max-w-[145px] truncate rounded px-1.5 py-0.5 hover:bg-[#eceef1] hover:text-[#333333]"
+              title="工作区操作与最近目录"
+              onClick={() => setSidebarMenuOpen((v) => !v)}
+              className="max-w-[130px] truncate rounded px-1.5 py-0.5 hover:bg-[#eceef1] hover:text-[#333333]"
             >
               {workspaceName}
             </button>
-            <button
-              type="button"
-              title="切换大纲视图"
-              onClick={() => setSideTab((t) => (t === 'files' ? 'outline' : 'files'))}
-              className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
-            >
-              <ListTree className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                title="更多目录操作"
+                onClick={() => setSidebarMenuOpen((v) => !v)}
+                className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                title="切换大纲视图"
+                onClick={() => setSideTab((t) => (t === 'files' ? 'outline' : 'files'))}
+                className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+              >
+                <ListTree className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </aside>
       )}

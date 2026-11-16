@@ -21,13 +21,20 @@ protocol.registerSchemesAsPrivileged([
 
 interface AppConfig {
   workspacePath: string | null;
+  recentWorkspaces: string[];
   imageBed: ImageBedConfig;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
   workspacePath: null,
+  recentWorkspaces: [],
   imageBed: { strategy: 'platform_private' },
 };
+
+function recordRecentWorkspace(cfg: AppConfig, dirPath: string): void {
+  cfg.workspacePath = dirPath;
+  cfg.recentWorkspaces = [dirPath, ...cfg.recentWorkspaces.filter((p) => p !== dirPath)].slice(0, 8);
+}
 
 function getConfigPath(): string {
   return path.join(app.getPath('userData'), 'vcat-config.json');
@@ -219,7 +226,35 @@ function buildApplicationMenu(): void {
 function registerIpcHandlers(): void {
   ipcMain.handle('workspace:get', async () => {
     const cfg = await readAppConfig();
+    if (cfg.workspacePath && !cfg.recentWorkspaces.includes(cfg.workspacePath)) {
+      recordRecentWorkspace(cfg, cfg.workspacePath);
+      await writeAppConfig(cfg);
+    }
     return cfg.workspacePath;
+  });
+
+  ipcMain.handle('workspace:recent', async () => {
+    const cfg = await readAppConfig();
+    return cfg.recentWorkspaces;
+  });
+
+  ipcMain.handle('workspace:switch', async (_event, dirPath: string) => {
+    if (!existsSync(dirPath)) return null;
+    const cfg = await readAppConfig();
+    recordRecentWorkspace(cfg, dirPath);
+    await writeAppConfig(cfg);
+    return cfg.workspacePath;
+  });
+
+  ipcMain.handle('workspace:showInFinder', async (_event, relativePath?: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return;
+    if (relativePath) {
+      const target = resolveSafePath(cfg.workspacePath, relativePath);
+      shell.showItemInFolder(target);
+    } else {
+      await shell.openPath(cfg.workspacePath);
+    }
   });
 
   ipcMain.handle('workspace:select', async () => {
@@ -229,7 +264,7 @@ function registerIpcHandlers(): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     const cfg = await readAppConfig();
-    cfg.workspacePath = result.filePaths[0];
+    recordRecentWorkspace(cfg, result.filePaths[0]);
     await writeAppConfig(cfg);
     return cfg.workspacePath;
   });
@@ -257,10 +292,24 @@ function registerIpcHandlers(): void {
     return { updatedAt: stat.mtimeMs };
   });
 
-  ipcMain.handle('articles:create', async (_event, fileName: string) => {
+  ipcMain.handle('articles:create', async (_event, fileName?: string) => {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
-    const safeName = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
+
+    let safeName = fileName?.trim();
+    if (!safeName) {
+      // Sequential Typora-style naming: Untitled.md, Untitled 2.md, Untitled 3.md...
+      let candidate = 'Untitled.md';
+      let index = 2;
+      while (existsSync(resolveSafePath(cfg.workspacePath, candidate))) {
+        candidate = `Untitled ${index}.md`;
+        index++;
+      }
+      safeName = candidate;
+    } else if (!safeName.endsWith('.md')) {
+      safeName = `${safeName}.md`;
+    }
+
     const target = resolveSafePath(cfg.workspacePath, safeName);
     const title = path.basename(safeName, '.md');
     const initialContent = `# ${title}\n\n`;
