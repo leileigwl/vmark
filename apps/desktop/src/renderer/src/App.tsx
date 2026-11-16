@@ -395,6 +395,23 @@ export default function App() {
             }
           }
         }}
+        onBatchDeleteArticles={async (targets) => {
+          if (targets.length === 0) return;
+          if (!window.confirm(`确定要将选中的 ${targets.length} 篇文章移到废纸篓吗？`)) return;
+          const deletedSet = new Set(targets.map((t) => t.relativePath));
+          for (const t of targets) {
+            await window.electronAPI.deleteArticle(t.relativePath);
+          }
+          const list = await window.electronAPI.listArticles();
+          setArticles(list);
+          if (activeArticle && deletedSet.has(activeArticle.relativePath)) {
+            if (list.length > 0) await openArticle(list[0]);
+            else {
+              setActiveArticle(null);
+              setMarkdown('');
+            }
+          }
+        }}
         onDuplicateArticle={async (art) => {
           const dup = await window.electronAPI.duplicateArticle(art.relativePath);
           setArticles(await window.electronAPI.listArticles());

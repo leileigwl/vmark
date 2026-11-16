@@ -86,6 +86,7 @@ interface SidebarProps {
   onCreateFolder: (name: string, parentDir?: string) => Promise<void>;
   onRenameArticle: (oldPath: string, newName: string) => Promise<void>;
   onDeleteArticle: (art: ArticleMeta) => Promise<void>;
+  onBatchDeleteArticles?: (targets: ArticleMeta[]) => Promise<void>;
   onDuplicateArticle: (art: ArticleMeta) => Promise<void>;
   onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
   onMoveFolder: (oldFolder: string, targetParent: string) => Promise<void>;
@@ -115,6 +116,7 @@ export function Sidebar({
   onCreateFolder,
   onRenameArticle,
   onDeleteArticle,
+  onBatchDeleteArticles,
   onDuplicateArticle,
   onMoveArticle,
   onMoveFolder,
@@ -140,6 +142,8 @@ export function Sidebar({
   } | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [activeOutlineIdx, setActiveOutlineIdx] = useState<number | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [lastClickedPath, setLastClickedPath] = useState<string | null>(null);
   const [fileContextMenu, setFileContextMenu] = useState<{
     x: number;
     y: number;
@@ -201,6 +205,51 @@ export function Sidebar({
     () => buildFileTree(filteredArticles, fileSearchQuery.trim() ? [] : folders),
     [filteredArticles, folders, fileSearchQuery]
   );
+
+  const flatVisibleArticles = useMemo(() => {
+    if (fileViewMode === 'list') return filteredArticles;
+    const acc: ArticleMeta[] = [];
+    const walk = (nodes: TreeNode[]) => {
+      for (const n of nodes) {
+        if (n.isDir) {
+          if (expandedDirs[n.path] ?? true) walk(n.children);
+        } else if (n.article) {
+          acc.push(n.article);
+        }
+      }
+    };
+    walk(fileTree);
+    return acc;
+  }, [fileViewMode, filteredArticles, fileTree, expandedDirs]);
+
+  function handleArticleItemClick(e: React.MouseEvent, article: ArticleMeta) {
+    if (e.shiftKey) {
+      e.preventDefault();
+      const anchorPath = lastClickedPath ?? activeArticle?.relativePath ?? article.relativePath;
+      const idxA = flatVisibleArticles.findIndex((a) => a.relativePath === anchorPath);
+      const idxB = flatVisibleArticles.findIndex((a) => a.relativePath === article.relativePath);
+      if (idxA !== -1 && idxB !== -1) {
+        const [start, end] = idxA < idxB ? [idxA, idxB] : [idxB, idxA];
+        setSelectedPaths(flatVisibleArticles.slice(start, end + 1).map((a) => a.relativePath));
+      } else {
+        setSelectedPaths([article.relativePath]);
+      }
+      return;
+    }
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      setSelectedPaths((prev) =>
+        prev.includes(article.relativePath)
+          ? prev.filter((p) => p !== article.relativePath)
+          : [...prev, article.relativePath]
+      );
+      setLastClickedPath(article.relativePath);
+      return;
+    }
+    setSelectedPaths([article.relativePath]);
+    setLastClickedPath(article.relativePath);
+    onOpenArticle(article);
+  }
 
   function startCreateItem(type: 'file' | 'folder', parentDir?: string) {
     onChangeSideTab('files');
@@ -300,7 +349,8 @@ export function Sidebar({
       }
 
       const article = node.article;
-      const isSelected = activeArticle?.relativePath === article?.relativePath;
+      const isMultiSelected = Boolean(article && selectedPaths.includes(article.relativePath));
+      const isSelected = isMultiSelected || activeArticle?.relativePath === article?.relativePath;
       const isRenaming = renamingPath === article?.relativePath;
       return (
         <div
@@ -309,6 +359,10 @@ export function Sidebar({
             if (!article) return;
             e.preventDefault();
             e.stopPropagation();
+            if (!selectedPaths.includes(article.relativePath)) {
+              setSelectedPaths([article.relativePath]);
+              setLastClickedPath(article.relativePath);
+            }
             setFileContextMenu({ x: e.clientX, y: e.clientY, article });
           }}
         >
@@ -344,8 +398,8 @@ export function Sidebar({
               onDragStart={(e) => {
                 if (article) e.dataTransfer.setData('text/plain', article.relativePath);
               }}
-              onClick={() => {
-                if (article) onOpenArticle(article);
+              onClick={(e) => {
+                if (article) handleArticleItemClick(e, article);
               }}
               onDoubleClick={() => {
                 if (article) handleRenameStart(article);
@@ -579,17 +633,23 @@ export function Sidebar({
               <div className="px-3 py-4 text-xs text-[var(--control-text-color)]">暂无 Markdown 文件</div>
             ) : fileViewMode === 'list' ? (
               filteredArticles.map((art) => {
-                const isSelected = activeArticle?.relativePath === art.relativePath;
+                const isSelected =
+                  selectedPaths.includes(art.relativePath) ||
+                  activeArticle?.relativePath === art.relativePath;
                 return (
                   <button
                     key={art.relativePath}
                     type="button"
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', art.relativePath)}
-                    onClick={() => onOpenArticle(art)}
+                    onClick={(e) => handleArticleItemClick(e, art)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      if (!selectedPaths.includes(art.relativePath)) {
+                        setSelectedPaths([art.relativePath]);
+                        setLastClickedPath(art.relativePath);
+                      }
                       setFileContextMenu({ x: e.clientX, y: e.clientY, article: art });
                     }}
                     className={`flex w-full items-center gap-1.5 rounded px-2.5 py-[4px] text-left text-[12.5px] leading-5 ${
@@ -928,22 +988,36 @@ export function Sidebar({
             onClick={() => {
               const target = fileContextMenu.article;
               setFileContextMenu(null);
-              void onDeleteArticle(target);
+              if (selectedPaths.length > 1 && onBatchDeleteArticles) {
+                const targets = articles.filter((a) => selectedPaths.includes(a.relativePath));
+                setSelectedPaths([]);
+                void onBatchDeleteArticles(targets);
+              } else {
+                void onDeleteArticle(target);
+              }
             }}
             className="block w-full px-3.5 py-1 text-left text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
           >
-            删除...
+            {selectedPaths.length > 1 ? `批量删除 (${selectedPaths.length} 篇)...` : '删除...'}
           </button>
           <div className="my-1 border-t border-[var(--border-color)]" />
           <button
             type="button"
             onClick={() => {
-              void navigator.clipboard.writeText(fileContextMenu.article.fullPath);
+              if (selectedPaths.length > 1) {
+                const fullPaths = articles
+                  .filter((a) => selectedPaths.includes(a.relativePath))
+                  .map((a) => a.fullPath)
+                  .join('\n');
+                void navigator.clipboard.writeText(fullPaths);
+              } else {
+                void navigator.clipboard.writeText(fileContextMenu.article.fullPath);
+              }
               setFileContextMenu(null);
             }}
             className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
           >
-            复制文件路径
+            {selectedPaths.length > 1 ? `批量复制文件路径 (${selectedPaths.length} 篇)` : '复制文件路径'}
           </button>
           <button
             type="button"

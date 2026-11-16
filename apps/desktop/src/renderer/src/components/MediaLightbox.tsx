@@ -13,7 +13,7 @@ interface MediaLightboxProps {
   onClose: () => void;
 }
 
-/** Adaptive Lightbox for images and Mermaid diagrams with wheel-zoom, drag-pan, rotate, and ESC/A close. */
+/** Window-adaptive Lightbox for images & Mermaid diagrams (Space to open, ESC to close, smooth 360° rotation). */
 export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
   const [scale, setScale] = useState(100);
   const [rotation, setRotation] = useState(0);
@@ -23,7 +23,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
 
   useEffect(() => {
     if (!item) return;
-    setScale(item.type === 'mermaid' ? 120 : 100);
+    setScale(100);
     setRotation(0);
     setPan({ x: 0, y: 0 });
   }, [item]);
@@ -31,7 +31,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
   useEffect(() => {
     if (!item) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'a' || e.key === 'A') {
+      if (e.key === 'Escape' || e.key === ' ') {
         e.preventDefault();
         e.stopPropagation();
         onClose();
@@ -44,7 +44,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
       } else if (e.key === '0') {
         e.preventDefault();
         setScale(100);
-        setRotation(0);
+        setRotation((r) => Math.round(r / 360) * 360);
         setPan({ x: 0, y: 0 });
       }
     };
@@ -53,6 +53,12 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
   }, [item, onClose]);
 
   if (!item) return null;
+
+  const resetView = () => {
+    setScale(100);
+    setRotation((r) => Math.round(r / 360) * 360);
+    setPan({ x: 0, y: 0 });
+  };
 
   return (
     <div
@@ -72,12 +78,12 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
       }}
       onMouseUp={() => setDragging(false)}
       onMouseLeave={() => setDragging(false)}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-md select-none"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/72 backdrop-blur-md select-none"
     >
       {/* Top floating glass control bar */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fixed top-5 z-50 flex items-center gap-1.5 rounded-full border border-white/15 bg-[#1c1c1e]/90 px-3.5 py-1.5 text-xs text-white shadow-2xl backdrop-blur-xl"
+        className="fixed top-5 z-50 flex items-center gap-1.5 rounded-full border border-white/15 bg-[#1c1c1e]/92 px-3.5 py-1.5 text-xs text-white shadow-2xl backdrop-blur-xl"
       >
         <button
           type="button"
@@ -89,12 +95,8 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
         </button>
         <button
           type="button"
-          title="点击重置为 100%"
-          onClick={() => {
-            setScale(100);
-            setRotation(0);
-            setPan({ x: 0, y: 0 });
-          }}
+          title="点击重置为 100% 适配窗口大小"
+          onClick={resetView}
           className="min-w-[52px] rounded px-1.5 py-0.5 text-center font-mono text-[11.5px] hover:bg-white/15"
         >
           {scale}%
@@ -110,8 +112,8 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
         <div className="mx-1 h-3.5 w-[1px] bg-white/20" />
         <button
           type="button"
-          title="顺时针旋转 90°"
-          onClick={() => setRotation((r) => (r + 90) % 360)}
+          title="顺时针旋转 90°（360° 顺滑回正不倒转）"
+          onClick={() => setRotation((r) => r + 90)}
           className="flex items-center gap-1 rounded-full px-2.5 py-1 hover:bg-white/15"
         >
           <RotateCw className="h-3.5 w-3.5" />
@@ -120,11 +122,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
         <button
           type="button"
           title="重置位置与角度"
-          onClick={() => {
-            setScale(100);
-            setRotation(0);
-            setPan({ x: 0, y: 0 });
-          }}
+          onClick={resetView}
           className="flex items-center gap-1 rounded-full px-2 py-1 hover:bg-white/15"
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -133,16 +131,16 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
         <div className="mx-1 h-3.5 w-[1px] bg-white/20" />
         <button
           type="button"
-          title="关闭预览 (快捷键: ESC 或 A)"
+          title="关闭预览 (快捷键: ESC)"
           onClick={onClose}
           className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 font-medium text-white hover:bg-[#ff3b30]"
         >
           <X className="h-3.5 w-3.5" />
-          <span>关闭 (ESC / A)</span>
+          <span>关闭 (ESC)</span>
         </button>
       </div>
 
-      {/* Adaptive viewport container */}
+      {/* Window-adaptive viewport container */}
       <div
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => {
@@ -153,7 +151,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
         }}
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale / 100}) rotate(${rotation}deg)`,
-          transition: dragging ? 'none' : 'transform 0.12s ease-out',
+          transition: dragging ? 'none' : 'transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)',
         }}
         className={`flex max-h-[82vh] max-w-[88vw] items-center justify-center ${
           dragging ? 'cursor-grabbing' : 'cursor-grab'
@@ -164,19 +162,19 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
             src={item.src}
             alt={item.alt || '预览图片'}
             draggable={false}
-            className="max-h-[80vh] max-w-[86vw] rounded-lg object-contain shadow-2xl"
+            className="h-[74vh] w-[76vw] max-w-[1120px] rounded-xl object-contain shadow-2xl"
           />
         ) : (
           <div
-            className="vcat-lightbox-mermaid max-h-[82vh] max-w-[88vw] overflow-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)] p-8 text-[var(--text-main)] shadow-2xl"
+            className="vcat-lightbox-mermaid flex max-h-[80vh] w-[78vw] max-w-[1140px] items-center justify-center overflow-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)] p-8 text-[var(--text-main)] shadow-2xl"
             dangerouslySetInnerHTML={{ __html: item.svgHtml || '' }}
           />
         )}
       </div>
 
       {/* Bottom hint pill */}
-      <div className="pointer-events-none fixed bottom-4 rounded-full bg-black/50 px-3.5 py-1 text-[11px] text-white/75 backdrop-blur-md">
-        滚轮缩放 · 按住拖拽平移 · 按 ESC / A 或点击空白处关闭
+      <div className="pointer-events-none fixed bottom-4 rounded-full bg-black/55 px-3.5 py-1 text-[11px] text-white/80 backdrop-blur-md">
+        滚轮缩放 · 按住拖拽平移 · 按 ESC 或空格键关闭
       </div>
     </div>
   );

@@ -68,6 +68,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     onSaveRef.current = onSave;
     pendingValueRef.current = value;
 
+    const pushVditorUndo = () => {
+      const instance = vditorRef.current as unknown as {
+        vditor?: { undo?: { addToUndoStack?: (v: unknown) => void } };
+      } | null;
+      if (instance?.vditor?.undo?.addToUndoStack) {
+        instance.vditor.undo.addToUndoStack(instance.vditor);
+      }
+    };
+
     const toggleInlineWrap = (cmd: 'bold' | 'italic' | 'strike' | 'inline-code') => {
       const instance = vditorRef.current;
       const el = containerRef.current;
@@ -113,27 +122,38 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
       const focusEl =
         sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode?.parentElement;
+
+      // Clamp selection strictly inside the starting table cell so dragging to the edge of a <td>
+      // never crosses into the next <td> and never shifts cells into an extra column!
+      const anchorCell = anchorEl?.closest('td, th') as HTMLElement | null;
+      if (anchorCell && !anchorCell.contains(range.commonAncestorContainer)) {
+        range.selectNodeContents(anchorCell);
+      }
+
       const commonEl =
         range.commonAncestorContainer instanceof Element
           ? range.commonAncestorContainer
           : range.commonAncestorContainer.parentElement;
 
-      const matchedEl =
+      let matchedEl =
         anchorEl?.closest(selector) ||
         focusEl?.closest(selector) ||
         commonEl?.closest(selector) ||
-        (range.commonAncestorContainer instanceof Element
-          ? range.commonAncestorContainer.querySelector(selector)
-          : null);
+        null;
+
+      if (!matchedEl && commonEl) {
+        const candidates = Array.from(commonEl.querySelectorAll(selector));
+        matchedEl = candidates.find((node) => range.intersectsNode(node)) ?? null;
+      }
 
       if (matchedEl && el.contains(matchedEl) && !matchedEl.closest('pre')) {
+        pushVditorUndo();
         const wrapperNode =
           matchedEl.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) ?? matchedEl;
         const innerTag = wrapperNode.querySelector(`${spec.tag}, ${spec.altTag}`);
         const rawText = innerTag ? innerTag.textContent || '' : wrapperNode.textContent || '';
         const cleanText = rawText
-          .replace(/^\*\*|\*\*$/g, '')
-          .replace(/^\*|\*$/g, '')
+          .replace(/^\*+|\*+$/g, '')
           .replace(/^~~|~~$/g, '')
           .replace(/^`|`$/g, '');
         const textNode = document.createTextNode(cleanText);
@@ -143,20 +163,41 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         nextRange.selectNodeContents(textNode);
         sel.removeAllRanges();
         sel.addRange(nextRange);
+        pushVditorUndo();
         onChangeRef.current(instance.getValue());
         return;
       }
 
       if (sel.isCollapsed) return;
-      const selectedText = sel.toString();
+      const selectedText = range.toString();
       if (!selectedText.trim()) return;
+
+      pushVditorUndo();
+
+      // If the selected text itself already has surrounding ** or * markers, strip them to unwrap
+      const trimmedSel = selectedText.trim();
+      if (
+        (cmd === 'bold' && /^\*\*[\s\S]+\*\*$/.test(trimmedSel)) ||
+        (cmd === 'italic' && /^\*[\s\S]+\*$/.test(trimmedSel))
+      ) {
+        const stripped = trimmedSel.replace(/^\*+|\*+$/g, '');
+        const textNode = document.createTextNode(stripped);
+        range.deleteContents();
+        range.insertNode(textNode);
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(textNode);
+        sel.removeAllRanges();
+        sel.addRange(nextRange);
+        pushVditorUndo();
+        onChangeRef.current(instance.getValue());
+        return;
+      }
 
       const leading = selectedText.match(/^\s*/)?.[0] ?? '';
       const trailing = selectedText.match(/\s*$/)?.[0] ?? '';
       const core = selectedText
         .trim()
-        .replace(/^\*\*|\*\*$/g, '')
-        .replace(/^\*|\*$/g, '');
+        .replace(/^\*+|\*+$/g, '');
       if (!core) return;
 
       const irSpan = document.createElement('span');
@@ -188,6 +229,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       nextRange.selectNodeContents(contentEl);
       sel.removeAllRanges();
       sel.addRange(nextRange);
+      pushVditorUndo();
       onChangeRef.current(instance.getValue());
     };
 
@@ -409,6 +451,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
 
         if (action === 'table-delete') {
+          pushVditorUndo();
           const p = document.createElement('p');
           p.innerHTML = '<br>';
           table.parentNode?.insertBefore(p, table);
@@ -421,10 +464,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             sel.removeAllRanges();
             sel.addRange(range);
           }
-          el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+          pushVditorUndo();
+          onChangeRef.current(vditorRef.current?.getValue() ?? value);
           return;
         }
 
+        pushVditorUndo();
         const matrix = allRows.map((r) =>
           Array.from(r.cells).map((c) => (c.innerHTML || '').trim())
         );
@@ -434,7 +479,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           p.innerHTML = '<br>';
           table.parentNode?.insertBefore(p, table);
           table.remove();
-          el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+          pushVditorUndo();
+          onChangeRef.current(vditorRef.current?.getValue() ?? value);
           return;
         }
 
@@ -463,8 +509,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         newTable.appendChild(tbody);
         table.replaceWith(newTable);
 
-        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
-        resetEl?.dispatchEvent(new Event('input', { bubbles: true }));
+        pushVditorUndo();
+        onChangeRef.current(vditorRef.current?.getValue() ?? value);
       },
     }));
 
@@ -539,17 +585,41 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       vditorRef.current = instance;
 
       let rafId = 0;
+      const rewriteLocalImagesSync = () => {
+        const imgs = el.querySelectorAll('img');
+        imgs.forEach((img) => {
+          const rawSrc = img.getAttribute('src');
+          if (!rawSrc || /^(https?:|data:|vcat-asset:|blob:)/i.test(rawSrc)) return;
+          const cleanRel = rawSrc.replace(/^\.\//, '');
+          img.src = `vcat-asset://local/${cleanRel}`;
+        });
+      };
+
+      const rerenderBrokenMermaid = () => {
+        const mermaidPreviews = el.querySelectorAll('.vditor-ir__preview div.language-mermaid');
+        mermaidPreviews.forEach((node) => {
+          const mermaidDiv = node as HTMLElement;
+          const irNode = mermaidDiv.closest('.vditor-ir__node');
+          if (irNode?.classList.contains('vditor-ir__node--expand')) return;
+          if (!mermaidDiv.querySelector('svg') && (mermaidDiv.textContent || '').trim()) {
+            mermaidDiv.removeAttribute('data-processed');
+            const previewPre = mermaidDiv.parentElement as HTMLElement | null;
+            if (previewPre) {
+              previewPre.setAttribute('data-render', '2');
+              const vditorStatic = Vditor as unknown as {
+                mermaidRender?: (el: HTMLElement, cdn?: string) => void;
+              };
+              vditorStatic.mermaidRender?.(previewPre, cdnBase);
+            }
+          }
+        });
+      };
+
       const enhanceDom = () => {
+        rewriteLocalImagesSync();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
-          const imgs = el.querySelectorAll('img');
-          imgs.forEach((img) => {
-            const rawSrc = img.getAttribute('src');
-            if (!rawSrc || /^(https?:|data:|vcat-asset:|blob:)/i.test(rawSrc)) return;
-            const cleanRel = rawSrc.replace(/^\.\//, '');
-            img.src = `vcat-asset://local/${cleanRel}`;
-          });
-
+          rewriteLocalImagesSync();
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
           htmlNodes.forEach((node) => {
             const rawText = (node.textContent || '').trim();
@@ -566,6 +636,35 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
       const handleKeyDownCapture = (e: KeyboardEvent) => {
+        // Space key opens Lightbox when an image or Mermaid diagram is currently selected
+        if (
+          e.key === ' ' &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey &&
+          !e.shiftKey &&
+          activeZoomImgRef.current &&
+          el.contains(activeZoomImgRef.current)
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          const activeEl = activeZoomImgRef.current as HTMLElement;
+          if (activeEl.classList.contains('language-mermaid')) {
+            setLightboxItem({
+              type: 'mermaid',
+              svgHtml: activeEl.innerHTML,
+            });
+          } else if (activeEl.tagName === 'IMG') {
+            const img = activeEl as HTMLImageElement;
+            setLightboxItem({
+              type: 'image',
+              src: img.src,
+              alt: img.alt,
+            });
+          }
+          return;
+        }
+
         const sel = window.getSelection();
         const anchorEl =
           sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
@@ -612,11 +711,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             e.preventDefault();
             e.stopPropagation();
             toggleInlineWrap('italic');
+          } else if (k === 'z' || k === 'y') {
+            setTimeout(rerenderBrokenMermaid, 50);
           }
+        } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+          setTimeout(rerenderBrokenMermaid, 50);
         }
       };
 
-      // Click image or Mermaid diagram to open Lightbox (with wheel-zoom & ESC/A close); rapid double-click Mermaid to edit code in-place
+      // Single-click image or Mermaid diagram to select (Space to open Lightbox, wheel to zoom); rapid double-click Mermaid to edit code in-place
       const clearActiveZoomTarget = () => {
         if (activeZoomImgRef.current) {
           activeZoomImgRef.current.style.outline = '';
@@ -693,15 +796,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           mermaidEl.style.outline = '2px solid var(--accent)';
           mermaidEl.style.outlineOffset = '4px';
           mermaidEl.style.borderRadius = '8px';
-
-          const svgSnapshot = mermaidEl.innerHTML;
-          mermaidClickTimerRef.current = setTimeout(() => {
-            mermaidClickTimerRef.current = null;
-            setLightboxItem({
-              type: 'mermaid',
-              svgHtml: svgSnapshot,
-            });
-          }, 210);
           return;
         }
 
@@ -714,11 +808,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           activeZoomImgRef.current = imgEl;
           imgEl.style.outline = '2px solid var(--accent)';
           imgEl.style.outlineOffset = '2px';
-          setLightboxItem({
-            type: 'image',
-            src: imgEl.src,
-            alt: imgEl.alt,
-          });
         }
       };
 

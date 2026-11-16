@@ -312,6 +312,60 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "S1",
+            title: "S1. 代码块移除双层空行错位与内部竖向滚动条（点击前后零跳动、零多余空行）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794842100959_36bfaf24.jpg",
+            desc: "彻底废弃双层透明 <pre> 叠加，改为单一真实 DOM 节点，消除长 text 代码块内部多余的灰色小滚动条与底部多余空行（图 1、图 2、图 8），点击与失焦前后行高/空行完全一致。",
+            plan: "请查看长 text 代码块与 Python 代码块，确认无内部竖向小滚动条、底部无大块留白，点击前后不跳动。"
+          },
+          {
+            id: "S2",
+            title: "S2. 图片与流程图「单击选中 + 按空格键（Space）窗口自适应放大」+ 仅 ESC 关闭 + 360° 顺时针不倒转",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794842693611_497f01b5.png",
+            desc: "1) 单击图片或流程图仅选中（支持原位滚轮缩放），按「空格键（Space）」才弹出灯箱并统一按当前桌面窗口 74vw × 74vh 自适应铺满；2) 移除 A 键关闭，仅保留 ESC（或空格/点空白）关闭；3) 旋转改为单调累加角度，270°→360° 顺时针顺滑回正，绝不逆时针倒转一圈。",
+            plan: "请单击流程图或图片后按「空格键」放大，测试连续点击 4 次「旋转」到 360° 是否顺滑回正，按 ESC 关闭。"
+          },
+          {
+            id: "S3",
+            title: "S3. 修复 Ctrl+Z 撤回后 Mermaid 退化为纯文本块 & 格式/表格修改完整接入撤销栈",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794842684163_0ac5e9c5.png",
+            desc: "1) 在 MutationObserver 中实时监测 .vditor-ir__preview div.language-mermaid，一旦 Ctrl+Z 撤回导致丢失 <svg>，立即自动触发 Vditor.mermaidRender 重绘为流程图；2) 所有 Ctrl+B/Ctrl+I 及表格操作前后显式推入 vditor.undo.addToUndoStack，确保已保存或加粗后按 Ctrl+Z 均可精准撤回。",
+            plan: "请在编辑文字或加粗后按 Ctrl+Z 撤回，确认可正常撤回且 Mermaid 流程图不会退化成纯文本代码框。"
+          },
+          {
+            id: "S4",
+            title: "S4. 修复表格内加斜体/加粗跨格串列（图 10）与重复加粗 ****1****（图 9）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794842930324_e2af059e.png",
+            desc: "1) 将表格内选区严格钳制（Clamp）在当前单个 <td>/<th> 内，防止拖选到单元格右边缘时跨入下一格导致首格清空并挤出新列（图 10）；2) 增强已加粗节点与 ** 标记识别，选中已加粗内容再按 Ctrl+B 直接剥离取消加粗，绝不叠加成 ****1****（图 9）。",
+            plan: "请在表格单元格内全选文字按 Ctrl+I / Ctrl+B 测试，并对已加粗文字再次按 Ctrl+B 验证取消加粗。"
+          },
+          {
+            id: "S5",
+            title: "S5. 暗黑模式超链接刺眼深蓝修复（图 4）& 右侧边距/滚动条恢复标准小箭头指针",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794842223362_a5cc03bd.jpg",
+            desc: "1) 直接在 .vditor 作用域覆盖 Vditor 写死的 --ir-bracket-color: #0000ff，暗黑模式下所有超链接统一呈现柔和护眼的冰蓝色（#78aee8）；2) 将外层全宽画布设为 cursor: default，使右侧空白边距与滚动条拖拽区域恢复标准小箭头指针，不再显示文本输入 I 型光标。",
+            plan: "请切到暗黑主题查看顶部「中文 | English」等超链接配色，并将鼠标移至右侧空白处与滚动条上查看箭头光标。"
+          },
+          {
+            id: "S6",
+            title: "S6. 左侧文件栏支持按住 Shift 区间连选 / Cmd 多选 + 右键批量删除",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794835039799_101513af.png",
+            desc: "左侧文章列表与文件树支持按住 Shift 键点击批量连选多篇文章（或按住 Cmd/Ctrl 点选），右键弹出「批量删除 (N 篇)...」与「批量复制文件路径 (N 篇)」。",
+            plan: "请在左侧文件栏点击一篇文章后，按住 Shift 点击另一篇，再右键体验批量删除。"
+          },
+          {
             id: "R1",
             title: "R1. 流程图（Mermaid）与图片统一高清画布灯箱（单击放大 + 滚轮缩放 + 旋转 + ESC/A 关闭）",
             status: "done",
@@ -714,17 +768,15 @@
     const STORAGE_KEY = "vcat_ui_review_v1";
     let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"checks":{},"notes":{},"decisions":{},"hideChecked":true}');
     if (state.hideChecked === undefined) state.hideChecked = true;
-    if (!state.initializedRound4) {
+    if (!state.initializedRound5) {
       for (const cat of CATEGORIES) {
-        if (cat.id !== "cat-latest") {
-          for (const item of cat.items) {
-            if (state.checks[item.id] === undefined) {
-              state.checks[item.id] = true;
-            }
+        for (const item of cat.items) {
+          if (!item.id.startsWith("S")) {
+            state.checks[item.id] = true;
           }
         }
       }
-      state.initializedRound4 = true;
+      state.initializedRound5 = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
@@ -754,8 +806,8 @@
 
     function markPreviousDone() {
       for (const cat of CATEGORIES) {
-        if (cat.id !== "cat-latest") {
-          for (const item of cat.items) {
+        for (const item of cat.items) {
+          if (!item.id.startsWith("S")) {
             state.checks[item.id] = true;
           }
         }
