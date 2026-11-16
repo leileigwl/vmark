@@ -210,6 +210,9 @@ export default function App() {
       } else if (action === 'editor:table' && payload) {
         setActiveView('editor');
         editorRef.current?.applyTableAction(payload);
+      } else if (action === 'editor:image' && payload) {
+        setActiveView('editor');
+        editorRef.current?.applyImageAction(payload);
       } else if (action === 'editor:find') {
         setActiveView('editor');
         setFindBarOpen(true);

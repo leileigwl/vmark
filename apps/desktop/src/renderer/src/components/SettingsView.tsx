@@ -396,19 +396,24 @@ export function SettingsView({
                 </button>
               ))}
             </div>
-            <div className="mt-4 border-t border-[var(--border-color)] pt-4">
-              <button
-                type="button"
-                onClick={onImportTyporaTheme}
-                className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
-              >
-                导入本地 Typora 主题 CSS 文件（如 bloom-lapis.css）...
-              </button>
-              {customThemeName && (
-                <span className="ml-3 text-xs text-[var(--accent)]">
-                  当前已加载：{customThemeName}.css
-                </span>
-              )}
+            <div className="mt-4 space-y-2 border-t border-[var(--border-color)] pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onImportTyporaTheme}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  导入自定义 CSS 样式文件（覆盖主题配色与排版）...
+                </button>
+                {customThemeName && (
+                  <span className="text-xs text-[var(--accent)]">
+                    当前已加载：{customThemeName}.css
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-[var(--control-text-color)]">
+                支持标准 CSS 变量（如 <code>--bg-main</code>、<code>--text-main</code>、<code>--accent</code>、<code>--side-bar-bg-color</code>）及 <code>.vditor-reset</code> 选择器覆盖，导入后实时生效。
+              </p>
             </div>
           </div>
         )}

@@ -556,7 +556,7 @@ function registerIpcHandlers(): void {
       } catch {
         return {
           ok: false,
-          message: `未检测到 PicGo-Core (${bin})，请先安装 npm i -g picgo 或切换为内置云存储直传`,
+          message: `未检测到 PicGo-Core (${bin})，请先安装 pnpm add -g picgo 或切换为内置云存储直传`,
         };
       }
     }
@@ -666,6 +666,52 @@ function registerIpcHandlers(): void {
   ipcMain.handle('editor:contextMenu', async (event, options: ContextMenuOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return;
+
+    if (options.inImage) {
+      const currScale = options.imageScale ?? 50;
+      const imageMenu = Menu.buildFromTemplate([
+        {
+          label: '放大预览 (空格)',
+          click: () => sendMenuAction('editor:image', 'preview'),
+        },
+        {
+          label: '显示比例',
+          submenu: [
+            {
+              label: '25%',
+              type: 'radio',
+              checked: currScale === 25,
+              click: () => sendMenuAction('editor:image', 'scale:25'),
+            },
+            {
+              label: '50%（默认）',
+              type: 'radio',
+              checked: currScale === 50,
+              click: () => sendMenuAction('editor:image', 'scale:50'),
+            },
+            {
+              label: '75%',
+              type: 'radio',
+              checked: currScale === 75,
+              click: () => sendMenuAction('editor:image', 'scale:75'),
+            },
+            {
+              label: '100%（原宽）',
+              type: 'radio',
+              checked: currScale === 100,
+              click: () => sendMenuAction('editor:image', 'scale:100'),
+            },
+          ],
+        },
+        { type: 'separator' },
+        {
+          label: '删除图片',
+          click: () => sendMenuAction('editor:image', 'delete'),
+        },
+      ]);
+      imageMenu.popup({ window: win });
+      return;
+    }
 
     const tableItems: Electron.MenuItemConstructorOptions[] = options.inTable
       ? [

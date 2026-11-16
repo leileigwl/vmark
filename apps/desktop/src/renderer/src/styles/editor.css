@@ -1,0 +1,553 @@
+/* Typora github.css exact typography & spacing rules for Vditor IR */
+.vditor {
+  border: none !important;
+  background: var(--bg-main) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  --ir-bracket-color: var(--accent) !important;
+  --ir-link-color: var(--accent) !important;
+  --ir-bi-color: var(--accent) !important;
+  --ir-heading-color: var(--accent) !important;
+}
+[data-theme*='-dark'] .vditor {
+  --ir-bracket-color: #78aee8 !important;
+  --ir-link-color: #78aee8 !important;
+  --ir-bi-color: #78aee8 !important;
+  --ir-heading-color: #78aee8 !important;
+}
+.vditor-toolbar {
+  display: none !important;
+}
+.vditor-content {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+/* Full-width scroll container: right margin & scrollbar keep default arrow cursor, content blocks use text cursor */
+.vditor-ir pre.vditor-reset {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 32px max(48px, calc((100% - 1100px) / 2)) 110px !important;
+  font-family: var(--font-editorial) !important;
+  font-size: 16px;
+  line-height: 1.78 !important;
+  letter-spacing: 0.012em;
+  color: var(--text-main);
+  background: var(--bg-main) !important;
+  box-sizing: border-box !important;
+  cursor: default !important;
+}
+.vditor-ir pre.vditor-reset > * {
+  cursor: text;
+}
+/* Cleanly style raw HTML blocks (<details>/<summary>) without empty gray boxes */
+.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview {
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 0 !important;
+  margin: 0 !important;
+}
+.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand).vcat-details-boundary {
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.vditor-ir__node[data-type="html-block"] summary {
+  padding: 8px 12px;
+  background: var(--side-bar-bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+/* Hide permanent H1-H6 gutter labels to match clean Typora look */
+.vditor-ir .vditor-reset > h1:before,
+.vditor-ir .vditor-reset > h2:before,
+.vditor-ir .vditor-reset > h3:before,
+.vditor-ir .vditor-reset > h4:before,
+.vditor-ir .vditor-reset > h5:before,
+.vditor-ir .vditor-reset > h6:before {
+  display: none !important;
+}
+.vditor-reset h1,
+.vditor-reset h2,
+.vditor-reset h3,
+.vditor-reset h4,
+.vditor-reset h5,
+.vditor-reset h6 {
+  margin-top: 1.55em !important;
+  margin-bottom: 0.85em !important;
+  font-weight: 700 !important;
+  line-height: 1.38 !important;
+  color: var(--text-main) !important;
+}
+.vditor-reset h1 {
+  position: relative !important;
+  font-size: 2.15em !important;
+  line-height: 1.25 !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  padding-bottom: 0.38em !important;
+}
+.vditor-reset h2 {
+  position: relative !important;
+  font-size: 1.65em !important;
+  line-height: 1.28 !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  padding-bottom: 0.36em !important;
+}
+/* Authentic Typora Bloom left-aligned accent gradient bar under H1 & H2 */
+.vditor-reset h1::after,
+.vditor-reset h2::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  bottom: -1.5px !important;
+  width: 76px !important;
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 8%, transparent)) !important;
+  pointer-events: none !important;
+}
+.vditor-reset h3 {
+  font-size: 1.38em !important;
+  line-height: 1.43 !important;
+}
+.vditor-reset h4 {
+  font-size: 1.18em !important;
+}
+.vditor-reset p {
+  margin: 0.95em 0 !important;
+  line-height: 1.78 !important;
+}
+.vditor-reset ul,
+.vditor-reset ol {
+  margin: 0.9em 0 !important;
+  padding-left: 1.65em !important;
+}
+.vditor-reset li {
+  margin: 0.42em 0 !important;
+  line-height: 1.78 !important;
+}
+.vditor-reset strong,
+.vditor-reset b {
+  font-weight: 700 !important;
+  color: color-mix(in srgb, var(--text-main) 86%, var(--accent)) !important;
+}
+[data-theme*='-dark'] .vditor-reset strong,
+[data-theme*='-dark'] .vditor-reset b {
+  font-weight: 700 !important;
+  color: color-mix(in srgb, var(--accent) 52%, #ffffff) !important;
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  padding: 0 3px !important;
+  border-radius: 4px !important;
+}
+
+.vditor-reset a,
+.vditor-ir__link,
+.vditor-ir__node[data-type="a"],
+.vditor-ir__node[data-type="a"] .vditor-ir__marker--bracket {
+  color: var(--ir-bracket-color) !important;
+  text-decoration-color: color-mix(in srgb, var(--ir-bracket-color) 45%, transparent) !important;
+}
+[data-theme*='-dark'] .vditor-reset a,
+[data-theme*='-dark'] .vditor-ir__link,
+[data-theme*='-dark'] .vditor-ir__node[data-type="a"],
+[data-theme*='-dark'] .vditor-ir__node[data-type="a"] .vditor-ir__marker--bracket {
+  color: #78aee8 !important;
+  text-decoration-color: rgba(120, 174, 232, 0.45) !important;
+}
+/* Authentic Typora Bloom rounded callout card blockquote */
+.vditor-reset blockquote {
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  border-left: 4px solid var(--accent) !important;
+  border-radius: 12px !important;
+  padding: 14px 20px !important;
+  margin: 1.25em 0 !important;
+  color: var(--text-main) !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 9%, var(--bg-elevated)),
+    color-mix(in srgb, var(--accent) 3%, var(--bg-main))
+  ) !important;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 4%, transparent) !important;
+}
+.vditor-reset blockquote > :first-child {
+  margin-top: 0.2em !important;
+}
+.vditor-reset blockquote > :last-child {
+  margin-bottom: 0.2em !important;
+}
+.vditor-reset code:not(.hljs):not([class*='language-']) {
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+  color: var(--ir-bracket-color) !important;
+  border-radius: 5px !important;
+  padding: 1px 6px !important;
+  font-size: 0.88em !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace !important;
+}
+.vditor-reset ul > li::marker {
+  color: var(--accent) !important;
+}
+
+/* macOS 3-dot windowed code block styling (single clean card, direct click-to-edit with syntax colors) */
+.vditor-ir__node[data-type="code-block"] {
+  position: relative !important;
+  display: block !important;
+  margin: 1.1em 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--bracket {
+  display: none !important;
+}
+/* Remove Vditor's leading/trailing ``` pseudo-elements when expanded */
+.vditor-ir__node--expand[data-type="code-block"]::after {
+  content: none !important;
+  display: none !important;
+}
+/* Clean macOS 3-dot header top-left */
+.vditor-ir__node[data-type="code-block"]::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 14px !important;
+  left: 16px !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #ce7069 !important;
+  box-shadow: 18px 0 0 #dbb155, 36px 0 0 #72b875 !important;
+  z-index: 5 !important;
+  pointer-events: none !important;
+}
+/* Language label badge next to 3-dots header (also editable to switch language) */
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
+  display: inline-block !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  position: absolute !important;
+  top: 8px !important;
+  left: 72px !important;
+  margin: 0 !important;
+  padding: 1px 8px !important;
+  border-radius: 5px !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+  color: var(--control-text-color) !important;
+  background: color-mix(in srgb, var(--text-main) 6%, transparent) !important;
+  border: 1px solid transparent !important;
+  cursor: text !important;
+  z-index: 5 !important;
+}
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info:focus,
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info:hover {
+  color: var(--accent) !important;
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+/* 1. Normal code blocks (:not(:has(.language-mermaid))): permanently show the single editable pre.vditor-ir__marker--pre so 1st click lands caret directly with zero flash/jump */
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__preview {
+  display: none !important;
+}
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre {
+  display: block !important;
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  box-sizing: border-box !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
+  color: var(--text-main) !important;
+  border-radius: 10px !important;
+  padding: 36px 18px 12px !important;
+  margin: 0 !important;
+  cursor: text !important;
+  box-shadow: none !important;
+}
+
+/* 2. Mermaid blocks (:has(.language-mermaid)): show diagram preview by default, switch to code card on rapid double-click */
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__preview {
+  display: none !important;
+}
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  display: block !important;
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  box-sizing: border-box !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
+  color: var(--text-main) !important;
+  border-radius: 10px !important;
+  padding: 36px 18px 12px !important;
+  margin: 0 !important;
+  cursor: text !important;
+  box-shadow: none !important;
+}
+
+/* Shared typography for all code blocks */
+.vditor-ir__node[data-type="code-block"] pre,
+.vditor-ir__node[data-type="code-block"] pre > code,
+.vditor-ir__node[data-type="code-block"] pre > code * {
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  letter-spacing: 0px !important;
+  tab-size: 4 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+.vditor-ir__node[data-type="code-block"] pre > code {
+  display: block !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: var(--text-main) !important;
+  overflow: visible !important;
+  cursor: text !important;
+}
+
+/* Dark theme high-contrast overrides for code blocks, full GitHub-Dark syntax tokens, and Mermaid */
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  background-color: #161b22 !important;
+  border-color: rgba(240, 246, 252, 0.14) !important;
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] > pre.vditor-ir__preview > code,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] > pre.vditor-ir__marker--pre > code {
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code,
+[data-theme*='-dark'] .vditor-reset pre code.hljs,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-subst,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-params,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-punctuation,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-Emphasis,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-strong {
+  color: #e6edf3 !important;
+  background: transparent !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-comment,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-code,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-formula {
+  color: #8b949e !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-keyword,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-doctag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta .hljs-keyword,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-template-tag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-template-variable,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-type,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-variable.language_ {
+  color: #ff7b72 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-string,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta .hljs-string,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-regexp {
+  color: #a5d6ff !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title.class_,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title.function_ {
+  color: #d2a8ff !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-built_in,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-symbol {
+  color: #ffa657 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-name,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-quote,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-tag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-pseudo {
+  color: #7ee787 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-attr,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-attribute,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-literal,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-number,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-operator,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-variable,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-attr,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-class,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-id {
+  color: #79c0ff !important;
+}
+
+
+/* Native CSS Custom Highlight API syntax highlighting for single-layer editable code blocks */
+::highlight(vcat-hl-comment) {
+  color: #6e7781;
+}
+::highlight(vcat-hl-string) {
+  color: #0a3069;
+}
+::highlight(vcat-hl-keyword) {
+  color: #cf222e;
+}
+::highlight(vcat-hl-title) {
+  color: #8250df;
+}
+::highlight(vcat-hl-number) {
+  color: #0550ae;
+}
+::highlight(vcat-hl-builtin) {
+  color: #953800;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-comment) {
+  color: #8b949e;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-string) {
+  color: #a5d6ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-keyword) {
+  color: #ff7b72;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-title) {
+  color: #d2a8ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-number) {
+  color: #79c0ff;
+}
+[data-theme*='-dark'] ::highlight(vcat-hl-builtin) {
+  color: #ffa657;
+}
+
+
+.vditor-reset img {
+  display: block;
+  margin: 0.9em auto;
+  border-radius: 10px;
+  cursor: zoom-in;
+  max-width: 100%;
+  transition: width 0.08s ease, box-shadow 0.15s ease;
+}
+.vditor-reset img:hover {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+[data-img-scale='50'] .vditor-reset img {
+  width: 50%;
+}
+[data-img-scale='75'] .vditor-reset img {
+  width: 75%;
+}
+[data-img-scale='100'] .vditor-reset img {
+  width: 100%;
+}
+.vcat-find-active {
+  background: #ff9500 !important;
+  color: #ffffff !important;
+  border-radius: 3px;
+}
+::highlight(vcat-find) {
+  background-color: rgba(255, 204, 0, 0.42);
+  color: inherit;
+}
+
+/* Authentic Typora Bloom rounded card table styling */
+.vditor-reset table {
+  display: table !important;
+  width: 100% !important;
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  margin: 1.25em 0 !important;
+  color: var(--text-main) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.025) !important;
+}
+.vditor-reset table tr {
+  background-color: var(--bg-main) !important;
+}
+.vditor-reset table thead,
+.vditor-reset table thead tr {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 10%, var(--bg-elevated)),
+    color-mix(in srgb, var(--accent) 4%, var(--bg-main))
+  ) !important;
+}
+.vditor-reset table tbody tr:nth-child(2n) {
+  background-color: color-mix(in srgb, var(--accent) 3%, var(--bg-main)) !important;
+}
+.vditor-reset table th {
+  font-weight: 600 !important;
+  color: var(--text-main) !important;
+  padding: 10px 15px !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 65%, transparent) !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+.vditor-reset table td {
+  color: var(--text-main) !important;
+  padding: 10px 15px !important;
+  line-height: 1.68 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent) !important;
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent) !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+.vditor-reset table th:last-child,
+.vditor-reset table td:last-child {
+  border-right: none !important;
+}
+.vditor-reset table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+.vditor-reset hr {
+  height: 1.5px !important;
+  margin: 2em 0 !important;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 32%, var(--border-color)),
+    transparent
+  ) !important;
+  border: 0 !important;
+}
+
+/* KaTeX & Math (\lambda, equations) styling */
+.vditor-reset .katex,
+.vditor-reset .language-math {
+  color: var(--text-main) !important;
+  font-size: 1.04em !important;
+}

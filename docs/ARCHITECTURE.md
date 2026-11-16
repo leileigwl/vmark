@@ -57,3 +57,15 @@ vcat-publisher-desktop/
 
 1. **凭据加密**：各外部平台 Cookie、MetaWeblog 密钥与图床密钥必须通过 Electron `safeStorage` 加密落库，渲染进程与日志中**零明文回显**。
 2. **本地源文件不可侵犯**：图片链接替换仅在分发内存副本中进行，绝不篡改用户工作区原始 `.md` 文件中的相对路径。
+
+## 5. 工程解耦规范、pnpm 依赖管理与自定义 CSS 入口
+
+1. **包管理器唯一约束**：全仓统一使用 **`pnpm`**（`pnpm install` / `pnpm test` / `pnpm typecheck` / `pnpm --filter @vcat/desktop build`），禁止混用 `npm` 或 `yarn`。
+2. **单文件行数解耦红线（500–600 行原则）**：
+   - 任何 React 组件、编辑器逻辑或样式文件超过 **500–600 行** 时，必须按职责拆分为独立模块，严禁单文件堆叠：
+     - `src/renderer/src/editor/`：独立封装语法高亮（`codeHighlight.ts`）、表格矩阵操作（`tableActions.ts`）、行内格式切换（`inlineFormat.ts`）。
+     - `src/renderer/src/components/sidebar/`：独立封装侧边栏右键与批量菜单（`SidebarContextMenus.tsx`）等子模块。
+     - `src/renderer/src/styles/`：样式拆分管理为 `themes.css`（主题变量与滚动条）、`editor.css`（正文排版、代码块、表格、`::highlight`）、`mermaid.css`（流程图暗黑适配与灯箱）。
+3. **用户自定义 CSS 入口**：
+   - 在「偏好设置 → 外观主题 → 导入自定义 CSS 样式文件」中，支持用户加载自定义 `.css` 文件；可通过覆盖 `--bg-main`、`--text-main`、`--accent`、`--side-bar-bg-color` CSS 变量及 `.vditor-reset` 选择器定制专属主题。
+4. **防盗链演进规划**：当前阶段优先保障本地 `assets/` 目录安全落盘与离线可读；跨平台防盗链后续规划结合云端对象存储统一转存。

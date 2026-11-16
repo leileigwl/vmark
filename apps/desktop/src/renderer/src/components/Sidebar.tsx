@@ -12,6 +12,11 @@ import {
   Search,
 } from 'lucide-react';
 import type { ArticleMeta, ArticleSearchResult, OutlineNode } from '@vcat/shared';
+import {
+  SidebarContextMenus,
+  type EmptyContextMenuState,
+  type FileContextMenuState,
+} from './sidebar/SidebarContextMenus';
 
 export interface TreeNode {
   name: string;
@@ -889,210 +894,28 @@ export function Sidebar({
         </div>
       </aside>
 
-      {fileContextMenu && (
-        <div
-          style={{ left: `${fileContextMenu.x}px`, top: `${fileContextMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 w-48 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              onOpenArticle(fileContextMenu.article);
-              setFileContextMenu(null);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            打开
-          </button>
-          <div className="my-1 border-t border-[var(--border-color)]" />
-          <button
-            type="button"
-            onClick={() => {
-              setFileContextMenu(null);
-              startCreateItem('file');
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            新建文件
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFileContextMenu(null);
-              startCreateItem('folder');
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            新建文件夹
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFileContextMenu(null);
-              onChangeSideTab('files');
-              setFileSearchOpen(true);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            搜索
-          </button>
-          <div className="my-1 border-t border-[var(--border-color)]" />
-          <button
-            type="button"
-            onClick={() => {
-              setFileViewMode('list');
-              setFileContextMenu(null);
-            }}
-            className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            <span>文档列表</span>
-            {fileViewMode === 'list' && <span>✓</span>}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFileViewMode('tree');
-              setFileContextMenu(null);
-            }}
-            className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            <span>文档树</span>
-            {fileViewMode === 'tree' && <span>✓</span>}
-          </button>
-          <div className="my-1 border-t border-[var(--border-color)]" />
-          <button
-            type="button"
-            onClick={() => {
-              const target = fileContextMenu.article;
-              setFileContextMenu(null);
-              void onDuplicateArticle(target);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            创建副本
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const target = fileContextMenu.article;
-              setFileContextMenu(null);
-              handleRenameStart(target);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            重命名...
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const target = fileContextMenu.article;
-              setFileContextMenu(null);
-              if (selectedPaths.length > 1 && onBatchDeleteArticles) {
-                const targets = articles.filter((a) => selectedPaths.includes(a.relativePath));
-                setSelectedPaths([]);
-                void onBatchDeleteArticles(targets);
-              } else {
-                void onDeleteArticle(target);
-              }
-            }}
-            className="block w-full px-3.5 py-1 text-left text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
-          >
-            {selectedPaths.length > 1 ? `批量删除 (${selectedPaths.length} 篇)...` : '删除...'}
-          </button>
-          <div className="my-1 border-t border-[var(--border-color)]" />
-          <button
-            type="button"
-            onClick={() => {
-              if (selectedPaths.length > 1) {
-                const fullPaths = articles
-                  .filter((a) => selectedPaths.includes(a.relativePath))
-                  .map((a) => a.fullPath)
-                  .join('\n');
-                void navigator.clipboard.writeText(fullPaths);
-              } else {
-                void navigator.clipboard.writeText(fileContextMenu.article.fullPath);
-              }
-              setFileContextMenu(null);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            {selectedPaths.length > 1 ? `批量复制文件路径 (${selectedPaths.length} 篇)` : '复制文件路径'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const rel = fileContextMenu.article.relativePath;
-              setFileContextMenu(null);
-              void window.electronAPI.showInFinder(rel);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            在 Finder 中显示
-          </button>
-        </div>
-      )}
-
-      {emptyContextMenu && (
-        <div
-          style={{ left: `${emptyContextMenu.x}px`, top: `${emptyContextMenu.y}px` }}
-          onClick={(e) => e.stopPropagation()}
-          className="fixed z-50 w-44 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setEmptyContextMenu(null);
-              startCreateItem('file');
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            新建文件
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEmptyContextMenu(null);
-              startCreateItem('folder');
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            新建文件夹
-          </button>
-          <div className="my-1 border-t border-[var(--border-color)]" />
-          <button
-            type="button"
-            onClick={() => {
-              setEmptyContextMenu(null);
-              onChangeSideTab('files');
-              setFileSearchOpen(true);
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            搜索
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEmptyContextMenu(null);
-              void onRefreshWorkspace();
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            刷新
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEmptyContextMenu(null);
-              void window.electronAPI.showInFinder();
-            }}
-            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-          >
-            在 Finder 中显示
-          </button>
-        </div>
-      )}
+      <SidebarContextMenus
+        fileContextMenu={fileContextMenu}
+        emptyContextMenu={emptyContextMenu}
+        selectedPaths={selectedPaths}
+        articles={articles}
+        fileViewMode={fileViewMode}
+        onCloseFileMenu={() => setFileContextMenu(null)}
+        onCloseEmptyMenu={() => setEmptyContextMenu(null)}
+        onClearSelection={() => setSelectedPaths([])}
+        onOpenArticle={onOpenArticle}
+        onStartCreateItem={startCreateItem}
+        onOpenSearch={() => {
+          onChangeSideTab('files');
+          setFileSearchOpen(true);
+        }}
+        onChangeFileViewMode={setFileViewMode}
+        onDuplicateArticle={onDuplicateArticle}
+        onRenameStart={handleRenameStart}
+        onDeleteArticle={onDeleteArticle}
+        onBatchDeleteArticles={onBatchDeleteArticles}
+        onRefreshWorkspace={onRefreshWorkspace}
+      />
     </>
   );
 }

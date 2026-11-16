@@ -4,7 +4,7 @@
 
 **面向独立博主与技术创作者的 Local-First（本地优先）桌面端写作与 30+ 平台合规分发工作台**
 
-*纯正 Typora 白色沉浸写作 · 防盗链图片智能转存 · 推送前全平台效果预览 · 草稿/直发双模式与送达检测*
+*纯正极简沉浸写作 · 云端防盗链规划与本地资产管理 · 推送前全平台效果预览 · 草稿/直发双模式与送达检测*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-Desktop-47848F.svg)](#系统架构)
@@ -17,12 +17,12 @@
 
 ## 🎯 这是什么？解决什么痛点？
 
-平时用 Typora 写完一篇长文博客，还要自己折腾 PicGo 图床、再一个个打开微信公众号、博客园、掘金、Linux.do、B站、小红书、X (Twitter) 后台复制粘贴调格式——不仅耗时 30 分钟以上，还经常遇到**防盗链裂图**、**同步卡死不知道成没成功**、**发布前看不到目标平台排版**等痛点。
+平时写完一篇长文博客，还要自己折腾图床、再一个个打开微信公众号、博客园、掘金、Linux.do、B站、小红书、X (Twitter) 后台复制粘贴调格式——不仅耗时 30 分钟以上，还经常遇到**防盗链裂图**、**同步卡死不知道成没成功**、**发布前看不到目标平台排版**等痛点。
 
-**VCat Publisher Desktop** 把整条创作链路收拢进一个纯粹、开源、无多余账号体系的本地桌面工作台：
+本桌面工作台把整条创作链路收拢进一个纯粹、开源、无多余账号体系的本地 Markdown 创作与分发环境中：
 
-1. **纯正 Typora 原版白色体验（无模板、无多余 AI）**：复刻经典 `github.css` 白色写作画布，左侧文件树/大纲可一键收缩，断网全离线可用。
-2. **本地优先 + 防盗链智能转存**：图片默认保存至本地 `assets/` 目录；分发时命中 SQLite `image_cache` 哈希缓存则直接复用，未命中则自动上传至目标平台私有素材库（如微信素材库、博客园、CSDN）或自配 OSS/COS/S3 图床，**绝不污染本地源文件**。
+1. **极简沉浸写作（无多余模板、无强塞 AI）**：内置纯正白色与 24 套 Bloom 明暗双态主题，支持自定义 CSS 样式导入；左侧文件树与大纲可一键收缩，断网全离线可用。
+2. **本地优先 + 防盗链云端转存（规划中）**：图片默认保存至本地 `assets/` 目录；分发时支持平台私有素材库直传，并规划接入云端存储 / 对象存储（OSS/COS/S3）解决跨平台防盗链问题，**绝不污染本地源文件**。
 3. **推送前全平台效果预览**：推送前即可在应用内切换预览 **微信公众号（内联样式）**、**Linux.do（Discourse 渲染）**、**X (Twitter) Thread**、**小红书图文** 等真实最终呈现画面。
 4. **草稿 / 直发双模式 + 第 5 步送达检测**：不仅区分“推入草稿箱”还是“直接发布”，推送后还会自动执行 `VERIFY_DELIVERY` 回查 `postId` 与直达链接，彻底告别“假成功”。
 
@@ -58,7 +58,7 @@
 
 ```mermaid
 flowchart LR
-    A["本地 Typora 写作<br/>.md + assets/"] --> B["推送前全平台预览<br/>微信CSS / Discourse / X"]
+    A["本地 Markdown 写作<br/>.md + assets/"] --> B["推送前全平台预览<br/>微信CSS / Discourse / X"]
     B --> C["1. PRECHECK<br/>独立沙箱 Cookie / 协议预检"]
     C --> D["2. IMAGE_TRANSFER<br/>SQLite 哈希查重 + 防盗链转存"]
     D --> E["3. TRANSFORM<br/>平台格式编译 + 标题微调"]
@@ -97,7 +97,7 @@ vcat-publisher-desktop/
 
 ## 📋 当前研发进度
 
-- [x] **Phase 0（规范与原型门控）**：完成 `OpenSpec` 立项、参考仓调研（`Wechatsync` / `siyuan-plugin-publisher` / `ArtiPub`）及 Typora 白色交互原型 [`vcat-prototype.html`](docs/02-design/prototypes/vcat-prototype.html)。
-- [ ] **Phase 1**：搭建 `pnpm + Turborepo` Monorepo 脚手架与 Electron 本地工作区引擎。
-- [ ] **Phase 2**：实现 Typora 级 Vditor 编辑器、SQLite `image_cache` 与防盗链转存管线。
-- [ ] **Phase 3**：落地 8 大核心平台与 22+ 扩展平台适配器、推送前预览及 5 步送达检测。
+- [x] **Phase 0（规范与原型门控）**：完成 `OpenSpec` 立项、参考仓调研（`Wechatsync` / `siyuan-plugin-publisher` / `ArtiPub`）及桌面端白色交互原型 [`vcat-prototype.html`](docs/02-design/prototypes/vcat-prototype.html)。
+- [x] **Phase 1**：搭建 `pnpm + Turborepo` Monorepo 脚手架与 Electron 本地工作区引擎。
+- [x] **Phase 2**：实现所见即所得 IR 编辑器、多主题与自定义 CSS 入口、Mermaid 流程图灯箱与本地 `assets/` 管理。
+- [ ] **Phase 3**：落地云端存储防盗链转存方案、全平台适配器、推送前预览及 5 步送达检测。

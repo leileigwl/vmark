@@ -1,0 +1,115 @@
+/* Prevent markdown paragraph/line-height overrides from clipping Mermaid SVG labels in both editor and Lightbox */
+.vditor-ir__preview div.language-mermaid,
+.vditor-ir__preview div.language-mermaid *,
+.vcat-lightbox-mermaid,
+.vcat-lightbox-mermaid * {
+  line-height: 1.3 !important;
+}
+.vditor-ir__preview div.language-mermaid p,
+.vditor-ir__preview div.language-mermaid div,
+.vditor-ir__preview div.language-mermaid span,
+.vcat-lightbox-mermaid p,
+.vcat-lightbox-mermaid div,
+.vcat-lightbox-mermaid span {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.vditor-ir__preview div.language-mermaid svg foreignObject,
+.vcat-lightbox-mermaid svg foreignObject {
+  overflow: visible !important;
+}
+
+/* Dark mode native Mermaid diagram styling (both in-editor and in Lightbox) */
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid,
+[data-theme*='-dark'] .vcat-lightbox-mermaid {
+  background: transparent !important;
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgePath .path,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .flowchart-link,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgePath .path,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .flowchart-link {
+  stroke: #9ba8b5 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .marker,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .marker {
+  fill: #9ba8b5 !important;
+  stroke: #9ba8b5 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .cluster rect,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .cluster rect {
+  fill: rgba(255, 255, 255, 0.04) !important;
+  stroke: rgba(255, 255, 255, 0.22) !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node rect,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node polygon,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node circle,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node path,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .node rect,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .node polygon,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .node circle,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .node path {
+  fill: #212936 !important;
+  stroke: var(--accent) !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .nodeLabel,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .cluster-label,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg text,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg span,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg p,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .nodeLabel,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .cluster-label,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg text,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg span,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg p {
+  color: #e6edf3 !important;
+  fill: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel rect,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg rect.labelBkg,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel rect,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg rect.labelBkg {
+  fill: #1e2633 !important;
+  stroke: rgba(255, 255, 255, 0.18) !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel p,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel span,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel div,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .labelBkg,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel p,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel span,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .edgeLabel div,
+[data-theme*='-dark'] .vcat-lightbox-mermaid svg .labelBkg {
+  background-color: #1e2633 !important;
+  background: #1e2633 !important;
+  color: #f0f6fc !important;
+  fill: #f0f6fc !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Scope Mermaid hover & cursor strictly to the rendered diagram preview div */
+.vditor-ir__preview div.language-mermaid {
+  cursor: zoom-in !important;
+  border-radius: 8px;
+  padding: 6px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.vditor-ir__preview div.language-mermaid:hover {
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* Window-adaptive Mermaid SVG sizing inside MediaLightbox */
+.vcat-lightbox-mermaid svg {
+  width: 72vw !important;
+  max-width: 1080px !important;
+  max-height: 72vh !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+}

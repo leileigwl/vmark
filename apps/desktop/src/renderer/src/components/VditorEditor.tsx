@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { transformTableMatrix, type TableEditAction } from '@vcat/core';
 import Vditor from 'vditor';
+import { applyCodeSyntaxHighlights } from '../editor/codeHighlight';
+import { toggleInlineWrapInEditor, type InlineWrapCommand } from '../editor/inlineFormat';
+import { executeTableAction } from '../editor/tableActions';
 import { MediaLightbox, type LightboxPayload } from './MediaLightbox';
 
 export interface FindOptions {
@@ -12,6 +14,7 @@ export interface FindOptions {
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
+  applyImageAction: (action: string) => void;
   insertTableWithSize: (cols: number, rows: number) => void;
   getValue: () => string;
   findMatches: (findStr: string, opts?: FindOptions) => number;
@@ -77,160 +80,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     };
 
-    const toggleInlineWrap = (cmd: 'bold' | 'italic' | 'strike' | 'inline-code') => {
+    const toggleInlineWrap = (cmd: InlineWrapCommand) => {
       const instance = vditorRef.current;
       const el = containerRef.current;
       if (!instance || !el || !isReadyRef.current) return;
-
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
-
-      const spec = {
-        bold: {
-          dataType: 'strong',
-          tag: 'strong',
-          altTag: 'b',
-          marker: '**',
-          markerClass: 'vditor-ir__marker vditor-ir__marker--bi',
-        },
-        italic: {
-          dataType: 'em',
-          tag: 'em',
-          altTag: 'i',
-          marker: '*',
-          markerClass: 'vditor-ir__marker vditor-ir__marker--bi',
-        },
-        strike: {
-          dataType: 's',
-          tag: 's',
-          altTag: 'del',
-          marker: '~~',
-          markerClass: 'vditor-ir__marker',
-        },
-        'inline-code': {
-          dataType: 'code',
-          tag: 'code',
-          altTag: 'code',
-          marker: '`',
-          markerClass: 'vditor-ir__marker',
-        },
-      }[cmd];
-
-      const selector = `span.vditor-ir__node[data-type="${spec.dataType}"], ${spec.tag}, ${spec.altTag}`;
-      const range = sel.getRangeAt(0);
-      const anchorEl =
-        sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
-      const focusEl =
-        sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode?.parentElement;
-
-      // Clamp selection strictly inside the starting table cell so dragging to the edge of a <td>
-      // never crosses into the next <td> and never shifts cells into an extra column!
-      const anchorCell = anchorEl?.closest('td, th') as HTMLElement | null;
-      if (anchorCell && !anchorCell.contains(range.commonAncestorContainer)) {
-        range.selectNodeContents(anchorCell);
-      }
-
-      const commonEl =
-        range.commonAncestorContainer instanceof Element
-          ? range.commonAncestorContainer
-          : range.commonAncestorContainer.parentElement;
-
-      let matchedEl =
-        anchorEl?.closest(selector) ||
-        focusEl?.closest(selector) ||
-        commonEl?.closest(selector) ||
-        null;
-
-      if (!matchedEl && commonEl) {
-        const candidates = Array.from(commonEl.querySelectorAll(selector));
-        matchedEl = candidates.find((node) => range.intersectsNode(node)) ?? null;
-      }
-
-      if (matchedEl && el.contains(matchedEl) && !matchedEl.closest('pre')) {
-        pushVditorUndo();
-        const wrapperNode =
-          matchedEl.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) ?? matchedEl;
-        const innerTag = wrapperNode.querySelector(`${spec.tag}, ${spec.altTag}`);
-        const rawText = innerTag ? innerTag.textContent || '' : wrapperNode.textContent || '';
-        const cleanText = rawText
-          .replace(/^\*+|\*+$/g, '')
-          .replace(/^~~|~~$/g, '')
-          .replace(/^`|`$/g, '');
-        const textNode = document.createTextNode(cleanText);
-        wrapperNode.replaceWith(textNode);
-
-        const nextRange = document.createRange();
-        nextRange.selectNodeContents(textNode);
-        sel.removeAllRanges();
-        sel.addRange(nextRange);
-        pushVditorUndo();
+      toggleInlineWrapInEditor(el, cmd, pushVditorUndo, () => {
         onChangeRef.current(instance.getValue());
-        return;
-      }
-
-      if (sel.isCollapsed) return;
-      const selectedText = range.toString();
-      if (!selectedText.trim()) return;
-
-      pushVditorUndo();
-
-      // If the selected text itself already has surrounding ** or * markers, strip them to unwrap
-      const trimmedSel = selectedText.trim();
-      if (
-        (cmd === 'bold' && /^\*\*[\s\S]+\*\*$/.test(trimmedSel)) ||
-        (cmd === 'italic' && /^\*[\s\S]+\*$/.test(trimmedSel))
-      ) {
-        const stripped = trimmedSel.replace(/^\*+|\*+$/g, '');
-        const textNode = document.createTextNode(stripped);
-        range.deleteContents();
-        range.insertNode(textNode);
-        const nextRange = document.createRange();
-        nextRange.selectNodeContents(textNode);
-        sel.removeAllRanges();
-        sel.addRange(nextRange);
-        pushVditorUndo();
-        onChangeRef.current(instance.getValue());
-        return;
-      }
-
-      const leading = selectedText.match(/^\s*/)?.[0] ?? '';
-      const trailing = selectedText.match(/\s*$/)?.[0] ?? '';
-      const core = selectedText
-        .trim()
-        .replace(/^\*+|\*+$/g, '');
-      if (!core) return;
-
-      const irSpan = document.createElement('span');
-      irSpan.setAttribute('data-type', spec.dataType);
-      irSpan.className = 'vditor-ir__node';
-
-      const openMarker = document.createElement('span');
-      openMarker.className = spec.markerClass;
-      openMarker.textContent = spec.marker;
-
-      const contentEl = document.createElement(spec.tag);
-      contentEl.setAttribute('data-newline', '1');
-      contentEl.textContent = core;
-
-      const closeMarker = document.createElement('span');
-      closeMarker.className = spec.markerClass;
-      closeMarker.textContent = spec.marker;
-
-      irSpan.append(openMarker, contentEl, closeMarker);
-
-      range.deleteContents();
-      const frag = document.createDocumentFragment();
-      if (leading) frag.appendChild(document.createTextNode(leading));
-      frag.appendChild(irSpan);
-      if (trailing) frag.appendChild(document.createTextNode(trailing));
-      range.insertNode(frag);
-
-      const nextRange = document.createRange();
-      nextRange.selectNodeContents(contentEl);
-      sel.removeAllRanges();
-      sel.addRange(nextRange);
-      pushVditorUndo();
-      onChangeRef.current(instance.getValue());
+      });
     };
 
     useImperativeHandle(ref, () => ({
@@ -425,92 +281,48 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       },
       applyTableAction(action: string) {
-        const el = containerRef.current;
-        const target = lastSelectionElRef.current;
-        if (!el || !target) return;
-        const cell = target.closest('td, th') as HTMLTableCellElement | null;
-        const row = target.closest('tr') as HTMLTableRowElement | null;
-        const table = target.closest('table') as HTMLTableElement | null;
-        if (!cell || !row || !table) return;
-
-        const allRows = Array.from(table.rows);
-        const rowIndex = allRows.indexOf(row);
-        const colIndex = cell.cellIndex;
-        const colCount = Math.max(1, ...allRows.map((r) => r.cells.length));
-
-        if (action === 'table-copy') {
-          const mdRows = allRows.map((r) =>
-            `| ${Array.from(r.cells).map((c) => (c.textContent || '').trim()).join(' | ')} |`
-          );
-          if (mdRows.length > 0) {
-            const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
-            mdRows.splice(1, 0, sep);
-            void navigator.clipboard.writeText(mdRows.join('\n'));
-          }
-          return;
-        }
-
-        if (action === 'table-delete') {
-          pushVditorUndo();
-          const p = document.createElement('p');
-          p.innerHTML = '<br>';
-          table.parentNode?.insertBefore(p, table);
-          table.remove();
-          const sel = window.getSelection();
-          if (sel) {
-            const range = document.createRange();
-            range.selectNodeContents(p);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          }
-          pushVditorUndo();
-          onChangeRef.current(vditorRef.current?.getValue() ?? value);
-          return;
-        }
-
-        pushVditorUndo();
-        const matrix = allRows.map((r) =>
-          Array.from(r.cells).map((c) => (c.innerHTML || '').trim())
-        );
-        const nextMatrix = transformTableMatrix(matrix, action as TableEditAction, rowIndex, colIndex);
-        if (!nextMatrix) {
-          const p = document.createElement('p');
-          p.innerHTML = '<br>';
-          table.parentNode?.insertBefore(p, table);
-          table.remove();
-          pushVditorUndo();
-          onChangeRef.current(vditorRef.current?.getValue() ?? value);
-          return;
-        }
-
-        // Rebuild a 100% valid <thead> + <tbody> table so Vditor Lute never breaks pipes
-        const newTable = document.createElement('table');
-        const thead = document.createElement('thead');
-        const headTr = document.createElement('tr');
-        nextMatrix[0].forEach((html) => {
-          const th = document.createElement('th');
-          th.innerHTML = html || '列';
-          headTr.appendChild(th);
+        if (!containerRef.current) return;
+        executeTableAction(action, {
+          target: lastSelectionElRef.current,
+          pushUndo: pushVditorUndo,
+          commitMarkdown: () => onChangeRef.current(vditorRef.current?.getValue() ?? value),
         });
-        thead.appendChild(headTr);
-        newTable.appendChild(thead);
+      },
+      applyImageAction(action: string) {
+        const imgEl =
+          (activeZoomImgRef.current instanceof HTMLImageElement ? activeZoomImgRef.current : null) ??
+          (lastSelectionElRef.current?.closest('img') as HTMLImageElement | null);
+        if (!imgEl) return;
 
-        const tbody = document.createElement('tbody');
-        for (let r = 1; r < nextMatrix.length; r++) {
-          const tr = document.createElement('tr');
-          nextMatrix[r].forEach((html) => {
-            const td = document.createElement('td');
-            td.innerHTML = html || ' ';
-            tr.appendChild(td);
+        if (action === 'preview') {
+          setLightboxItem({
+            type: 'image',
+            src: imgEl.src,
+            alt: imgEl.alt,
           });
-          tbody.appendChild(tr);
+          return;
         }
-        newTable.appendChild(tbody);
-        table.replaceWith(newTable);
 
-        pushVditorUndo();
-        onChangeRef.current(vditorRef.current?.getValue() ?? value);
+        if (action.startsWith('scale:')) {
+          const pct = Number(action.slice(6));
+          if (pct > 0 && pct <= 100) {
+            imgEl.dataset.vcatScale = String(pct);
+            imgEl.style.maxWidth = `${pct}%`;
+            imgEl.style.width = `${pct}%`;
+          }
+          return;
+        }
+
+        if (action === 'delete') {
+          pushVditorUndo();
+          const imgNode = imgEl.closest('.vditor-ir__node[data-type="img"]') ?? imgEl;
+          imgNode.remove();
+          if (activeZoomImgRef.current === imgEl) {
+            activeZoomImgRef.current = null;
+          }
+          pushVditorUndo();
+          onChangeRef.current(vditorRef.current?.getValue() ?? value);
+        }
       },
     }));
 
@@ -651,112 +463,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
-      const CODE_TOKEN_REGEX =
-        /(#[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(def|class|function)\s+([A-Za-z_]\w*)|\b(async|await|return|if|elif|else|for|while|in|not|and|or|try|except|finally|raise|import|from|as|def|class|with|pass|break|continue|lambda|yield|const|let|var|function|export|default|interface|type|new|typeof|subgraph|direction|flowchart|sequenceDiagram|end)\b|\b(True|False|None|true|false|null|undefined|self|cls|\d+(?:\.\d+)?)\b|(@[A-Za-z_]\w*|\b(?:str|int|float|bool|list|dict|set|tuple|Any|Optional|Annotated|Field|Tool|ToolContext|ValidationError|ValueError|KeyError|Exception|Promise|Record|Array)\b)|\b([A-Za-z_]\w*)(?=\s*\()/g;
-
-      const applyCodeSyntaxHighlights = () => {
-        const cssApi = globalThis as unknown as {
-          CSS?: { highlights?: Map<string, unknown> };
-          Highlight?: new (...ranges: Range[]) => unknown;
-        };
-        if (!cssApi.CSS?.highlights || !cssApi.Highlight) return;
-
-        const cmtRanges: Range[] = [];
-        const strRanges: Range[] = [];
-        const kwRanges: Range[] = [];
-        const fnRanges: Range[] = [];
-        const numRanges: Range[] = [];
-        const typeRanges: Range[] = [];
-
-        const codeEls = el.querySelectorAll(
-          '.vditor-ir__node[data-type="code-block"] > pre.vditor-ir__marker--pre > code'
-        );
-        codeEls.forEach((codeNode) => {
-          const codeEl = codeNode as HTMLElement;
-          if (
-            codeEl.classList.contains('language-mermaid') &&
-            !codeEl.closest('.vditor-ir__node--expand')
-          ) {
-            return;
-          }
-          if (codeEl.classList.contains('language-text')) return;
-
-          const segments: Array<{ node: Text; start: number; end: number }> = [];
-          let fullText = '';
-          const walker = document.createTreeWalker(codeEl, NodeFilter.SHOW_TEXT);
-          let tNode = walker.nextNode() as Text | null;
-          while (tNode) {
-            const len = (tNode.nodeValue || '').length;
-            if (len > 0) {
-              segments.push({ node: tNode, start: fullText.length, end: fullText.length + len });
-              fullText += tNode.nodeValue;
-            }
-            tNode = walker.nextNode() as Text | null;
-          }
-          if (!fullText) return;
-
-          const addRange = (bucket: Range[], startOffset: number, endOffset: number) => {
-            if (endOffset <= startOffset) return;
-            for (const seg of segments) {
-              if (seg.end <= startOffset) continue;
-              if (seg.start >= endOffset) break;
-              const s = Math.max(0, startOffset - seg.start);
-              const eOff = Math.min(seg.end - seg.start, endOffset - seg.start);
-              if (eOff > s) {
-                const r = document.createRange();
-                r.setStart(seg.node, s);
-                r.setEnd(seg.node, eOff);
-                bucket.push(r);
-              }
-            }
-          };
-
-          CODE_TOKEN_REGEX.lastIndex = 0;
-          let m: RegExpExecArray | null;
-          while ((m = CODE_TOKEN_REGEX.exec(fullText)) !== null) {
-            const idx = m.index;
-            const full = m[0];
-            if (m[1]) {
-              addRange(cmtRanges, idx, idx + full.length);
-            } else if (m[2]) {
-              addRange(strRanges, idx, idx + full.length);
-            } else if (m[3] && m[4]) {
-              addRange(kwRanges, idx, idx + m[3].length);
-              const nameStart = idx + full.lastIndexOf(m[4]);
-              addRange(fnRanges, nameStart, nameStart + m[4].length);
-            } else if (m[5]) {
-              addRange(kwRanges, idx, idx + full.length);
-            } else if (m[6]) {
-              addRange(numRanges, idx, idx + full.length);
-            } else if (m[7]) {
-              addRange(typeRanges, idx, idx + full.length);
-            } else if (m[8]) {
-              addRange(fnRanges, idx, idx + full.length);
-            }
-          }
-        });
-
-        const setOrClear = (name: string, ranges: Range[]) => {
-          if (ranges.length > 0 && cssApi.Highlight) {
-            cssApi.CSS?.highlights?.set(name, new cssApi.Highlight(...ranges));
-          } else {
-            cssApi.CSS?.highlights?.delete(name);
-          }
-        };
-        setOrClear('vcat-hl-comment', cmtRanges);
-        setOrClear('vcat-hl-string', strRanges);
-        setOrClear('vcat-hl-keyword', kwRanges);
-        setOrClear('vcat-hl-title', fnRanges);
-        setOrClear('vcat-hl-number', numRanges);
-        setOrClear('vcat-hl-builtin', typeRanges);
-      };
-
       const enhanceDom = () => {
         rewriteLocalImagesSync();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
-          applyCodeSyntaxHighlights();
+          applyCodeSyntaxHighlights(el);
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
           htmlNodes.forEach((node) => {
             const rawText = (node.textContent || '').trim();
@@ -1029,6 +741,22 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         e.preventDefault();
         const target = e.target as HTMLElement | null;
         lastSelectionElRef.current = target;
+        const imgEl = target?.closest('img') as HTMLImageElement | null;
+        if (imgEl) {
+          activeZoomImgRef.current = imgEl;
+          const rawScale = Number(imgEl.dataset.vcatScale || '');
+          const rootScale = Number(
+            document.documentElement.style.getPropertyValue('--vcat-img-max-width').replace('%', '') || 50
+          );
+          const imageScale = rawScale > 0 ? rawScale : rootScale;
+          void window.electronAPI?.showEditorContextMenu?.({
+            inTable: Boolean(target?.closest('table')),
+            inImage: true,
+            imageScale,
+            hasSelection: false,
+          });
+          return;
+        }
         const inTable = Boolean(target?.closest('table'));
         const sel = window.getSelection();
         const hasSelection = Boolean(sel && !sel.isCollapsed);

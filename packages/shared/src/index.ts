@@ -131,6 +131,8 @@ export type ThemeId =
 
 export interface ContextMenuOptions {
   inTable: boolean;
+  inImage?: boolean;
+  imageScale?: number;
   hasSelection: boolean;
 }
 
