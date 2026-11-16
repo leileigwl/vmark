@@ -64,7 +64,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       if (!instance || !el || !isReadyRef.current) return;
 
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const selectedText = sel.toString();
+      if (!selectedText.trim()) return;
 
       const markerMap = {
         bold: { tag: 'STRONG', altTag: 'B', marker: '**' },
@@ -80,30 +82,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       );
 
       if (existingNode && el.contains(existingNode)) {
-        // Cleanly unwrap bold/italic/strike without leaving stray * or converting bold to italic
         const plainText = (existingNode.textContent || '')
           .replace(/^\*\*|\*\*$/g, '')
           .replace(/^\*|\*$/g, '')
           .replace(/^~~|~~$/g, '')
           .replace(/^`|`$/g, '');
-        const textNode = document.createTextNode(plainText);
-        existingNode.parentNode?.replaceChild(textNode, existingNode);
         const range = document.createRange();
-        range.selectNodeContents(textNode);
+        range.selectNode(existingNode);
         sel.removeAllRanges();
         sel.addRange(range);
-        el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+        document.execCommand('insertText', false, plainText);
         return;
       }
 
-      const selectedText = sel.toString();
-      if (selectedText) {
-        instance.focus();
-        instance.insertValue(`${markerMap.marker}${selectedText}${markerMap.marker}`);
-      } else {
-        instance.focus();
-        instance.insertValue(FORMAT_SNIPPETS[cmd] ?? '');
-      }
+      // Wrap exact selection in-place via execCommand so selection isn't collapsed & undo stack stays intact
+      document.execCommand('insertText', false, `${markerMap.marker}${selectedText}${markerMap.marker}`);
     };
 
     useImperativeHandle(ref, () => ({
@@ -230,7 +223,20 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
 
         if (action === 'table-delete') {
-          table.remove();
+          const tableNode = table.closest('.vditor-ir__node') ?? table;
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            range.selectNode(tableNode);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            document.execCommand('delete');
+          }
+          if (tableNode.isConnected) {
+            tableNode.remove();
+            el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          return;
         } else if (action === 'row-above' || action === 'row-below') {
           const newRow = document.createElement('tr');
           for (let i = 0; i < colCount; i++) {

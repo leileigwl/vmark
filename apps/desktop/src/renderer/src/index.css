@@ -6,6 +6,8 @@
   --side-bar-bg-color: #f5f5f7;
   --control-text-color: #6e6e73;
   --bg-main: #ffffff;
+  --bg-elevated: #fafafa;
+  --bg-hover: #eceef1;
   --text-main: #1d1d1f;
   --accent: #007aff;
   --border-color: #e5e5ea;
@@ -85,6 +87,10 @@
   --side-bar-bg-color: #201d18; --control-text-color: #b3aa9c; --bg-main: #171511; --text-main: #ebe6dc; --accent: #ba9f6a; --border-color: rgba(235,230,220,0.12);
 }
 
+[data-theme*='-dark'] {
+  --bg-elevated: #1c222b;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+}
 [data-theme*='-dark'] .vditor-reset pre > code,
 [data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre {
   background-color: #1f242c !important;

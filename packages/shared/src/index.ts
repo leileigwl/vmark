@@ -146,6 +146,7 @@ export interface ElectronAPI {
   saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;
   createArticle: (fileName?: string) => Promise<ArticleMeta>;
   renameArticle: (oldRelativePath: string, newFileName: string) => Promise<ArticleMeta>;
+  moveArticle: (oldRelativePath: string, targetFolder: string) => Promise<ArticleMeta>;
   deleteArticle: (relativePath: string) => Promise<void>;
   duplicateArticle: (relativePath: string) => Promise<ArticleMeta>;
   searchArticlesContent: (query: string) => Promise<ArticleSearchResult[]>;

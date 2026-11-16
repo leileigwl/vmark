@@ -399,6 +399,30 @@ function registerIpcHandlers(): void {
     return buildArticleMeta(content, newRelativePath, newTarget, stat.mtimeMs);
   });
 
+  ipcMain.handle('articles:move', async (_event, oldRelativePath: string, targetFolder: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const fileName = path.basename(oldRelativePath);
+    const cleanFolder = targetFolder.trim().replace(/^[\\/]+|[\\/]+$/g, '');
+    const newRelativePath = cleanFolder ? path.join(cleanFolder, fileName) : fileName;
+
+    const oldTarget = resolveSafePath(cfg.workspacePath, oldRelativePath);
+    const newTarget = resolveSafePath(cfg.workspacePath, newRelativePath);
+    if (oldTarget === newTarget) {
+      const content = await fs.readFile(oldTarget, 'utf-8');
+      const stat = await fs.stat(oldTarget);
+      return buildArticleMeta(content, oldRelativePath, oldTarget, stat.mtimeMs);
+    }
+    if (existsSync(newTarget)) {
+      throw new Error(`目标目录已存在同名文件：${fileName}`);
+    }
+    await fs.mkdir(path.dirname(newTarget), { recursive: true });
+    await fs.rename(oldTarget, newTarget);
+    const content = await fs.readFile(newTarget, 'utf-8');
+    const stat = await fs.stat(newTarget);
+    return buildArticleMeta(content, newRelativePath, newTarget, stat.mtimeMs);
+  });
+
   ipcMain.handle('articles:delete', async (_event, relativePath: string) => {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
@@ -638,11 +662,11 @@ function registerIpcHandlers(): void {
       {
         label: '格式',
         submenu: [
-          { label: '加粗', accelerator: 'CmdOrCtrl+B', click: () => sendMenuAction('editor:format', 'bold') },
-          { label: '斜体', accelerator: 'CmdOrCtrl+I', click: () => sendMenuAction('editor:format', 'italic') },
-          { label: '删除线', click: () => sendMenuAction('editor:format', 'strike') },
-          { label: '行内代码', click: () => sendMenuAction('editor:format', 'inline-code') },
-          { label: '超链接', accelerator: 'CmdOrCtrl+K', click: () => sendMenuAction('editor:format', 'link') },
+          { label: '加粗', accelerator: 'CmdOrCtrl+B', enabled: options.hasSelection, click: () => sendMenuAction('editor:format', 'bold') },
+          { label: '斜体', accelerator: 'CmdOrCtrl+I', enabled: options.hasSelection, click: () => sendMenuAction('editor:format', 'italic') },
+          { label: '删除线', enabled: options.hasSelection, click: () => sendMenuAction('editor:format', 'strike') },
+          { label: '行内代码', enabled: options.hasSelection, click: () => sendMenuAction('editor:format', 'inline-code') },
+          { label: '超链接', accelerator: 'CmdOrCtrl+K', enabled: options.hasSelection, click: () => sendMenuAction('editor:format', 'link') },
         ],
       },
       {

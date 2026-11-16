@@ -16,6 +16,8 @@ const api: ElectronAPI = {
   createArticle: (fileName?: string) => ipcRenderer.invoke('articles:create', fileName),
   renameArticle: (oldRelativePath: string, newFileName: string) =>
     ipcRenderer.invoke('articles:rename', oldRelativePath, newFileName),
+  moveArticle: (oldRelativePath: string, targetFolder: string) =>
+    ipcRenderer.invoke('articles:move', oldRelativePath, targetFolder),
   deleteArticle: (relativePath: string) => ipcRenderer.invoke('articles:delete', relativePath),
   duplicateArticle: (relativePath: string) => ipcRenderer.invoke('articles:duplicate', relativePath),
   searchArticlesContent: (query: string) => ipcRenderer.invoke('articles:search', query),

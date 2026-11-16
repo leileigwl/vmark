@@ -123,6 +123,7 @@ export default function App() {
   const [fileViewMode, setFileViewMode] = useState<'tree' | 'list'>('tree');
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState<string>('');
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [creatingItem, setCreatingItem] = useState<{
     type: 'file' | 'folder';
     parentDir?: string;
@@ -304,12 +305,12 @@ export default function App() {
     setSaveState('已保存');
   }
 
-  // 停顿 1.5 秒自动保存，避免切换或关闭丢失内容
+  // 停顿 1.5 秒静默自动保存，不重扫目录、不重置编辑器撤销栈
   useEffect(() => {
     if (saveState !== '未保存' || !activeArticle) return;
     const timer = setTimeout(() => {
       const latest = editorRef.current?.getValue() ?? markdown;
-      void handleSaveArticle(latest);
+      void handleSaveArticle(latest, true);
     }, 1500);
     return () => clearTimeout(timer);
   }, [markdown, saveState, activeArticle?.relativePath]);
@@ -389,17 +390,38 @@ export default function App() {
     }
   }
 
-  async function handleSaveArticle(nextContent: string) {
+  async function handleSaveArticle(nextContent: string, silent = false) {
     if (!activeArticle) return;
-    setSaveState('保存中...');
+    if (!silent) setSaveState('保存中...');
     await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
     setSaveState('已保存');
+    if (silent) return;
     const [list, git] = await Promise.all([
       window.electronAPI.listArticles(),
       window.electronAPI.getGitStatus(),
     ]);
     setArticles(list);
     setGitStatus(git);
+  }
+
+  async function handleMoveArticle(oldRelativePath: string, targetFolder: string) {
+    try {
+      const moved = await window.electronAPI.moveArticle(oldRelativePath, targetFolder);
+      const [list, folderList] = await Promise.all([
+        window.electronAPI.listArticles(),
+        window.electronAPI.listFolders(),
+      ]);
+      setArticles(list);
+      setFolders(folderList);
+      if (targetFolder) {
+        setExpandedDirs((prev) => ({ ...prev, [targetFolder]: true }));
+      }
+      if (activeArticle?.relativePath === oldRelativePath) {
+        setActiveArticle(moved);
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '移动文件失败');
+    }
   }
 
   async function handleChangeImageStrategy(strategy: ImageBedConfig['strategy']) {
@@ -544,20 +566,36 @@ export default function App() {
     return nodes.map((node) => {
       if (node.isDir) {
         const isOpen = expandedDirs[node.path] ?? true;
+        const isDragOver = dragOverFolder === node.path;
         return (
           <div key={node.path}>
             <button
               type="button"
               onClick={() => setExpandedDirs((prev) => ({ ...prev, [node.path]: !isOpen }))}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverFolder(node.path);
+              }}
+              onDragLeave={() => setDragOverFolder((prev) => (prev === node.path ? null : prev))}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverFolder(null);
+                const sourcePath = e.dataTransfer.getData('text/plain');
+                if (sourcePath) void handleMoveArticle(sourcePath, node.path);
+              }}
               style={{ paddingLeft: `${8 + depth * 12}px` }}
-              className="flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] text-[#333333] hover:bg-[#eceef1]"
+              className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] text-[var(--text-main)] ${
+                isDragOver ? 'bg-[var(--accent)]/15 ring-1 ring-[var(--accent)]' : 'hover:bg-[var(--bg-hover)]'
+              }`}
             >
               {isOpen ? (
-                <ChevronDown className="h-3 w-3 shrink-0 text-[#777777]" />
+                <ChevronDown className="h-3 w-3 shrink-0 text-[var(--control-text-color)]" />
               ) : (
-                <ChevronRight className="h-3 w-3 shrink-0 text-[#777777]" />
+                <ChevronRight className="h-3 w-3 shrink-0 text-[var(--control-text-color)]" />
               )}
-              <Folder className="h-3.5 w-3.5 shrink-0 text-[#777777]" />
+              <Folder className="h-3.5 w-3.5 shrink-0 text-[var(--control-text-color)]" />
               <span className="truncate">{node.name}</span>
             </button>
             {isOpen && renderTreeNodes(node.children, depth + 1)}
@@ -595,12 +633,16 @@ export default function App() {
                     setRenamingPath(null);
                   }
                 }}
-                className="w-full rounded border border-[var(--accent)] bg-white px-1.5 py-0.5 text-[12.5px] outline-none"
+                className="w-full rounded border border-[var(--accent)] bg-[var(--bg-main)] px-1.5 py-0.5 text-[12.5px] text-[var(--text-main)] outline-none"
               />
             </div>
           ) : (
             <button
               type="button"
+              draggable={Boolean(article)}
+              onDragStart={(e) => {
+                if (article) e.dataTransfer.setData('text/plain', article.relativePath);
+              }}
               onClick={() => {
                 if (article) {
                   void openArticle(article);
@@ -613,8 +655,8 @@ export default function App() {
               style={{ paddingLeft: `${22 + depth * 12}px` }}
               className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
                 isSelected
-                  ? 'bg-[#e6eff8] font-medium text-[#2c5e91]'
-                  : 'text-[#333333] hover:bg-[#eceef1]'
+                  ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
+                  : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
               }`}
             >
               <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
@@ -627,7 +669,7 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen overflow-hidden bg-white text-[#333333]">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">
       {/* 侧边栏拖拽时的延时虚影参考线 */}
       {dragGhostX !== null && (
         <div
@@ -748,6 +790,19 @@ export default function App() {
               e.preventDefault();
               setFileContextMenu(null);
               setEmptyContextMenu({ x: e.clientX, y: e.clientY });
+            }}
+            onDragOver={(e) => {
+              if (sideTab !== 'files') return;
+              e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (sideTab !== 'files') return;
+              e.preventDefault();
+              setDragOverFolder(null);
+              const sourcePath = e.dataTransfer.getData('text/plain');
+              if (sourcePath && sourcePath.includes('/')) {
+                void handleMoveArticle(sourcePath, '');
+              }
             }}
             className="flex-1 overflow-y-auto px-1.5 py-2 outline-none"
           >
@@ -1247,11 +1302,11 @@ export default function App() {
       )}
 
       {/* 右侧主区 */}
-      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">
         {/* Typora 式 36px 极简统一顶栏（去掉生硬分割线，更贴近原版无界纸张感） */}
         <header
-          className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-white pr-5 select-none ${
-            activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[#eeeeee]'
+          className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-[var(--bg-main)] pr-5 select-none ${
+            activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[var(--border-color)]'
           } ${sidebarOpen ? 'pl-3' : 'pl-20'}`}
         >
           <div className="app-no-drag flex items-center gap-2">
@@ -1259,7 +1314,7 @@ export default function App() {
               type="button"
               title={sidebarOpen ? '隐藏侧边栏' : '显示侧边栏'}
               onClick={() => setSidebarOpen((v) => !v)}
-              className="rounded p-1 text-[#777777] hover:bg-[#f3f4f6] hover:text-[#333333]"
+              className="rounded p-1 text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
             >
               <PanelLeft className="h-4 w-4" />
             </button>
@@ -1267,7 +1322,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveView('editor')}
-                className="rounded px-2 py-0.5 text-xs text-[#4183c4] hover:bg-[#f0f6fc]"
+                className="rounded px-2 py-0.5 text-xs text-[var(--accent)] hover:bg-[var(--bg-hover)]"
               >
                 ← 返回写作台
               </button>
@@ -1275,7 +1330,7 @@ export default function App() {
           </div>
 
           {/* 居中当前标题（仿 Typora 居中文件名） */}
-          <div className="truncate text-[12.5px] font-medium text-[#555555]">
+          <div className="truncate text-[12.5px] font-medium text-[var(--control-text-color)]">
             {activeView === 'editor'
               ? activeArticle?.relativePath ?? 'VCat Publisher'
               : activeView === 'manager'
@@ -1575,8 +1630,8 @@ export default function App() {
 
           {activeView === 'settings' && (
             <div className="flex min-w-0 flex-1 overflow-hidden">
-              <aside className="w-44 shrink-0 overflow-y-auto border-r border-[#e5e7eb] bg-[#fafafa] px-3 py-4">
-                <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[#777777] uppercase">
+              <aside className="w-44 shrink-0 overflow-y-auto border-r border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-4">
+                <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[var(--control-text-color)] uppercase">
                   偏好设置
                 </div>
                 <button
@@ -1584,8 +1639,8 @@ export default function App() {
                   onClick={() => setSettingCategory('image')}
                   className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
                     settingCategory === 'image'
-                      ? 'bg-[#e6eff8] font-semibold text-[#007aff]'
-                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                      ? 'bg-[var(--accent)]/15 font-semibold text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   <ImageIcon className="h-3.5 w-3.5" />
@@ -1596,8 +1651,8 @@ export default function App() {
                   onClick={() => setSettingCategory('theme')}
                   className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
                     settingCategory === 'theme'
-                      ? 'bg-[#e6eff8] font-semibold text-[#007aff]'
-                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                      ? 'bg-[var(--accent)]/15 font-semibold text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   <Palette className="h-3.5 w-3.5" />
@@ -1608,8 +1663,8 @@ export default function App() {
                   onClick={() => setSettingCategory('platforms')}
                   className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
                     settingCategory === 'platforms'
-                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
-                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                      ? 'bg-[var(--accent)]/15 font-semibold text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   <Globe className="h-3.5 w-3.5" />
@@ -1620,8 +1675,8 @@ export default function App() {
                   onClick={() => setSettingCategory('github')}
                   className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
                     settingCategory === 'github'
-                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
-                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                      ? 'bg-[var(--accent)]/15 font-semibold text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                   }`}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
@@ -1629,7 +1684,7 @@ export default function App() {
                 </button>
               </aside>
 
-              <section className="min-w-0 flex-1 overflow-y-auto bg-white p-6 md:p-8">
+              <section className="min-w-0 flex-1 overflow-y-auto bg-[var(--bg-main)] p-6 text-[var(--text-main)] md:p-8">
                 {settingCategory === 'image' && (
                   <div className="max-w-2xl space-y-5">
                     <div>
@@ -1892,20 +1947,20 @@ export default function App() {
                           onClick={() => setTheme(t.id)}
                           className={`rounded-lg border p-3 text-left transition ${
                             theme === t.id
-                              ? 'border-[#007aff] bg-[#f0f7ff]'
-                              : 'border-[#e5e7eb] bg-[#fafafa] hover:bg-[#f3f4f6]'
+                              ? 'border-[var(--accent)] bg-[var(--accent)]/12'
+                              : 'border-[var(--border-color)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)]'
                           }`}
                         >
-                          <div className="font-semibold text-[#1d1d1f]">{t.name}</div>
-                          <div className="mt-0.5 text-[11px] text-[#6e6e73]">{t.desc}</div>
+                          <div className="font-semibold text-[var(--text-main)]">{t.name}</div>
+                          <div className="mt-0.5 text-[11px] text-[var(--control-text-color)]">{t.desc}</div>
                         </button>
                       ))}
                     </div>
-                    <div className="mt-4 border-t border-[#eeeeee] pt-4">
+                    <div className="mt-4 border-t border-[var(--border-color)] pt-4">
                       <button
                         type="button"
                         onClick={() => void handleImportTyporaTheme()}
-                        className="rounded border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium hover:border-[#007aff] hover:text-[#007aff]"
+                        className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
                       >
                         导入本地 Typora 主题 CSS 文件（如 bloom-lapis.css）...
                       </button>

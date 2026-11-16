@@ -1,29 +1,22 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-16
-- **当前阶段**：**Phase 1.5 完成（完全对齐 macOS Typora 原生通顶左侧栏布局 + 本地 Git 仓库一键 Push 触发 CI/CD）**
+- **当前阶段**：**Phase 1.5 完成（Typora 风格交互精修 + Bloom 24 主题 + 全图床配置 + 侧边栏拖拽移动/右键/自动保存）**
 
 ## 本轮已完成事项
 
-1. **100% 对标 macOS 原生 Typora 布局重构**：
-   - 取消割裂的全宽 Web 顶部导航栏，改为**左侧栏通顶**（macOS 红绿灯自然嵌入左侧栏左上角、`文件 | 大纲` 切换、真实折叠文件夹树、底部 `+` 新建与切换目录动作条）。
-   - 右侧编辑区采用极简 `38px` 统一顶栏（居中文件名 + 右侧字数/保存状态 + `管理台`/`设置`/`分发`小图标），打开默认直入写作台。
-2. **GitHub 静态博客（本地 Git 直推）**：
-   - 主进程实现 `git:status` 与 `git:push`，打开本地 Hexo/Hugo/VitePress/Astro 仓库即可在设置或分发弹窗一键 `Commit & Push` 触发 CI/CD。
-
-## 真实测试与验证状态
-
-- `pnpm test`：7/7 单元测试通过。
-- `pnpm typecheck`：5/5 包全部通过。
-- `pnpm --filter @vcat/desktop build`：构建成功。
-- **Electron 真实端到端测试（Playwright `_electron.launch`）**：**全部通过（Exit 0）**
-  - ✓ 默认进入 Typora 原生通顶左侧栏 + 写作台渲染正常
-  - ✓ 侧边栏底部 `+` 新建空白文章成功且未崩溃
-  - ✓ 文章管理台渲染正常
-  - ✓ Typora 风格偏好设置（图床 / 平台托管 / GitHub 静态博客）渲染正常
-  - ✓ 全程零 `pageerror` 与零 `console.error`
+1. **编辑区核心交互与格式修复**：
+   - 修复 `Cmd+B` / `Cmd+I` 在有选区时通过 `document.execCommand('insertText')` 包裹/剥离，无选区时不插入占位符，右键菜单无选区时自动置灰行内格式项。
+   - 表格支持在现有表格内安全插入新表格（自动跳出到下方新段落）、完整右键表格操作及整表删除（`execCommand('delete')` 不残留 `| --- |`）。
+   - 1.5 秒停顿静默自动保存 + 切换文章前强制落盘保存，不重扫目录、不重置编辑器撤销栈。
+   - Mermaid 单击弹出放大预览、快速双击原位切换为单框代码编辑器；`Cmd+F` 默认纯查找计数与跳转，点击展开替换栏。
+2. **侧边栏文件树与拖拽体验**：
+   - 支持空白处右键新建文件/文件夹（行内毛玻璃虚化命名框确认创建）、右键重命名/复制/移到废纸篓/在 Finder 中显示、文档列表与文档树切换、正文全文搜索。
+   - 支持拖拽文件直接移入目标文件夹或拖回根目录；侧边栏右边缘拖拽采用 60fps 虚影参考线，松手落位。
+3. **Bloom 24 套开源主题与全图床配置**：
+   - 默认保持 Apple Light，内置全部 24 套 Bloom 主题并实现暗色主题全界面 CSS 变量统一；支持 PicGo-Core / OSS / COS / S3 / GitHub / 七牛云 / SM.MS / Imgur 配置与默认 50% 图片缩放。
 
 ## 下一步计划（Next Steps）
 
-1. 在本地运行 `cd vcat-publisher-desktop && pnpm dev` 实机检查「文章管理台」、「写作台（Vditor + 本地 `assets/` 贴图）」、「图床设置」交互。
-2. 接入 `better-sqlite3` 持久化 `sync_records` 与 `image_cache`，并率先实现 **博客园（MetaWeblog）** 与 **微信公众号 / Linux.do** 的真实沙箱登录与 5 步送达检测管线。
+1. 用户在本地单窗口实测确认 Phase 1.5 所有交互与暗色主题效果。
+2. 进入 Phase 2：接入 `better-sqlite3` 持久化 `sync_records` 与 `image_cache`，并实现 **博客园（MetaWeblog）**、**微信公众号** 与 **Linux.do** 真实适配器及 5 步送达检测。

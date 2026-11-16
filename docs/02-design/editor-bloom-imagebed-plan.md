@@ -32,5 +32,12 @@
 - 在 `packages/shared` 与 `main/index.ts` 扩展 `ImageBedConfig`，支持配置 `defaultImageScale`（`50 | 75 | 100`，默认 `50`）、PicGo-Core CLI 路径或各图床凭证（阿里云 OSS / 腾讯云 COS / S3 & R2 / GitHub / 七牛云 / SM.MS / Imgur），提供测试上传与主进程 `image:uploadRemote` 通道。
 - 编辑器内 `.vditor-reset img` 按全局 `data-img-scale="50|75|100"` 呈现（居中/圆角/点击放大）。
 
-### 6. 全流程端到端验证
+### 6. 选区格式、表格删除、暗色全界面统一与侧边栏拖拽移动（本轮补充）
+- **仅选区可加粗/斜体**：无选区时禁用右键「格式」行内项且 `Cmd+B`/`Cmd+I` 不插入占位符；有选区时通过 `document.execCommand('insertText')` 包裹/剥离，杜绝重复文本并保留 `Cmd+Z` 撤回栈。
+- **自动保存不破坏撤回**：1.5s 停顿自动保存仅静默写盘，不再全量重扫目录或重置编辑器实例。
+- **删除表格**：选中整张表格节点通过 `execCommand('delete')` 整块移除，避免残留 `| --- |` 源码。
+- **暗色主题全界面一致性**：顶栏、设置页、管理台与弹窗全部改用主题 CSS 变量（`--bg-main` / `--side-bar-bg-color` / `--text-main` / `--border-color`）。
+- **拖拽文件入文件夹**：文件树行支持 `draggable` 拖入目标文件夹或根目录，通过 `articles:move` 安全移动文件并同步更新当前打开文章路径。
+
+### 7. 全流程端到端验证
 - 更新 `e2e_test.mjs`，逐项验证：长文加载、`Cmd+F` 纯查找与展开替换、`Cmd+B` 加粗/取消加粗、表格操作、Mermaid 单击放大与双击单框编辑、未锁定面板点击空白关闭、图片 50% 默认缩放与 Bloom 主题切换。
