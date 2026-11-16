@@ -3,7 +3,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildArticleMeta, countWords, extractOutline, scanWorkspaceArticles } from './index.ts';
+import {
+  buildArticleMeta,
+  countWords,
+  extractOutline,
+  scanWorkspaceArticles,
+  transformTableMatrix,
+} from './index.ts';
 
 test('extractOutline skips fenced code blocks and extracts H1-H4', () => {
   const md = [
@@ -47,4 +53,27 @@ test('scanWorkspaceArticles finds markdown files and ignores assets/hidden dirs'
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('transformTableMatrix cleanly inserts and deletes rows/columns without breaking header', () => {
+  const initial = [
+    ['模式', '耗时'],
+    ['route', '6.2s'],
+    ['parallel', '3.4s'],
+  ];
+  const withCol = transformTableMatrix(initial, 'col-right', 1, 0);
+  assert.deepEqual(withCol, [
+    ['模式', '列', '耗时'],
+    ['route', '', '6.2s'],
+    ['parallel', '', '3.4s'],
+  ]);
+  const delCol = transformTableMatrix(withCol!, 'col-delete', 1, 1);
+  assert.deepEqual(delCol, initial);
+  const delRow = transformTableMatrix(delCol!, 'row-delete', 1, 0);
+  assert.deepEqual(delRow, [
+    ['模式', '耗时'],
+    ['parallel', '3.4s'],
+  ]);
+  // Deleting last remaining body row returns null so caller removes whole table
+  assert.equal(transformTableMatrix(delRow!, 'row-delete', 1, 0), null);
 });

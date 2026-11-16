@@ -353,6 +353,10 @@ body {
   color: #ffffff !important;
   border-radius: 3px;
 }
+::highlight(vcat-find) {
+  background-color: rgba(255, 204, 0, 0.42);
+  color: inherit;
+}
 .vditor-reset table {
   display: table !important;
   width: 100% !important;

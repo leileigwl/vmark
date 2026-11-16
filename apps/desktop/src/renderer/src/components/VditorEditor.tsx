@@ -1,13 +1,21 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { transformTableMatrix, type TableEditAction } from '@vcat/core';
 import Vditor from 'vditor';
+
+export interface FindOptions {
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
+}
 
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
   getValue: () => string;
-  findMatches: (findStr: string) => number;
-  jumpToMatch: (findStr: string, index: number) => number;
-  replaceAllText: (findStr: string, replaceStr: string) => number;
+  findMatches: (findStr: string, opts?: FindOptions) => number;
+  jumpToMatch: (findStr: string, index: number, opts?: FindOptions) => number;
+  clearFindHighlights: () => void;
+  replaceAllText: (findStr: string, replaceStr: string, opts?: FindOptions) => number;
 }
 
 interface VditorEditorProps {
@@ -156,67 +164,129 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const instance = vditorRef.current;
         return instance && isReadyRef.current ? instance.getValue() : value;
       },
-      findMatches(findStr: string) {
+      findMatches(findStr: string, opts?: FindOptions) {
         const el = containerRef.current;
-        if (!el || !findStr) return 0;
-        const resetEl = el.querySelector('.vditor-reset');
-        if (!resetEl) return 0;
-        const text = resetEl.textContent || '';
-        const lowerText = text.toLowerCase();
-        const lowerQuery = findStr.toLowerCase();
-        let count = 0;
-        let idx = lowerText.indexOf(lowerQuery);
-        while (idx !== -1) {
-          count++;
-          idx = lowerText.indexOf(lowerQuery, idx + lowerQuery.length);
+        if (!el || !findStr) {
+          (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights?.delete('vcat-find');
+          return 0;
         }
-        return count;
-      },
-      jumpToMatch(findStr: string, targetIndex: number) {
-        const el = containerRef.current;
-        if (!el || !findStr) return 0;
-        const resetEl = el.querySelector('.vditor-reset');
+        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
         if (!resetEl) return 0;
 
+        let re: RegExp;
+        try {
+          const flags = opts?.caseSensitive ? 'g' : 'gi';
+          const escaped = opts?.regex ? findStr : findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = opts?.wholeWord ? `\\b${escaped}\\b` : escaped;
+          re = new RegExp(pattern, flags);
+        } catch {
+          return 0;
+        }
+
         const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-        const lowerQuery = findStr.toLowerCase();
-        const hits: Array<{ node: Text; start: number; end: number }> = [];
+        const ranges: Range[] = [];
         let curr = walker.nextNode() as Text | null;
         while (curr) {
           const val = curr.nodeValue || '';
-          const lowerVal = val.toLowerCase();
-          let pos = lowerVal.indexOf(lowerQuery);
-          while (pos !== -1) {
-            hits.push({ node: curr, start: pos, end: pos + findStr.length });
-            pos = lowerVal.indexOf(lowerQuery, pos + lowerQuery.length);
+          re.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(val)) !== null) {
+            if (m[0].length === 0) {
+              re.lastIndex++;
+              continue;
+            }
+            const r = document.createRange();
+            r.setStart(curr, m.index);
+            r.setEnd(curr, m.index + m[0].length);
+            ranges.push(r);
           }
           curr = walker.nextNode() as Text | null;
         }
-        if (hits.length === 0) return 0;
-        const safeIdx = ((targetIndex % hits.length) + hits.length) % hits.length;
-        const hit = hits[safeIdx];
-        const range = document.createRange();
-        range.setStart(hit.node, hit.start);
-        range.setEnd(hit.node, hit.end);
+
+        const cssApi = (globalThis as unknown as {
+          CSS?: { highlights?: Map<string, unknown> };
+          Highlight?: new (...ranges: Range[]) => unknown;
+        });
+        if (cssApi.CSS?.highlights && cssApi.Highlight) {
+          if (ranges.length > 0) {
+            cssApi.CSS.highlights.set('vcat-find', new cssApi.Highlight(...ranges));
+          } else {
+            cssApi.CSS.highlights.delete('vcat-find');
+          }
+        }
+        return ranges.length;
+      },
+      clearFindHighlights() {
+        (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights?.delete('vcat-find');
+      },
+      jumpToMatch(findStr: string, targetIndex: number, opts?: FindOptions) {
+        const el = containerRef.current;
+        if (!el || !findStr) return 0;
+        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
+        if (!resetEl) return 0;
+
+        let re: RegExp;
+        try {
+          const flags = opts?.caseSensitive ? 'g' : 'gi';
+          const escaped = opts?.regex ? findStr : findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = opts?.wholeWord ? `\\b${escaped}\\b` : escaped;
+          re = new RegExp(pattern, flags);
+        } catch {
+          return 0;
+        }
+
+        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
+        const ranges: Range[] = [];
+        let curr = walker.nextNode() as Text | null;
+        while (curr) {
+          const val = curr.nodeValue || '';
+          re.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(val)) !== null) {
+            if (m[0].length === 0) {
+              re.lastIndex++;
+              continue;
+            }
+            const r = document.createRange();
+            r.setStart(curr, m.index);
+            r.setEnd(curr, m.index + m[0].length);
+            ranges.push(r);
+          }
+          curr = walker.nextNode() as Text | null;
+        }
+        if (ranges.length === 0) return 0;
+        const safeIdx = ((targetIndex % ranges.length) + ranges.length) % ranges.length;
+        const hitRange = ranges[safeIdx];
         const sel = window.getSelection();
         sel?.removeAllRanges();
-        sel?.addRange(range);
-        const parentEl = hit.node.parentElement;
+        sel?.addRange(hitRange);
+        const parentEl =
+          hitRange.startContainer instanceof Element
+            ? hitRange.startContainer
+            : hitRange.startContainer.parentElement;
         parentEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return hits.length;
+        return ranges.length;
       },
-      replaceAllText(findStr: string, replaceStr: string) {
+      replaceAllText(findStr: string, replaceStr: string, opts?: FindOptions) {
         const instance = vditorRef.current;
         if (!instance || !isReadyRef.current || !findStr) return 0;
         const current = instance.getValue();
-        const parts = current.split(findStr);
-        const count = parts.length - 1;
-        if (count > 0) {
-          const next = parts.join(replaceStr);
-          instance.setValue(next);
-          onChangeRef.current(next);
+        try {
+          const flags = opts?.caseSensitive ? 'g' : 'gi';
+          const escaped = opts?.regex ? findStr : findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = opts?.wholeWord ? `\\b${escaped}\\b` : escaped;
+          const re = new RegExp(pattern, flags);
+          const matches = current.match(re);
+          const count = matches ? matches.length : 0;
+          if (count > 0) {
+            const next = current.replace(re, replaceStr);
+            instance.setValue(next, false);
+            onChangeRef.current(next);
+          }
+          return count;
+        } catch {
+          return 0;
         }
-        return count;
       },
       applyTableAction(action: string) {
         const el = containerRef.current;
@@ -227,11 +297,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const table = target.closest('table') as HTMLTableElement | null;
         if (!cell || !row || !table) return;
 
+        const allRows = Array.from(table.rows);
+        const rowIndex = allRows.indexOf(row);
         const colIndex = cell.cellIndex;
-        const colCount = row.cells.length;
+        const colCount = Math.max(1, ...allRows.map((r) => r.cells.length));
 
         if (action === 'table-copy') {
-          const mdRows = Array.from(table.rows).map((r) =>
+          const mdRows = allRows.map((r) =>
             `| ${Array.from(r.cells).map((c) => (c.textContent || '').trim()).join(' | ')} |`
           );
           if (mdRows.length > 0) {
@@ -257,55 +329,47 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
           el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
           return;
-        } else if (action === 'row-above' || action === 'row-below') {
-          const newRow = document.createElement('tr');
-          for (let i = 0; i < colCount; i++) {
-            const td = document.createElement('td');
-            td.textContent = ' ';
-            newRow.appendChild(td);
-          }
-          const inHead = row.parentElement?.tagName === 'THEAD';
-          const tbody = table.tBodies[0] ?? table.createTBody();
-          if (inHead) {
-            tbody.insertBefore(newRow, tbody.firstChild);
-          } else if (action === 'row-above') {
-            row.parentNode?.insertBefore(newRow, row);
-          } else {
-            row.parentNode?.insertBefore(newRow, row.nextSibling);
-          }
-        } else if (action === 'row-delete') {
-          const inHead = row.parentElement?.tagName === 'THEAD';
-          const tbody = table.tBodies[0];
-          if (!inHead && tbody && tbody.rows.length > 1) {
-            row.remove();
-          } else if (!inHead && (!tbody || tbody.rows.length <= 1)) {
-            const tableNode = table.closest('.vditor-ir__node') ?? table;
-            tableNode.remove();
-          }
-        } else if (action === 'col-left' || action === 'col-right') {
-          Array.from(table.rows).forEach((r) => {
-            const isHead = r.parentElement?.tagName === 'THEAD';
-            const newCell = document.createElement(isHead ? 'th' : 'td');
-            newCell.textContent = isHead ? '列' : ' ';
-            const refCell = r.cells[colIndex];
-            if (action === 'col-left') {
-              r.insertBefore(newCell, refCell ?? null);
-            } else {
-              r.insertBefore(newCell, refCell?.nextSibling ?? null);
-            }
-          });
-        } else if (action === 'col-delete') {
-          if (colCount > 1) {
-            Array.from(table.rows).forEach((r) => {
-              r.cells[colIndex]?.remove();
-            });
-          } else {
-            const tableNode = table.closest('.vditor-ir__node') ?? table;
-            tableNode.remove();
-          }
         }
 
-        const resetEl = el.querySelector('.vditor-reset');
+        const matrix = allRows.map((r) =>
+          Array.from(r.cells).map((c) => (c.innerHTML || '').trim())
+        );
+        const nextMatrix = transformTableMatrix(matrix, action as TableEditAction, rowIndex, colIndex);
+        if (!nextMatrix) {
+          const p = document.createElement('p');
+          p.innerHTML = '<br>';
+          table.parentNode?.insertBefore(p, table);
+          table.remove();
+          el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
+
+        // Rebuild a 100% valid <thead> + <tbody> table so Vditor Lute never breaks pipes
+        const newTable = document.createElement('table');
+        const thead = document.createElement('thead');
+        const headTr = document.createElement('tr');
+        nextMatrix[0].forEach((html) => {
+          const th = document.createElement('th');
+          th.innerHTML = html || '列';
+          headTr.appendChild(th);
+        });
+        thead.appendChild(headTr);
+        newTable.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (let r = 1; r < nextMatrix.length; r++) {
+          const tr = document.createElement('tr');
+          nextMatrix[r].forEach((html) => {
+            const td = document.createElement('td');
+            td.innerHTML = html || ' ';
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        }
+        newTable.appendChild(tbody);
+        table.replaceWith(newTable);
+
+        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
         resetEl?.dispatchEvent(new Event('input', { bubbles: true }));
       },
     }));

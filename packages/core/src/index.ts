@@ -92,3 +92,57 @@ export async function scanWorkspaceArticles(rootDir: string): Promise<ArticleMet
   await walk(rootDir);
   return results.sort((a, b) => b.updatedAt - a.updatedAt);
 }
+
+export type TableEditAction =
+  | 'row-above'
+  | 'row-below'
+  | 'row-delete'
+  | 'col-left'
+  | 'col-right'
+  | 'col-delete';
+
+/** Transforms a normalized 2D markdown table matrix without breaking header/column alignment. */
+export function transformTableMatrix(
+  matrix: string[][],
+  action: TableEditAction,
+  rowIndex: number,
+  colIndex: number
+): string[][] | null {
+  if (matrix.length === 0) return null;
+  const colCount = Math.max(1, ...matrix.map((r) => r.length));
+  const next = matrix.map((r) => {
+    const padded = [...r];
+    while (padded.length < colCount) padded.push('');
+    return padded;
+  });
+
+  if (action === 'row-above' || action === 'row-below') {
+    const emptyRow = Array.from({ length: colCount }, () => '');
+    const insertIdx =
+      rowIndex <= 0 ? 1 : action === 'row-above' ? rowIndex : rowIndex + 1;
+    next.splice(insertIdx, 0, emptyRow);
+    return next;
+  }
+
+  if (action === 'row-delete') {
+    if (next.length <= 2 || rowIndex <= 0) return null;
+    next.splice(rowIndex, 1);
+    return next;
+  }
+
+  if (action === 'col-left' || action === 'col-right') {
+    const insertCol = action === 'col-left' ? colIndex : colIndex + 1;
+    return next.map((r, rIdx) => {
+      const copy = [...r];
+      copy.splice(insertCol, 0, rIdx === 0 ? '列' : '');
+      return copy;
+    });
+  }
+
+  if (action === 'col-delete') {
+    if (colCount <= 1) return null;
+    return next.map((r) => r.filter((_, cIdx) => cIdx !== colIndex));
+  }
+
+  return next;
+}
