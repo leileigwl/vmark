@@ -158,6 +158,17 @@ export function Sidebar({
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
 
+  // Keep single selection synced with activeArticle so switching via ArticleManagerView or shortcuts never leaves two highlighted items
+  useEffect(() => {
+    if (activeArticle?.relativePath) {
+      setSelectedPaths([activeArticle.relativePath]);
+      setLastClickedPath(activeArticle.relativePath);
+    } else {
+      setSelectedPaths([]);
+      setLastClickedPath(null);
+    }
+  }, [activeArticle?.relativePath]);
+
   useEffect(() => {
     const q = fileSearchQuery.trim();
     if (!q) {

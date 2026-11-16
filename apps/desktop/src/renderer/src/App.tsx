@@ -221,12 +221,18 @@ export default function App() {
   }, [activeArticle, markdown]);
 
   async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig) {
-    if (activeArticle && activeArticle.relativePath !== meta.relativePath && saveState === '未保存') {
-      const unsaved = editorRef.current?.getValue() ?? markdown;
-      await handleSaveArticle(unsaved);
+    if (activeArticle?.relativePath === meta.relativePath) {
+      return;
     }
-    const content = await window.electronAPI.readArticle(meta.relativePath);
+    if (activeArticle && saveState === '未保存') {
+      const unsaved = editorRef.current?.getValue() ?? markdown;
+      if (!(activeArticle.wordCount > 20 && unsaved.trim().length === 0)) {
+        // Save previous article in the background without blocking UI switch on workspace/git rescans
+        void window.electronAPI.saveArticle(activeArticle.relativePath, unsaved);
+      }
+    }
     setActiveArticle(meta);
+    const content = await window.electronAPI.readArticle(meta.relativePath);
     setMarkdown(content);
     setSaveState('已保存');
     const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
