@@ -2,6 +2,28 @@
 
 - **日期**：2026-11-17
 - **当前阶段**：**Phase 1.5 深度精修与工程化规范落地**
+- **最新基线提交**：`8b75e9e`（Round 33 已完成并经 `typecheck` / `test` / `build` / Playwright 验证通过）
+
+---
+
+## 零、下轮（Round 34）优先待办交接清单（用户已提出，待下轮实现）
+
+1. **侧边栏支持批量框选文件夹 & 批量删除文件夹 + `App.tsx` / `Sidebar.tsx` 进一步解耦**：
+   - **现状与问题**：目前 `Sidebar.tsx` 左键框选（Marquee）仅收集 `data-article-path` 文件节点，文件夹节点未被纳入批量选区，也不支持批量删除文件夹。
+   - **目标**：
+     - `SidebarTreeNodes.tsx` 为文件夹节点补充统一标识属性（如 `data-folder-path`），框选与 `Shift` 连选同时覆盖文件与文件夹。
+     - 支持对选中的文件+文件夹执行批量删除（含确认与 `Cmd/Ctrl+Z` 撤销/重做，注意避免父文件夹与子文件重复删除冲突）。
+     - **代码解耦**：将 `App.tsx` 中的文件撤销/重做栈（`FileHistoryOp`、`handleUndoFileOp`、`handleRedoFileOp`）及批量文件/文件夹操作抽离为独立 hook/模块（如 `src/renderer/src/hooks/useFileHistory.ts`），控制 `App.tsx` 与 `Sidebar.tsx` 体积。
+2. **批量选中后按 `Delete` / `Backspace` 键应触发批量删除**：
+   - **现状与问题**（截图 `media_1794860555386_b540cf0e.png`）：批量选中多个文件后按键盘 `Delete` / `Backspace`，当前 `Sidebar.tsx` 的 `onKeyDown` 仅判断 `if (activeArticle) void onDeleteArticle(activeArticle)`，导致弹出单文件删除确认框（如仅删除 `Untitled 12.md`）。
+   - **目标**：当 `selectedPaths.length > 1` 时，按 `Delete` / `Backspace` 直接走 `onBatchDelete` 批量删除确认流程。
+3. **修复批量删除右键/点击时选区被单文件覆盖的 Bug**：
+   - **现状与问题**（截图 `media_1794860629475_b631f4ed.jpg`、`media_1794860634442_a24bff1b.jpg`）：批量选中多篇文件后操作批量删除时，出现偶发"多了一个左键"/单选事件把多选态冲掉，退化成仅选中单个文件并弹出单文件右键菜单。
+   - **排查方向**：检查 `Sidebar.tsx` 中全局 `mousedown` 自动清空多选监听、文件行 `onMouseDown`/`onClick` 与 `onContextMenu` 的触发顺序及 `button !== 0` 防护（右键 `e.button === 2` 绝不能触发左键单选或清空多选）。
+4. **修复 `<details>` / `<summary>` HTML 块内双击无法全选/选中文本的问题**：
+   - **现状与问题**（截图 `media_1794860728528_35386f29.png`）：在 `<details><summary>...</summary>`（Vditor IR `data-type="html-block"`）中双击时，无法正常双击选中文本/全选。
+   - **排查方向**：检查 [vditorPointerEvents.ts](file:///Users/leileigwl/Desktop/aa/vcat-publisher-desktop/apps/desktop/src/renderer/src/editor/vditorPointerEvents.ts) 中 `getPreviewBlockTarget`、`handleEditorMouseDownCapture`、`handleDblClickCapture` 及 `VditorEditor.tsx` 的 `handleClickCapture` 是否误拦截了 `html-block` 的默认双击选词/选段行为。
+5. **打包提醒**：macOS（带图标 + DMG 拖拽安装）与 Windows 双端打包**继续延后，待用户确认上述全部体验满意后再统一执行**。
 
 ---
 
