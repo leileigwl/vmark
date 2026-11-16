@@ -61,32 +61,26 @@ flowchart LR
 
 ## 三、 极简沉浸 UI 规划与 Bloom 视觉样式规范
 
-### 1. 核心界面布局与“铺满无框”极简哲学
-直接提取并复用本地 Typora [`bloom-lapis.css`](file:///Users/leileigwl/Library/Application Support/abnerworks.Typora/themes/bloom-lapis.css) 与 [`bloom-wheat.css`](file:///Users/leileigwl/Library/Application Support/abnerworks.Typora/themes/bloom-wheat.css) 的真实设计系统，**彻底去掉多余的软件账号体系与 AI 依赖**：
-1. **无边框铺满式画布（Full-Bleed Canvas）**：
-   - 取消 `740px` 居中卡片的边框、圆角和阴影（`max-width: none; border: none; border-radius: 0; box-shadow: none;`），让写作区自然铺满整个视口，顶部保留 Bloom 标志性的柔和线性渐变光晕（`linear-gradient(180deg, var(--accent-soft), transparent 460px)`）。
-2. **默认极简写作态（左右全收起）**：
-   - 顶部仅保留极淡的线性图标（展开左栏、选模板/一键导入、外观主题面板、合并分发小窗、设置）。
-3. **左侧栏（List 面板，可随时收缩隐藏）**：
-   - 切换 **「文件树 / 大纲」** 与 **「本地模板 & 素材库」**；底部提供「+ 一键导入」抓取线上文章。
-4. **轻量合并分发小窗（点击分发图标弹出，不占主界面）**：
-   - 勾选博客园、掘金、知乎等平台；如需微调单平台标题/标签，点击折叠小行手调即可；下方展示 4 步实时状态进度，一键推入平台草稿箱。
-5. **独立「设置」弹窗（全功能配齐）**：
-   - **外观与主题**：直接复刻 Bloom 的 **12 浅 12 深 CSS 变量主题**（默认象牙白 `Wheat #f7f5f1` 与清澈文档蓝 `Lapis #2f62ac`），支持极简模式与字号/行距调节。
-   - **图床与资产**：本地 `assets/` 目录策略、平台私有直传优先开关、PicGo/OSS/COS/S3/GitHub 配置。
-   - **平台对接**：博客园（MetaWeblog）、掘金、知乎、CSDN 本地沙箱授权状态维护。
+### 1. 核心界面布局与 Typora 原版经典白色风格
+直接学习并复用本地 Typora 原版 [`github.css`](file:///Users/leileigwl/Library/Application Support/abnerworks.Typora/themes/github.css) 的清爽白色风格，**提供完整的内容管理平台视图 + 极简写作台**：
+1. **三大顶层视图切换（顶部极简标签）**：
+   - **「写作台」**：纯白画布（`#ffffff`）+ 可收缩左侧栏（`#fafafa`，文件树/模板/素材/+一键导入），极致专注写文章。
+   - **「文章管理」**：**完整的管理平台表格视图（Table）**，集中管理工作区内所有本地文章、字数、标签，以及每个平台（博客园/掘金/知乎/CSDN）的同步状态、草稿直达链接与一键分发/批量检查。
+   - **「设置与对接」**：集中配置图床策略（`assets/` 本地优先 + OSS/COS/S3/PicGo）、平台对接授权（博客园 MetaWeblog / 独立沙箱登录）与外观选项。
+2. **轻量合并分发弹窗（在写作台或管理台点击“分发”时弹出）**：
+   - 勾选目标平台 + 按需展开小行微调单平台标题/标签 + 实时展示 4 步分发中间过程（鉴权预检 $\rightarrow$ 缓存命中/图片防盗链转存 $\rightarrow$ 格式编译 $\rightarrow$ 推入草稿箱）。
 
-### 2. 真实提取的 Bloom CSS Token 规范（8px 原子间距 + MiSans 字体）
+### 2. 真实提取的 Typora 原版白色 CSS Token 规范（参考 `github.css`）
 
-| 语义变量 | 象牙白 (`bloom-wheat.css`) | 文档蓝 (`bloom-lapis.css`) | 说明 |
-| :--- | :--- | :--- | :--- |
-| **`--bg` / `--bg-color`** | `#f7f5f1` | `#f3f7fa` | 整体铺满背景底色 |
-| **`--surface` / `--surface-2`** | `#f1eee9` / `#e9e4dc` | `#ecf1f5` / `#dfe7ee` | 左侧边栏、代码区、浮层卡片底色 |
-| **`--text` / `--text-semi`** | `#262118` / `#5a544a` | `#161e26` / `#48515b` | 正文主文字与次级文字 |
-| **`--accent` / `--accent-soft`** | `#836d43` / `rgba(131,109,67,0.12)` | `#2f62ac` / `rgba(47,98,172,0.12)` | 主题点缀色与顶部氛围渐变光晕 |
-| **`--border`** | `rgba(38,33,24,0.1)` | `rgba(22,30,38,0.1)` | 1px 极细分割线 |
-| **字体栈 (`--font-sans`)** | `"MiSans", "PingFang SC", "Microsoft YaHei", sans-serif` | 同左 | 复用 `bloom/fonts/MiSans-*.ttf` |
-| **行高与字号** | `font-size: 16px; line-height: 1.8;` | 同左 | 舒适长文阅读与编辑密度 |
+| 语义变量 | 色值 (`github.css`) | 说明 |
+| :--- | :--- | :--- |
+| **主画布背景** | `#ffffff` | 纯净白写作与管理台主底色 |
+| **侧边栏 / 表头底色 (`--side-bar-bg-color`)** | `#fafafa` | 左侧栏与表格表头极浅灰 |
+| **主文字颜色** | `rgb(51, 51, 51)` (`#333333`) | 经典高可读深灰黑 |
+| **次要文字 (`--control-text-color`)** | `#777777` | 字数、时间戳、辅助图标 |
+| **交互主色 / 链接 (`a`)** | `#4183C4` | 经典 Typora 蓝，主按钮、链接与激活态 |
+| **边框与分割线** | `#e5e7eb` / `#eeeeee` | 1px 干净细线 |
+| **字体栈** | `"Open Sans", "PingFang SC", "Helvetica Neue", sans-serif` | 清爽中英文混排，`font-size: 16px; line-height: 1.6;` |
 
 ### 3. 排版与交互规范
 - **字体栈**：

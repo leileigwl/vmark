@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VCat Publisher · Typora White 原型与完整管理台</title>
+  <style>
+    :root {
+      --bg-main: #ffffff;
+      --bg-sidebar: #fafafa;
+      --bg-hover: #f0f4f8;
+      --text-main: #333333;
+      --text-muted: #777777;
+      --accent: #4183c4;
+      --accent-hover: #3572b0;
+      --border: #e5e7eb;
+      --border-light: #eeeeee;
+      --success: #2ea44f;
+      --success-bg: #dafbe1;
+      --warning: #bf8700;
+      --warning-bg: #fff8c5;
+      --danger: #cf222e;
+      --danger-bg: #ffebe9;
+      --font-sans: "Open Sans", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      color: var(--text-main);
+      background: #f2f4f7;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-window {
+      width: 100%;
+      max-width: 1280px;
+      height: 92vh;
+      background: var(--bg-main);
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 顶部标题与导航栏 */
+    .topbar {
+      height: 44px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .traffic-lights { display: flex; gap: 7px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; }
+    .dot.red { background: #ff5f56; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #27c93f; }
+    .app-title { font-size: 13px; font-weight: 600; color: var(--text-main); }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      background: #eceef1;
+      padding: 3px;
+      border-radius: 6px;
+    }
+    .nav-tab {
+      border: none;
+      background: transparent;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .nav-tab.active {
+      background: #ffffff;
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .topbar-actions { display: flex; align-items: center; gap: 8px; }
+    .btn {
+      font-family: inherit;
+      font-size: 12px;
+      padding: 5px 11px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn:hover { background: #f6f8fa; }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      font-weight: 500;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* 主体区域 */
+    .workspace {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .view-panel { display: none; width: 100%; height: 100%; }
+    .view-panel.active { display: flex; }
+
+    /* ================= 视图1：文章管理台（完整管理视图） ================= */
+    .manager-container {
+      flex: 1;
+      padding: 24px 32px;
+      overflow-y: auto;
+      background: var(--bg-main);
+    }
+    .manager-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .manager-header h1 { font-size: 20px; font-weight: 600; }
+    .manager-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 16px;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); }
+    .stat-val { font-size: 20px; font-weight: 600; margin-top: 4px; }
+
+    .table-box {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      background: var(--bg-sidebar);
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbfc; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+    .badge-ok { background: var(--success-bg); color: #116329; }
+    .badge-warn { background: var(--warning-bg); color: #7d4e00; }
+    .badge-err { background: var(--danger-bg); color: var(--danger); }
+    .badge-idle { background: #f3f4f6; color: #57606a; }
+
+    /* ================= 视图2：Typora 白色写作台 ================= */
+    .editor-sidebar {
+      width: 240px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: width 0.15s ease;
+    }
+    .editor-sidebar.collapsed { width: 0; overflow: hidden; border-right: none; }
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .sidebar-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .sidebar-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+    .file-list { flex: 1; padding: 10px; overflow-y: auto; font-size: 13px; }
+    .file-item {
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .file-item:hover { background: #eef1f4; }
+    .file-item.active { background: #e6eff8; color: var(--accent); font-weight: 500; }
+
+    .editor-canvas {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-main);
+      padding: 36px 48px 80px;
+    }
+    .typora-write {
+      max-width: 860px;
+      margin: 0 auto;
+      line-height: 1.65;
+      font-size: 16px;
+    }
+    .typora-write h1 {
+      font-size: 2em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 16px;
+    }
+    .typora-write h2 {
+      font-size: 1.4em;
+      padding-bottom: 0.25em;
+      border-bottom: 1px solid var(--border-light);
+      margin: 24px 0 12px;
+    }
+    .typora-write p { margin-bottom: 14px; }
+    .typora-write blockquote {
+      border-left: 4px solid #dfe2e5;
+      padding: 0 15px;
+      color: var(--text-muted);
+      margin: 14px 0;
+    }
+    .typora-write pre {
+      background: #f8f8f8;
+      border: 1px solid #e7eaed;
+      border-radius: 4px;
+      padding: 14px 16px;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    /* ================= 视图3：设置与对接 ================= */
+    .settings-container {
+      flex: 1;
+      padding: 28px 40px;
+      overflow-y: auto;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .setting-section {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background: #ffffff;
+    }
+    .setting-section h2 { font-size: 15px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light); }
+    .platform-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .platform-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-sidebar);
+    }
+
+    /* ================= 合并分发小弹窗 ================= */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.25);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      width: 480px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.15);
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 14px 18px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .modal-body { padding: 16px 18px; font-size: 13px; }
+    .platform-row {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .platform-row-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tweak-area {
+      display: none;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+    .tweak-area.open { display: block; }
+    .input-sm {
+      width: 100%;
+      padding: 5px 8px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    .pipeline-steps {
+      margin-top: 14px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+    .step-line { display: flex; justify-content: space-between; padding: 4px 0; color: var(--text-muted); }
+    .step-line.done { color: var(--success); font-weight: 500; }
+    .step-line.running { color: var(--accent); font-weight: 600; }
+
+    /* 底部状态栏 */
+    .statusbar {
+      height: 26px;
+      background: var(--bg-sidebar);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-window">
+    <!-- 顶部栏 -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="traffic-lights">
+          <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+        </div>
+        <span class="app-title">VCat Publisher</span>
+        <div class="nav-tabs">
+          <button class="nav-tab active" onclick="switchView('manager', this)">文章管理台</button>
+          <button class="nav-tab" onclick="switchView('editor', this)">写作台</button>
+          <button class="nav-tab" onclick="switchView('settings', this)">平台与图床设置</button>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn" id="toggleSidebarBtn" style="display:none" onclick="toggleSidebar()">收起/展开左栏</button>
+        <button class="btn" onclick="openImportAlert()">+ 一键导入 URL</button>
+        <button class="btn btn-primary" onclick="openPublishModal()">合并分发 (草稿箱)</button>
+      </div>
+    </div>
+
+    <!-- 主体视图区 -->
+    <div class="workspace">
+      <!-- 1. 完整文章管理台视图 -->
+      <div id="view-manager" class="view-panel active">
+        <div class="manager-container">
+          <div class="manager-header">
+            <div>
+              <h1>本地工作区文章管理</h1>
+              <div class="manager-sub">工作区目录：<code>~/Documents/MyBlogs</code> · 混合模式（纯本地 .md + SQLite 状态索引）</div>
+            </div>
+            <button class="btn btn-primary" onclick="switchView('editor', document.querySelectorAll('.nav-tab')[1])">+ 选模板新建文章</button>
+          </div>
+
+          <div class="stats-bar">
+            <div class="stat-card"><div class="stat-label">本地文章总数</div><div class="stat-val">14 篇</div></div>
+            <div class="stat-card"><div class="stat-label">已在线平台</div><div class="stat-val" style="color:var(--success)">3 / 4 个</div></div>
+            <div class="stat-card"><div class="stat-label">本地图片缓存</div><div class="stat-val">42 张</div></div>
+            <div class="stat-card"><div class="stat-label">本周草稿推送</div><div class="stat-val">6 次</div></div>
+          </div>
+
+          <div class="table-box">
+            <table>
+              <thead>
+                <tr>
+                  <th width="28%">文章标题 & 本地路径</th>
+                  <th width="10%">字数</th>
+                  <th width="14%">博客园 (Cnblogs)</th>
+                  <th width="14%">掘金 (Juejin)</th>
+                  <th width="14%">知乎 (Zhihu)</th>
+                  <th width="20%">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong style="cursor:pointer;color:var(--accent)" onclick="switchView('editor', document.querySelectorAll('.nav-tab')[1])">Electron 沙箱与多平台草稿分发架构</strong><br/>
+                    <span style="font-size:11px;color:var(--text-muted)">posts/arch-sync.md · 3 张本地图</span>
+                  </td>
+                  <td>2,410</td>
+                  <td><span class="badge badge-ok">● 草稿箱已同步</span></td>
+                  <td><span class="badge badge-ok">● 草稿箱已同步</span></td>
+                  <td><span class="badge badge-idle">未分发</span></td>
+                  <td>
+                    <button class="btn" onclick="switchView('editor', document.querySelectorAll('.nav-tab')[1])">编辑</button>
+                    <button class="btn btn-primary" onclick="openPublishModal()">分发</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Markdown 图片防盗链转存实践</strong><br/>
+                    <span style="font-size:11px;color:var(--text-muted)">posts/image-pipeline.md · 5 张本地图</span>
+                  </td>
+                  <td>1,860</td>
+                  <td><span class="badge badge-ok">● 草稿箱已同步</span></td>
+                  <td><span class="badge badge-err">✕ Cookie 已过期</span></td>
+                  <td><span class="badge badge-warn">◷ 待转存</span></td>
+                  <td>
+                    <button class="btn" onclick="switchView('editor', document.querySelectorAll('.nav-tab')[1])">编辑</button>
+                    <button class="btn btn-primary" onclick="openPublishModal()">分发</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>2026 独立技术博主工具链复盘</strong><br/>
+                    <span style="font-size:11px;color:var(--text-muted)">posts/review-2026.md · 1 张本地图</span>
+                  </td>
+                  <td>3,120</td>
+                  <td><span class="badge badge-idle">未分发</span></td>
+                  <td><span class="badge badge-idle">未分发</span></td>
+                  <td><span class="badge badge-idle">未分发</span></td>
+                  <td>
+                    <button class="btn" onclick="switchView('editor', document.querySelectorAll('.nav-tab')[1])">编辑</button>
+                    <button class="btn btn-primary" onclick="openPublishModal()">分发</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Typora 原版白色写作台视图 -->
+      <div id="view-editor" class="view-panel">
+        <div class="editor-sidebar" id="editorSidebar">
+          <div class="sidebar-tabs">
+            <div class="sidebar-tab active" onclick="switchSideTab('files', this)">文件树</div>
+            <div class="sidebar-tab" onclick="switchSideTab('templates', this)">模板 / 素材</div>
+          </div>
+          <div id="side-files" class="file-list">
+            <div style="font-size:11px;color:var(--text-muted);padding:4px 8px;">📁 我的博客 (~/Blogs)</div>
+            <div class="file-item active">📄 arch-sync.md</div>
+            <div class="file-item">📄 image-pipeline.md</div>
+            <div class="file-item">📄 review-2026.md</div>
+            <div class="file-item" style="color:var(--text-muted)">📁 assets/ (9 张图片)</div>
+          </div>
+          <div id="side-templates" class="file-list" style="display:none">
+            <div style="font-size:11px;color:var(--text-muted);padding:4px 8px;">标准写作模板</div>
+            <div class="file-item">+ 技术架构方案模板</div>
+            <div class="file-item">+ 开源项目拆解模板</div>
+            <div class="file-item">+ 复盘与周记模板</div>
+            <div style="font-size:11px;color:var(--text-muted);padding:12px 8px 4px;">常用素材插槽</div>
+            <div class="file-item">↳ 插入标准 Callout 提示框</div>
+            <div class="file-item">↳ 插入文末博客园签名档</div>
+          </div>
+        </div>
+
+        <div class="editor-canvas">
+          <div class="typora-write" contenteditable="true">
+            <h1>Electron 沙箱与多平台草稿分发架构</h1>
+            <p>这是一份完全基于 <strong>Typora 原版白色（github.css）</strong> 规范的沉浸式写作画布。左侧文件树与模板库可随时一键收缩隐藏，日常写作完全离线，图片自动保存在本地 <code>assets/</code> 目录。</p>
+            <blockquote>
+              提示：点击右上角「合并分发」按钮时，系统才会弹出轻量小窗；原文件在本地保持纯正的相对路径，不会被强行改写为外部链接。
+            </blockquote>
+            <h2>核心分发 4 步中间管线</h2>
+            <p>为了彻底解决“同步卡死无报错”与“跨平台防盗链裂图”，每次推送草稿箱都会经过主进程的严格流水线：</p>
+            <pre><code>// 分发引擎内部 4 步状态流转（Zero-AI 确定性管线）
+1. PRECHECK        -> 校验独立 Partition Cookie 或 MetaWeblog 鉴权
+2. IMAGE_TRANSFER  -> 查 SQLite image_cache 缓存，未命中则上传平台图床
+3. TRANSFORM       -> 应用平台微调标题/标签，编译目标 HTML / Markdown
+4. DRAFT_PUSH      -> 调用草稿箱接口，写入 sync_records 状态表</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 平台与图床设置视图 -->
+      <div id="view-settings" class="view-panel">
+        <div class="settings-container">
+          <div class="setting-section">
+            <h2>1. 外部平台沙箱对接（无需软件自身账号）</h2>
+            <div class="platform-grid">
+              <div class="platform-card">
+                <div>
+                  <strong>博客园 (Cnblogs)</strong>
+                  <div style="font-size:12px;color:var(--text-muted)">通道：MetaWeblog 官方协议 · 极稳</div>
+                </div>
+                <span class="badge badge-ok">已连接</span>
+              </div>
+              <div class="platform-card">
+                <div>
+                  <strong>掘金 (Juejin)</strong>
+                  <div style="font-size:12px;color:var(--text-muted)">通道：Partition 沙箱 Cookie</div>
+                </div>
+                <button class="btn" style="color:var(--danger);border-color:var(--danger)">会话过期 · 重登</button>
+              </div>
+              <div class="platform-card">
+                <div>
+                  <strong>知乎 (Zhihu)</strong>
+                  <div style="font-size:12px;color:var(--text-muted)">通道：Partition 沙箱 Cookie</div>
+                </div>
+                <span class="badge badge-ok">已连接</span>
+              </div>
+              <div class="platform-card">
+                <div>
+                  <strong>小红书 (P1 演进预留)</strong>
+                  <div style="font-size:12px;color:var(--text-muted)">高风控：对标小V猫独立 Profile + 独立网络</div>
+                </div>
+                <span class="badge badge-idle">后续接入</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-section">
+            <h2>2. 图片资产与防盗链转存策略</h2>
+            <div style="font-size:13px;line-height:1.8;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="radio" name="imgStrategy" checked />
+                <span><strong>平台私有素材直传优先（推荐）</strong>：分发时直接将本地图片传至博客园/知乎官方图床，彻底免疫跨平台防盗链</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;">
+                <input type="radio" name="imgStrategy" />
+                <span><strong>通用云图床托管（PicGo-Core）</strong>：统一上传至已配置的阿里云 OSS / 腾讯云 COS / S3 / GitHub CDN</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 合并分发轻量小弹窗 -->
+    <div id="publishModal" class="modal-backdrop">
+      <div class="modal-card">
+        <div class="modal-header">
+          <span>合并分发至平台草稿箱</span>
+          <button class="btn" style="padding:2px 8px;" onclick="closePublishModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+            当前文章：<strong>Electron 沙箱与多平台草稿分发架构</strong>（含 3 张本地图片）
+          </div>
+
+          <div class="platform-row">
+            <div class="platform-row-head">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" checked /> <strong>博客园 (Cnblogs)</strong>
+                <span class="badge badge-ok">MetaWeblog</span>
+              </label>
+              <button class="btn" style="padding:2px 8px;font-size:11px;" onclick="toggleTweak('tweak-cnblogs')">微调标题/标签 ▾</button>
+            </div>
+            <div id="tweak-cnblogs" class="tweak-area">
+              <div style="font-size:11px;color:var(--text-muted)">独立标题（留空则沿用原文）：</div>
+              <input class="input-sm" type="text" value="Electron 多平台沙箱分发与图片防盗链实战" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">平台分类/标签：</div>
+              <input class="input-sm" type="text" value="Electron, 架构设计" />
+            </div>
+          </div>
+
+          <div class="platform-row">
+            <div class="platform-row-head">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" checked /> <strong>知乎 (Zhihu)</strong>
+                <span class="badge badge-ok">在线</span>
+              </label>
+              <button class="btn" style="padding:2px 8px;font-size:11px;" onclick="toggleTweak('tweak-zhihu')">微调标题/标签 ▾</button>
+            </div>
+            <div id="tweak-zhihu" class="tweak-area">
+              <div style="font-size:11px;color:var(--text-muted)">独立标题（留空则沿用原文）：</div>
+              <input class="input-sm" type="text" placeholder="适配知乎问答调性的标题..." />
+            </div>
+          </div>
+
+          <div class="pipeline-steps" id="pipelineBox">
+            <div style="font-weight:600;margin-bottom:4px;color:var(--text-main);">中间分发管线状态：</div>
+            <div class="step-line" id="st1"><span>1. PRECHECK · 平台鉴权预检</span><span>等待开始</span></div>
+            <div class="step-line" id="st2"><span>2. IMAGE_TRANSFER · 缓存查重 & 图床转存</span><span>等待开始</span></div>
+            <div class="step-line" id="st3"><span>3. TRANSFORM · 编译平台格式 & 注入微调</span><span>等待开始</span></div>
+            <div class="step-line" id="st4"><span>4. DRAFT_PUSH · 推送官方草稿箱 & 落库</span><span>等待开始</span></div>
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button class="btn" onclick="closePublishModal()">取消</button>
+            <button class="btn btn-primary" onclick="simulatePipeline()">一键推送到草稿箱</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div class="statusbar">
+      <span>工作区：~/Documents/MyBlogs · 主题：Typora White (github.css)</span>
+      <span>图床策略：平台私有直传优先 · 所有本地更改已保存</span>
+    </div>
+  </div>
+
+  <script>
+    function switchView(viewId, tabEl) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('view-' + viewId).classList.add('active');
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      if (tabEl) tabEl.classList.add('active');
+      document.getElementById('toggleSidebarBtn').style.display = (viewId === 'editor') ? 'inline-flex' : 'none';
+    }
+
+    function toggleSidebar() {
+      document.getElementById('editorSidebar').classList.toggle('collapsed');
+    }
+
+    function switchSideTab(tab, el) {
+      document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('side-files').style.display = (tab === 'files') ? 'block' : 'none';
+      document.getElementById('side-templates').style.display = (tab === 'templates') ? 'block' : 'none';
+    }
+
+    function openPublishModal() {
+      document.getElementById('publishModal').classList.add('open');
+    }
+    function closePublishModal() {
+      document.getElementById('publishModal').classList.remove('open');
+    }
+    function toggleTweak(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+
+    function openImportAlert() {
+      const url = prompt('请输入博客园 / 知乎 / 掘金文章 URL，将自动抓取正文与图片至本地：', 'https://www.cnblogs.com/example/p/123456.html');
+      if (url) alert('已启动反向解析管线：下载正文并保存本地配图至 assets/ 目录（演示状态）。');
+    }
+
+    function simulatePipeline() {
+      const steps = [
+        { id: 'st1', text: '博客园 / 知乎鉴权通过' },
+        { id: 'st2', text: '1张命中缓存 · 2张已转存' },
+        { id: 'st3', text: '已生成目标平台草稿副本' },
+        { id: 'st4', text: '全部送达草稿箱 ✓' }
+      ];
+      steps.forEach((s, idx) => {
+        const el = document.getElementById(s.id);
+        el.className = 'step-line';
+        el.children[1].innerText = '排队中';
+        setTimeout(() => {
+          el.className = 'step-line running';
+          el.children[1].innerText = '执行中...';
+          setTimeout(() => {
+            el.className = 'step-line done';
+            el.children[1].innerText = s.text;
+          }, 450);
+        }, idx * 550);
+      });
+    }
+  </script>
+</body>
+</html>
