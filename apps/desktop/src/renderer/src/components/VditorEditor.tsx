@@ -643,30 +643,66 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
 
-        // Pressing Enter inside the code block language tag (.vditor-ir__marker--info)
-        // accepts autocomplete (if open) and moves the caret directly into the code/LaTeX box
+        // Inside code block language tag (.vditor-ir__marker--info):
+        // - ArrowUp/Down/Left/Right navigate .vditor-hint candidates
+        // - Enter or Tab picks highlighted (or 1st) candidate and moves caret into code/LaTeX box
         const infoMarker = targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null;
-        if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && infoMarker && el.contains(infoMarker)) {
+        if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
           const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
-          const hintVisible = Boolean(hintEl && hintEl.style.display !== 'none' && hintEl.childElementCount > 0);
-          const codeBlockNode = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
-          const codeEl = codeBlockNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
-          if (codeEl) {
-            const moveIntoCode = () => {
-              const selNow = window.getSelection();
-              if (!selNow) return;
-              const range = document.createRange();
-              range.selectNodeContents(codeEl);
-              range.collapse(true);
-              selNow.removeAllRanges();
-              selNow.addRange(range);
-            };
+          const hintButtons = hintEl
+            ? Array.from(hintEl.querySelectorAll('button'))
+            : [];
+          const hintVisible = Boolean(
+            hintEl && hintEl.style.display !== 'none' && hintButtons.length > 0
+          );
+
+          if (hintVisible && (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowLeft')) {
+            e.preventDefault();
+            e.stopPropagation();
+            const curIdx = hintButtons.findIndex((b) => b.classList.contains('vditor-hint--current'));
+            const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+            const nextIdx =
+              curIdx < 0
+                ? delta > 0
+                  ? 0
+                  : hintButtons.length - 1
+                : (curIdx + delta + hintButtons.length) % hintButtons.length;
+            hintButtons.forEach((b, i) => b.classList.toggle('vditor-hint--current', i === nextIdx));
+            hintButtons[nextIdx]?.scrollIntoView({ block: 'nearest' });
+            return;
+          }
+
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            e.stopPropagation();
+            const codeBlockNode = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
+            const codeEl = codeBlockNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
             if (hintVisible) {
-              setTimeout(moveIntoCode, 20);
-            } else {
-              e.preventDefault();
-              e.stopPropagation();
-              moveIntoCode();
+              const chosenBtn =
+                hintButtons.find((b) => b.classList.contains('vditor-hint--current')) ?? hintButtons[0];
+              const chosenLang = (chosenBtn?.textContent || '').trim();
+              if (chosenLang) {
+                infoMarker.textContent = `\u200b${chosenLang}`;
+                if (codeEl) {
+                  codeEl.className = `language-${chosenLang}`;
+                }
+                const previewCode = codeBlockNode?.querySelector('pre.vditor-ir__preview > code');
+                if (previewCode) {
+                  previewCode.className = `language-${chosenLang}`;
+                }
+              }
+              if (hintEl) hintEl.style.display = 'none';
+              onChangeRef.current(instance.getValue());
+            }
+            if (codeEl) {
+              const selNow = window.getSelection();
+              if (selNow) {
+                const range = document.createRange();
+                range.selectNodeContents(codeEl);
+                range.collapse(true);
+                selNow.removeAllRanges();
+                selNow.addRange(range);
+              }
             }
             return;
           }

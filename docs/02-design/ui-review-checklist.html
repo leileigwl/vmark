@@ -321,6 +321,24 @@
             plan: "请重新导出 Word (.docx) 在 WPS / Pages / Word 中查看字体大小层级、空代码块与无红线效果。"
           },
           {
+            id: "R20_1",
+            title: "R20-1. Word (.docx) 导出渲染真实 LaTeX 数学公式（KaTeX 高清图片内嵌）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851565547_c7713dda.png",
+            desc: "在 exportDocx.ts 中通过隐藏窗口调用本地 KaTeX 将 ```latex / ```math 与 $$...$$ 公式渲染为高清居中数学公式图片并内嵌进 .docx，在 Word / WPS / Pages 中完整呈现积分、分式、对齐矩阵。",
+            plan: "请导出含 LaTeX 公式的文章为 Word (.docx) 并在 WPS / Pages / Word 中查看公式渲染效果。"
+          },
+          {
+            id: "R20_2",
+            title: "R20-2. 代码语言提示框支持上下左右键选词 + Enter/Tab 默认选第一项并落入编辑区",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851624963_422e5b8a.png",
+            desc: "在代码语言标签输入字符弹出提示列表后，支持用方向键（↑↓←→）切换高亮候选词，按 Enter 或 Tab 自动确认当前高亮词（默认第 1 项），并直接将光标落入下方代码/公式编辑区。",
+            plan: "请在代码标签内输入 lat 后测试方向键切换与 Enter/Tab 自动选词并跳入编辑框。"
+          },
+          {
             id: "R19_1",
             title: "R19-1. 动态计算代码语言弹窗坐标（贴紧标签正下方/正上方 4px，绝不遮挡代码框）",
             status: "done",
