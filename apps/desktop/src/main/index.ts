@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -101,6 +101,117 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+}
+
+function sendMenuAction(action: string, payload?: string): void {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  win?.webContents.send('menu:action', action, payload);
+}
+
+function buildApplicationMenu(): void {
+  const isMac = process.platform === 'darwin';
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { label: '关于 VCat Publisher', role: 'about' as const },
+              { type: 'separator' as const },
+              {
+                label: '偏好设置...',
+                accelerator: 'Cmd+,',
+                click: () => sendMenuAction('view:settings'),
+              },
+              { type: 'separator' as const },
+              { label: '隐藏', role: 'hide' as const },
+              { label: '退出', role: 'quit' as const },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: '文件',
+      submenu: [
+        { label: '新建空白文章', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('file:new') },
+        { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
+        { type: 'separator' },
+        { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
+        { type: 'separator' },
+        { label: '合并分发...', accelerator: 'CmdOrCtrl+Shift+P', click: () => sendMenuAction('publish:open') },
+      ],
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { label: '撤销', role: 'undo' },
+        { label: '重做', role: 'redo' },
+        { type: 'separator' },
+        { label: '剪切', role: 'cut' },
+        { label: '拷贝', role: 'copy' },
+        { label: '粘贴', role: 'paste' },
+        { label: '粘贴为纯文本', accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
+        { label: '全选', role: 'selectAll' },
+      ],
+    },
+    {
+      label: '段落',
+      submenu: [
+        { label: '一级标题', accelerator: 'CmdOrCtrl+1', click: () => sendMenuAction('editor:format', 'h1') },
+        { label: '二级标题', accelerator: 'CmdOrCtrl+2', click: () => sendMenuAction('editor:format', 'h2') },
+        { label: '三级标题', accelerator: 'CmdOrCtrl+3', click: () => sendMenuAction('editor:format', 'h3') },
+        { label: '四级标题', accelerator: 'CmdOrCtrl+4', click: () => sendMenuAction('editor:format', 'h4') },
+        { label: '五级标题', accelerator: 'CmdOrCtrl+5', click: () => sendMenuAction('editor:format', 'h5') },
+        { label: '六级标题', accelerator: 'CmdOrCtrl+6', click: () => sendMenuAction('editor:format', 'h6') },
+        { type: 'separator' },
+        { label: '代码块', accelerator: 'Alt+CmdOrCtrl+C', click: () => sendMenuAction('editor:format', 'code-block') },
+        { label: '引用', accelerator: 'Alt+CmdOrCtrl+Q', click: () => sendMenuAction('editor:format', 'quote') },
+        { label: '有序列表', accelerator: 'Alt+CmdOrCtrl+O', click: () => sendMenuAction('editor:format', 'ordered-list') },
+        { label: '无序列表', accelerator: 'Alt+CmdOrCtrl+U', click: () => sendMenuAction('editor:format', 'list') },
+        { label: '任务列表', accelerator: 'Alt+CmdOrCtrl+X', click: () => sendMenuAction('editor:format', 'check') },
+        { label: '水平分割线', accelerator: 'Alt+CmdOrCtrl+-', click: () => sendMenuAction('editor:format', 'line') },
+      ],
+    },
+    {
+      label: '格式',
+      submenu: [
+        { label: '加粗', accelerator: 'CmdOrCtrl+B', click: () => sendMenuAction('editor:format', 'bold') },
+        { label: '斜体', accelerator: 'CmdOrCtrl+I', click: () => sendMenuAction('editor:format', 'italic') },
+        { label: '行内代码', accelerator: 'Ctrl+`', click: () => sendMenuAction('editor:format', 'inline-code') },
+        { label: '删除线', accelerator: 'Ctrl+Shift+`', click: () => sendMenuAction('editor:format', 'strike') },
+        { label: '超链接', accelerator: 'CmdOrCtrl+K', click: () => sendMenuAction('editor:format', 'link') },
+      ],
+    },
+    {
+      label: '显示',
+      submenu: [
+        { label: '显示 / 隐藏侧边栏', accelerator: 'CmdOrCtrl+Shift+L', click: () => sendMenuAction('view:toggleSidebar') },
+        { label: '大纲', accelerator: 'Ctrl+CmdOrCtrl+1', click: () => sendMenuAction('view:sideTab', 'outline') },
+        { label: '文件树', accelerator: 'Ctrl+CmdOrCtrl+3', click: () => sendMenuAction('view:sideTab', 'files') },
+        { type: 'separator' },
+        { label: '文章管理台', click: () => sendMenuAction('view:manager') },
+        { label: '写作台', click: () => sendMenuAction('view:editor') },
+        { type: 'separator' },
+        { label: '实际大小', role: 'resetZoom' },
+        { label: '放大', role: 'zoomIn' },
+        { label: '缩小', role: 'zoomOut' },
+      ],
+    },
+    {
+      label: '主题',
+      submenu: [
+        { label: 'Apple Light（默认苹果白）', type: 'radio', checked: true, click: () => sendMenuAction('theme:set', 'apple-light') },
+        { label: 'Bloom Lapis（文档蓝）', type: 'radio', click: () => sendMenuAction('theme:set', 'bloom-lapis') },
+        { label: 'Bloom Wheat（象牙白）', type: 'radio', click: () => sendMenuAction('theme:set', 'bloom-wheat') },
+        { label: 'Typora White（原版 GitHub）', type: 'radio', click: () => sendMenuAction('theme:set', 'typora-white') },
+      ],
+    },
+    {
+      label: '窗口',
+      role: 'windowMenu',
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function registerIpcHandlers(): void {
@@ -285,6 +396,7 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window);
   });
 
+  buildApplicationMenu();
   registerIpcHandlers();
   createWindow();
 

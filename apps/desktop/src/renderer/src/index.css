@@ -1,18 +1,50 @@
 @import "tailwindcss";
 @import "vditor/dist/index.css";
 
-:root {
+:root,
+[data-theme='apple-light'] {
+  --side-bar-bg-color: #f5f5f7;
+  --control-text-color: #6e6e73;
+  --bg-main: #ffffff;
+  --text-main: #1d1d1f;
+  --accent: #007aff;
+  --border-color: #e5e5ea;
+  --font-editorial: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+}
+
+[data-theme='bloom-lapis'] {
+  --side-bar-bg-color: #ecf1f5;
+  --control-text-color: #48515b;
+  --bg-main: #f3f7fa;
+  --text-main: #161e26;
+  --accent: #2f62ac;
+  --border-color: rgba(22, 30, 38, 0.1);
+  --font-editorial: "MiSans", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+[data-theme='bloom-wheat'] {
+  --side-bar-bg-color: #f1eee9;
+  --control-text-color: #5a544a;
+  --bg-main: #f7f5f1;
+  --text-main: #262118;
+  --accent: #836d43;
+  --border-color: rgba(38, 33, 24, 0.1);
+  --font-editorial: "MiSans", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+[data-theme='typora-white'] {
   --side-bar-bg-color: #fafafa;
   --control-text-color: #777777;
   --bg-main: #ffffff;
   --text-main: #333333;
   --accent: #4183c4;
   --border-color: #e5e7eb;
+  --font-editorial: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
 }
 
 body {
   margin: 0;
-  font-family: "Open Sans", "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-editorial);
   color: var(--text-main);
   background: var(--bg-main);
   -webkit-font-smoothing: antialiased;
@@ -29,7 +61,7 @@ body {
 /* Typora github.css exact typography & spacing rules for Vditor IR */
 .vditor {
   border: none !important;
-  background: #ffffff !important;
+  background: var(--bg-main) !important;
   width: 100% !important;
   max-width: 100% !important;
 }
@@ -46,11 +78,11 @@ body {
   max-width: none !important;
   margin: 0 !important;
   padding: 28px max(56px, calc((100% - 860px) / 2)) 100px !important;
-  font-family: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
+  font-family: var(--font-editorial) !important;
   font-size: 16px;
-  line-height: 1.6;
-  color: rgb(51, 51, 51);
-  background: #ffffff !important;
+  line-height: 1.65;
+  color: var(--text-main);
+  background: var(--bg-main) !important;
   box-sizing: border-box !important;
 }
 /* Cleanly style raw HTML blocks (<details>/<summary>) without empty gray boxes */
@@ -136,12 +168,33 @@ body {
   padding: 0 3px !important;
   font-size: 0.9em !important;
 }
+/* macOS 3-dot windowed code block styling (Apple / Bloom style) */
+.vditor-ir__node[data-type="code-block"] {
+  position: relative !important;
+  margin: 1.1em 0 !important;
+}
+.vditor-ir__node[data-type="code-block"]::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 13px !important;
+  left: 16px !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  background: #ce7069 !important;
+  box-shadow: 18px 0 0 #dbb155, 36px 0 0 #72b875 !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
 .vditor-reset pre > code,
-.vditor-reset .vditor-ir__node pre {
-  border: 1px solid #e7eaed !important;
-  background-color: #f8f8f8 !important;
-  border-radius: 3px !important;
-  padding: 10px 14px !important;
+.vditor-ir__node[data-type="code-block"] pre {
+  border: 1px solid #e2e8f0 !important;
+  background-color: #f4f6f9 !important;
+  border-radius: 10px !important;
+  padding: 36px 18px 16px !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
 }
 .vditor-reset table {
   display: table !important;

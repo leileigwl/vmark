@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -9,6 +9,7 @@ import {
   Globe,
   Image as ImageIcon,
   ListTree,
+  Palette,
   PanelLeft,
   Plus,
   Send,
@@ -17,12 +18,12 @@ import {
 } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
 import { countWords, extractOutline } from '@vcat/core';
-import type { ArticleMeta, GitStatusInfo, ImageBedConfig, PlatformId } from '@vcat/shared';
-import { VditorEditor } from './components/VditorEditor';
+import type { ArticleMeta, GitStatusInfo, ImageBedConfig, PlatformId, ThemeId } from '@vcat/shared';
+import { VditorEditor, type VditorEditorHandle } from './components/VditorEditor';
 
 type MainView = 'editor' | 'manager' | 'settings';
 type SideTab = 'files' | 'outline';
-type SettingCategory = 'image' | 'platforms' | 'github';
+type SettingCategory = 'image' | 'theme' | 'platforms' | 'github';
 
 const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
@@ -89,6 +90,12 @@ export default function App() {
   const [gitStatus, setGitStatus] = useState<GitStatusInfo>({ isGitRepo: false, changedFiles: 0 });
   const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
+  const [theme, setTheme] = useState<ThemeId>('apple-light');
+  const editorRef = useRef<VditorEditorHandle>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
@@ -136,6 +143,30 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeArticle, markdown]);
+
+  // Listen to native macOS Menu Bar actions
+  useEffect(() => {
+    if (!window.electronAPI?.onMenuAction) return;
+    return window.electronAPI.onMenuAction((action, payload) => {
+      if (action === 'file:new') void handleCreateBlankArticle();
+      else if (action === 'file:openWorkspace') void handleSelectWorkspace();
+      else if (action === 'file:save') void handleSaveArticle(markdown);
+      else if (action === 'publish:open') setPublishModalOpen(true);
+      else if (action === 'view:settings') setActiveView((v) => (v === 'settings' ? 'editor' : 'settings'));
+      else if (action === 'view:manager') setActiveView('manager');
+      else if (action === 'view:editor') setActiveView('editor');
+      else if (action === 'view:toggleSidebar') setSidebarOpen((v) => !v);
+      else if (action === 'view:sideTab' && (payload === 'files' || payload === 'outline')) {
+        setSidebarOpen(true);
+        setSideTab(payload);
+      } else if (action === 'theme:set' && payload) {
+        setTheme(payload as ThemeId);
+      } else if (action === 'editor:format' && payload) {
+        setActiveView('editor');
+        editorRef.current?.applyFormat(payload);
+      }
+    });
   }, [activeArticle, markdown]);
 
   async function openArticle(meta: ArticleMeta) {
@@ -436,9 +467,10 @@ export default function App() {
         {/* 主视图切换 */}
         <main className="flex flex-1 overflow-hidden">
           {activeView === 'editor' && (
-            <section className="flex-1 overflow-hidden bg-white">
+            <section className="flex-1 overflow-hidden bg-[var(--bg-main)]">
               {activeArticle ? (
                 <VditorEditor
+                  ref={editorRef}
                   articleKey={activeArticle.relativePath}
                   value={markdown}
                   onChange={(md) => {
@@ -586,12 +618,24 @@ export default function App() {
                   onClick={() => setSettingCategory('image')}
                   className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
                     settingCategory === 'image'
-                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                      ? 'bg-[#e6eff8] font-semibold text-[#007aff]'
                       : 'text-[#333333] hover:bg-[#eef1f4]'
                   }`}
                 >
                   <ImageIcon className="h-3.5 w-3.5" />
                   图像与图床
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingCategory('theme')}
+                  className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                    settingCategory === 'theme'
+                      ? 'bg-[#e6eff8] font-semibold text-[#007aff]'
+                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                  }`}
+                >
+                  <Palette className="h-3.5 w-3.5" />
+                  外观主题
                 </button>
                 <button
                   type="button"
@@ -655,6 +699,39 @@ export default function App() {
                           </div>
                         </div>
                       </label>
+                    </div>
+                  </div>
+                )}
+
+                {settingCategory === 'theme' && (
+                  <div className="max-w-2xl space-y-4">
+                    <h2 className="text-base font-semibold">外观主题（默认苹果风格）</h2>
+                    <p className="text-xs text-[#777777]">
+                      也可随时通过 macOS 顶部菜单栏「主题」快速切换。
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 text-[13px]">
+                      {(
+                        [
+                          { id: 'apple-light', name: 'Apple Light（默认苹果白）', desc: 'SF Pro 字体 · #f5f5f7 侧栏 · #007aff 系统蓝' },
+                          { id: 'bloom-lapis', name: 'Bloom Lapis（文档蓝）', desc: '清新冷调浅蓝底色 · 护眼氛围' },
+                          { id: 'bloom-wheat', name: 'Bloom Wheat（象牙白）', desc: '温润象牙纸张底色 · 久写不累' },
+                          { id: 'typora-white', name: 'Typora White（原版 GitHub）', desc: '经典 GitHub 纯白样式' },
+                        ] as const
+                      ).map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTheme(t.id)}
+                          className={`rounded-lg border p-3.5 text-left transition ${
+                            theme === t.id
+                              ? 'border-[#007aff] bg-[#f0f7ff]'
+                              : 'border-[#e5e7eb] bg-[#fafafa] hover:bg-[#f3f4f6]'
+                          }`}
+                        >
+                          <div className="font-semibold text-[#1d1d1f]">{t.name}</div>
+                          <div className="mt-1 text-xs text-[#6e6e73]">{t.desc}</div>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}

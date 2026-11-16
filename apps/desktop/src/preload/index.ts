@@ -20,6 +20,12 @@ const api: ElectronAPI = {
   getGitStatus: () => ipcRenderer.invoke('git:status'),
   pushGitWorkspace: (commitMessage: string) =>
     ipcRenderer.invoke('git:push', commitMessage),
+  onMenuAction: (callback: (action: string, payload?: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: string, payload?: string) =>
+      callback(action, payload);
+    ipcRenderer.on('menu:action', handler);
+    return () => ipcRenderer.removeListener('menu:action', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

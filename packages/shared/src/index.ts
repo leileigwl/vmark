@@ -71,6 +71,8 @@ export interface GitStatusInfo {
   changedFiles: number;
 }
 
+export type ThemeId = 'apple-light' | 'bloom-lapis' | 'bloom-wheat' | 'typora-white';
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -88,4 +90,5 @@ export interface ElectronAPI {
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
   getGitStatus: () => Promise<GitStatusInfo>;
   pushGitWorkspace: (commitMessage: string) => Promise<{ ok: boolean; message: string }>;
+  onMenuAction: (callback: (action: string, payload?: string) => void) => () => void;
 }
