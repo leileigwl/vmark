@@ -13,9 +13,9 @@ vcat-publisher-desktop/
 │       └── src/renderer/         # React 18 + Tailwind + shadcn/ui + Vditor 渲染进程
 ├── packages/
 │   ├── shared/                   # 全局 TypeScript 类型契约、错误码、合规检查清单常量
-│   ├── core/                     # 本地工作区扫描、SQLite 索引层、AI 一鱼多做差异化服务
+│   ├── core/                     # 本地工作区扫描、SQLite 索引层、模板与格式转换核心
 │   ├── image-pipeline/           # 本地图片扫描、Sharp 压缩、PicGo-Core 与防盗链转存管线
-│   └── adapters/                 # 多平台分级分发适配器（Cnblogs/Juejin/Zhihu/CSDN/XHS）
+│   └── adapters/                 # 多平台分级分发适配器（参考 Wechatsync / 思源 Publisher）
 ├── docs/                         # 单一事实来源文档与设计图纸（含 prototypes 原型门控）
 ├── openspec/                     # Spec-Driven Development 规格与变更提案
 ├── pnpm-workspace.yaml
@@ -50,6 +50,5 @@ vcat-publisher-desktop/
 
 ## 4. 安全与合规红线
 
-1. **凭据加密**：BYOK 大模型 API Key 与平台 Cookie 必须通过 Electron `safeStorage` 加密落库，渲染进程与日志中**零明文回显**。
-2. **自定义模型 Base URL 校验**：校验合法的 HTTPS 协议，防止 SSRF 攻击。
-3. **本地源文件不可侵犯**：图片链接替换仅在分发内存副本中进行，绝不篡改用户工作区原始 `.md` 文件中的相对路径。
+1. **凭据加密**：各外部平台 Cookie 与图床密钥必须通过 Electron `safeStorage` 加密落库，渲染进程与日志中**零明文回显**。
+2. **本地源文件不可侵犯**：图片链接替换仅在分发内存副本中进行，绝不篡改用户工作区原始 `.md` 文件中的相对路径。

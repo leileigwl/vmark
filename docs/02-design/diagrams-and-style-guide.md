@@ -9,10 +9,10 @@
 ```mermaid
 flowchart TB
     subgraph Renderer["apps/desktop/renderer (React 18 + Tailwind + Vditor IR)"]
-        UI_Sidebar["左侧极简导航栏<br/>(工作区文件树 / 模板 / 素材库)"]
-        UI_Editor["中央沉浸式写作区<br/>(Vditor 即时渲染 / 离线 assets 预览)"]
-        UI_Drawer["右侧可折叠分发抽屉<br/>(AI 一鱼多做差异化 / 4步状态进度)"]
-        UI_Pages["管理视图<br/>(账号沙箱 / 图床设置 / 同步历史)"]
+        UI_Sidebar["左侧可收缩栏<br/>(工作区文件树 / 模板 / 素材库)"]
+        UI_Editor["中央沉浸式写作区<br/>(Bloom 象牙白 / Vditor 即时渲染)"]
+        UI_Drawer["轻量合并分发弹窗<br/>(勾选平台 / 折叠手调 / 4步进度)"]
+        UI_Pages["极简设置弹窗<br/>(Bloom 主题面板 / 图床 / 平台授权)"]
     end
 
     subgraph Preload["apps/desktop/preload (ContextBridge)"]
@@ -27,7 +27,7 @@ flowchart TB
 
     subgraph Packages["Monorepo 共享内核 (packages/*)"]
         Pkg_Shared["packages/shared<br/>(类型契约 / 合规检查清单)"]
-        Pkg_Core["packages/core<br/>(工作区索引 / AI 一鱼多做服务)"]
+        Pkg_Core["packages/core<br/>(工作区索引 / 模板与排版引擎)"]
         Pkg_Image["packages/image-pipeline<br/>(防盗链扫描 / Sharp 压缩 / PicGo-Core)"]
         Pkg_Adapters["packages/adapters<br/>(Cnblogs MetaWeblog / 掘金 / 知乎 / CSDN / XHS)"]
     end
@@ -47,8 +47,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    A["1. 本地沉浸写作<br/>选模板 / 插素材<br/>图片存本地 assets/"] --> B["2. 触发「一键分发」<br/>勾选目标平台<br/>(博客园/掘金/知乎等)"]
-    B --> C["3. AI 一鱼多做差异化<br/>按平台调性微调:<br/>标题 / 导语 / 标签 / 签名"]
+    A["1. 本地沉浸写作<br/>选模板 / 插素材<br/>图片存本地 assets/"] --> B["2. 唤起「合并分发」小窗<br/>勾选目标平台<br/>(博客园/掘金/知乎等)"]
+    B --> C["3. 按需折叠手调<br/>可展开小行微调<br/>平台标题 / 标签 / 摘要"]
     C --> D["4. 合规检查清单<br/>差异化确认 + 错峰建议<br/>(默认仅推草稿箱)"]
     D --> E["Step 4.1 PRECHECK<br/>独立沙箱 Cookie 预检"]
     E -->|有效| F["Step 4.2 IMAGE_TRANSFER<br/>内存克隆 + 逐图防盗链转存<br/>(平台私有库 或 OSS/COS)"]
@@ -67,13 +67,12 @@ flowchart LR
    - 画面中只有一张温润的**象牙白阅读纸张**（居中 40 字最优中文行宽），顶部仅保留极隐蔽的窗口标题与几个微弱线性图标（展开左栏、选模板/一键导入、打开分发、设置）。
 2. **左侧栏（List 面板，可随时收缩隐藏）**：
    - 切换 **「文件树 / 大纲」** 与 **「本地模板 & 素材库」**。点击模板立即在当前工作区生成骨架文章；点击“一键导入”弹窗粘贴线上 URL 直接转录本地 `.md`。
-3. **右侧栏（Table / 合并分发面板，平时默认收起）**：
-   - 写完文章点击右上角「分发」按钮再滑出：上方是 AI 一鱼多做（按平台微调标题/导语/标签），下方是 4 步实时状态进度条，一键推送至各平台草稿箱。
-4. **独立「设置」弹窗（全功能配齐）**：
+3. **轻量合并分发小窗（默认收起，点击分发图标弹出）**：
+   - 平时不占主界面空间，保持写作区极简纯粹；需要分发时弹出轻量小窗，勾选平台并一键推送到各平台草稿箱，如需微调单平台标题/标签，点击该行即可展开小编辑区。
+4. **独立「设置」弹窗（全功能配齐，无需 AI）**：
    - **外观与主题（对标 Bloom 主题面板）**：内置莫兰迪 12 浅 12 深配色圆点选择器（默认**象牙白 Wheat / Ivory**），支持一键切换浅/深模式、极简专注模式开关与行宽调节。
    - **图床与资产**：本地 `assets/` 目录策略、平台私有上传优先开关、PicGo/OSS/COS/S3/GitHub 凭据配置。
    - **平台对接**：博客园（MetaWeblog）、掘金、知乎、CSDN 的本地独立沙箱登录状态维护与连通测试（无需软件自身账号）。
-   - **AI 一鱼多做（BYOK）**：大模型 API Key 加密配置与各平台默认改写提示词。
 
 ### 2. 双主题色板（对标 `Bloom · OKLCH 莫兰迪色系`）
 
