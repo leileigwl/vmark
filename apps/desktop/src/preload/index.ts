@@ -12,6 +12,11 @@ const api: ElectronAPI = {
   saveArticle: (relativePath: string, content: string) =>
     ipcRenderer.invoke('articles:save', relativePath, content),
   createArticle: (fileName?: string) => ipcRenderer.invoke('articles:create', fileName),
+  renameArticle: (oldRelativePath: string, newFileName: string) =>
+    ipcRenderer.invoke('articles:rename', oldRelativePath, newFileName),
+  deleteArticle: (relativePath: string) => ipcRenderer.invoke('articles:delete', relativePath),
+  duplicateArticle: (relativePath: string) => ipcRenderer.invoke('articles:duplicate', relativePath),
+  searchArticlesContent: (query: string) => ipcRenderer.invoke('articles:search', query),
   saveLocalImage: (base64Data: string, ext: string) =>
     ipcRenderer.invoke('image:saveLocal', base64Data, ext),
   getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),

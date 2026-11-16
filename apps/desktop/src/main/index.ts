@@ -318,6 +318,95 @@ function registerIpcHandlers(): void {
     return buildArticleMeta(initialContent, safeName, target, stat.mtimeMs);
   });
 
+  ipcMain.handle('articles:rename', async (_event, oldRelativePath: string, newFileName: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const cleanNew = newFileName.trim().replace(/[\\/]/g, '');
+    if (!cleanNew) throw new Error('文件名不能为空');
+    const finalName = cleanNew.endsWith('.md') ? cleanNew : `${cleanNew}.md`;
+    const dir = path.dirname(oldRelativePath);
+    const newRelativePath = dir === '.' ? finalName : path.join(dir, finalName);
+
+    const oldTarget = resolveSafePath(cfg.workspacePath, oldRelativePath);
+    const newTarget = resolveSafePath(cfg.workspacePath, newRelativePath);
+    if (oldTarget !== newTarget && existsSync(newTarget)) {
+      throw new Error(`目标文件已存在：${finalName}`);
+    }
+    await fs.rename(oldTarget, newTarget);
+    const content = await fs.readFile(newTarget, 'utf-8');
+    const stat = await fs.stat(newTarget);
+    return buildArticleMeta(content, newRelativePath, newTarget, stat.mtimeMs);
+  });
+
+  ipcMain.handle('articles:delete', async (_event, relativePath: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const target = resolveSafePath(cfg.workspacePath, relativePath);
+    await shell.trashItem(target);
+  });
+
+  ipcMain.handle('articles:duplicate', async (_event, relativePath: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const srcTarget = resolveSafePath(cfg.workspacePath, relativePath);
+    const dir = path.dirname(relativePath);
+    const base = path.basename(relativePath, '.md');
+    let candidateName = `${base} copy.md`;
+    let index = 2;
+    while (existsSync(resolveSafePath(cfg.workspacePath, dir === '.' ? candidateName : path.join(dir, candidateName)))) {
+      candidateName = `${base} copy ${index}.md`;
+      index++;
+    }
+    const newRel = dir === '.' ? candidateName : path.join(dir, candidateName);
+    const destTarget = resolveSafePath(cfg.workspacePath, newRel);
+    await fs.copyFile(srcTarget, destTarget);
+    const content = await fs.readFile(destTarget, 'utf-8');
+    const stat = await fs.stat(destTarget);
+    return buildArticleMeta(content, newRel, destTarget, stat.mtimeMs);
+  });
+
+  ipcMain.handle('articles:search', async (_event, query: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const metas = await scanWorkspaceArticles(cfg.workspacePath);
+    const results: Array<{ relativePath: string; title: string; snippet: string; matchCount: number }> = [];
+    for (const meta of metas) {
+      try {
+        const raw = await fs.readFile(meta.fullPath, 'utf-8');
+        const lower = raw.toLowerCase();
+        const fileMatch = meta.relativePath.toLowerCase().includes(q) || meta.title.toLowerCase().includes(q);
+        const firstIdx = lower.indexOf(q);
+        if (!fileMatch && firstIdx === -1) continue;
+
+        let matchCount = fileMatch ? 1 : 0;
+        let snippet = '';
+        if (firstIdx !== -1) {
+          // Count occurrences in content
+          let pos = firstIdx;
+          matchCount = 0;
+          while (pos !== -1) {
+            matchCount++;
+            pos = lower.indexOf(q, pos + q.length);
+          }
+          const start = Math.max(0, firstIdx - 24);
+          const end = Math.min(raw.length, firstIdx + q.length + 48);
+          snippet = (start > 0 ? '...' : '') + raw.slice(start, end).replace(/\s+/g, ' ') + (end < raw.length ? '...' : '');
+        }
+        results.push({
+          relativePath: meta.relativePath,
+          title: meta.title,
+          snippet,
+          matchCount,
+        });
+      } catch {
+        // skip unreadable file
+      }
+    }
+    return results;
+  });
+
   ipcMain.handle('image:saveLocal', async (_event, base64Data: string, ext: string) => {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');

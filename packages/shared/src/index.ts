@@ -78,6 +78,13 @@ export interface ContextMenuOptions {
   hasSelection: boolean;
 }
 
+export interface ArticleSearchResult {
+  relativePath: string;
+  title: string;
+  snippet: string;
+  matchCount: number;
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -88,6 +95,10 @@ export interface ElectronAPI {
   readArticle: (relativePath: string) => Promise<string>;
   saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;
   createArticle: (fileName?: string) => Promise<ArticleMeta>;
+  renameArticle: (oldRelativePath: string, newFileName: string) => Promise<ArticleMeta>;
+  deleteArticle: (relativePath: string) => Promise<void>;
+  duplicateArticle: (relativePath: string) => Promise<ArticleMeta>;
+  searchArticlesContent: (query: string) => Promise<ArticleSearchResult[]>;
   saveLocalImage: (
     base64Data: string,
     ext: string

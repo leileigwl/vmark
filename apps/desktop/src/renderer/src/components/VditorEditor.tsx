@@ -221,7 +221,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const observer = new MutationObserver(enhanceDom);
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
-      // Single-click Mermaid/Image -> Lightbox zoom; Double-click -> edit source
+      // Single-click Mermaid/Image -> Lightbox zoom (without expanding raw source); Double-click -> edit source
       const handleMouseDownCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
@@ -229,8 +229,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const imgEl = target?.closest('img') as HTMLImageElement | null;
         if (!mermaidBox && !imgEl) return;
 
-        // Prevent Vditor from immediately expanding raw code on single-click
         if (e.detail === 1) {
+          e.preventDefault();
           e.stopPropagation();
           if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
           clickTimerRef.current = setTimeout(() => {
@@ -245,6 +245,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
+      const handleClickCapture = (e: MouseEvent) => {
+        if (e.button !== 0 || e.detail !== 1) return;
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('.language-mermaid') || target?.closest('img')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
       const handleContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         const target = e.target as HTMLElement | null;
@@ -256,10 +265,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       };
 
       el.addEventListener('mousedown', handleMouseDownCapture, true);
+      el.addEventListener('click', handleClickCapture, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
+        el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);

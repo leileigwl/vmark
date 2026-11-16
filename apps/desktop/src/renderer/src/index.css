@@ -193,24 +193,38 @@ body {
   position: relative !important;
   margin: 1.1em 0 !important;
 }
-.vditor-ir__node[data-type="code-block"]::before {
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker {
+  background: transparent !important;
+  border: none !important;
+}
+/* Single in-place edit for regular code blocks: hide duplicate preview when expanded */
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid)) > .vditor-ir__preview {
+  display: none !important;
+}
+/* Clean macOS 3-dot header only on preview or expanded code block without overlapping markers */
+.vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand)::before,
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid))::before {
   content: "" !important;
   position: absolute !important;
-  top: 13px !important;
+  top: 14px !important;
   left: 16px !important;
   width: 10px !important;
   height: 10px !important;
   border-radius: 50% !important;
   background: #ce7069 !important;
   box-shadow: 18px 0 0 #dbb155, 36px 0 0 #72b875 !important;
-  z-index: 2 !important;
+  z-index: 3 !important;
   pointer-events: none !important;
 }
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
+  position: relative !important;
   display: inline-block !important;
-  margin-left: 60px !important;
+  margin-left: 72px !important;
+  margin-bottom: 4px !important;
   font-size: 11.5px !important;
   color: var(--control-text-color) !important;
+  background: transparent !important;
+  z-index: 3 !important;
 }
 .vditor-reset pre > code,
 .vditor-ir__node[data-type="code-block"] pre {
@@ -221,6 +235,10 @@ body {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 13.5px !important;
   line-height: 1.55 !important;
+}
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid)) .vditor-ir__marker--pre > pre {
+  padding-top: 14px !important;
+  margin-top: 4px !important;
 }
 .vditor-reset .language-mermaid {
   cursor: zoom-in !important;

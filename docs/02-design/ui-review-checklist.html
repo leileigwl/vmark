@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VCat Publisher Desktop — 问题归类与逐图 Review 清单</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card: #ffffff;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --border: #e5e5ea;
+      --accent: #007aff;
+      --green: #34c759;
+      --orange: #ff9500;
+      --red: #ff3b30;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .title-wrap h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .title-wrap p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .stats {
+      font-size: 13px;
+      color: var(--muted);
+      background: #f2f2f7;
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover { background: #f2f2f7; }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover { opacity: 0.92; }
+
+    main {
+      max-width: 1120px;
+      margin: 24px auto 80px;
+      padding: 0 20px;
+    }
+    .category {
+      margin-bottom: 32px;
+    }
+    .category-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .category-header h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .category-header span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      align-items: start;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .card.checked {
+      border-color: rgba(52, 199, 89, 0.55);
+      background: #fbfefb;
+    }
+    @media (max-width: 760px) {
+      .card { grid-template-columns: 1fr; }
+    }
+    .thumb-wrap {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fafafa;
+      cursor: zoom-in;
+      position: relative;
+    }
+    .thumb-wrap img {
+      width: 100%;
+      max-height: 210px;
+      object-fit: contain;
+      display: block;
+    }
+    .thumb-caption {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 4px 8px;
+      background: #f8f8fa;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .item-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .badge.done { background: rgba(52,199,89,0.14); color: #1c8a3b; }
+    .badge.todo { background: rgba(255,149,0,0.16); color: #b86500; }
+    .badge.discuss { background: rgba(0,122,255,0.12); color: #005ec4; }
+
+    .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    .check-label input { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
+    .desc {
+      margin: 0 0 10px;
+      font-size: 13.5px;
+      color: #3a3a3c;
+    }
+    .fix-plan {
+      margin: 0 0 10px;
+      padding: 8px 10px;
+      background: #f5f7fa;
+      border-radius: 8px;
+      font-size: 12.5px;
+      color: #2c2c2e;
+    }
+    .note-input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: 12.5px;
+      font-family: inherit;
+      color: var(--text);
+      background: #fafafa;
+    }
+    .note-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: #fff;
+    }
+
+    .decision-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 12px;
+    }
+    .decision-card h3 {
+      margin: 0 0 8px;
+      font-size: 14.5px;
+    }
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-size: 13.5px;
+    }
+    .options label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    /* Lightbox */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.78);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 24px;
+      cursor: zoom-out;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img {
+      max-width: 92vw;
+      max-height: 90vh;
+      border-radius: 10px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      background: #fff;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1d1d1f;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+      z-index: 90;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-wrap">
+      <h1>VCat Publisher Desktop — 问题归类与逐图 Review 清单</h1>
+      <p>一张截图对应一个问题 · <strong>打勾 = 已完成（不用改）</strong>，<strong>未打勾 = 还没改完（继续改）</strong></p>
+    </div>
+    <div class="actions">
+      <div class="stats" id="stats">已完成打勾：0 / 0</div>
+      <button onclick="resetAll()">清空勾选</button>
+      <button class="primary" onclick="exportSummary()">复制 Review 结果</button>
+    </div>
+  </header>
+
+  <main id="app"></main>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="预览大图" />
+  </div>
+  <div class="toast" id="toast">已复制 Review 汇总到剪贴板，直接粘贴发给我即可</div>
+
+  <script>
+    const IMG_BASE = "file:///Users/leileigwl/.gemini/antigravity/brain/2ecdbcd5-58c0-4c37-b021-3c34fa53414b/.user_uploaded/";
+
+    const CATEGORIES = [
+      {
+        id: "cat-sidebar",
+        title: "分类 A：侧边栏、文件树与左下角弹出面板",
+        subtitle: "含最新反馈的左右键/右键操作、面板锁定与侧边栏调节",
+        items: [
+          {
+            id: "A1",
+            title: "A1. 文件列表右键菜单 & 键盘左右键操作 & 全文内容搜索",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794830713422_cff25666.png",
+            desc: "已补齐文件列表右键菜单、行内重命名、移到废纸篓安全删除、键盘 ↑/↓/←/→/Enter/F2/Backspace 导航，以及「文件名 + 文章正文」全文检索与摘要跳转。",
+            plan: "请在侧边栏右键文件、按方向键或回车、并在搜索框输入正文关键词验收。"
+          },
+          {
+            id: "A1_REF",
+            title: "A1-参考. 完整右键菜单结构（打开/新建/列表与树切换/副本/重命名/删除/路径）",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794831056530_8b2647aa.jpg",
+            desc: "已按参考菜单补齐：打开 / 新建文件 / 搜索 / 文档列表·文档树切换 / 创建副本 / 重命名 / 删除 / 复制文件路径 / 在 Finder 中显示。",
+            plan: "请右键任意文件核对菜单项与「文档列表/文档树」切换效果。"
+          },
+          {
+            id: "A2",
+            title: "A2. 左下角「操作」弹出面板比例、位置与右下角锁定",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794830727523_67fe6212.png",
+            desc: "已收紧弹出面板内边距与底栏按钮对齐，并在面板右下角新增「锁定面板」图钉按钮（锁定后执行操作不自动关闭）。",
+            plan: "请点击底栏工作区名称或 ⋮ 打开操作面板，测试右下角锁定图钉。"
+          },
+          {
+            id: "A2_DRAG",
+            title: "A2-拖动. 侧边栏边缘拖拽调宽（带延时与虚影参考线效果）",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794831083335_d71db1c5.jpg",
+            desc: "已加入侧边栏右边缘 200~420px 拖拽调宽，拖动时显示半透明虚影参考线并做 90ms 延时落位，侧栏内容同步自适应。",
+            plan: "请拖动侧边栏与编辑区之间的分割线体验虚影延时效果。"
+          },
+          {
+            id: "A3",
+            title: "A3. 侧边栏与左下角操作面板整体视觉基准",
+            status: "discuss",
+            statusText: "参考基线",
+            img: "media_1794830367108_4724f8d7.jpg",
+            desc: "你提供的实拍参考图：树形目录缩进、左下角「操作 / 排序 / 最近使用的目录」紧凑布局与右侧圆点高亮。",
+            plan: "以此图的比例与紧凑度作为分类 A 精调的验收基准（已改用 Untitled.md 顺序命名）。"
+          }
+        ]
+      },
+      {
+        id: "cat-chrome",
+        title: "分类 B：顶部工具栏、偏好设置与窗口适配",
+        subtitle: "整体比例、字号、间距与窄窗口裁切修复",
+        items: [
+          {
+            id: "B1",
+            title: "B1. 顶部右侧「词数 · 已保存 / 视图 / 设置 / 分发」比例与间距",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794830738266_d495d732.png",
+            desc: "已统一为 11.5px tabular-nums 状态文字、28×28px 图标按钮热区与 26px 高度 Apple 系统蓝「分发」按钮。",
+            plan: "请检查顶部右上角整体比例与对齐。"
+          },
+          {
+            id: "B2",
+            title: "B2. 偏好设置页左侧导航被裁切 & 右侧主题卡片溢出",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794830749980_cf2d3193.png",
+            desc: "已为偏好设置外层与右侧内容区补齐 min-w-0 防裁切约束，主题卡片改为单/双列响应式网格。",
+            plan: "请进入偏好设置并缩放窗口宽度核对左右边缘是否完整。"
+          },
+          {
+            id: "B3",
+            title: "B3. Dock 栏应用图标效果",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794828755920_2dd16dfc.jpg",
+            desc: "仿 Typora 简洁风格的 Dock 图标适配。",
+            plan: "已在先前轮次替换图标并重新构建，请确认当前 Dock 图标是否达标。"
+          },
+          {
+            id: "B4",
+            title: "B4. macOS 顶部原生菜单栏（文件 / 编辑 / 段落 / 格式 / 显示 / 主题）",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829452643_39a7cbe7.jpg",
+            desc: "原生 macOS Menu Bar 菜单结构与快捷键绑定。",
+            plan: "已接入原生菜单栏与主题切换，请勾选确认各项快捷键是否顺手。"
+          },
+          {
+            id: "B5",
+            title: "B5. 偏好设置「图像与图床」子页面布局",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829577221_d8112546.jpg",
+            desc: "本地 ./assets/ 保存与图床直传选项卡片。",
+            plan: "随 B2 一起检查窄窗口下的边距与对齐。"
+          }
+        ]
+      },
+      {
+        id: "cat-content",
+        title: "分类 C：正文排版、表格、Details、代码块与图表",
+        subtitle: "68KB 长文实战压测与 Typora/Bloom 视觉对齐",
+        items: [
+          {
+            id: "C1",
+            title: "C1. 68KB 长文标题层级、右侧滚动条与整体比例",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829267633_9353a7d4.jpg",
+            desc: "全屏与长文下的正文版心宽度、H1-H4 字号比例与右侧滚动条位置。",
+            plan: "请核对当前新版心与滚动条体验是否已舒服。"
+          },
+          {
+            id: "C2",
+            title: "C2. 表格横向溢出 & 表格增删行列操作",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829276077_37e435a6.png",
+            desc: "宽表格右侧被裁切以及无法像 Typora 一样方便增删行/列。",
+            plan: "已调整表格容器与 Vditor 工具操作，请复测表格增删行列是否顺畅。"
+          },
+          {
+            id: "C3",
+            title: "C3. </details> 残留显示 & 折叠块适配",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829487719_89d048e7.jpg",
+            desc: "延伸阅读 <details>/<summary> 展开后出现裸露 </details> 与错位删除线。",
+            plan: "已做 <details> 边界清理与样式适配，请打开 06_orchestration_test.md 复核。"
+          },
+          {
+            id: "C4",
+            title: "C4. 普通代码块点击后上下双份重复渲染 & 白色遮挡块",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794831378268_bf63e65e.png",
+            desc: "已在展开普通代码块（非 Mermaid）时隐藏重复预览层并清理遮挡伪元素，点击后直接原位单框修改。",
+            plan: "请在文章中点击 Python 代码块，确认只保留原位单一编辑框且无白色遮挡。"
+          },
+          {
+            id: "C5",
+            title: "C5. Mermaid 单击放大仍先展开源码 & 白色遮挡错位",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794831351615_e42da0b4.jpg",
+            desc: "已在 capture 阶段同时拦截 mousedown 与 click 单击事件，单击只弹出 Lightbox 放大，双击才原位展开源码。",
+            plan: "请单击 Mermaid 图表确认不再在背后展开源码，双击时可正常改代码。"
+          },
+          {
+            id: "C6",
+            title: "C6. 分发弹窗（多平台状态提示）",
+            status: "done",
+            statusText: "已改待验收",
+            img: "media_1794829549855_e68cfae7.jpg",
+            desc: "合并分发弹窗布局与提示信息。",
+            plan: "当前为 Phase 1 沙箱入口，待 UI 全面验收后进入 Phase 2 真实平台分发对接。"
+          }
+        ]
+      },
+      {
+        id: "cat-prefs-ref",
+        title: "分类 E：偏好设置扩展项参考（文件 / 编辑器 / Markdown / 导出）",
+        subtitle: "你发来的 5 张偏好设置参考图：打勾代表「当前够用/暂不改」，未打勾或批注代表「需要补进设置里」",
+        items: [
+          {
+            id: "E1",
+            title: "E1. 偏好设置 — 文件（默认扩展名 / 切换自动保存 / 历史目录 / 拖入行为）",
+            status: "discuss",
+            statusText: "参考项",
+            img: "media_1794831204106_d79d13de.jpg",
+            desc: "包含默认 .md 扩展名、切换文件自动保存、最近使用的目录记录/清除、拖入文件/文件夹行为、文件树过滤选项。",
+            plan: "可在偏好设置增加「文件与工作区」Tab 逐步对齐。"
+          },
+          {
+            id: "E2",
+            title: "E2. 偏好设置 — 编辑器（成对符号 / Emoji 补全 / 默认复制行为 / 打字机模式）",
+            status: "discuss",
+            statusText: "参考项",
+            img: "media_1794831211242_33c47e75.jpg",
+            desc: "包含匹配括号/引号、Emoji 自动补全、即时渲染块源码、复制纯文本时复制 Markdown 源码、打字机/专注模式。",
+            plan: "可在偏好设置增加「编辑器」Tab，映射 Vditor 对应开关与打字机居中模式。"
+          },
+          {
+            id: "E3",
+            title: "E3. 偏好设置 — Markdown 语法与扩展语法（链接/公式/高亮/警报框/图表）",
+            status: "discuss",
+            statusText: "参考项",
+            img: "media_1794831221291_b0561468.jpg",
+            desc: "包含严格模式、标题/列表样式偏好，以及内联公式、上下标、==高亮==、GitHub 风格警报框、Mermaid 图表开关。",
+            plan: "可在偏好设置增加「Markdown 语法」配置项并接入渲染开关。"
+          },
+          {
+            id: "E4",
+            title: "E4. 偏好设置 — 代码块与公式（行号 / 自动换行 / 缩进 / 默认语言 / LaTeX）",
+            status: "discuss",
+            statusText: "参考项",
+            img: "media_1794831226483_96e2a121.jpg",
+            desc: "包含代码块显示行号、自动换行、缩进宽度、默认语言，以及 LaTeX 行内/块级公式定界符与自动编号。",
+            plan: "同步纳入「Markdown 语法 / 代码块」配置项，联动 Vditor 代码块与数学公式配置。"
+          },
+          {
+            id: "E5",
+            title: "E5. 偏好设置 — 导出（PDF / HTML / Image / Word .docx / Epub 等格式）",
+            status: "discuss",
+            statusText: "参考项",
+            img: "media_1794831236221_32d00f6a.png",
+            desc: "左侧导出格式列表（PDF、HTML、Image、Word、Epub、LaTeX 等）与右侧导出参数面板。",
+            plan: "第一阶段可先提供 PDF（Electron printToPDF）与带样式 HTML/图片导出，其余格式按需接入 Pandoc。"
+          }
+        ]
+      }
+    ];
+
+    const DECISIONS = [
+      {
+        id: "D1",
+        title: "Q1. 侧边栏键盘重命名习惯",
+        options: [
+          "按 Enter 直接进入行内重命名（类似 macOS Finder）",
+          "Enter 打开/切入文件，用 F2 / Cmd+R / 右键菜单重命名"
+        ]
+      },
+      {
+        id: "D2",
+        title: "Q2. 侧边栏是否同步升级为「多级文件夹树」",
+        options: [
+          "是，本轮一并支持子目录展开/折叠（←/→ 键控制）",
+          "否，先保留当前文件列表 + 右键/左右键 + 宽度拖拽"
+        ]
+      },
+      {
+        id: "D3",
+        title: "Q3. 「右下角可以锁定这个面板」具体指哪个面板",
+        options: [
+          "左下角「操作」弹出面板的右下角增加图钉锁定（锁定后不自动关闭）",
+          "编辑区右下角另有一个浮动面板（如字数/大纲浮窗）需要支持锁定"
+        ]
+      },
+      {
+        id: "D4",
+        title: "Q4. 帖子阅读/点赞/评论数据观测的排期",
+        options: [
+          "先改完本轮 UI 比例 + 侧边栏左右/右键交互并验收，帖子数据留到 Phase 2",
+          "本轮同步预留帖子数据卡片 UI 占位"
+        ]
+      }
+    ];
+
+    const STORAGE_KEY = "vcat_ui_review_v1";
+    let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"checks":{},"notes":{},"decisions":{}}');
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      updateStats();
+    }
+
+    function updateStats() {
+      const total = CATEGORIES.reduce((sum, c) => sum + c.items.length, 0);
+      const checked = Object.values(state.checks).filter(Boolean).length;
+      document.getElementById("stats").textContent = `已完成打勾：${checked} / ${total}`;
+    }
+
+    function render() {
+      const app = document.getElementById("app");
+      let html = "";
+
+      for (const cat of CATEGORIES) {
+        html += `<section class="category">
+          <div class="category-header">
+            <h2>${cat.title}</h2>
+            <span>${cat.subtitle}</span>
+          </div>
+          <div class="grid">`;
+        for (const item of cat.items) {
+          const isChecked = !!state.checks[item.id];
+          const note = state.notes[item.id] || "";
+          html += `
+            <article class="card ${isChecked ? "checked" : ""}" id="card-${item.id}">
+              <div class="thumb-wrap" onclick="openLightbox('${IMG_BASE + item.img}')">
+                <img src="${IMG_BASE + item.img}" alt="${item.title}" loading="lazy" />
+                <div class="thumb-caption">点击查看大图 · ${item.img}</div>
+              </div>
+              <div>
+                <div class="meta-row">
+                  <div class="item-title">
+                    <span>${item.title}</span>
+                    <span class="badge ${item.status}">${item.statusText}</span>
+                  </div>
+                  <label class="check-label">
+                    <input type="checkbox" ${isChecked ? "checked" : ""} onchange="toggleCheck('${item.id}', this.checked)" />
+                    <span>${isChecked ? "已完成（不用改）" : "未完成（待修改）"}</span>
+                  </label>
+                </div>
+                <p class="desc">${item.desc}</p>
+                <div class="fix-plan"><strong>处理方案：</strong>${item.plan}</div>
+                <input class="note-input" type="text" placeholder="补充你的意见（例如：还需要调整哪里 / 仍有什么问题）..." value="${note.replace(/"/g, "&quot;")}" oninput="updateNote('${item.id}', this.value)" />
+              </div>
+            </article>
+          `;
+        }
+        html += `</div></section>`;
+      }
+
+      html += `<section class="category">
+        <div class="category-header">
+          <h2>分类 D：动手改代码前的 4 个确认项</h2>
+          <span>点选后一并随「复制 Review 结果」导出</span>
+        </div>`;
+      for (const d of DECISIONS) {
+        html += `<div class="decision-card">
+          <h3>${d.title}</h3>
+          <div class="options">`;
+        d.options.forEach((opt, idx) => {
+          const checked = state.decisions[d.id] === opt ? "checked" : "";
+          html += `<label>
+            <input type="radio" name="${d.id}" ${checked} onchange="setDecision('${d.id}', '${opt.replace(/'/g, "\\'")}')" />
+            <span>${opt}</span>
+          </label>`;
+        });
+        html += `</div></div>`;
+      }
+      html += `</section>`;
+
+      app.innerHTML = html;
+      updateStats();
+    }
+
+    function toggleCheck(id, val) {
+      state.checks[id] = val;
+      saveState();
+      const card = document.getElementById("card-" + id);
+      if (card) {
+        card.classList.toggle("checked", val);
+        card.querySelector(".check-label span").textContent = val ? "已完成（不用改）" : "未完成（待修改）";
+      }
+    }
+
+    function updateNote(id, val) {
+      state.notes[id] = val;
+      saveState();
+    }
+
+    function setDecision(id, val) {
+      state.decisions[id] = val;
+      saveState();
+    }
+
+    function openLightbox(src) {
+      document.getElementById("lightbox-img").src = src;
+      document.getElementById("lightbox").classList.add("open");
+    }
+
+    function closeLightbox() {
+      document.getElementById("lightbox").classList.remove("open");
+    }
+
+    function resetAll() {
+      state = { checks: {}, notes: {}, decisions: {} };
+      saveState();
+      render();
+    }
+
+    function exportSummary() {
+      let lines = ["# VCat UI Review 确认结果", ""];
+      for (const cat of CATEGORIES) {
+        lines.push(`## ${cat.title}`);
+        for (const item of cat.items) {
+          const mark = state.checks[item.id] ? "[x]" : "[ ]";
+          const note = (state.notes[item.id] || "").trim();
+          lines.push(`- ${mark} ${item.title}${note ? ` —— 批注：${note}` : ""}`);
+        }
+        lines.push("");
+      }
+      lines.push("## 待确认选项");
+      for (const d of DECISIONS) {
+        lines.push(`- ${d.title}：${state.decisions[d.id] || "（未选择）"}`);
+      }
+      const text = lines.join("\n");
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById("toast");
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2600);
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>

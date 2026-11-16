@@ -12,6 +12,8 @@ import {
   MoreVertical,
   Palette,
   PanelLeft,
+  Pin,
+  PinOff,
   Plus,
   Search,
   Send,
@@ -20,7 +22,14 @@ import {
 } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
 import { countWords, extractOutline } from '@vcat/core';
-import type { ArticleMeta, GitStatusInfo, ImageBedConfig, PlatformId, ThemeId } from '@vcat/shared';
+import type {
+  ArticleMeta,
+  ArticleSearchResult,
+  GitStatusInfo,
+  ImageBedConfig,
+  PlatformId,
+  ThemeId,
+} from '@vcat/shared';
 import { VditorEditor, type VditorEditorHandle } from './components/VditorEditor';
 
 type MainView = 'editor' | 'manager' | 'settings';
@@ -87,6 +96,18 @@ export default function App() {
   const [fileSearchOpen, setFileSearchOpen] = useState<boolean>(false);
   const [fileSearchQuery, setFileSearchQuery] = useState<string>('');
   const [sidebarMenuOpen, setSidebarMenuOpen] = useState<boolean>(false);
+  const [sidebarMenuPinned, setSidebarMenuPinned] = useState<boolean>(false);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(248);
+  const [dragGhostX, setDragGhostX] = useState<number | null>(null);
+  const [fileViewMode, setFileViewMode] = useState<'tree' | 'list'>('tree');
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState<string>('');
+  const [fileContextMenu, setFileContextMenu] = useState<{
+    x: number;
+    y: number;
+    article: ArticleMeta;
+  } | null>(null);
+  const [contentSearchResults, setContentSearchResults] = useState<ArticleSearchResult[] | null>(null);
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
@@ -289,6 +310,101 @@ export default function App() {
     setGitStatus(git);
   }
 
+  useEffect(() => {
+    const q = fileSearchQuery.trim();
+    if (!q) {
+      setContentSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void window.electronAPI.searchArticlesContent(q).then((res) => {
+        setContentSearchResults(res);
+      });
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [fileSearchQuery]);
+
+  useEffect(() => {
+    if (!fileContextMenu) return;
+    const close = () => setFileContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [fileContextMenu]);
+
+  function startSidebarResize(e: React.MouseEvent) {
+    e.preventDefault();
+    let latestWidth = sidebarWidth;
+    setDragGhostX(Math.min(420, Math.max(200, e.clientX)));
+    let delayTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const clamped = Math.min(420, Math.max(200, moveEvent.clientX));
+      latestWidth = clamped;
+      setDragGhostX(clamped);
+      if (delayTimer) clearTimeout(delayTimer);
+      delayTimer = setTimeout(() => {
+        setSidebarWidth(clamped);
+      }, 90);
+    };
+
+    const onUp = () => {
+      if (delayTimer) clearTimeout(delayTimer);
+      setSidebarWidth(latestWidth);
+      setDragGhostX(null);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function handleRenameStart(article: ArticleMeta) {
+    setRenamingPath(article.relativePath);
+    const baseName = article.relativePath.split('/').pop()?.replace(/\.md$/i, '') ?? '';
+    setRenameDraft(baseName);
+  }
+
+  async function handleRenameSubmit(oldRelativePath: string) {
+    const nextName = renameDraft.trim();
+    setRenamingPath(null);
+    if (!nextName) return;
+    try {
+      const updated = await window.electronAPI.renameArticle(oldRelativePath, nextName);
+      const list = await window.electronAPI.listArticles();
+      setArticles(list);
+      if (activeArticle?.relativePath === oldRelativePath) {
+        setActiveArticle(updated);
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '重命名失败');
+    }
+  }
+
+  async function handleDeleteArticle(article: ArticleMeta) {
+    const ok = window.confirm(`确定要将「${article.relativePath}」移到废纸篓吗？`);
+    if (!ok) return;
+    await window.electronAPI.deleteArticle(article.relativePath);
+    const list = await window.electronAPI.listArticles();
+    setArticles(list);
+    if (activeArticle?.relativePath === article.relativePath) {
+      if (list.length > 0) {
+        await openArticle(list[0]);
+      } else {
+        setActiveArticle(null);
+        setMarkdown('');
+      }
+    }
+  }
+
+  async function handleDuplicateArticle(article: ArticleMeta) {
+    const duplicated = await window.electronAPI.duplicateArticle(article.relativePath);
+    const list = await window.electronAPI.listArticles();
+    setArticles(list);
+    await openArticle(duplicated);
+    setActiveView('editor');
+  }
+
   const filteredArticles = useMemo(() => {
     const q = fileSearchQuery.trim().toLowerCase();
     const base = q
@@ -336,36 +452,83 @@ export default function App() {
         );
       }
 
-      const isSelected = activeArticle?.relativePath === node.article?.relativePath;
+      const article = node.article;
+      const isSelected = activeArticle?.relativePath === article?.relativePath;
+      const isRenaming = renamingPath === article?.relativePath;
       return (
-        <button
+        <div
           key={node.path}
-          type="button"
-          onClick={() => {
-            if (node.article) {
-              void openArticle(node.article);
-              setActiveView('editor');
-            }
+          onContextMenu={(e) => {
+            if (!article) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setFileContextMenu({ x: e.clientX, y: e.clientY, article });
           }}
-          style={{ paddingLeft: `${22 + depth * 12}px` }}
-              className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
-            isSelected
-              ? 'bg-[#e6eff8] font-medium text-[#2c5e91]'
-              : 'text-[#333333] hover:bg-[#eceef1]'
-          }`}
         >
-          <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
-          <span className="truncate">{node.name}</span>
-        </button>
+          {isRenaming && article ? (
+            <div style={{ paddingLeft: `${22 + depth * 12}px` }} className="pr-2 py-[2px]">
+              <input
+                type="text"
+                autoFocus
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                onBlur={() => void handleRenameSubmit(article.relativePath)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleRenameSubmit(article.relativePath);
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setRenamingPath(null);
+                  }
+                }}
+                className="w-full rounded border border-[var(--accent)] bg-white px-1.5 py-0.5 text-[12.5px] outline-none"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (article) {
+                  void openArticle(article);
+                  setActiveView('editor');
+                }
+              }}
+              onDoubleClick={() => {
+                if (article) handleRenameStart(article);
+              }}
+              style={{ paddingLeft: `${22 + depth * 12}px` }}
+              className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
+                isSelected
+                  ? 'bg-[#e6eff8] font-medium text-[#2c5e91]'
+                  : 'text-[#333333] hover:bg-[#eceef1]'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
+              <span className="truncate">{node.name}</span>
+            </button>
+          )}
+        </div>
       );
     });
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white text-[#333333]">
-      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 搜索 + 底部动作菜单） */}
+    <div className="relative flex h-screen w-screen overflow-hidden bg-white text-[#333333]">
+      {/* 侧边栏拖拽时的延时虚影参考线 */}
+      {dragGhostX !== null && (
+        <div
+          style={{ left: `${dragGhostX}px` }}
+          className="pointer-events-none fixed top-0 bottom-0 z-50 w-[2px] border-r border-dashed border-[#007aff] bg-[#007aff]/35 shadow-[0_0_8px_rgba(0,122,255,0.45)]"
+        />
+      )}
+
+      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 全文搜索 + 底部动作菜单 + 拖拽调宽） */}
       {sidebarOpen && (
-        <aside className="relative flex h-screen w-[248px] shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] select-none">
+        <aside
+          style={{ width: `${sidebarWidth}px` }}
+          className="relative flex h-screen shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] transition-[width] duration-75 ease-out select-none"
+        >
           {/* 顶部 macOS 红绿灯留白拖动区 */}
           <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
 
@@ -413,19 +576,128 @@ export default function App() {
               <input
                 type="text"
                 autoFocus
-                placeholder="筛选文件名或标题..."
+                placeholder="搜索文件名或文章正文..."
                 value={fileSearchQuery}
                 onChange={(e) => setFileSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setFileSearchQuery('');
+                    setFileSearchOpen(false);
+                  }
+                }}
                 className="w-full rounded border border-[var(--border-color)] bg-white px-2 py-1 text-xs outline-none focus:border-[var(--accent)]"
               />
             </div>
           )}
 
-          {/* 目录树 / 大纲区 */}
-          <div className="flex-1 overflow-y-auto px-1.5 py-2">
+          {/* 目录树 / 全文搜索结果 / 大纲区 */}
+          <div
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (sideTab !== 'files' || renamingPath || filteredArticles.length === 0) return;
+              const idx = filteredArticles.findIndex((a) => a.relativePath === activeArticle?.relativePath);
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = filteredArticles[Math.min(filteredArticles.length - 1, idx + 1)] ?? filteredArticles[0];
+                if (next) void openArticle(next);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = filteredArticles[Math.max(0, idx - 1)] ?? filteredArticles[0];
+                if (prev) void openArticle(prev);
+              } else if (e.key === 'ArrowLeft') {
+                const currentPath = activeArticle?.relativePath ?? '';
+                const parentDir = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '';
+                if (parentDir) {
+                  e.preventDefault();
+                  setExpandedDirs((prev) => ({ ...prev, [parentDir]: false }));
+                }
+              } else if (e.key === 'ArrowRight') {
+                const currentPath = activeArticle?.relativePath ?? '';
+                const parentDir = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '';
+                if (parentDir && expandedDirs[parentDir] === false) {
+                  e.preventDefault();
+                  setExpandedDirs((prev) => ({ ...prev, [parentDir]: true }));
+                }
+              } else if (e.key === 'Enter' || e.key === 'F2') {
+                if (activeArticle) {
+                  e.preventDefault();
+                  handleRenameStart(activeArticle);
+                }
+              } else if (e.key === 'Backspace' || e.key === 'Delete') {
+                if (activeArticle) {
+                  e.preventDefault();
+                  void handleDeleteArticle(activeArticle);
+                }
+              }
+            }}
+            className="flex-1 overflow-y-auto px-1.5 py-2 outline-none"
+          >
             {sideTab === 'files' ? (
-              articles.length === 0 ? (
+              fileSearchQuery.trim() && contentSearchResults ? (
+                contentSearchResults.length === 0 ? (
+                  <div className="px-3 py-4 text-xs text-[#777777]">未找到匹配的文件或正文内容</div>
+                ) : (
+                  <div className="space-y-1">
+                    {contentSearchResults.map((res) => {
+                      const art = articles.find((a) => a.relativePath === res.relativePath);
+                      const isSelected = activeArticle?.relativePath === res.relativePath;
+                      return (
+                        <button
+                          key={res.relativePath}
+                          type="button"
+                          onClick={() => {
+                            if (art) {
+                              void openArticle(art);
+                              setActiveView('editor');
+                            }
+                          }}
+                          className={`block w-full rounded px-2.5 py-1.5 text-left ${
+                            isSelected ? 'bg-[#e6eff8] text-[#2c5e91]' : 'hover:bg-[#eceef1]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 text-[12.5px] font-medium">
+                            <span className="truncate">{res.relativePath}</span>
+                            {res.matchCount > 0 && (
+                              <span className="shrink-0 rounded bg-black/5 px-1 text-[10px] text-[#666666]">
+                                {res.matchCount}
+                              </span>
+                            )}
+                          </div>
+                          {res.snippet && (
+                            <div className="mt-0.5 line-clamp-2 text-[11px] text-[#777777]">{res.snippet}</div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
+              ) : articles.length === 0 ? (
                 <div className="px-3 py-4 text-xs text-[#777777]">暂无 Markdown 文件</div>
+              ) : fileViewMode === 'list' ? (
+                filteredArticles.map((art) => {
+                  const isSelected = activeArticle?.relativePath === art.relativePath;
+                  return (
+                    <button
+                      key={art.relativePath}
+                      type="button"
+                      onClick={() => {
+                        void openArticle(art);
+                        setActiveView('editor');
+                      }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFileContextMenu({ x: e.clientX, y: e.clientY, article: art });
+                      }}
+                      className={`flex w-full items-center gap-1.5 rounded px-2.5 py-[4px] text-left text-[12.5px] leading-5 ${
+                        isSelected ? 'bg-[#e6eff8] font-medium text-[#2c5e91]' : 'text-[#333333] hover:bg-[#eceef1]'
+                      }`}
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
+                      <span className="truncate">{art.relativePath}</span>
+                    </button>
+                  );
+                })
               ) : (
                 renderTreeNodes(fileTree)
               )
@@ -453,67 +725,77 @@ export default function App() {
             )}
           </div>
 
-          {/* Typora 底部工作区动作条与弹出菜单 */}
+          {/* Typora 底部工作区动作条与弹出菜单（支持右下角图钉锁定） */}
           {sidebarMenuOpen && (
-            <div className="absolute bottom-8 left-2 right-2 z-40 rounded-lg border border-[#e5e7eb] bg-white/95 py-2 text-xs shadow-xl backdrop-blur-xs">
+            <div className="absolute bottom-8 left-2 right-2 z-40 rounded-lg border border-[#e5e7eb] bg-white/95 py-1.5 text-[12px] shadow-xl backdrop-blur-xs">
               <div className="flex items-center justify-between px-3 pb-1 text-[11px] font-semibold text-[#777777]">
                 <span>操作</span>
-                <button type="button" onClick={() => setSidebarMenuOpen(false)} className="hover:text-[#333333]">✕</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSidebarMenuPinned(false);
+                    setSidebarMenuOpen(false);
+                  }}
+                  className="rounded p-0.5 hover:bg-[#f3f4f6] hover:text-[#333333]"
+                >
+                  ✕
+                </button>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarMenuOpen(false);
+                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
                   void handleCreateBlankArticle();
                 }}
-                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+                className="block w-full px-3.5 py-1 text-left hover:bg-[#f0f4f8]"
               >
                 新建文件
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarMenuOpen(false);
+                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
+                  setSideTab('files');
                   setFileSearchOpen(true);
                 }}
-                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+                className="block w-full px-3.5 py-1 text-left hover:bg-[#f0f4f8]"
               >
-                搜索
+                搜索（文件名 / 正文）
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarMenuOpen(false);
+                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
                   void window.electronAPI.showInFinder(activeArticle?.relativePath);
                 }}
-                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+                className="block w-full px-3.5 py-1 text-left hover:bg-[#f0f4f8]"
               >
                 在 Finder 中显示
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarMenuOpen(false);
+                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
                   void handleSelectWorkspace();
                 }}
-                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+                className="block w-full px-3.5 py-1 text-left hover:bg-[#f0f4f8]"
               >
                 打开文件夹...
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setSidebarMenuOpen(false);
+                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
                   void refreshWorkspace();
                 }}
-                className="block w-full px-4 py-1.5 text-left hover:bg-[#f0f4f8]"
+                className="block w-full px-3.5 py-1 text-left hover:bg-[#f0f4f8]"
               >
                 刷新
               </button>
 
-              <div className="my-1.5 flex items-center justify-between border-t border-[#eeeeee] px-3 pt-1.5 text-[11px] text-[#777777]">
+              <div className="my-1 flex items-center justify-between border-t border-[#eeeeee] px-3 pt-1 text-[11px] text-[#777777]">
                 <span>排序</span>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1">
                   <button
                     type="button"
                     onClick={() => setSortBy('name')}
@@ -532,13 +814,16 @@ export default function App() {
               </div>
 
               {recentWorkspaces.length > 0 && (
-                <div className="border-t border-[#eeeeee] pt-1.5">
-                  <div className="px-3 pb-1 text-[11px] font-semibold text-[#777777]">最近使用的目录</div>
+                <div className="border-t border-[#eeeeee] pt-1">
+                  <div className="px-3 pb-0.5 text-[11px] font-semibold text-[#777777]">最近使用的目录</div>
                   {recentWorkspaces.map((dir) => (
                     <button
                       key={dir}
                       type="button"
-                      onClick={() => void handleSwitchRecentWorkspace(dir)}
+                      onClick={() => {
+                        if (!sidebarMenuPinned) setSidebarMenuOpen(false);
+                        void handleSwitchRecentWorkspace(dir);
+                      }}
                       className="flex w-full items-center justify-between px-3 py-1 text-left hover:bg-[#f0f4f8]"
                     >
                       <span className="flex items-center gap-1.5 truncate">
@@ -550,15 +835,32 @@ export default function App() {
                   ))}
                 </div>
               )}
+
+              {/* 面板右下角图钉锁定栏 */}
+              <div className="mt-1 flex items-center justify-end border-t border-[#eeeeee] px-2.5 pt-1">
+                <button
+                  type="button"
+                  title={sidebarMenuPinned ? '取消锁定面板' : '锁定面板（不自动关闭）'}
+                  onClick={() => setSidebarMenuPinned((p) => !p)}
+                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+                    sidebarMenuPinned
+                      ? 'bg-[#e6eff8] font-medium text-[#007aff]'
+                      : 'text-[#777777] hover:bg-[#f3f4f6] hover:text-[#333333]'
+                  }`}
+                >
+                  {sidebarMenuPinned ? <Pin className="h-3 w-3" /> : <PinOff className="h-3 w-3" />}
+                  <span>{sidebarMenuPinned ? '已锁定' : '锁定面板'}</span>
+                </button>
+              </div>
             </div>
           )}
 
-          <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[var(--border-color)] px-2.5 text-[11.5px] text-[var(--control-text-color)]">
+          <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[var(--border-color)] px-2 text-[11.5px] text-[var(--control-text-color)]">
             <button
               type="button"
               title="新建空白文章"
               onClick={() => void handleCreateBlankArticle()}
-              className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+              className="flex h-6 w-6 items-center justify-center rounded hover:bg-[#eceef1] hover:text-[#333333]"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -566,16 +868,16 @@ export default function App() {
               type="button"
               title="工作区操作与最近目录"
               onClick={() => setSidebarMenuOpen((v) => !v)}
-              className="max-w-[130px] truncate rounded px-1.5 py-0.5 hover:bg-[#eceef1] hover:text-[#333333]"
+              className="min-w-0 flex-1 truncate rounded px-1.5 py-0.5 text-center hover:bg-[#eceef1] hover:text-[#333333]"
             >
               {workspaceName}
             </button>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 shrink-0">
               <button
                 type="button"
                 title="更多目录操作"
                 onClick={() => setSidebarMenuOpen((v) => !v)}
-                className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-[#eceef1] hover:text-[#333333]"
               >
                 <MoreVertical className="h-3.5 w-3.5" />
               </button>
@@ -583,13 +885,142 @@ export default function App() {
                 type="button"
                 title="切换大纲视图"
                 onClick={() => setSideTab((t) => (t === 'files' ? 'outline' : 'files'))}
-                className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-[#eceef1] hover:text-[#333333]"
               >
                 <ListTree className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
+
+          {/* 右边缘拖拽调宽热区 */}
+          <div
+            onMouseDown={startSidebarResize}
+            title="拖拽调整侧边栏宽度"
+            className="absolute top-0 right-0 z-30 h-full w-[5px] cursor-col-resize hover:bg-[#007aff]/20"
+          />
         </aside>
+      )}
+
+      {/* 侧边栏文件右键上下文菜单 */}
+      {fileContextMenu && (
+        <div
+          style={{ left: `${fileContextMenu.x}px`, top: `${fileContextMenu.y}px` }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 w-48 rounded-lg border border-[#e5e7eb] bg-white/95 py-1 text-[12.5px] text-[#1d1d1f] shadow-xl backdrop-blur-md"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              void openArticle(fileContextMenu.article);
+              setActiveView('editor');
+              setFileContextMenu(null);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            打开
+          </button>
+          <div className="my-1 border-t border-[#eeeeee]" />
+          <button
+            type="button"
+            onClick={() => {
+              setFileContextMenu(null);
+              void handleCreateBlankArticle();
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            新建文件
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFileContextMenu(null);
+              setSideTab('files');
+              setFileSearchOpen(true);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            搜索
+          </button>
+          <div className="my-1 border-t border-[#eeeeee]" />
+          <button
+            type="button"
+            onClick={() => {
+              setFileViewMode('list');
+              setFileContextMenu(null);
+            }}
+            className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            <span>文档列表</span>
+            {fileViewMode === 'list' && <span>✓</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFileViewMode('tree');
+              setFileContextMenu(null);
+            }}
+            className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            <span>文档树</span>
+            {fileViewMode === 'tree' && <span>✓</span>}
+          </button>
+          <div className="my-1 border-t border-[#eeeeee]" />
+          <button
+            type="button"
+            onClick={() => {
+              const target = fileContextMenu.article;
+              setFileContextMenu(null);
+              void handleDuplicateArticle(target);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            创建副本
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = fileContextMenu.article;
+              setFileContextMenu(null);
+              handleRenameStart(target);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            重命名...
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = fileContextMenu.article;
+              setFileContextMenu(null);
+              void handleDeleteArticle(target);
+            }}
+            className="block w-full px-3.5 py-1 text-left text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
+          >
+            删除...
+          </button>
+          <div className="my-1 border-t border-[#eeeeee]" />
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard.writeText(fileContextMenu.article.fullPath);
+              setFileContextMenu(null);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            复制文件路径
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const rel = fileContextMenu.article.relativePath;
+              setFileContextMenu(null);
+              void window.electronAPI.showInFinder(rel);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            在 Finder 中显示
+          </button>
+        </div>
       )}
 
       {/* 右侧主区 */}
@@ -630,14 +1061,18 @@ export default function App() {
           </div>
 
           {/* 右侧极简指标与核心动作 */}
-          <div className="app-no-drag flex items-center gap-1.5 text-xs text-[#777777]">
-            <span className="mr-1.5 text-[11px] text-[#888888]">{liveWordCount} 词 · {saveState}</span>
+          <div className="app-no-drag flex shrink-0 items-center gap-1 text-xs text-[#6e6e73]">
+            <span className="mr-2 text-[11.5px] tabular-nums text-[#8e8e93]">
+              {liveWordCount} 词 · {saveState}
+            </span>
             <button
               type="button"
               title="文章管理台"
               onClick={() => setActiveView((v) => (v === 'manager' ? 'editor' : 'manager'))}
-              className={`rounded p-1 hover:bg-[#f3f4f6] ${
-                activeView === 'manager' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
+              className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                activeView === 'manager'
+                  ? 'bg-[#e6eff8] text-[#007aff]'
+                  : 'text-[#6e6e73] hover:bg-[#f2f2f7] hover:text-[#1d1d1f]'
               }`}
             >
               <Table2 className="h-3.5 w-3.5" />
@@ -646,8 +1081,10 @@ export default function App() {
               type="button"
               title="偏好设置 (图床 / 平台 / GitHub)"
               onClick={() => setActiveView((v) => (v === 'settings' ? 'editor' : 'settings'))}
-              className={`rounded p-1 hover:bg-[#f3f4f6] ${
-                activeView === 'settings' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
+              className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+                activeView === 'settings'
+                  ? 'bg-[#e6eff8] text-[#007aff]'
+                  : 'text-[#6e6e73] hover:bg-[#f2f2f7] hover:text-[#1d1d1f]'
               }`}
             >
               <Settings className="h-3.5 w-3.5" />
@@ -655,7 +1092,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setPublishModalOpen(true)}
-              className="ml-1 flex items-center gap-1 rounded bg-[#4183c4] px-2.5 py-0.5 text-[11.5px] font-medium text-white hover:bg-[#3572b0]"
+              className="ml-1.5 flex h-[26px] items-center gap-1 rounded-md bg-[#007aff] px-2.5 text-[12px] font-medium text-white shadow-2xs transition hover:bg-[#0066d6]"
             >
               <Send className="h-3 w-3" />
               分发
@@ -843,8 +1280,8 @@ export default function App() {
           )}
 
           {activeView === 'settings' && (
-            <div className="flex flex-1 overflow-hidden">
-              <aside className="w-48 shrink-0 border-r border-[#e5e7eb] bg-[#fafafa] p-3">
+            <div className="flex min-w-0 flex-1 overflow-hidden">
+              <aside className="w-44 shrink-0 overflow-y-auto border-r border-[#e5e7eb] bg-[#fafafa] px-3 py-4">
                 <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[#777777] uppercase">
                   偏好设置
                 </div>
@@ -898,7 +1335,7 @@ export default function App() {
                 </button>
               </aside>
 
-              <section className="flex-1 overflow-y-auto bg-white p-8">
+              <section className="min-w-0 flex-1 overflow-y-auto bg-white p-6 md:p-8">
                 {settingCategory === 'image' && (
                   <div className="max-w-2xl space-y-4">
                     <h2 className="text-base font-semibold">插入图片时</h2>
@@ -944,7 +1381,7 @@ export default function App() {
                     <p className="text-xs text-[#777777]">
                       也可随时通过 macOS 顶部菜单栏「主题」快速切换。
                     </p>
-                    <div className="grid grid-cols-2 gap-3 text-[13px]">
+                    <div className="grid grid-cols-1 gap-3 text-[13px] sm:grid-cols-2">
                       {(
                         [
                           { id: 'apple-light', name: 'Apple Light（默认苹果白）', desc: 'SF Pro 字体 · #f5f5f7 侧栏 · #007aff 系统蓝' },
