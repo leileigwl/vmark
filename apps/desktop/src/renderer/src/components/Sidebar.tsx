@@ -244,7 +244,15 @@ export function Sidebar({
     onChangeSideTab('files');
     if (type === 'folder') setFileViewMode('tree');
     let defaultDraft = type === 'folder' ? '新建文件夹' : 'Untitled.md';
-    if (type === 'file') {
+    if (type === 'folder') {
+      let candidate = '新建文件夹';
+      let i = 2;
+      while (folders.includes(parentDir ? `${parentDir}/${candidate}` : candidate)) {
+        candidate = `新建文件夹 ${i}`;
+        i++;
+      }
+      defaultDraft = candidate;
+    } else if (type === 'file') {
       let candidate = 'Untitled.md';
       let i = 2;
       while (articles.some((a) => a.relativePath === (parentDir ? `${parentDir}/${candidate}` : candidate))) {
@@ -602,11 +610,9 @@ export function Sidebar({
                       setFileContextMenu({ x: e.clientX, y: e.clientY, article: art });
                     }}
                     className={`flex w-full items-center gap-1.5 rounded px-2.5 py-[4px] text-left text-[12.5px] leading-5 ${
-                      isMultiSelected
-                        ? 'bg-[var(--accent)]/30 font-medium text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/55'
-                        : isSelected
-                          ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
-                          : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                      isSelected
+                        ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
+                        : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />

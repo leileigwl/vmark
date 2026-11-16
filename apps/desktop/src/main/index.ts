@@ -385,9 +385,31 @@ function registerIpcHandlers(): void {
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
     const cleanName = folderName.trim().replace(/^[\\/]+|[\\/]+$/g, '');
     if (!cleanName) throw new Error('文件夹名称不能为空');
-    const target = resolveSafePath(cfg.workspacePath, cleanName);
+    const parts = cleanName.split('/');
+    const baseName = parts.pop() || '新建文件夹';
+    const parentRel = parts.join('/');
+    let candidate = cleanName;
+    let target = resolveSafePath(cfg.workspacePath, candidate);
+    let idx = 2;
+    while (existsSync(target)) {
+      const nextName = `${baseName} ${idx}`;
+      candidate = parentRel ? `${parentRel}/${nextName}` : nextName;
+      target = resolveSafePath(cfg.workspacePath, candidate);
+      idx++;
+    }
     await fs.mkdir(target, { recursive: true });
-    return cleanName;
+    return candidate;
+  });
+
+  ipcMain.handle('folders:delete', async (_event, folderPath: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const cleanPath = folderPath.trim().replace(/^[\\/]+|[\\/]+$/g, '');
+    if (!cleanPath) return;
+    const target = resolveSafePath(cfg.workspacePath, cleanPath);
+    if (existsSync(target)) {
+      await shell.trashItem(target);
+    }
   });
 
   ipcMain.handle('folders:move', async (_event, oldFolderPath: string, targetParentFolder: string) => {

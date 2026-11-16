@@ -253,3 +253,33 @@ export function cleanupUnusedTempGapParagraphs(el: HTMLElement, activeNode?: Nod
     }
   });
 }
+
+export function ensureCodeBlockCopyButtons(el: HTMLElement): void {
+  const blocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
+  blocks.forEach((codeBlock) => {
+    if (codeBlock.querySelector('.vcat-code-copy')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'vcat-code-copy';
+    btn.setAttribute('contenteditable', 'false');
+    btn.setAttribute('aria-label', '复制代码');
+    btn.title = '复制代码';
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      const codeEl = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
+      const raw = (codeEl?.textContent || '').replace(/\u200b/g, '').replace(/\n$/, '');
+      void navigator.clipboard?.writeText(raw).then(() => {
+        btn.setAttribute('data-copied', '1');
+        setTimeout(() => btn.removeAttribute('data-copied'), 1200);
+      });
+    });
+    codeBlock.appendChild(btn);
+  });
+}

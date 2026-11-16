@@ -16,6 +16,7 @@ import {
   cleanEmptyInlineNodes,
   cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
   cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
+  ensureCodeBlockCopyButtons,
   ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
   normalizeEmojiAndCalloutIcons,
   renderLatexBlocks as renderLatexBlocksInEl,
@@ -478,6 +479,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const runHeavyEnhance = () => {
         rewriteLocalImagesSync();
         ensureCodeBlockInfoMarkers();
+        ensureCodeBlockCopyButtons(el);
         cleanStrayCodeBlockFences();
         cleanEmptyInlineNodes(el);
         normalizeEmojiAndCalloutIcons(el);

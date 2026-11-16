@@ -31,6 +31,20 @@ type FileHistoryOp =
       kind: 'delete';
       items: Array<{ relativePath: string; content: string }>;
       previousArticlePath?: string | null;
+    }
+  | {
+      kind: 'create-folder';
+      folderPath: string;
+    }
+  | {
+      kind: 'move-article';
+      oldPath: string;
+      newPath: string;
+    }
+  | {
+      kind: 'move-folder';
+      oldFolder: string;
+      newFolder: string;
     };
 
 const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
@@ -517,7 +531,7 @@ export default function App() {
             content: snapshot,
           },
         ]);
-      } else {
+      } else if (op.kind === 'delete') {
         // Restore deleted files
         let lastCreated: ArticleMeta | null = null;
         for (const item of op.items) {
@@ -530,6 +544,37 @@ export default function App() {
         if (lastCreated) {
           await openArticle(lastCreated);
           setActiveView('editor');
+        }
+        setFileRedoStack((prev) => [...prev, op]);
+      } else if (op.kind === 'create-folder') {
+        await window.electronAPI.deleteFolder?.(op.folderPath);
+        setFolders(await window.electronAPI.listFolders());
+        setFileRedoStack((prev) => [...prev, op]);
+      } else if (op.kind === 'move-article') {
+        const targetParent = op.oldPath.includes('/') ? op.oldPath.slice(0, op.oldPath.lastIndexOf('/')) : '';
+        const moved = await window.electronAPI.moveArticle(op.newPath, targetParent);
+        const [list, folderList] = await Promise.all([
+          window.electronAPI.listArticles(),
+          window.electronAPI.listFolders(),
+        ]);
+        setArticles(list);
+        setFolders(folderList);
+        if (activeArticle?.relativePath === op.newPath) setActiveArticle(moved);
+        setFileRedoStack((prev) => [...prev, op]);
+      } else if (op.kind === 'move-folder') {
+        const targetParent = op.oldFolder.includes('/') ? op.oldFolder.slice(0, op.oldFolder.lastIndexOf('/')) : '';
+        const restoredRel = await window.electronAPI.moveFolder(op.newFolder, targetParent);
+        const [list, folderList] = await Promise.all([
+          window.electronAPI.listArticles(),
+          window.electronAPI.listFolders(),
+        ]);
+        setArticles(list);
+        setFolders(folderList);
+        if (activeArticle?.relativePath.startsWith(`${op.newFolder}/`)) {
+          const match = list.find(
+            (a: ArticleMeta) => a.relativePath === activeArticle.relativePath.replace(op.newFolder, restoredRel)
+          );
+          if (match) setActiveArticle(match);
         }
         setFileRedoStack((prev) => [...prev, op]);
       }
@@ -560,7 +605,7 @@ export default function App() {
           ...prev,
           { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
         ]);
-      } else {
+      } else if (op.kind === 'delete') {
         const deletedSet = new Set(op.items.map((i) => i.relativePath));
         const remaining = articles.filter((a) => !deletedSet.has(a.relativePath));
         setArticles(remaining);
@@ -575,6 +620,37 @@ export default function App() {
             setActiveArticle(null);
             setMarkdown('');
           }
+        }
+        setFileUndoStack((prev) => [...prev, op]);
+      } else if (op.kind === 'create-folder') {
+        const createdPath = await window.electronAPI.createFolder(op.folderPath);
+        setFolders(await window.electronAPI.listFolders());
+        setFileUndoStack((prev) => [...prev, { kind: 'create-folder', folderPath: createdPath }]);
+      } else if (op.kind === 'move-article') {
+        const targetParent = op.newPath.includes('/') ? op.newPath.slice(0, op.newPath.lastIndexOf('/')) : '';
+        const moved = await window.electronAPI.moveArticle(op.oldPath, targetParent);
+        const [list, folderList] = await Promise.all([
+          window.electronAPI.listArticles(),
+          window.electronAPI.listFolders(),
+        ]);
+        setArticles(list);
+        setFolders(folderList);
+        if (activeArticle?.relativePath === op.oldPath) setActiveArticle(moved);
+        setFileUndoStack((prev) => [...prev, op]);
+      } else if (op.kind === 'move-folder') {
+        const targetParent = op.newFolder.includes('/') ? op.newFolder.slice(0, op.newFolder.lastIndexOf('/')) : '';
+        const movedRel = await window.electronAPI.moveFolder(op.oldFolder, targetParent);
+        const [list, folderList] = await Promise.all([
+          window.electronAPI.listArticles(),
+          window.electronAPI.listFolders(),
+        ]);
+        setArticles(list);
+        setFolders(folderList);
+        if (activeArticle?.relativePath.startsWith(`${op.oldFolder}/`)) {
+          const match = list.find(
+            (a: ArticleMeta) => a.relativePath === activeArticle.relativePath.replace(op.oldFolder, movedRel)
+          );
+          if (match) setActiveArticle(match);
         }
         setFileUndoStack((prev) => [...prev, op]);
       }
@@ -697,8 +773,10 @@ export default function App() {
         onUndoFileOp={handleUndoFileOp}
         onRedoFileOp={handleRedoFileOp}
         onCreateFolder={async (rel) => {
-          await window.electronAPI.createFolder(rel);
+          const createdPath = await window.electronAPI.createFolder(rel);
           setFolders(await window.electronAPI.listFolders());
+          setFileUndoStack((prev) => [...prev, { kind: 'create-folder', folderPath: createdPath }]);
+          setFileRedoStack([]);
         }}
         onRenameArticle={async (oldPath, newName) => {
           try {
@@ -783,6 +861,10 @@ export default function App() {
             setArticles(list);
             setFolders(folderList);
             if (activeArticle?.relativePath === oldPath) setActiveArticle(moved);
+            if (moved.relativePath !== oldPath) {
+              setFileUndoStack((prev) => [...prev, { kind: 'move-article', oldPath, newPath: moved.relativePath }]);
+              setFileRedoStack([]);
+            }
           } catch (err) {
             showToast(err);
           }
@@ -799,6 +881,10 @@ export default function App() {
             if (activeArticle?.relativePath.startsWith(`${oldFolder}/`)) {
               const match = list.find((a: ArticleMeta) => a.relativePath === activeArticle.relativePath.replace(oldFolder, newRel));
               if (match) setActiveArticle(match);
+            }
+            if (newRel !== oldFolder) {
+              setFileUndoStack((prev) => [...prev, { kind: 'move-folder', oldFolder, newFolder: newRel }]);
+              setFileRedoStack([]);
             }
           } catch (err) {
             showToast(err);

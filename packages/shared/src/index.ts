@@ -165,6 +165,7 @@ export interface ElectronAPI {
   listArticles: () => Promise<ArticleMeta[]>;
   listFolders: () => Promise<string[]>;
   createFolder: (folderName: string) => Promise<string>;
+  deleteFolder?: (folderPath: string) => Promise<void>;
   moveFolder: (oldFolderPath: string, targetParentFolder: string) => Promise<string>;
   readArticle: (relativePath: string) => Promise<string>;
   saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;

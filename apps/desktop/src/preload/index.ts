@@ -17,6 +17,7 @@ const api: ElectronAPI = {
   listArticles: () => ipcRenderer.invoke('articles:list'),
   listFolders: () => ipcRenderer.invoke('folders:list'),
   createFolder: (folderName: string) => ipcRenderer.invoke('folders:create', folderName),
+  deleteFolder: (folderPath: string) => ipcRenderer.invoke('folders:delete', folderPath),
   moveFolder: (oldFolderPath: string, targetParentFolder: string) =>
     ipcRenderer.invoke('folders:move', oldFolderPath, targetParentFolder),
   readArticle: (relativePath: string) => ipcRenderer.invoke('articles:read', relativePath),

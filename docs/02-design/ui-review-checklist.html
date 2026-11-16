@@ -312,6 +312,42 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R32_1",
+            title: "R32-1. 所有代码块右上角新增「复制」按钮（普通与只读模式均可用）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859771452_33b4d2fd.png",
+            desc: "vditorDomEnhancer 注入 .vcat-code-copy 按钮，采用 CSS ::after 渲染“复制 / 已复制 ✓”保证 textContent 为空、不污染保存的 Markdown，普通与只读模式均可点击一键复制代码。",
+            plan: "请在普通模式和只读模式下点击任意代码块右上角「复制」，确认显示「已复制 ✓」且剪贴板内容正确、保存后正文无多余文字。"
+          },
+          {
+            id: "R32_2",
+            title: "R32-2. 只读模式点击标题/行内代码不露出 # 或 ` 记号",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859771453_ee6bcc9d.png",
+            desc: "editor.css 在 .vcat-readonly 下强制隐藏标题、行内代码、加粗、斜体、链接等 .vditor-ir__marker 记号（保留代码块语言标签）。",
+            plan: "请切换到只读模式并点击标题和行内代码，确认不会出现 # 或 ` 符号。"
+          },
+          {
+            id: "R32_3",
+            title: "R32-3. 新建文件夹防重名 + 文件夹创建及文件/文件夹移动支持撤销/重做",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859771456_bbda80fb.png",
+            desc: "新建文件夹重名自动递增编号（新建文件夹 2、3…）；App.tsx FileHistoryOp 新增 create-folder、move-article、move-folder，支持 Cmd/Ctrl+Z 撤销与恢复。",
+            plan: "请连续新建同名文件夹确认自动编号，再按 Cmd/Ctrl+Z 撤销创建与拖拽移动操作。"
+          },
+          {
+            id: "R32_4",
+            title: "R32-4. 还原侧边栏柔和选中高亮",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859832124_3338dc6d.png",
+            desc: "将批量多选底色还原为柔和的 bg-[var(--accent)]/15，视觉更协调。",
+            plan: "请在侧边栏拖拽多选文件，确认高亮已恢复为柔和浅蓝。"
+          },
+          {
             id: "R31_1",
             title: "R31-1. 只读模式恢复顺畅滚轮下滑且完全保留原色（无 opacity 滤镜）",
             status: "done",

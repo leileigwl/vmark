@@ -122,6 +122,17 @@
 4. **正文编辑区 `Ctrl+Z` / `Cmd+Z` 单次按键立即撤销**：
    - `VditorEditor.tsx` 的 `undo()` 在执行 `vditor.undo.undo()` 前先同步 `addToUndoStack()` 并跳过重复栈顶快照，确保在文本区输入后按一次 `Ctrl+Z` / `Cmd+Z` 立即撤销。
 
+### Round 32（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **所有代码块右上角新增「复制」按钮（普通与只读模式均可用）**：
+   - `vditorDomEnhancer.ts` 新增 `ensureCodeBlockCopyButtons()`，在每个 `.vditor-ir__node[data-type="code-block"]` 右上角注入 `<button class="vcat-code-copy" contenteditable="false">`；通过 CSS `::after` 渲染 `"复制"` / `"已复制 ✓"` 文案，保证 `button.textContent === ""`，绝不污染 `vditor.getValue()` 保存的 Markdown。
+2. **只读模式点击标题/行内代码不露出 `#` / `` ` `` 记号**：
+   - `editor.css` 在 `.vcat-readonly` 下强制隐藏 `.vditor-ir__marker--heading`、`--bi`、`--bracket`、`--paren`、`--link` 及 `code` / `code-span` / `strong` / `em` / `s` / `a` 的 `.vditor-ir__marker`（保留代码块语言标签 `--info`）。
+3. **新建文件夹防重名 + 文件夹创建与文件/文件夹移动支持撤销/重做**：
+   - `Sidebar.tsx` 与 `main/index.ts`（`folders:create`）均支持重名自动递增编号（`新建文件夹 2`、`新建文件夹 3` ...），新增 `folders:delete`（`deleteFolder`）IPC。
+   - `App.tsx` 的 `FileHistoryOp` 扩展支持 `create-folder`、`move-article`、`move-folder`，与 `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` 彻底打通。
+4. **还原侧边栏柔和选中高亮**：
+   - `SidebarTreeNodes.tsx` 将批量选中高亮恢复为柔和的 `bg-[var(--accent)]/15 font-medium text-[var(--accent)]`。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）
