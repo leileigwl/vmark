@@ -31,7 +31,7 @@ export function MediaLightbox({ item, onClose }: MediaLightboxProps) {
   useEffect(() => {
     if (!item) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === ' ') {
+      if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
         onClose();

@@ -575,7 +575,43 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
               const base64 = btoa(binary);
               const ext = file.name.split('.').pop() || 'png';
               const saved = await window.electronAPI.saveLocalImage(base64, ext);
-              instance.insertValue(`![${file.name}](${saved.relativeMarkdownPath})\n`);
+
+              const sel = window.getSelection();
+              const anchorEl =
+                sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+              const activeCell = anchorEl?.closest('td, th') as HTMLElement | null;
+
+              // Inside a table cell, insert an inline Lute IR image node without trailing newline
+              // so it never breaks the table row into an extra row!
+              if (activeCell && el.contains(activeCell)) {
+                pushVditorUndo();
+                const cleanRel = saved.relativeMarkdownPath.replace(/^\.\//, '');
+                const irImg = document.createElement('span');
+                irImg.className = 'vditor-ir__node';
+                irImg.setAttribute('data-type', 'img');
+                irImg.innerHTML =
+                  `<span class="vditor-ir__marker">!</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--bracket">[</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--bracket">${file.name}</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--bracket">]</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--paren">(</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--link">${saved.relativeMarkdownPath}</span>` +
+                  `<span class="vditor-ir__marker vditor-ir__marker--paren">)</span>` +
+                  `<img src="vcat-asset://local/${cleanRel}" alt="${file.name}" />`;
+                if (sel && sel.rangeCount > 0 && activeCell.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                  const r = sel.getRangeAt(0);
+                  r.deleteContents();
+                  r.insertNode(irImg);
+                  r.setStartAfter(irImg);
+                  r.collapse(true);
+                } else {
+                  activeCell.appendChild(irImg);
+                }
+                pushVditorUndo();
+                onChangeRef.current(instance.getValue());
+              } else {
+                instance.insertValue(`![${file.name}](${saved.relativeMarkdownPath})\n`);
+              }
             }
             return null;
           },
@@ -636,7 +672,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
       const handleKeyDownCapture = (e: KeyboardEvent) => {
-        // Space key opens Lightbox when an image or Mermaid diagram is currently selected
+        const targetNode = e.target as HTMLElement | null;
+        if (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA')) {
+          return;
+        }
+
+        // Space key toggles Lightbox when an image or Mermaid diagram is currently selected
+        // (and prevents page-down scrolling when pressing Space repeatedly!)
         if (
           e.key === ' ' &&
           !e.metaKey &&
@@ -649,21 +691,38 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.preventDefault();
           e.stopPropagation();
           const activeEl = activeZoomImgRef.current as HTMLElement;
-          if (activeEl.classList.contains('language-mermaid')) {
-            setLightboxItem({
-              type: 'mermaid',
-              svgHtml: activeEl.innerHTML,
-            });
-          } else if (activeEl.tagName === 'IMG') {
+          setLightboxItem((prev) => {
+            if (prev) return null;
+            if (activeEl.classList.contains('language-mermaid')) {
+              return { type: 'mermaid', svgHtml: activeEl.innerHTML };
+            }
             const img = activeEl as HTMLImageElement;
-            setLightboxItem({
-              type: 'image',
-              src: img.src,
-              alt: img.alt,
-            });
-          }
+            return { type: 'image', src: img.src, alt: img.alt };
+          });
           return;
         }
+
+        // Backspace or Delete removes a selected image immediately
+        if (
+          (e.key === 'Backspace' || e.key === 'Delete') &&
+          activeZoomImgRef.current &&
+          el.contains(activeZoomImgRef.current) &&
+          activeZoomImgRef.current.tagName === 'IMG'
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          pushVditorUndo();
+          const activeImg = activeZoomImgRef.current;
+          const imgWrapper = activeImg.closest('.vditor-ir__node[data-type="img"]') ?? activeImg;
+          imgWrapper.remove();
+          activeZoomImgRef.current = null;
+          setLightboxItem(null);
+          pushVditorUndo();
+          onChangeRef.current(instance.getValue());
+          return;
+        }
+
+        if (!el.contains(targetNode)) return;
 
         const sel = window.getSelection();
         const anchorEl =
@@ -672,6 +731,26 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
         // Prevent accidental table column splitting or row corruption inside table cells
         if (activeCell && el.contains(activeCell)) {
+          // Allow Backspace/Delete inside a table cell to delete an image inside that cell
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            const cellImg = activeCell.querySelector('.vditor-ir__node[data-type="img"], img');
+            if (cellImg && (!sel || sel.isCollapsed)) {
+              const visibleText = Array.from(activeCell.childNodes)
+                .filter((n) => !(n instanceof HTMLElement && (n.matches('.vditor-ir__node[data-type="img"], img') || n.querySelector('img'))))
+                .map((n) => n.textContent || '')
+                .join('')
+                .trim();
+              if (!visibleText) {
+                e.preventDefault();
+                e.stopPropagation();
+                pushVditorUndo();
+                cellImg.remove();
+                pushVditorUndo();
+                onChangeRef.current(instance.getValue());
+                return;
+              }
+            }
+          }
           if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
             e.stopPropagation();
@@ -719,7 +798,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      // Single-click image or Mermaid diagram to select (Space to open Lightbox, wheel to zoom); rapid double-click Mermaid to edit code in-place
+      // Single-click image or Mermaid diagram opens Lightbox (same as Space); rapid double-click Mermaid edits code in-place
       const clearActiveZoomTarget = () => {
         if (activeZoomImgRef.current) {
           activeZoomImgRef.current.style.outline = '';
@@ -793,9 +872,18 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             clearActiveZoomTarget();
           }
           activeZoomImgRef.current = mermaidEl as unknown as HTMLImageElement;
-          mermaidEl.style.outline = '2px solid var(--accent)';
+          mermaidEl.style.outline = '1.5px solid color-mix(in srgb, var(--accent) 55%, transparent)';
           mermaidEl.style.outlineOffset = '4px';
           mermaidEl.style.borderRadius = '8px';
+
+          const svgSnapshot = mermaidEl.innerHTML;
+          mermaidClickTimerRef.current = setTimeout(() => {
+            mermaidClickTimerRef.current = null;
+            setLightboxItem({
+              type: 'mermaid',
+              svgHtml: svgSnapshot,
+            });
+          }, 200);
           return;
         }
 
@@ -808,6 +896,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           activeZoomImgRef.current = imgEl;
           imgEl.style.outline = '2px solid var(--accent)';
           imgEl.style.outlineOffset = '2px';
+          setLightboxItem({
+            type: 'image',
+            src: imgEl.src,
+            alt: imgEl.alt,
+          });
         }
       };
 
@@ -820,33 +913,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.preventDefault();
           e.stopPropagation();
         }
-      };
-
-      const handleWheel = (e: WheelEvent) => {
-        const activeEl = activeZoomImgRef.current as HTMLElement | null;
-        if (!activeEl || !el.contains(activeEl)) return;
-        const isMermaid = activeEl.classList.contains('language-mermaid');
-        const targetEl = e.target as HTMLElement | null;
-        const matchedTarget = isMermaid
-          ? targetEl?.closest('.language-mermaid')
-          : targetEl?.closest('img');
-        if (matchedTarget !== activeEl && !e.ctrlKey && !e.metaKey) return;
-        e.preventDefault();
-
-        const delta = e.deltaY < 0 ? 5 : -5;
-        if (isMermaid) {
-          const currentPct = Number.parseFloat(activeEl.dataset.zoomPct || '100') || 100;
-          const nextPct = Math.min(150, Math.max(50, currentPct + delta));
-          activeEl.dataset.zoomPct = String(nextPct);
-          activeEl.style.zoom = `${nextPct}%`;
-          return;
-        }
-
-        const currentPct = Number.parseFloat(activeEl.dataset.zoomPct || '50') || 50;
-        const nextPct = Math.min(100, Math.max(15, currentPct + delta));
-        activeEl.dataset.zoomPct = String(nextPct);
-        activeEl.style.width = `${nextPct}%`;
-        activeEl.style.maxWidth = `${nextPct}%`;
       };
 
       const handleContextMenu = (e: MouseEvent) => {
@@ -872,19 +938,17 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       };
 
       el.addEventListener('paste', handlePasteCapture, true);
-      el.addEventListener('keydown', handleKeyDownCapture, true);
+      window.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
       el.addEventListener('click', handleClickCapture, true);
-      el.addEventListener('wheel', handleWheel, { passive: false });
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
         el.removeEventListener('paste', handlePasteCapture, true);
-        el.removeEventListener('keydown', handleKeyDownCapture, true);
+        window.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
         el.removeEventListener('click', handleClickCapture, true);
-        el.removeEventListener('wheel', handleWheel);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);

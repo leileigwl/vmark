@@ -312,6 +312,51 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "T1",
+            title: "T1. 暗黑模式 Mermaid 连线标签（是/否/能/不能）深底白字高对比适配",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794844715218_c1b43fdb.png",
+            desc: "针对 Mermaid v11 <foreignObject> 内的 .edgeLabel / p / span / .labelBkg 设置深石板底色（#1e2633）与亮白文字（#f0f6fc），彻底消除暗黑模式下连线文字白底白字看不清的问题。",
+            plan: "请切到暗黑主题查看「2.8 选型决策树」流程图连线上的「是 / 否 / 能 / 不能」标签清晰度。"
+          },
+          {
+            id: "T2",
+            title: "T2. 普通代码块常驻单层可编辑 DOM（首次点击直接落光标编辑，零闪烁、零跳回首行）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794845442647_36a31490.jpg",
+            desc: "对普通代码块（非 Mermaid）永久隐藏只读预览层 pre.vditor-ir__preview、常驻显示唯一可编辑层 pre.vditor-ir__marker--pre；首次点击代码任意一行直接将光标落在该字符处，不再触发 DOM 切换闪烁或跳回首行开头（图 2、图 5）。",
+            plan: "请直接单击任意 Python 代码块中间或末尾某行，确认光标直接落在点击处，无闪烁、不跳回第一行。"
+          },
+          {
+            id: "T3",
+            title: "T3. 图片与流程图「单击直接弹出高清灯箱（同空格键）」+ 连续按空格切换开关不滚屏",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794844897759_3751251e.png",
+            desc: "1) 单击图片或 Mermaid 流程图直接弹出窗口自适应高清灯箱（与按空格键效果一致）；2) 快速双击流程图取消弹窗并进入原位代码修改；3) 将空格键监听挂载至全局 window capture，连续多次按空格键可反复「打开 ↔ 关闭」灯箱，绝不触发页面向下滚动。",
+            plan: "请单击流程图或图片直接放大，然后连续按多次空格键测试「关闭 → 再打开 → 再关闭」且页面不往下滚。"
+          },
+          {
+            id: "T4",
+            title: "T4. 移除正文内滚轮缩放拦截（仅在打开灯箱后用滚轮缩放）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794844897759_3751251e.png",
+            desc: "已彻底移除编辑器正文内的 wheel 缩放拦截：在正文内无论是否选中图片或流程图，滚动鼠标滚轮永远正常上下滚动文章；仅在弹出灯箱预览层后可用滚轮无级缩放。",
+            plan: "请在正文中点击图片或流程图后直接滚动鼠标滚轮，确认页面正常上下滚动。"
+          },
+          {
+            id: "T5",
+            title: "T5. 修复表格内粘贴图片换行错位（图 3）+ 支持按退格键（Backspace / Delete）直接删除图片",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794844840110_986a8a19.png",
+            desc: "1) 在表格单元格内粘贴/上传图片时，直接插入内联 Lute IR 图片节点且不追加尾部 \\n 换行符，彻底消除把表格拆成两行的问题（图 3）；2) 选中图片（或光标在含图片的单元格内）按 Backspace / Delete 键即可立即删除图片并记入撤销栈。",
+            plan: "请在表格单元格内粘贴一张图片验证不断行，再按 Backspace 退格键验证可直接删除该图片。"
+          },
+          {
             id: "S1",
             title: "S1. 代码块移除双层空行错位与内部竖向滚动条（点击前后零跳动、零多余空行）",
             status: "done",
@@ -768,15 +813,15 @@
     const STORAGE_KEY = "vcat_ui_review_v1";
     let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"checks":{},"notes":{},"decisions":{},"hideChecked":true}');
     if (state.hideChecked === undefined) state.hideChecked = true;
-    if (!state.initializedRound5) {
+    if (!state.initializedRound6) {
       for (const cat of CATEGORIES) {
         for (const item of cat.items) {
-          if (!item.id.startsWith("S")) {
+          if (!item.id.startsWith("T")) {
             state.checks[item.id] = true;
           }
         }
       }
-      state.initializedRound5 = true;
+      state.initializedRound6 = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
@@ -807,7 +852,7 @@
     function markPreviousDone() {
       for (const cat of CATEGORIES) {
         for (const item of cat.items) {
-          if (!item.id.startsWith("S")) {
+          if (!item.id.startsWith("T")) {
             state.checks[item.id] = true;
           }
         }
