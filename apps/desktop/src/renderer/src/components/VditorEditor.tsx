@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import Vditor from 'vditor';
 
 export interface VditorEditorHandle {
@@ -47,9 +47,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const pendingValueRef = useRef<string | null>(null);
     const lastSelectionElRef = useRef<HTMLElement | null>(null);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [zoomedSvgHtml, setZoomedSvgHtml] = useState<string | null>(null);
-    const [zoomedImgSrc, setZoomedImgSrc] = useState<string | null>(null);
+    const activeZoomImgRef = useRef<HTMLImageElement | null>(null);
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -245,19 +243,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
 
         if (action === 'table-delete') {
-          const tableNode = table.closest('.vditor-ir__node') ?? table;
+          const p = document.createElement('p');
+          p.innerHTML = '<br>';
+          table.parentNode?.insertBefore(p, table);
+          table.remove();
           const sel = window.getSelection();
           if (sel) {
             const range = document.createRange();
-            range.selectNode(tableNode);
+            range.selectNodeContents(p);
+            range.collapse(true);
             sel.removeAllRanges();
             sel.addRange(range);
-            document.execCommand('delete');
           }
-          if (tableNode.isConnected) {
-            tableNode.remove();
-            el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
-          }
+          el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
           return;
         } else if (action === 'row-above' || action === 'row-below') {
           const newRow = document.createElement('tr');
@@ -420,37 +418,34 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      // Single-click Mermaid/Image -> Lightbox zoom (without expanding raw source); Double-click -> edit source
+      // Click image to activate wheel-zoom (15% ~ 100%); click elsewhere to deactivate
       const handleMouseDownCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
-        const mermaidBox = target?.closest('.language-mermaid');
         const imgEl = target?.closest('img') as HTMLImageElement | null;
-        if (!mermaidBox && !imgEl) return;
-
-        if (e.detail === 1) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
-          clickTimerRef.current = setTimeout(() => {
-            if (mermaidBox) {
-              setZoomedSvgHtml(mermaidBox.innerHTML);
-            } else if (imgEl) {
-              setZoomedImgSrc(imgEl.src);
-            }
-          }, 210);
-        } else if (e.detail >= 2) {
-          if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+        if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
+          activeZoomImgRef.current.style.outline = '';
+          activeZoomImgRef.current = null;
+        }
+        if (imgEl) {
+          activeZoomImgRef.current = imgEl;
+          imgEl.style.outline = '2px solid var(--accent)';
+          imgEl.style.outlineOffset = '2px';
         }
       };
 
-      const handleClickCapture = (e: MouseEvent) => {
-        if (e.button !== 0 || e.detail !== 1) return;
-        const target = e.target as HTMLElement | null;
-        if (target?.closest('.language-mermaid') || target?.closest('img')) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
+      const handleWheel = (e: WheelEvent) => {
+        const imgEl = activeZoomImgRef.current;
+        if (!imgEl || !el.contains(imgEl)) return;
+        const targetImg = (e.target as HTMLElement | null)?.closest('img');
+        if (targetImg !== imgEl && !e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const currentPct = Number.parseFloat(imgEl.dataset.zoomPct || '50') || 50;
+        const delta = e.deltaY < 0 ? 5 : -5;
+        const nextPct = Math.min(100, Math.max(15, currentPct + delta));
+        imgEl.dataset.zoomPct = String(nextPct);
+        imgEl.style.width = `${nextPct}%`;
+        imgEl.style.maxWidth = `${nextPct}%`;
       };
 
       const handleContextMenu = (e: MouseEvent) => {
@@ -478,7 +473,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('paste', handlePasteCapture, true);
       el.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
-      el.addEventListener('click', handleClickCapture, true);
+      el.addEventListener('wheel', handleWheel, { passive: false });
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
@@ -486,11 +481,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('paste', handlePasteCapture, true);
         el.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
-        el.removeEventListener('click', handleClickCapture, true);
+        el.removeEventListener('wheel', handleWheel);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-        if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
         isReadyRef.current = false;
         try {
           vditorRef.current?.destroy();
@@ -514,34 +508,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     }, [articleKey]);
 
-    return (
-      <>
-        <div ref={containerRef} className="h-full w-full" />
-        {(zoomedSvgHtml || zoomedImgSrc) && (
-          <div
-            onClick={() => {
-              setZoomedSvgHtml(null);
-              setZoomedImgSrc(null);
-            }}
-            className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/45 p-8 backdrop-blur-xs"
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="max-h-[90vh] max-w-[90vw] overflow-auto rounded-xl bg-white p-6 shadow-2xl"
-            >
-              {zoomedSvgHtml && (
-                <div
-                  className="min-w-[60vw] [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-h-[80vh] [&_svg]:w-full"
-                  dangerouslySetInnerHTML={{ __html: zoomedSvgHtml }}
-                />
-              )}
-              {zoomedImgSrc && (
-                <img src={zoomedImgSrc} alt="Preview" className="max-h-[82vh] max-w-[85vw] rounded" />
-              )}
-            </div>
-          </div>
-        )}
-      </>
-    );
+    return <div ref={containerRef} className="h-full w-full" />;
   }
 );

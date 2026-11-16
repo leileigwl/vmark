@@ -610,7 +610,10 @@
             <span>${cat.subtitle}</span>
           </div>
           <div class="grid">`;
-        for (const item of cat.items) {
+        const sortedItems = [...cat.items].sort(
+          (a, b) => Number(!!state.checks[a.id]) - Number(!!state.checks[b.id])
+        );
+        for (const item of sortedItems) {
           const isChecked = !!state.checks[item.id];
           const note = state.notes[item.id] || "";
           html += `
@@ -703,7 +706,10 @@
       let lines = ["# VCat UI Review 确认结果", ""];
       for (const cat of CATEGORIES) {
         lines.push(`## ${cat.title}`);
-        for (const item of cat.items) {
+        const sortedItems = [...cat.items].sort(
+          (a, b) => Number(!!state.checks[a.id]) - Number(!!state.checks[b.id])
+        );
+        for (const item of sortedItems) {
           const mark = state.checks[item.id] ? "[x]" : "[ ]";
           const note = (state.notes[item.id] || "").trim();
           lines.push(`- ${mark} ${item.title}${note ? ` —— 批注：${note}` : ""}`);

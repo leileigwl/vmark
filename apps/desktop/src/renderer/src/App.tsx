@@ -183,6 +183,17 @@ export default function App() {
   }, [imageBed.defaultImageScale]);
 
   useEffect(() => {
+    if (!findBarOpen || !findQuery) {
+      setFindMatchTotal(0);
+      setFindMatchIndex(0);
+      return;
+    }
+    const total = editorRef.current?.findMatches(findQuery) ?? 0;
+    setFindMatchTotal(total);
+    setFindMatchIndex(0);
+  }, [findBarOpen, findQuery, activeArticle?.relativePath]);
+
+  useEffect(() => {
     if (!sidebarMenuOpen || sidebarMenuPinned) return;
     const handleOutsideClick = (e: MouseEvent) => {
       if (sidebarPopoverRef.current && !sidebarPopoverRef.current.contains(e.target as Node)) {
@@ -723,19 +734,24 @@ export default function App() {
         />
       )}
 
-      {/* 轻量化顶部错误/操作提示（替代原生阻塞弹窗） */}
+      {/* 居中轻量提示（替代原生阻塞弹窗） */}
       {toastMsg && (
-        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--border-color)] bg-[#1d1d1f]/90 px-4 py-1.5 text-xs text-white shadow-lg backdrop-blur-md">
+        <div className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--border-color)] bg-[#1d1d1f]/92 px-5 py-3 text-center text-[13px] text-white shadow-2xl backdrop-blur-md">
           {toastMsg}
         </div>
       )}
 
-      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 全文搜索 + 底部动作菜单 + 拖拽调宽） */}
-      {sidebarOpen && (
-        <aside
-          style={{ width: `${sidebarWidth}px` }}
-          className="relative flex h-screen shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] select-none"
-        >
+      {/* Typora 原生通顶左侧栏（支持 200ms 平滑折叠过渡 + 60fps 虚影拖拽调宽） */}
+      <aside
+        style={{
+          width: sidebarOpen ? `${sidebarWidth}px` : '0px',
+          opacity: sidebarOpen ? 1 : 0,
+          visibility: sidebarOpen ? 'visible' : 'hidden',
+        }}
+        className={`relative flex h-screen shrink-0 flex-col overflow-hidden bg-[var(--side-bar-bg-color)] select-none ${
+          sidebarOpen ? 'border-r border-[var(--border-color)]' : 'border-r-0'
+        } ${dragGhostX === null ? 'transition-[width,opacity] duration-200 ease-out' : ''}`}
+      >
           {/* 顶部 macOS 红绿灯留白拖动区 */}
           <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
 
@@ -1162,7 +1178,6 @@ export default function App() {
             className="absolute top-0 right-0 z-30 h-full w-[5px] cursor-col-resize hover:bg-[#007aff]/20"
           />
         </aside>
-      )}
 
       {/* 侧边栏文件右键上下文菜单 */}
       {fileContextMenu && (
