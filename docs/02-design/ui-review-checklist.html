@@ -288,6 +288,8 @@
     </div>
     <div class="actions">
       <div class="stats" id="stats">已完成打勾：0 / 0</div>
+      <button id="toggle-hide-btn" onclick="toggleHideChecked()">隐藏已打勾项：开启</button>
+      <button onclick="markPreviousDone()">一键将历史旧项打勾隐藏（仅看本轮新改）</button>
       <button onclick="resetAll()">清空勾选</button>
       <button class="primary" onclick="exportSummary()">复制 Review 结果</button>
     </div>
@@ -304,6 +306,76 @@
     const IMG_BASE = "file:///Users/leileigwl/.gemini/antigravity/brain/2ecdbcd5-58c0-4c37-b021-3c34fa53414b/.user_uploaded/";
 
     const CATEGORIES = [
+      {
+        id: "cat-latest",
+        title: "🔥 本轮最新修改与待你核验（优先置顶展示）",
+        subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
+        items: [
+          {
+            id: "R1",
+            title: "R1. 流程图（Mermaid）与图片统一高清画布灯箱（单击放大 + 滚轮缩放 + 旋转 + ESC/A 关闭）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841432220_c88ad046.jpg",
+            desc: "已禁用 Vditor 简陋的顶部白条预览层（.vditor-img），新建自适应 MediaLightbox 组件：单击流程图或图片立即弹出居中高清灯箱，支持滚轮缩放（25%–400%）、按住拖拽平移、90° 旋转、窗口自适应，以及按 ESC / A 键或点击空白处立即关闭；快速双击流程图仍原位展开代码修改。",
+            plan: "请单击任意 Mermaid 流程图或文章配图，测试滚轮缩放、旋转，以及按 ESC 或 A 键关闭。"
+          },
+          {
+            id: "R2",
+            title: "R2. 1:1 复刻 Typora Bloom 引用块圆角渐变卡片 & H1/H2 底部左端渐变装饰条",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841708522_da073a90.jpg",
+            desc: "对照你提供的 Typora Bloom Lapis 截图，将 blockquote 升级为圆角柔和渐变卡片（12px 圆角 + 左侧 4px 主题色强调边 + 柔和内边距），并为 H1/H2 底部横线左端增加 76px 主题色渐变短横条。",
+            plan: "请查看文章开头的引用块卡片与 H1/H2 标题底部左端渐变条效果。"
+          },
+          {
+            id: "R3",
+            title: "R3. 1:1 复刻 Typora Bloom 圆角卡片表格 + 宽松行高/字距/列表呼吸间距",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841766861_57528dab.jpg",
+            desc: "表格改为 10px 圆角独立卡片（柔和渐变表头 + 细腻行列分隔线，告别生硬黑框）；正文与列表行高提升至 1.78，加大段落（0.95em）与列表项（0.42em）间距，彻底解决字体拥挤感。",
+            plan: "请浏览文中的多列表格与长列表段落，核对圆角表头配色与行间呼吸感。"
+          },
+          {
+            id: "R4",
+            title: "R4. 暗色模式加粗字体高对比度着色 + 拦截表格内误触拆列/串格快捷键",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841382489_883535d8.png",
+            desc: "暗色主题下为 strong/b 加粗文字增加明亮主题色提亮与微底色衬托；同时在表格单元格内拦截 Enter 换行拆列及 Vditor 隐藏拆列快捷键（Enter 改为安全跳至下一行同列单元格），防止误触多出空列。",
+            plan: "请切到 Bloom Lapis Dark 查看表格与正文加粗字体的清晰度，并在表格内按 Enter 测试。"
+          },
+          {
+            id: "R5",
+            title: "R5. 顶部「文章管理台 / 偏好设置」按钮 0ms 秒开响应（编辑器常驻保活）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841455768_f537b17a.jpg",
+            desc: "将 VditorEditor 改为 DOM 常驻保活（切换管理台或设置页时不再销毁重建 68KB 文档实例），点击右上角「文章管理台」「偏好设置」与「返回写作台」实现 0ms 瞬时切换，且完美保留滚动位置与撤销栈。",
+            plan: "请连续点击右上角「文章管理台」「偏好设置」按钮，体验零延迟秒切。"
+          },
+          {
+            id: "R6",
+            title: "R6. 设置页「指定默认目录」点击直接调起 macOS 原生选文件夹窗口",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841499969_ba126393.png",
+            desc: "在「偏好设置 → 文件与启动 → 打开指定目录第一篇」下，点击路径输入框或右侧「选择文件夹...」按钮即可直接弹出 macOS 系统原生目录选择窗口。",
+            plan: "请在设置页点击「打开指定目录第一篇」下的输入框或「选择文件夹...」按钮验证。"
+          },
+          {
+            id: "R7",
+            title: "R7. 右侧加宽淡色胶囊滚动条 & 侧边栏拖拽手柄可视胶囊 & λ (KaTeX) 公式支持",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794841852841_de37a4c0.png",
+            desc: "1) 右侧滚动条加宽至 11px 淡色圆角胶囊滑块，悬停加深，极易抓取拖动；2) 侧边栏分隔线加宽至 10px 热区并内置 3.5px 胶囊指示条；3) 开启 Vditor KaTeX 引擎，完整支持 λ 等希腊字母与行内/块级数学公式。",
+            plan: "请拖动右侧胶囊滚动条与左侧边栏分隔条测试手感。"
+          }
+        ]
+      },
       {
         id: "cat-sidebar",
         title: "分类 A：侧边栏、文件树与左下角弹出面板",
@@ -640,7 +712,21 @@
     ];
 
     const STORAGE_KEY = "vcat_ui_review_v1";
-    let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"checks":{},"notes":{},"decisions":{}}');
+    let state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"checks":{},"notes":{},"decisions":{},"hideChecked":true}');
+    if (state.hideChecked === undefined) state.hideChecked = true;
+    if (!state.initializedRound4) {
+      for (const cat of CATEGORIES) {
+        if (cat.id !== "cat-latest") {
+          for (const item of cat.items) {
+            if (state.checks[item.id] === undefined) {
+              state.checks[item.id] = true;
+            }
+          }
+        }
+      }
+      state.initializedRound4 = true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
 
     function saveState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -650,7 +736,33 @@
     function updateStats() {
       const total = CATEGORIES.reduce((sum, c) => sum + c.items.length, 0);
       const checked = Object.values(state.checks).filter(Boolean).length;
-      document.getElementById("stats").textContent = `已完成打勾：${checked} / ${total}`;
+      const pending = total - checked;
+      document.getElementById("stats").textContent = `待核验：${pending} 项 · 已完成打勾：${checked} / ${total}`;
+      const hideBtn = document.getElementById("toggle-hide-btn");
+      if (hideBtn) {
+        hideBtn.textContent = state.hideChecked
+          ? `已隐藏 ${checked} 项已完成（点击显示全部）`
+          : `显示全部中（点击隐藏 ${checked} 项已完成）`;
+      }
+    }
+
+    function toggleHideChecked() {
+      state.hideChecked = !state.hideChecked;
+      saveState();
+      render();
+    }
+
+    function markPreviousDone() {
+      for (const cat of CATEGORIES) {
+        if (cat.id !== "cat-latest") {
+          for (const item of cat.items) {
+            state.checks[item.id] = true;
+          }
+        }
+      }
+      state.hideChecked = true;
+      saveState();
+      render();
     }
 
     function render() {
@@ -658,16 +770,21 @@
       let html = "";
 
       for (const cat of CATEGORIES) {
+        const sortedItems = [...cat.items].sort(
+          (a, b) => Number(!!state.checks[a.id]) - Number(!!state.checks[b.id])
+        );
+        const visibleItems = state.hideChecked
+          ? sortedItems.filter((item) => !state.checks[item.id])
+          : sortedItems;
+        if (visibleItems.length === 0) continue;
+
         html += `<section class="category">
           <div class="category-header">
             <h2>${cat.title}</h2>
             <span>${cat.subtitle}</span>
           </div>
           <div class="grid">`;
-        const sortedItems = [...cat.items].sort(
-          (a, b) => Number(!!state.checks[a.id]) - Number(!!state.checks[b.id])
-        );
-        for (const item of sortedItems) {
+        for (const item of visibleItems) {
           const isChecked = !!state.checks[item.id];
           const note = state.notes[item.id] || "";
           html += `
@@ -697,25 +814,27 @@
         html += `</div></section>`;
       }
 
-      html += `<section class="category">
-        <div class="category-header">
-          <h2>分类 D：动手改代码前的 4 个确认项</h2>
-          <span>点选后一并随「复制 Review 结果」导出</span>
-        </div>`;
-      for (const d of DECISIONS) {
-        html += `<div class="decision-card">
-          <h3>${d.title}</h3>
-          <div class="options">`;
-        d.options.forEach((opt, idx) => {
-          const checked = state.decisions[d.id] === opt ? "checked" : "";
-          html += `<label>
-            <input type="radio" name="${d.id}" ${checked} onchange="setDecision('${d.id}', '${opt.replace(/'/g, "\\'")}')" />
-            <span>${opt}</span>
-          </label>`;
-        });
-        html += `</div></div>`;
+      if (!state.hideChecked) {
+        html += `<section class="category">
+          <div class="category-header">
+            <h2>分类 D：动手改代码前的 4 个确认项</h2>
+            <span>点选后一并随「复制 Review 结果」导出</span>
+          </div>`;
+        for (const d of DECISIONS) {
+          html += `<div class="decision-card">
+            <h3>${d.title}</h3>
+            <div class="options">`;
+          d.options.forEach((opt, idx) => {
+            const checked = state.decisions[d.id] === opt ? "checked" : "";
+            html += `<label>
+              <input type="radio" name="${d.id}" ${checked} onchange="setDecision('${d.id}', '${opt.replace(/'/g, "\\'")}')" />
+              <span>${opt}</span>
+            </label>`;
+          });
+          html += `</div></div>`;
+        }
+        html += `</section>`;
       }
-      html += `</section>`;
 
       app.innerHTML = html;
       updateStats();
@@ -724,11 +843,7 @@
     function toggleCheck(id, val) {
       state.checks[id] = val;
       saveState();
-      const card = document.getElementById("card-" + id);
-      if (card) {
-        card.classList.toggle("checked", val);
-        card.querySelector(".check-label span").textContent = val ? "已完成（不用改）" : "未完成（待修改）";
-      }
+      render();
     }
 
     function updateNote(id, val) {

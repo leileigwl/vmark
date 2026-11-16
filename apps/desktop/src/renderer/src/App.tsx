@@ -483,72 +483,76 @@ export default function App() {
         />
 
         <main className="flex flex-1 overflow-hidden">
-          {activeView === 'editor' && (
-            <section className="relative flex-1 overflow-hidden bg-[var(--bg-main)]">
-              {findBarOpen && (
-                <FindReplaceBar
-                  findQuery={findQuery}
-                  replaceQuery={replaceQuery}
-                  matchIndex={findMatchIndex}
-                  matchTotal={findMatchTotal}
-                  replaceNotice={replaceNotice}
-                  findOptions={findOptions}
-                  onChangeFindQuery={(q) => {
-                    setFindQuery(q);
-                    setReplaceNotice('');
-                  }}
-                  onChangeReplaceQuery={setReplaceQuery}
-                  onChangeOptions={setFindOptions}
-                  onPrev={() => {
-                    if (!findQuery || findMatchTotal === 0) return;
-                    const prevIdx = (findMatchIndex - 1 + findMatchTotal) % findMatchTotal;
-                    setFindMatchIndex(prevIdx);
-                    editorRef.current?.jumpToMatch(findQuery, prevIdx, findOptions);
-                  }}
-                  onNext={() => {
-                    if (!findQuery || findMatchTotal === 0) return;
-                    const nextIdx = (findMatchIndex + 1) % findMatchTotal;
-                    setFindMatchIndex(nextIdx);
-                    editorRef.current?.jumpToMatch(findQuery, nextIdx, findOptions);
-                  }}
-                  onReplaceAll={() => {
-                    const count = editorRef.current?.replaceAllText(findQuery, replaceQuery, findOptions) ?? 0;
-                    setReplaceNotice(`已替换 ${count} 处`);
-                    setFindMatchTotal(0);
-                    setFindMatchIndex(0);
-                  }}
-                  onClose={() => {
-                    editorRef.current?.clearFindHighlights();
-                    setFindBarOpen(false);
-                  }}
-                />
-              )}
+          <section
+            className={
+              activeView === 'editor'
+                ? 'relative flex-1 overflow-hidden bg-[var(--bg-main)]'
+                : 'hidden'
+            }
+          >
+            {findBarOpen && (
+              <FindReplaceBar
+                findQuery={findQuery}
+                replaceQuery={replaceQuery}
+                matchIndex={findMatchIndex}
+                matchTotal={findMatchTotal}
+                replaceNotice={replaceNotice}
+                findOptions={findOptions}
+                onChangeFindQuery={(q) => {
+                  setFindQuery(q);
+                  setReplaceNotice('');
+                }}
+                onChangeReplaceQuery={setReplaceQuery}
+                onChangeOptions={setFindOptions}
+                onPrev={() => {
+                  if (!findQuery || findMatchTotal === 0) return;
+                  const prevIdx = (findMatchIndex - 1 + findMatchTotal) % findMatchTotal;
+                  setFindMatchIndex(prevIdx);
+                  editorRef.current?.jumpToMatch(findQuery, prevIdx, findOptions);
+                }}
+                onNext={() => {
+                  if (!findQuery || findMatchTotal === 0) return;
+                  const nextIdx = (findMatchIndex + 1) % findMatchTotal;
+                  setFindMatchIndex(nextIdx);
+                  editorRef.current?.jumpToMatch(findQuery, nextIdx, findOptions);
+                }}
+                onReplaceAll={() => {
+                  const count = editorRef.current?.replaceAllText(findQuery, replaceQuery, findOptions) ?? 0;
+                  setReplaceNotice(`已替换 ${count} 处`);
+                  setFindMatchTotal(0);
+                  setFindMatchIndex(0);
+                }}
+                onClose={() => {
+                  editorRef.current?.clearFindHighlights();
+                  setFindBarOpen(false);
+                }}
+              />
+            )}
 
-              {activeArticle ? (
-                <VditorEditor
-                  ref={editorRef}
-                  articleKey={activeArticle.relativePath}
-                  value={markdown}
-                  onChange={(md) => {
-                    setMarkdown(md);
-                    setSaveState('未保存');
-                  }}
-                  onSave={(md) => void handleSaveArticle(md)}
-                />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-[var(--control-text-color)]">
-                  <p>当前工作区暂无文章</p>
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateBlankArticle()}
-                    className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs text-white"
-                  >
-                    + 新建空白文章
-                  </button>
-                </div>
-              )}
-            </section>
-          )}
+            {activeArticle ? (
+              <VditorEditor
+                ref={editorRef}
+                articleKey={activeArticle.relativePath}
+                value={markdown}
+                onChange={(md) => {
+                  setMarkdown(md);
+                  setSaveState('未保存');
+                }}
+                onSave={(md) => void handleSaveArticle(md)}
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-[var(--control-text-color)]">
+                <p>当前工作区暂无文章</p>
+                <button
+                  type="button"
+                  onClick={() => void handleCreateBlankArticle()}
+                  className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs text-white"
+                >
+                  + 新建空白文章
+                </button>
+              </div>
+            )}
+          </section>
 
           {activeView === 'manager' && (
             <ArticleManagerView
@@ -577,6 +581,16 @@ export default function App() {
               onSaveStartupConfig={(next) => {
                 setStartupConfig(next);
                 void window.electronAPI.saveStartupConfig(next);
+              }}
+              onPickSpecificDir={async () => {
+                const selected = await window.electronAPI.selectWorkspace();
+                if (selected) {
+                  setWorkspacePath(selected);
+                  const next = { ...startupConfig, defaultDir: selected };
+                  setStartupConfig(next);
+                  void window.electronAPI.saveStartupConfig(next);
+                  await refreshWorkspace();
+                }
               }}
               imageBed={imageBed}
               imageBedTestMsg={imageBedTestMsg}

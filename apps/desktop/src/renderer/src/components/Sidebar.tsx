@@ -823,8 +823,10 @@ export function Sidebar({
         <div
           onMouseDown={onStartResize}
           title="拖拽调整侧边栏宽度"
-          className="absolute top-0 right-0 z-30 h-full w-[5px] cursor-col-resize hover:bg-[#007aff]/20"
-        />
+          className="group absolute top-0 -right-[4px] z-30 flex h-full w-[10px] cursor-col-resize items-center justify-center transition-colors hover:bg-[var(--accent)]/15"
+        >
+          <div className="h-11 w-[3.5px] rounded-full bg-[var(--control-text-color)]/25 transition-colors group-hover:bg-[var(--accent)]" />
+        </div>
       </aside>
 
       {fileContextMenu && (

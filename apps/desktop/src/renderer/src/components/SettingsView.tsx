@@ -38,6 +38,7 @@ interface SettingsViewProps {
   onSelectCategory: (cat: SettingCategory) => void;
   startupConfig: StartupConfig;
   onSaveStartupConfig: (cfg: StartupConfig) => void;
+  onPickSpecificDir?: () => void;
   imageBed: ImageBedConfig;
   imageBedTestMsg: string;
   onUpdateImageBed: (next: ImageBedConfig, persist?: boolean) => void;
@@ -60,6 +61,7 @@ export function SettingsView({
   onSelectCategory,
   startupConfig,
   onSaveStartupConfig,
+  onPickSpecificDir,
   imageBed,
   imageBedTestMsg,
   onUpdateImageBed,
@@ -137,16 +139,26 @@ export function SettingsView({
                 </label>
               ))}
               {startupConfig.mode === 'specific_dir' && (
-                <div className="pt-2">
+                <div className="flex items-center gap-2 pt-2">
                   <input
                     type="text"
-                    placeholder="指定默认目录路径（留空则使用当前工作区）"
+                    placeholder="点击选择默认目录路径（留空则使用当前工作区）"
                     value={startupConfig.defaultDir ?? ''}
+                    onClick={() => {
+                      if (!startupConfig.defaultDir) onPickSpecificDir?.();
+                    }}
                     onChange={(e) =>
                       onSaveStartupConfig({ ...startupConfig, defaultDir: e.target.value })
                     }
-                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+                    className="min-w-0 flex-1 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => onPickSpecificDir?.()}
+                    className="shrink-0 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-3 py-1.5 text-xs font-medium text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  >
+                    选择文件夹...
+                  </button>
                 </div>
               )}
             </div>

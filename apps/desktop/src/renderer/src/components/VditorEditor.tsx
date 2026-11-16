@@ -1,6 +1,7 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { transformTableMatrix, type TableEditAction } from '@vcat/core';
 import Vditor from 'vditor';
+import { MediaLightbox, type LightboxPayload } from './MediaLightbox';
 
 export interface FindOptions {
   caseSensitive?: boolean;
@@ -56,7 +57,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const pendingValueRef = useRef<string | null>(null);
     const lastSelectionElRef = useRef<HTMLElement | null>(null);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mermaidClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const activeZoomImgRef = useRef<HTMLImageElement | null>(null);
+    const [lightboxItem, setLightboxItem] = useState<LightboxPayload | null>(null);
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -490,6 +493,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             style: 'github',
             lineNumber: false,
           },
+          math: {
+            engine: 'KaTeX',
+            inlineDigit: true,
+          },
         },
         value,
         after: () => {
@@ -559,6 +566,42 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
       const handleKeyDownCapture = (e: KeyboardEvent) => {
+        const sel = window.getSelection();
+        const anchorEl =
+          sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+        const activeCell = anchorEl?.closest('td, th') as HTMLTableCellElement | null;
+
+        // Prevent accidental table column splitting or row corruption inside table cells
+        if (activeCell && el.contains(activeCell)) {
+          if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            const tr = activeCell.parentElement as HTMLTableRowElement | null;
+            const table = activeCell.closest('table');
+            if (tr && table) {
+              const allRows = Array.from(table.querySelectorAll('tr'));
+              const rIdx = allRows.indexOf(tr);
+              const cIdx = Array.from(tr.cells).indexOf(activeCell);
+              const nextRow = allRows[rIdx + 1];
+              const targetCell = nextRow?.cells[cIdx] ?? nextRow?.cells[0];
+              if (targetCell && sel) {
+                const range = document.createRange();
+                range.selectNodeContents(targetCell);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            }
+            return;
+          }
+          // Block Vditor built-in table column/row split hotkeys (Cmd/Ctrl+Shift+L/R/U/D/Enter)
+          if ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey || e.key === 'Enter')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
+
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
           const k = e.key.toLowerCase();
           if (k === 'b') {
@@ -573,7 +616,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      // Click image or Mermaid diagram to activate wheel-zoom; rapid double-click Mermaid to edit code in-place
+      // Click image or Mermaid diagram to open Lightbox (with wheel-zoom & ESC/A close); rapid double-click Mermaid to edit code in-place
       const clearActiveZoomTarget = () => {
         if (activeZoomImgRef.current) {
           activeZoomImgRef.current.style.outline = '';
@@ -621,8 +664,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (mermaidEl) {
           e.preventDefault();
           e.stopPropagation();
+          if (mermaidClickTimerRef.current) {
+            clearTimeout(mermaidClickTimerRef.current);
+            mermaidClickTimerRef.current = null;
+          }
           if (e.detail >= 2) {
             clearActiveZoomTarget();
+            setLightboxItem(null);
             const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
             const codeEl = irNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
             if (irNode && codeEl) {
@@ -645,6 +693,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           mermaidEl.style.outline = '2px solid var(--accent)';
           mermaidEl.style.outlineOffset = '4px';
           mermaidEl.style.borderRadius = '8px';
+
+          const svgSnapshot = mermaidEl.innerHTML;
+          mermaidClickTimerRef.current = setTimeout(() => {
+            mermaidClickTimerRef.current = null;
+            setLightboxItem({
+              type: 'mermaid',
+              svgHtml: svgSnapshot,
+            });
+          }, 210);
           return;
         }
 
@@ -652,16 +709,25 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           clearActiveZoomTarget();
         }
         if (imgEl) {
+          e.preventDefault();
+          e.stopPropagation();
           activeZoomImgRef.current = imgEl;
           imgEl.style.outline = '2px solid var(--accent)';
           imgEl.style.outlineOffset = '2px';
+          setLightboxItem({
+            type: 'image',
+            src: imgEl.src,
+            alt: imgEl.alt,
+          });
         }
       };
 
       const handleClickCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
-        const mermaidEl = getMermaidPreviewEl(e.target as HTMLElement | null);
-        if (mermaidEl) {
+        const target = e.target as HTMLElement | null;
+        const imgEl = target?.closest('img');
+        const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
+        if (imgEl || mermaidEl) {
           e.preventDefault();
           e.stopPropagation();
         }
@@ -733,6 +799,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (mermaidClickTimerRef.current) clearTimeout(mermaidClickTimerRef.current);
         isReadyRef.current = false;
         try {
           vditorRef.current?.destroy();
@@ -756,6 +823,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     }, [articleKey]);
 
-    return <div ref={containerRef} className="h-full w-full" />;
+    return (
+      <>
+        <div ref={containerRef} className="h-full w-full" />
+        <MediaLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
+      </>
+    );
   }
 );
