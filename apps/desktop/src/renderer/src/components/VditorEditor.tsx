@@ -8,26 +8,38 @@ interface VditorEditorProps {
   onSave?: (markdown: string) => void;
 }
 
-/** Typora-style Instant Rendering (IR) Markdown editor powered by Vditor. */
+/** Typora-style Instant Rendering (IR) Markdown editor powered by local Vditor assets. */
 export function VditorEditor({ value, articleKey, onChange, onSave }: VditorEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const vditorRef = useRef<Vditor | null>(null);
+  const isReadyRef = useRef(false);
+  const pendingValueRef = useRef<string | null>(null);
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  pendingValueRef.current = value;
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+    isReadyRef.current = false;
 
-    const instance = new Vditor(containerRef.current, {
+    const instance = new Vditor(el, {
       mode: 'ir',
+      cdn: './vditor',
       height: '100%',
       cache: { enable: false },
       toolbar: [],
       outline: { enable: false, position: 'left' },
       value,
+      after: () => {
+        isReadyRef.current = true;
+        if (pendingValueRef.current !== null && pendingValueRef.current !== instance.getValue()) {
+          instance.setValue(pendingValueRef.current);
+        }
+      },
       input: (md) => {
         onChangeRef.current(md);
       },
@@ -56,15 +68,25 @@ export function VditorEditor({ value, articleKey, onChange, onSave }: VditorEdit
 
     vditorRef.current = instance;
     return () => {
-      vditorRef.current?.destroy();
+      isReadyRef.current = false;
+      try {
+        vditorRef.current?.destroy();
+      } catch {
+        // Ignore teardown race when unmounting before Vditor finishes async lute load
+      }
       vditorRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const instance = vditorRef.current;
-    if (instance && instance.getValue() !== value) {
-      instance.setValue(value);
+    if (!instance || !isReadyRef.current) return;
+    try {
+      if (instance.getValue() !== value) {
+        instance.setValue(value);
+      }
+    } catch {
+      // Fallback handled by pendingValueRef in after()
     }
   }, [articleKey]);
 

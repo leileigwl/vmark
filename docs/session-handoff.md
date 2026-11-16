@@ -14,9 +14,14 @@
 
 ## 真实测试与验证状态
 
-- `pnpm typecheck`：5/5 包全部通过（`@vcat/shared`, `@vcat/core`, `@vcat/image-pipeline`, `@vcat/adapters`, `@vcat/desktop`）。
-- `pnpm build`：`electron-vite build` 成功构建 `out/main/index.js`、`out/preload/index.js`、`out/renderer/index.html`。
-- **Electron 窗口实机启动与真实平台发布联调**：**未实机验证**（需要本机运行 `pnpm dev` 打开 GUI 窗口核验）。
+- `pnpm test`：7/7 单元测试通过（`@vcat/core`: 4/4, `@vcat/image-pipeline`: 3/3）。
+- `pnpm typecheck`：5/5 包全部通过。
+- `pnpm --filter @vcat/desktop build`：成功构建。
+- **Electron 真实端到端测试（Playwright `_electron.launch`）**：**全部通过（Exit 0）**
+  - ✓ 文章管理台渲染正常
+  - ✓ 点击「新建空白文章」进入写作台（Vditor IR）未崩溃且渲染成功（已改为本地 `src/renderer/public/vditor/dist` 离线加载，彻底修复 `zh_CN.js` / `lute.min.js` 404 与竞态崩溃）
+  - ✓ Typora 风格「偏好设置 → 平台授权托管」渲染正常
+  - ✓ 全程零 `pageerror` 与零 `console.error`
 
 ## 下一步计划（Next Steps）
 

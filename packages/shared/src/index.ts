@@ -78,4 +78,6 @@ export interface ElectronAPI {
   ) => Promise<{ relativeMarkdownPath: string; fullPath: string }>;
   getImageBedConfig: () => Promise<ImageBedConfig>;
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
+  openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
+  getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
 }

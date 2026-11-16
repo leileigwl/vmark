@@ -8,4 +8,5 @@ out/
 *.db
 *.log
 references/
+apps/desktop/src/renderer/public/vditor/
 

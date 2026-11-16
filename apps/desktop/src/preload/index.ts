@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ElectronAPI, ImageBedConfig } from '@vcat/shared';
+import type { ElectronAPI, ImageBedConfig, PlatformId } from '@vcat/shared';
 
 const api: ElectronAPI = {
   selectWorkspace: () => ipcRenderer.invoke('workspace:select'),
@@ -14,6 +14,9 @@ const api: ElectronAPI = {
   getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),
   saveImageBedConfig: (config: ImageBedConfig) =>
     ipcRenderer.invoke('config:saveImageBed', config),
+  openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
+    ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
+  getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

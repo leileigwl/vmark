@@ -1,10 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
 import { saveImageToAssets } from '@vcat/image-pipeline';
-import type { ImageBedConfig } from '@vcat/shared';
+import type { ImageBedConfig, PlatformId } from '@vcat/shared';
 
 interface AppConfig {
   workspacePath: string | null;
@@ -149,6 +149,53 @@ function registerIpcHandlers(): void {
     const cfg = await readAppConfig();
     cfg.imageBed = imageBed;
     await writeAppConfig(cfg);
+  });
+
+  ipcMain.handle(
+    'platform:openLogin',
+    async (_event, platformId: PlatformId, loginUrl: string) => {
+      const partition = `persist:platform_${platformId}`;
+      const loginWin = new BrowserWindow({
+        width: 980,
+        height: 700,
+        title: `平台沙箱授权 - ${platformId}`,
+        webPreferences: {
+          partition,
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      });
+      await loginWin.loadURL(loginUrl);
+      return new Promise<boolean>((resolve) => {
+        loginWin.on('closed', async () => {
+          const cookies = await session.fromPartition(partition).cookies.get({});
+          resolve(cookies.length > 0);
+        });
+      });
+    }
+  );
+
+  ipcMain.handle('platform:authStates', async () => {
+    const ids: PlatformId[] = [
+      'weixin',
+      'cnblogs',
+      'linuxdo',
+      'juejin',
+      'csdn',
+      'zhihu',
+      'baijiahao',
+      'weibo',
+      'bilibili',
+      'douyin',
+      'x',
+      'xiaohongshu',
+    ];
+    const states: Partial<Record<PlatformId, boolean>> = {};
+    for (const id of ids) {
+      const cookies = await session.fromPartition(`persist:platform_${id}`).cookies.get({});
+      states[id] = cookies.length > 0;
+    }
+    return states;
   });
 }
 

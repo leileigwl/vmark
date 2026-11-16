@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   FolderOpen,
+  GitBranch,
+  Globe,
   Image as ImageIcon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -11,13 +13,30 @@ import {
   Table2,
 } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
-import type { ArticleMeta, ImageBedConfig } from '@vcat/shared';
+import type { ArticleMeta, ImageBedConfig, PlatformId } from '@vcat/shared';
 import { VditorEditor } from './components/VditorEditor';
 
 type MainTab = 'manager' | 'editor' | 'settings';
+type SettingCategory = 'image' | 'platforms' | 'github';
+
+const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
+  weixin: 'https://mp.weixin.qq.com/',
+  cnblogs: 'https://account.cnblogs.com/signin',
+  linuxdo: 'https://linux.do/login',
+  juejin: 'https://juejin.cn/',
+  csdn: 'https://passport.csdn.net/login',
+  zhihu: 'https://www.zhihu.com/signin',
+  baijiahao: 'https://baijiahao.baidu.com/',
+  weibo: 'https://weibo.com/login.php',
+  bilibili: 'https://passport.bilibili.com/login',
+  douyin: 'https://creator.douyin.com/',
+  x: 'https://x.com/i/flow/login',
+  xiaohongshu: 'https://creator.xiaohongshu.com/login',
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<MainTab>('manager');
+  const [settingCategory, setSettingCategory] = useState<SettingCategory>('image');
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [articles, setArticles] = useState<ArticleMeta[]>([]);
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
@@ -25,17 +44,21 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [saveState, setSaveState] = useState<string>('已同步本地');
   const [imageBed, setImageBed] = useState<ImageBedConfig>({ strategy: 'platform_private' });
+  const [authStates, setAuthStates] = useState<Partial<Record<PlatformId, boolean>>>({});
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
 
   async function refreshWorkspace() {
-    const [wsPath, list, imgCfg] = await Promise.all([
+    if (!window.electronAPI) return;
+    const [wsPath, list, imgCfg, auths] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.listArticles(),
       window.electronAPI.getImageBedConfig(),
+      window.electronAPI.getPlatformAuthStates(),
     ]);
     setWorkspacePath(wsPath);
     setArticles(list);
     setImageBed(imgCfg);
+    setAuthStates(auths);
     if (!activeArticle && list.length > 0) {
       await openArticle(list[0]);
     }
@@ -91,6 +114,12 @@ export default function App() {
     await window.electronAPI.saveImageBedConfig(next);
   }
 
+  async function handlePlatformLogin(platformId: PlatformId) {
+    const url = PLATFORM_LOGIN_URLS[platformId] ?? 'https://www.cnblogs.com';
+    const ok = await window.electronAPI.openPlatformLogin(platformId, url);
+    setAuthStates((prev) => ({ ...prev, [platformId]: ok }));
+  }
+
   const totalLocalImages = useMemo(
     () => articles.reduce((sum, item) => sum + item.localImageCount, 0),
     [articles]
@@ -131,7 +160,7 @@ export default function App() {
               }`}
             >
               <Settings className="h-3.5 w-3.5" />
-              图床与平台设置
+              偏好设置
             </button>
           </nav>
         </div>
@@ -153,7 +182,7 @@ export default function App() {
           )}
           <button
             type="button"
-            onClick={handleCreateBlankArticle}
+            onClick={() => void handleCreateBlankArticle()}
             className="flex items-center gap-1 rounded border border-[#e5e7eb] bg-white px-2.5 py-1 text-xs hover:bg-[#f6f8fa]"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -183,7 +212,7 @@ export default function App() {
               </div>
               <button
                 type="button"
-                onClick={handleSelectWorkspace}
+                onClick={() => void handleSelectWorkspace()}
                 className="flex items-center gap-1.5 rounded border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs hover:bg-[#f6f8fa]"
               >
                 <FolderOpen className="h-3.5 w-3.5" />
@@ -325,65 +354,155 @@ export default function App() {
           </>
         )}
 
+        {/* Typora 偏好设置风格（左侧分类菜单 + 右侧表单区） */}
         {activeTab === 'settings' && (
-          <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-8">
-            <section className="mb-6 rounded-md border border-[#e5e7eb] p-5">
-              <h2 className="mb-3 flex items-center gap-2 border-b border-[#eeeeee] pb-2 text-sm font-semibold">
-                <ImageIcon className="h-4 w-4 text-[#4183c4]" />
-                图片资产与防盗链转存策略
-              </h2>
-              <div className="space-y-2.5 text-[13px]">
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={imageBed.strategy === 'platform_private'}
-                    onChange={() => void handleChangeImageStrategy('platform_private')}
-                  />
-                  <span>
-                    <strong>目标平台私有图床直传优先（推荐）</strong>：本地写作存 <code>assets/</code>，分发时直传公众号/博客园/CSDN 图床，天然免疫防盗链
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="radio"
-                    checked={imageBed.strategy === 'custom_oss'}
-                    onChange={() => void handleChangeImageStrategy('custom_oss')}
-                  />
-                  <span>
-                    <strong>通用云图床托管（PicGo-Core）</strong>：统一托管至自配 OSS / COS / S3 / GitHub CDN
-                  </span>
-                </label>
+          <div className="flex flex-1 overflow-hidden">
+            <aside className="w-52 shrink-0 border-r border-[#e5e7eb] bg-[#fafafa] p-3">
+              <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[#777777] uppercase">
+                偏好设置 (Preferences)
               </div>
-            </section>
+              <button
+                type="button"
+                onClick={() => setSettingCategory('image')}
+                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                  settingCategory === 'image'
+                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                    : 'text-[#333333] hover:bg-[#eef1f4]'
+                }`}
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                图像与图床
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingCategory('platforms')}
+                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                  settingCategory === 'platforms'
+                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                    : 'text-[#333333] hover:bg-[#eef1f4]'
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                平台授权托管
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingCategory('github')}
+                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                  settingCategory === 'github'
+                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                    : 'text-[#333333] hover:bg-[#eef1f4]'
+                }`}
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                GitHub 静态博客
+              </button>
+            </aside>
 
-            <section className="rounded-md border border-[#e5e7eb] p-5">
-              <h2 className="mb-3 border-b border-[#eeeeee] pb-2 text-sm font-semibold">
-                全平台适配器目录（参考 Wechatsync / 思源 Publisher / 小V猫）
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                {PLATFORM_CATALOG.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded border border-[#e5e7eb] bg-[#fafafa] px-3.5 py-2.5"
-                  >
-                    <div>
-                      <div className="text-[13px] font-semibold">{p.name}</div>
-                      <div className="text-[11px] text-[#777777]">
-                        默认：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 通道：{p.authChannel}
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-[#f3f4f6] px-2.5 py-0.5 text-[11px] text-[#57606a]">
-                      待授权
-                    </span>
+            <section className="flex-1 overflow-y-auto bg-white p-8">
+              {settingCategory === 'image' && (
+                <div className="max-w-2xl space-y-5">
+                  <div>
+                    <h2 className="text-base font-semibold">插入图片时</h2>
+                    <p className="mt-1 text-xs text-[#777777]">
+                      对齐 Typora 图像设置：日常本地写作始终保存至相对路径 <code>./assets/</code>，离线完全可用。
+                    </p>
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-3 rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-[13px]">
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <input
+                        type="radio"
+                        className="mt-1"
+                        checked={imageBed.strategy === 'platform_private'}
+                        onChange={() => void handleChangeImageStrategy('platform_private')}
+                      />
+                      <div>
+                        <div className="font-medium">分发时直传目标平台官方图床（推荐）</div>
+                        <div className="text-xs text-[#777777]">
+                          推送公众号/博客园/CSDN 时自动上传为官方素材，彻底免疫跨平台防盗链
+                        </div>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <input
+                        type="radio"
+                        className="mt-1"
+                        checked={imageBed.strategy === 'custom_oss'}
+                        onChange={() => void handleChangeImageStrategy('custom_oss')}
+                      />
+                      <div>
+                        <div className="font-medium">上传至通用云图床（PicGo-Core / OSS / COS / S3）</div>
+                        <div className="text-xs text-[#777777]">
+                          适用于 GitHub 静态博客、Hexo / VitePress 等自建站
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {settingCategory === 'platforms' && (
+                <div className="max-w-3xl">
+                  <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
+                  <p className="mt-1 mb-4 text-xs text-[#777777]">
+                    每个平台运行在独立的 Electron <code>persist:platform_*</code> 沙箱内，Cookie 本地持久化不串号。
+                  </p>
+                  <div className="divide-y divide-[#eeeeee] rounded border border-[#e5e7eb]">
+                    {PLATFORM_CATALOG.map((p) => {
+                      const online = Boolean(authStates[p.id]);
+                      return (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between px-4 py-3 hover:bg-[#fafafa]"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2 text-[13px] font-semibold">
+                              <span>{p.name}</span>
+                              {online ? (
+                                <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
+                                  ● 已授权
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[11px] text-[#57606a]">
+                                  未登录
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-[#777777]">
+                              默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handlePlatformLogin(p.id)}
+                            className="rounded border border-[#e5e7eb] bg-white px-3 py-1 text-xs hover:border-[#4183c4] hover:text-[#4183c4]"
+                          >
+                            {online ? '更新授权' : '打开登录窗授权'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {settingCategory === 'github' && (
+                <div className="max-w-2xl space-y-4">
+                  <h2 className="text-base font-semibold">GitHub 静态博客 & CI/CD 同步</h2>
+                  <p className="text-xs text-[#777777]">
+                    支持将当前工作区挂载的 Hexo / Hugo / VitePress / Astro 博客仓库一键 Commit & Push 到 GitHub，自动触发 CI/CD 构建部署。
+                  </p>
+                  <div className="rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-xs text-[#555555]">
+                    当前工作区：<code>{workspacePath ?? '未挂载'}</code>
+                  </div>
+                </div>
+              )}
             </section>
           </div>
         )}
       </main>
 
-      {/* 合并分发弹窗占位（Phase 2 将接入各平台实时 5 步执行器） */}
+      {/* 合并分发弹窗 */}
       {publishModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25">
           <div className="w-[480px] rounded-lg border border-[#e5e7eb] bg-white shadow-xl">
@@ -399,7 +518,7 @@ export default function App() {
             </div>
             <div className="p-4 text-[13px] text-[#555555]">
               <p className="mb-3">
-                已就绪 <strong>{PLATFORM_CATALOG.length}</strong> 个平台适配器定义。下一里程碑将在主进程接入独立 Partition 沙箱登录与 5 步送达检测管线。
+                已注册 <strong>{PLATFORM_CATALOG.length}</strong> 个平台适配器（含 GitHub 静态博客 CI/CD、公众号、Linux.do、小红书等）。请先在「偏好设置 → 平台授权托管」完成对应平台沙箱登录。
               </p>
               <div className="flex justify-end gap-2">
                 {activeArticle && (
@@ -411,7 +530,7 @@ export default function App() {
                     }}
                     className="rounded bg-[#4183c4] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3572b0]"
                   >
-                    先保存当前本地文章
+                    保存当前本地文章
                   </button>
                 )}
               </div>
@@ -422,9 +541,7 @@ export default function App() {
 
       {/* 底部极简状态栏 */}
       <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#e5e7eb] bg-[#fafafa] px-3.5 text-[11px] text-[#777777]">
-        <span>
-          工作区：{workspacePath ?? '未挂载'} · 样式：Typora White (github.css)
-        </span>
+        <span>工作区：{workspacePath ?? '未挂载'} · 样式：Typora White (github.css)</span>
         <span>{saveState}</span>
       </footer>
     </div>
