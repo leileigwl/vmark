@@ -51,7 +51,7 @@ export function TopBar({
 
       <div className="truncate text-[12.5px] font-medium text-[var(--control-text-color)]">
         {activeView === 'editor'
-          ? activeArticle?.relativePath ?? 'VCat Publisher'
+          ? activeArticle?.relativePath ?? 'Vmark（维记）'
           : activeView === 'manager'
             ? '文章管理台'
             : '偏好设置'}

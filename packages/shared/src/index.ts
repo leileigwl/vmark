@@ -143,7 +143,7 @@ export interface EditorPreferences {
 }
 
 export interface ExportArticleOptions {
-  format: 'md' | 'html' | 'pdf';
+  format: 'md' | 'html' | 'pdf' | 'docx';
   title: string;
   markdown: string;
   htmlContent?: string;

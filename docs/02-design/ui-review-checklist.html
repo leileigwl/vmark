@@ -283,7 +283,7 @@
 <body>
   <header>
     <div class="title-wrap">
-      <h1>VCat Publisher Desktop — 问题归类与逐图 Review 清单</h1>
+      <h1>Vmark（维记）— 问题归类与逐图 Review 清单</h1>
       <p>一张截图对应一个问题 · <strong>打勾 = 已完成（不用改）</strong>，<strong>未打勾 = 还没改完（继续改）</strong></p>
     </div>
     <div class="actions">
@@ -311,6 +311,33 @@
         title: "🔥 本轮最新修改与待你核验（优先置顶展示）",
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
+          {
+            id: "R13_1",
+            title: "R13-1. 四级标题（H4）加粗后再取消加粗，完整保留四级标题结构（不破坏 #### 标记）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849564653_c092b60d.png",
+            desc: "在 inlineFormat.ts 中对 H1~H6 标题行内选区自动跳过 .vditor-ir__marker--heading（如 #### ），加粗后再按 Cmd+B 取消加粗时完整还原为四级标题。",
+            plan: "请新建四级标题（Cmd+4），选中文字按 Cmd+B 加粗，再按一次 Cmd+B 取消加粗，确认恢复为四级标题。"
+          },
+          {
+            id: "R13_2",
+            title: "R13-2. 水平分割线（---）直接插入标准 <hr> 节点，彻底消除灰条与上下 --- 文本",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849613860_bf5d0e28.jpg",
+            desc: "点击「段落 → 水平分割线」时直接插入干净块级 <hr> 与下方新段落，不再被解析为 Setext 二级标题或 YAML Front-Matter 灰条。",
+            plan: "请在任意段落或任务列表后点击「段落 → 水平分割线」，确认直接生成单条淡蓝渐变分割线。"
+          },
+          {
+            id: "R13_3",
+            title: "R13-3. 文件菜单补齐「新建窗口 (Cmd+Shift+N)」「快速打开 (Cmd+Shift+O)」「关闭」「导出 (MD/DOCX/HTML/PDF)」与 Vmark 维记品牌更新",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849794658_6e171692.jpg",
+            desc: "1) 正式定名为 Vmark（维记）并更新 README、PRODUCT.md、窗口标题与关于菜单；2) 文件菜单新增独立「新建窗口 (Cmd+Shift+N)」「快速打开 (Cmd+Shift+O)」「关闭窗口 (Cmd+W)」「在 Finder 中显示/移动」与 Word (.docx) 导出支持。",
+            plan: "请打开顶部「文件」菜单测试新建独立 Vmark 窗口与导出功能。"
+          },
           {
             id: "R12_1",
             title: "R12-1. 任务列表内插入水平分割线（---）自动跳出列表且不残留 --- 字符",

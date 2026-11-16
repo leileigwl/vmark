@@ -129,9 +129,9 @@ function buildApplicationMenu(): void {
     ...(isMac
       ? [
           {
-            label: app.name,
+            label: 'Vmark',
             submenu: [
-              { label: '关于 VCat Publisher', role: 'about' as const },
+              { label: '关于 Vmark（维记）', role: 'about' as const },
               { type: 'separator' as const },
               {
                 label: '偏好设置...',
@@ -149,15 +149,21 @@ function buildApplicationMenu(): void {
       label: '文件',
       submenu: [
         { label: '新建空白文章', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('file:new') },
-        { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
+        { label: '新建窗口', accelerator: 'CmdOrCtrl+Shift+N', click: () => createWindow() },
         { type: 'separator' },
+        { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
+        { label: '快速打开...', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendMenuAction('file:quickOpen') },
+        { type: 'separator' },
+        { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', role: 'close' },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
+        { label: '在 Finder 中显示 / 移动...', click: () => sendMenuAction('file:reveal') },
         {
           label: '导出文件',
           submenu: [
             { label: '按默认格式导出...', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuAction('file:export', 'default') },
             { type: 'separator' },
             { label: '导出为 Markdown (.md)...', click: () => sendMenuAction('file:export', 'md') },
+            { label: '导出为 Word 文档 (.docx)...', click: () => sendMenuAction('file:export', 'docx') },
             { label: '导出为独立网页 (.html)...', click: () => sendMenuAction('file:export', 'html') },
             { label: '导出为 PDF (.pdf)...', click: () => sendMenuAction('file:export', 'pdf') },
           ],
@@ -802,7 +808,8 @@ function registerIpcHandlers(): void {
   ipcMain.handle('file:export', async (_event, options: ExportArticleOptions) => {
     const ext = options.format;
     const safeTitle = (options.title || 'untitled').replace(/[\\/:*?"<>|]/g, '_');
-    const filterName = ext === 'md' ? 'Markdown' : ext === 'html' ? 'HTML' : 'PDF';
+    const filterName =
+      ext === 'md' ? 'Markdown' : ext === 'html' ? 'HTML' : ext === 'docx' ? 'Word Document' : 'PDF';
     const result = await dialog.showSaveDialog({
       title: `导出为 ${filterName}`,
       defaultPath: path.join(app.getPath('documents'), `${safeTitle}.${ext}`),
@@ -842,6 +849,12 @@ function registerIpcHandlers(): void {
 
     if (ext === 'html') {
       await fs.writeFile(result.filePath, fullHtml, 'utf-8');
+      return { ok: true, filePath: result.filePath };
+    }
+
+    if (ext === 'docx') {
+      const wordHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${safeTitle}</title></head><body>${bodyHtml}</body></html>`;
+      await fs.writeFile(result.filePath, wordHtml, 'utf-8');
       return { ok: true, filePath: result.filePath };
     }
 

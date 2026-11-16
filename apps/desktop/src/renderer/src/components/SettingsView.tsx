@@ -129,7 +129,7 @@ export function SettingsView({
             <div>
               <h2 className="text-base font-semibold">启动选项与默认打开方式</h2>
               <p className="mt-1 text-xs text-[var(--control-text-color)]">
-                控制每次打开 VCat Publisher 时默认加载的内容。
+                控制每次打开 Vmark（维记）时默认加载的内容。
               </p>
             </div>
             <div className="space-y-3 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] p-4 text-[13px]">

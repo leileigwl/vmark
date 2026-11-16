@@ -60,6 +60,21 @@ export function toggleInlineWrapInEditor(
     range.selectNodeContents(anchorCell);
   }
 
+  // Never wrap/delete a heading's `#### ` marker when applying bold/italic/etc. inside H1-H6
+  const headingEl =
+    anchorEl?.closest('h1, h2, h3, h4, h5, h6') ??
+    focusEl?.closest('h1, h2, h3, h4, h5, h6') ??
+    null;
+  if (headingEl) {
+    const headingMarker = headingEl.querySelector('.vditor-ir__marker--heading');
+    if (headingMarker && range.intersectsNode(headingMarker)) {
+      range.setStartAfter(headingMarker);
+    }
+    if (!headingEl.contains(range.endContainer)) {
+      range.setEnd(headingEl, headingEl.childNodes.length);
+    }
+  }
+
   const commonEl =
     range.commonAncestorContainer instanceof Element
       ? range.commonAncestorContainer

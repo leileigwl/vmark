@@ -130,8 +130,34 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
         }
         if (cmd === 'line') {
-          instance.focus();
-          instance.insertValue('\n\n---\n\n');
+          const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
+          const sel = window.getSelection();
+          if (resetEl && sel) {
+            pushVditorUndo();
+            const anchorEl =
+              sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
+            const blockEl =
+              (anchorEl?.closest('table, ul, ol, blockquote, p, h1, h2, h3, h4, h5, h6, pre') as HTMLElement | null) ??
+              null;
+            const hr = document.createElement('hr');
+            hr.setAttribute('data-block', '0');
+            const nextP = document.createElement('p');
+            nextP.innerHTML = '<br>';
+            if (blockEl && resetEl.contains(blockEl) && blockEl.parentNode === resetEl) {
+              resetEl.insertBefore(hr, blockEl.nextSibling);
+              resetEl.insertBefore(nextP, hr.nextSibling);
+            } else {
+              resetEl.appendChild(hr);
+              resetEl.appendChild(nextP);
+            }
+            const range = document.createRange();
+            range.selectNodeContents(nextP);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            pushVditorUndo();
+            onChangeRef.current(instance.getValue());
+          }
           return;
         }
         const snippet = FORMAT_SNIPPETS[cmd];

@@ -2,7 +2,7 @@
 
 ## 1. 产品一句话定位
 
-**VCat Publisher Desktop** 是一款面向独立博主与技术创作者的 **Local-First（本地优先）桌面端创作与合规多平台分发工作台**，打通：
+**Vmark（维记）**（`V` = Verified / 图标，`Mark` = Markdown / 书签印记）是一款面向独立博主与技术创作者的 **Local-First（本地优先）桌面端 Markdown 创作与合规多平台分发工作台**，打通：
 > **纯正 Typora 白色沉浸写作（无多余模板） $\rightarrow$ 防盗链图片智能转存 $\rightarrow$ 推送前多平台效果预览 $\rightarrow$ 草稿/直发双模式推送与送达成功检测**。
 
 ## 2. 解决的行业核心痛点

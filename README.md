@@ -1,8 +1,8 @@
 <div align="center">
 
-# VCat Publisher Desktop
+# Vmark（维记）
 
-**面向独立博主与技术创作者的 Local-First（本地优先）桌面端写作与 30+ 平台合规分发工作台**
+**V（Verified / 书写之翼）+ Mark（Markdown / 书签印记）——面向独立博主与技术创作者的 Local-First（本地优先）桌面端 Markdown 创作与 30+ 平台合规分发工作台**
 
 *纯正极简沉浸写作 · 云端防盗链规划与本地资产管理 · 推送前全平台效果预览 · 草稿/直发双模式与送达检测*
 

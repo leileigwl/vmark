@@ -200,9 +200,14 @@ export default function App() {
       else if (action === 'file:save') {
         const latest = editorRef.current?.getValue() ?? markdown;
         void handleSaveArticle(latest);
+      } else if (action === 'file:quickOpen') {
+        setSidebarOpen(true);
+        setSideTab('files');
+      } else if (action === 'file:reveal') {
+        void window.electronAPI.showInFinder(activeArticle?.relativePath);
       } else if (action === 'file:export') {
         const targetFmt =
-          payload === 'md' || payload === 'html' || payload === 'pdf'
+          payload === 'md' || payload === 'html' || payload === 'pdf' || payload === 'docx'
             ? payload
             : editorPrefs.defaultExportFormat;
         void handleExportArticle(targetFmt);
@@ -308,7 +313,7 @@ export default function App() {
     setActiveView('editor');
   }
 
-  async function handleExportArticle(format: 'md' | 'html' | 'pdf') {
+  async function handleExportArticle(format: 'md' | 'html' | 'pdf' | 'docx') {
     if (!activeArticle) return;
     const latestMd = editorRef.current?.getValue() ?? markdown;
     const htmlContent = editorRef.current?.getHTML() ?? '';
