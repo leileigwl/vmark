@@ -627,6 +627,23 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           };
           requestAnimationFrame(focusLanguageMarker);
           setTimeout(focusLanguageMarker, 60);
+        } else if (item.id === 'ol' || item.id === 'ul' || item.id === 'task') {
+          const placeCursorInListItem = () => {
+            const selNow = window.getSelection();
+            const anchor =
+              selNow?.anchorNode instanceof Element ? selNow.anchorNode : selNow?.anchorNode?.parentElement;
+            const li = anchor?.closest('li') as HTMLElement | null;
+            if (li) {
+              const pNode = li.querySelector('.vditor-ir__node[data-type="p"], p') ?? li;
+              const range = document.createRange();
+              range.selectNodeContents(pNode);
+              range.collapse(false);
+              selNow?.removeAllRanges();
+              selNow?.addRange(range);
+            }
+          };
+          requestAnimationFrame(placeCursorInListItem);
+          setTimeout(placeCursorInListItem, 50);
         }
       };
       insertSlashItemRef.current = applySlashCommand;
@@ -670,6 +687,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           activeZoomImgRef,
           setVditorRecentLang,
           commitCodeBlockLanguage,
+          ensureCodeBlockInfoMarkers,
           pushVditorUndo,
           toggleInlineWrap,
           rerenderBrokenMermaid,
@@ -706,6 +724,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             }
           },
           onSlashKeyDown: (ev) => {
+            if (ev.isComposing || ev.keyCode === 229) {
+              return false;
+            }
             const items = filterSlashCommands(slashStateRef.current.query);
             if (ev.key === 'Escape') {
               ev.preventDefault();

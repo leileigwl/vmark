@@ -4,3 +4,14 @@
 @import "./styles/themes.css";
 @import "./styles/editor.css";
 @import "./styles/mermaid.css";
+
+.vcat-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.vcat-no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+

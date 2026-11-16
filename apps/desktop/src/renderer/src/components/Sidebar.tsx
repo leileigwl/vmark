@@ -32,7 +32,7 @@ interface SidebarProps {
   outlineNodes: OutlineNode[];
   onChangeSideTab: (tab: 'files' | 'outline') => void;
   onStartResize: (e: React.MouseEvent) => void;
-  onOpenArticle: (art: ArticleMeta) => void;
+  onOpenArticle: (art: ArticleMeta, searchKeyword?: string) => void;
   onCreateFile: (name: string, parentDir?: string) => Promise<void>;
   onCreateFolder: (name: string, parentDir?: string) => Promise<void>;
   onRenameArticle: (oldPath: string, newName: string) => Promise<void>;
@@ -553,7 +553,7 @@ export function Sidebar({
             window.addEventListener('mouseup', onUp);
           }}
           ref={fileListRef}
-          className="flex-1 overflow-y-auto px-1.5 py-2 outline-none"
+          className="vcat-no-scrollbar flex-1 overflow-y-auto px-1.5 py-2 outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {sideTab === 'files' && creatingItem && (
             <div className="mb-1.5 flex items-center gap-1.5 rounded-md border border-[var(--accent)]/60 bg-[var(--bg-main)]/85 px-2 py-1 shadow-sm backdrop-blur-md">
@@ -606,7 +606,7 @@ export function Sidebar({
                         key={res.relativePath}
                         type="button"
                         onClick={() => {
-                          if (art) onOpenArticle(art);
+                          if (art) onOpenArticle(art, fileSearchQuery.trim());
                         }}
                         className={`block w-full rounded px-2.5 py-1.5 text-left ${
                           isSelected

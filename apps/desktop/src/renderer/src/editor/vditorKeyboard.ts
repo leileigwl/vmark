@@ -21,6 +21,7 @@ export interface KeyboardCaptureContext {
   toggleLightboxFromActive: () => void;
   closeLightbox: () => void;
   onSlashKeyDown: (e: KeyboardEvent) => boolean;
+  ensureCodeBlockInfoMarkers?: () => void;
   undo: () => void;
   redo: () => void;
 }
@@ -28,6 +29,7 @@ export interface KeyboardCaptureContext {
 /** Handles capture-phase keyboard shortcuts, code-block indentation, table guards, and bracket pairing. */
 export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptureContext): void {
   const { el, instance } = ctx;
+  const isImeComposing = e.isComposing || e.keyCode === 229;
   const targetNode = e.target as HTMLElement | null;
   if (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA')) {
     return;
@@ -62,13 +64,19 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     (targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null);
 
   if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (isImeComposing) return;
     if (ctx.lastActiveInfoMarkerRef.current !== infoMarker) {
       ctx.hintNavigatedByArrowRef.current = false;
     }
     ctx.lastActiveInfoMarkerRef.current = infoMarker;
     const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
     const hintButtons = hintEl ? Array.from(hintEl.querySelectorAll('button')) : [];
-    const hintVisible = Boolean(hintEl && hintEl.style.display !== 'none' && hintButtons.length > 0);
+    const hintVisible = Boolean(
+      hintEl &&
+      hintEl.offsetParent !== null &&
+      window.getComputedStyle(hintEl).display !== 'none' &&
+      hintButtons.length > 0
+    );
 
     if (e.key === 'Backspace' || e.key === 'Delete') {
       ctx.hintNavigatedByArrowRef.current = false;
@@ -183,13 +191,63 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
   if (!el.contains(targetNode)) return;
 
+  // Block Deletion Isolation: Prevent Backspace at start of heading/paragraph from merging into Callout/blockquote/code/table
+  if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
+    const sel = window.getSelection();
+    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const anchorNode =
+        range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+      const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
+
+      let curBlock = anchorNode?.closest('.vditor-ir__node') as HTMLElement | null;
+      while (
+        curBlock &&
+        curBlock.parentElement &&
+        curBlock.parentElement !== resetEl &&
+        curBlock.parentElement.closest('.vditor-reset')
+      ) {
+        const parentBlock = curBlock.parentElement.closest('.vditor-ir__node') as HTMLElement | null;
+        if (!parentBlock) break;
+        curBlock = parentBlock;
+      }
+
+      if (curBlock && resetEl && resetEl.contains(curBlock)) {
+        const preRange = document.createRange();
+        preRange.setStart(curBlock, 0);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
+
+        const isAtBlockStart = preText.length === 0 || /^#{1,6}\s*$/.test(preText);
+        if (isAtBlockStart) {
+          const prevBlock = curBlock.previousElementSibling as HTMLElement | null;
+          if (prevBlock && prevBlock.matches('.vditor-ir__node')) {
+            const prevType = prevBlock.getAttribute('data-type');
+            const isolatedTypes = ['blockquote', 'code-block', 'table', 'hr', 'html-block', 'math-block'];
+            if (prevType && isolatedTypes.includes(prevType)) {
+              const curContent = (curBlock.textContent || '')
+                .replace(/^#{1,6}\s*/, '')
+                .replace(/[\u200b\ufeff\s]/g, '');
+              if (curContent.length > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   const sel = window.getSelection();
   const anchorEl =
     sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
   const activeCell = anchorEl?.closest('td, th') as HTMLTableCellElement | null;
 
   if (activeCell && el.contains(activeCell)) {
-    if (e.key === 'Backspace' || e.key === 'Delete') {
+    if ((e.key === 'Backspace' || e.key === 'Delete') && !isImeComposing) {
       const cellImg = activeCell.querySelector('.vditor-ir__node[data-type="img"], img');
       if (cellImg && (!sel || sel.isCollapsed)) {
         const visibleText = Array.from(activeCell.childNodes)
@@ -204,6 +262,19 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           cellImg.remove();
           ctx.pushVditorUndo();
           ctx.onChangeValue(instance.getValue());
+          return;
+        }
+      }
+      if (sel && sel.isCollapsed) {
+        const range = sel.getRangeAt(0);
+        const cellPreRange = document.createRange();
+        cellPreRange.setStart(activeCell, 0);
+        cellPreRange.setEnd(range.startContainer, range.startOffset);
+        const cellPreText = cellPreRange.toString().replace(/[\u200b\ufeff]/g, '');
+        if (e.key === 'Backspace' && cellPreText.length === 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           return;
         }
       }
@@ -261,6 +332,171 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     ctx.redo();
     setTimeout(ctx.rerenderBrokenMermaid, 50);
     return;
+  }
+
+  // Space key instant markdown block formatting triggers
+  if (
+    e.key === ' ' &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !e.shiftKey &&
+    !isImeComposing
+  ) {
+    const sel = window.getSelection();
+    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      const anchorEl = node instanceof Element ? node : node.parentElement;
+
+      if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, .vditor-ir__marker--info, table')) {
+        const curBlock =
+          (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li, blockquote') as HTMLElement | null) ??
+          anchorEl;
+        if (curBlock && el.contains(curBlock)) {
+          const preRange = document.createRange();
+          preRange.setStart(curBlock, 0);
+          preRange.setEnd(range.startContainer, range.startOffset);
+          const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
+
+          const matchNestedQuoteOl = preText.match(/^>\s*(\d+)\.$/);
+          const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
+          const matchOl = preText.match(/^(\d+)\.$/);
+          const matchUl = preText.match(/^[-*]$/);
+          const matchQuote = preText === '>';
+          const matchTask = preText === '[]' || preText === '[ ]' || preText === '- [ ]';
+          const matchHeading = preText.match(/^(#{1,6})$/);
+
+          if (matchNestedQuoteOl || matchNestedQuoteUl || matchOl || matchUl || matchQuote || matchTask || matchHeading) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            ctx.pushVditorUndo();
+
+            preRange.deleteContents();
+
+            if (matchNestedQuoteOl) {
+              instance.insertValue(`> ${matchNestedQuoteOl[1]}. `);
+            } else if (matchNestedQuoteUl) {
+              instance.insertValue('> - ');
+            } else if (matchOl) {
+              instance.insertValue(`${matchOl[1]}. `);
+            } else if (matchUl) {
+              instance.insertValue('- ');
+            } else if (matchQuote) {
+              instance.insertValue('> ');
+            } else if (matchTask) {
+              instance.insertValue('- [ ] ');
+            } else if (matchHeading) {
+              instance.insertValue(`${matchHeading[1]} `);
+            }
+
+            ctx.pushVditorUndo();
+            ctx.onChangeValue(instance.getValue());
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // Backtick auto-pair (`` with cursor in middle) and triple-backtick (```) code-block expansion
+  if (
+    ctx.autoPairBrackets &&
+    e.key === '`' &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !isImeComposing
+  ) {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const anchorNode =
+        range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+      if (anchorNode && el.contains(anchorNode) && !anchorNode.closest('pre, code, .vditor-ir__marker--info')) {
+        if (!range.collapsed) {
+          const selectedText = range.toString();
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const wrapped = `\`${selectedText}\``;
+          const textNode = document.createTextNode(wrapped);
+          range.deleteContents();
+          range.insertNode(textNode);
+          const nextRange = document.createRange();
+          nextRange.setStart(textNode, 1);
+          nextRange.setEnd(textNode, 1 + selectedText.length);
+          sel.removeAllRanges();
+          sel.addRange(nextRange);
+          ctx.onChangeValue(instance.getValue());
+          return;
+        } else {
+          const sc = range.startContainer;
+          const beforeText =
+            sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(0, range.startOffset) : '';
+          const afterText =
+            sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
+
+          // If cursor is right before a closing backtick, step over it
+          if (afterText.startsWith('`') && !beforeText.endsWith('`')) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const nextRange = document.createRange();
+            nextRange.setStart(sc, range.startOffset + 1);
+            nextRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(nextRange);
+            return;
+          }
+
+          // If typing 3rd backtick (already has two backticks before cursor):
+          if (beforeText.endsWith('``')) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const delRange = document.createRange();
+            delRange.setStart(sc, range.startOffset - 2);
+            delRange.setEnd(sc, range.startOffset);
+            delRange.deleteContents();
+            ctx.pushVditorUndo();
+            instance.insertValue('```ts\n\n```');
+            setTimeout(() => {
+              ctx.ensureCodeBlockInfoMarkers?.();
+              const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
+              const lastCb = codeBlocks.pop() as HTMLElement | undefined;
+              const infoSpan = lastCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+              if (lastCb && infoSpan) {
+                lastCb.classList.add('vditor-ir__node--expand');
+                ctx.lastActiveInfoMarkerRef.current = infoSpan;
+                const r = document.createRange();
+                r.selectNodeContents(infoSpan);
+                const s = window.getSelection();
+                s?.removeAllRanges();
+                s?.addRange(r);
+              }
+            }, 60);
+            return;
+          }
+
+          // Otherwise, insert paired `` with cursor in middle
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const textNode = document.createTextNode('``');
+          range.deleteContents();
+          range.insertNode(textNode);
+          const nextRange = document.createRange();
+          nextRange.setStart(textNode, 1);
+          nextRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(nextRange);
+          ctx.onChangeValue(instance.getValue());
+          return;
+        }
+      }
+    }
   }
 
   if (

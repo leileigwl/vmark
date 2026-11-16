@@ -239,7 +239,7 @@ export default function App() {
   }, [activeArticle, markdown, articles]);
 
   useEffect(() => {
-    window.electronAPI.setRecentFiles?.(recentArticlePaths);
+    window.electronAPI?.setRecentFiles?.(recentArticlePaths);
   }, [recentArticlePaths]);
 
   useEffect(() => {
@@ -300,7 +300,7 @@ export default function App() {
         } catch {
           // ignore
         }
-        window.electronAPI.setRecentFiles?.([]);
+        window.electronAPI?.setRecentFiles?.([]);
       } else if (action === 'file:reveal') {
         void window.electronAPI.showInFinder(activeArticle?.relativePath);
       } else if (action === 'file:export') {
@@ -362,7 +362,7 @@ export default function App() {
   }, [activeArticle, markdown, articles]);
 
   useEffect(() => {
-    window.electronAPI.setRecentFiles?.(recentArticlePaths);
+    window.electronAPI?.setRecentFiles?.(recentArticlePaths);
   }, [recentArticlePaths]);
 
   useEffect(() => {
@@ -397,8 +397,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onGlobalKeyDown, true);
   }, []);
 
-  async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig) {
+  async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig, searchKeyword?: string) {
     if (activeArticle?.relativePath === meta.relativePath) {
+      if (searchKeyword) {
+        setTimeout(() => {
+          editorRef.current?.jumpToMatch(searchKeyword, 0, { caseSensitive: false });
+        }, 50);
+      }
       return;
     }
     const reqId = ++openRequestIdRef.current;
@@ -417,6 +422,11 @@ export default function App() {
     setMarkdown(content);
     setLoadSeq((s) => s + 1);
     setSaveState('已保存');
+    if (searchKeyword) {
+      setTimeout(() => {
+        editorRef.current?.jumpToMatch(searchKeyword, 0, { caseSensitive: false });
+      }, 180);
+    }
     const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
     setStartupConfig(nextStartup);
     void window.electronAPI.saveStartupConfig(nextStartup);
@@ -427,7 +437,7 @@ export default function App() {
       } catch {
         // ignore
       }
-      window.electronAPI.setRecentFiles?.(next);
+      window.electronAPI?.setRecentFiles?.(next);
       return next;
     });
   }
@@ -751,8 +761,8 @@ export default function App() {
         outlineNodes={outlineNodes}
         onChangeSideTab={setSideTab}
         onStartResize={startSidebarResize}
-        onOpenArticle={(art) => {
-          void openArticle(art);
+        onOpenArticle={(art, keyword) => {
+          void openArticle(art, undefined, keyword);
           setActiveView('editor');
         }}
         onCreateFile={async (raw, parentDir) => {
@@ -1324,7 +1334,7 @@ export default function App() {
           } catch {
             // ignore
           }
-          window.electronAPI.setRecentFiles?.([]);
+          window.electronAPI?.setRecentFiles?.([]);
         }}
       />
     </div>

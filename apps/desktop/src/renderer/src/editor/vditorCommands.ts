@@ -112,7 +112,8 @@ export function insertTableWithSizeAction(
   el: HTMLElement
 ): void {
   const safeCols = Math.max(1, Math.min(20, cols));
-  const safeRows = Math.max(1, Math.min(50, rows));
+  // Total rows includes 1 header row + (rows - 1) body rows
+  const safeBodyRows = Math.max(1, Math.min(50, rows - 1));
   const sel = window.getSelection();
   const anchorEl =
     sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
@@ -130,7 +131,7 @@ export function insertTableWithSizeAction(
 
   const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
   const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
-  const bodyRows = Array.from({ length: safeRows }, () =>
+  const bodyRows = Array.from({ length: safeBodyRows }, () =>
     `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
   );
   instance.focus();

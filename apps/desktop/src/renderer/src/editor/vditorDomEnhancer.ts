@@ -211,10 +211,17 @@ export function normalizeEmojiAndCalloutIcons(el: HTMLElement): void {
 }
 
 export function cleanEmptyInlineNodes(el: HTMLElement): void {
+  const sel = window.getSelection();
+  const activeNode =
+    sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+
   const inlineNodes = el.querySelectorAll(
     'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
   );
   inlineNodes.forEach((node) => {
+    if (activeNode && node.contains(activeNode)) {
+      return;
+    }
     const inner = node.querySelector('strong, b, em, i, s, del, code');
     const innerText = (inner?.textContent || '').replace(/\u200b/g, '');
     if (innerText.length === 0) {

@@ -35,11 +35,11 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
   },
   {
     id: 'table',
-    label: '表格',
+    label: '表格 (4行3列)',
     shortcut: '⌥⌘T',
     keywords: ['table', 'biaoge', 'bg', 'tab'],
-    description: '插入 3×3 Markdown 表格',
-    insertText: '| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 |  |  |\n',
+    description: '插入 4行3列 Markdown 表格',
+    insertText: '| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n|  |  |  |\n',
   },
   {
     id: 'math',

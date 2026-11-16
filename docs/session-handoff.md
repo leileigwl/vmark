@@ -2,26 +2,34 @@
 
 - **日期**：2026-11-17
 - **当前阶段**：**Phase 1.5 深度精修与工程化规范落地**
-- **最新基线提交**：`Round 34`（已完成并经 `typecheck` / `test` / `build` / Playwright 验证通过）
+- **最新基线提交**：`Round 35`（全量功能均已完成，经 `typecheck` / `test` / `build` 全绿验证）
 
 ---
 
-## 零、下轮（Round 35）优先待办交接清单
+## 零、本轮（Round 35）交付成果（图 1 至图 9 全量覆盖）
 
-### 已在本轮（Round 34）完成的项（已验证 typecheck / test / build / Playwright）
-- ✅ **顶部红黄绿与标题/按钮视觉像素级对齐**：`main/index.ts` 将 `trafficLightPosition: { x: 14, y: 10 }`，使三圆点中心线与 TopBar 按钮/标题（Y=10）水平线完全重合；`TopBar.tsx` 将 `PanelLeft` 尺寸统一为 `h-3.5 w-3.5`，标题采用 `absolute left-1/2 -translate-x-1/2` 保证在整窗数学绝对居中。
-- ✅ **本地文件链接打不开改为精致弹窗**：`App.tsx` 针对找不到本地链接目标文件，改用 macOS 居中毛玻璃弹窗提示「无法打开文件：工作区中未找到目标文件：「xxx」」，支持 Enter / Esc / 按钮确认关闭。
-- ✅ **侧边栏右键菜单重叠彻底根治**：重构 `SidebarContextMenus.tsx` 与 `Sidebar.tsx`，将分散的 `fileContextMenu` / `emptyContextMenu` 收敛为单状态互斥联合类型 `contextMenu: SidebarContextMenu | null`（`file | folder | empty`），同一时刻最多只存在一个右键菜单，彻底根治重叠 Bug。
-- ✅ **侧边栏支持文件夹框选与批量删除 + 删空目录回退**：
-  - `SidebarTreeNodes.tsx` 文件夹节点添加 `data-folder-path` 标识，选中态加亮；
-  - 鼠标左键框选（Marquee）与连选同时支持文件与文件夹；
-  - `App.tsx` 与 `Sidebar.tsx` 新增 `onDeleteFolder` 与 `onBatchDeleteItems`，支持按 `Delete`/`Backspace` 或右键批量删除文件与文件夹；
-  - 删空工作区所有文件后（`list.length === 0`）立即回退至空白目录占位，若仍有文章则自动切换到剩余第一篇。
-- ✅ **`<details>` / `<summary>` 与代码块双击全选**：`VditorEditor.tsx` `handleDblClickCapture` 双击 `<details>` / `<summary>` 时全选文本并不触发折叠切换；双击代码块（包含右侧空白区）时直接选中该代码块全部代码文本。
-
-### 待下轮继续关注的项
-1. **打包提醒**：macOS（带图标 + DMG 拖拽安装）与 Windows 双端打包**继续延后，待用户确认上述全部体验满意后再统一执行**。
-2. **`VditorEditor.tsx` 与 `App.tsx` 继续小步解耦**：将文件撤销栈与批量操作剥离为独立 hook，保持主文件清爽。
+1. ✅ **搜索点击精准跳转定位点（图一）**：
+   - 侧边栏正文搜索结果点击时，将搜索词传递至 `onOpenArticle(art, query)`；
+   - 文档加载后自动调用 `editorRef.current.jumpToMatch(query, 0, { caseSensitive: false })` 高亮并平滑滚动到首个匹配点。
+2. ✅ **跨块删除隔离（图二）**：
+   - 光标位于 Callout / 引用框下方的标题或段落行首时，按 `Backspace` 阻止将下方内容拉入上方块，保持两个独立块的物理隔离。
+3. ✅ **代码块语言选择与中文输入法 / 斜杠命令冲突修复（图三、四、五）**：
+   - `vditorKeyboard.ts` 与 `VditorEditor.tsx` `onSlashKeyDown` 增加 `e.isComposing || e.keyCode === 229` 守卫，拼音输入未确认前严禁拦截 Enter 提交；
+   - 修复代码块语言下拉弹窗的 `ArrowUp` / `ArrowDown` 键盘切换与高亮选词，按 Enter / Tab 提交目标语言。
+4. ✅ **空格触发即时渲染与多级/嵌套列表（图六）**：
+   - 敲击 `1. `、`- `、`* `、`> `、`[] ` 或 `- [ ] ` 后立即在空格键触发转换为对应富文本块，无需等待回车；
+   - 支持引用内嵌套有序列表 `> 1. `，支持 Tab / Shift-Tab 缩进；
+   - 空加粗 `****` 保护：中间无内容时保留双星号，光标稳定居中（`cleanEmptyInlineNodes` 保护当前光标聚焦空节点）。
+5. ✅ **反引号智能补齐（图七）**：
+   - 键入单个 ` 自动补全为一对反引号 `` `|` `` 并将光标居中；光标在后反引号前按 ` 跳过；键入第三个 ` 时直接转换为代码块容器并自动聚焦语言输入区。
+6. ✅ **侧边栏多余原生滚动条与顶帽清理（图八）**：
+   - 移除侧边栏默认出现的原生 WebKit 滚动条方块与顶帽，全局配置 `.vcat-no-scrollbar` 配合无滚动条平滑滚动。
+7. ✅ **表格规格明确与删除保护 + 列表插入光标纠正（图九）**：
+   - `/table` 生成标准的 4 行 3 列（1 行表头 + 3 行数据 = 4 行），消除 5 行歧义；
+   - 表格内禁止通过按 `Delete` / `Backspace` 误删整张表格，必须通过右键「表格操作 → 删除表格」；
+   - 斜杠命令插入列表后光标直接定位至列表项文字开头。
+8. ✅ **开源仓库整理与 CI/CD**：
+   - 配置 `.github/workflows/ci.yml` 支持 Typecheck、Unit Tests、Electron 构建流水线。
 
 ---
 

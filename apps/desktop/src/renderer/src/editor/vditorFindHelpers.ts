@@ -75,6 +75,7 @@ export function jumpToMatchInEl(
   opts?: FindOptions
 ): number {
   if (!el || !findStr) return 0;
+  findMatchesInEl(el, findStr, opts);
   const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
   if (!resetEl) return 0;
 
