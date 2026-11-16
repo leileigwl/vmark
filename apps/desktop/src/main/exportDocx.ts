@@ -1,4 +1,5 @@
 import {
+  AlignmentType,
   BorderStyle,
   Document,
   ExternalHyperlink,
@@ -15,6 +16,11 @@ import {
 
 type InlineChild = TextRun | ExternalHyperlink;
 
+const BODY_FONT = 'PingFang SC';
+const CODE_FONT = 'Menlo';
+const BODY_SIZE = 21; // 10.5pt (half-points)
+const CODE_SIZE = 19; // 9.5pt (half-points)
+
 function parseInlineRuns(text: string): InlineChild[] {
   const cleaned = text.replace(/<\/?(details|summary)[^>]*>/gi, '').trim();
   const runs: InlineChild[] = [];
@@ -23,7 +29,7 @@ function parseInlineRuns(text: string): InlineChild[] {
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(cleaned)) !== null) {
     if (match.index > lastIdx) {
-      runs.push(new TextRun(cleaned.slice(lastIdx, match.index)));
+      runs.push(new TextRun({ text: cleaned.slice(lastIdx, match.index), font: BODY_FONT, size: BODY_SIZE }));
     }
     const token = match[0];
     if (token.startsWith('[') && token.includes('](') && token.endsWith(')')) {
@@ -37,6 +43,8 @@ function parseInlineRuns(text: string): InlineChild[] {
             children: [
               new TextRun({
                 text: label,
+                font: BODY_FONT,
+                size: BODY_SIZE,
                 color: '0969DA',
                 underline: {},
               }),
@@ -44,30 +52,41 @@ function parseInlineRuns(text: string): InlineChild[] {
           })
         );
       } else {
-        runs.push(new TextRun({ text: label, color: '0969DA' }));
+        runs.push(new TextRun({ text: label, font: BODY_FONT, size: BODY_SIZE, color: '0969DA' }));
       }
     } else if (token.startsWith('**') && token.endsWith('**')) {
-      runs.push(new TextRun({ text: token.slice(2, -2), bold: true }));
+      runs.push(new TextRun({ text: token.slice(2, -2), font: BODY_FONT, size: BODY_SIZE, bold: true }));
     } else if (token.startsWith('*') && token.endsWith('*')) {
-      runs.push(new TextRun({ text: token.slice(1, -1), italics: true }));
+      runs.push(new TextRun({ text: token.slice(1, -1), font: BODY_FONT, size: BODY_SIZE, italics: true }));
     } else if (token.startsWith('`') && token.endsWith('`')) {
-      runs.push(new TextRun({ text: token.slice(1, -1), font: 'Menlo', size: 20 }));
+      runs.push(
+        new TextRun({
+          text: token.slice(1, -1),
+          font: CODE_FONT,
+          size: CODE_SIZE,
+          noProof: true,
+          shading: { type: ShadingType.CLEAR, fill: 'F0F3F6' },
+        })
+      );
     }
     lastIdx = match.index + token.length;
   }
   if (lastIdx < cleaned.length) {
-    runs.push(new TextRun(cleaned.slice(lastIdx)));
+    runs.push(new TextRun({ text: cleaned.slice(lastIdx), font: BODY_FONT, size: BODY_SIZE }));
   }
-  return runs.length > 0 ? runs : [new TextRun(cleaned)];
+  return runs.length > 0 ? runs : [new TextRun({ text: cleaned, font: BODY_FONT, size: BODY_SIZE })];
 }
 
-const HEADING_MAP: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
-  1: HeadingLevel.HEADING_1,
-  2: HeadingLevel.HEADING_2,
-  3: HeadingLevel.HEADING_3,
-  4: HeadingLevel.HEADING_4,
-  5: HeadingLevel.HEADING_5,
-  6: HeadingLevel.HEADING_6,
+const HEADING_STYLES: Record<
+  number,
+  { level: (typeof HeadingLevel)[keyof typeof HeadingLevel]; size: number; color: string }
+> = {
+  1: { level: HeadingLevel.HEADING_1, size: 36, color: '1F2328' }, // 18pt
+  2: { level: HeadingLevel.HEADING_2, size: 30, color: '1F2328' }, // 15pt
+  3: { level: HeadingLevel.HEADING_3, size: 26, color: '1F2328' }, // 13pt
+  4: { level: HeadingLevel.HEADING_4, size: 23, color: '1F2328' }, // 11.5pt
+  5: { level: HeadingLevel.HEADING_5, size: 21, color: '1F2328' }, // 10.5pt
+  6: { level: HeadingLevel.HEADING_6, size: 20, color: '57606A' }, // 10pt
 };
 
 /**
@@ -87,8 +106,9 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
       continue;
     }
 
-    // Fenced code block
+    // Fenced code / LaTeX block (skip completely empty code blocks so no blank gray stripes appear)
     if (/^```/.test(trimmed)) {
+      const lang = trimmed.slice(3).trim().toLowerCase();
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !/^```/.test(lines[i].trim())) {
@@ -96,20 +116,24 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
         i++;
       }
       i++;
-      children.push(
-        new Paragraph({
-          shading: { type: ShadingType.CLEAR, fill: 'F4F6F8' },
-          border: {
-            left: { style: BorderStyle.SINGLE, size: 6, color: 'D0D7DE' },
-          },
-          spacing: { before: 120, after: 120 },
-          children: codeLines.flatMap((cl, idx) =>
-            idx === 0
-              ? [new TextRun({ text: cl, font: 'Menlo', size: 19 })]
-              : [new TextRun({ text: cl, font: 'Menlo', size: 19, break: 1 })]
-          ),
-        })
-      );
+      if (codeLines.some((cl) => cl.trim().length > 0)) {
+        const isMath = lang === 'latex' || lang === 'math' || lang === 'tex';
+        children.push(
+          new Paragraph({
+            alignment: isMath ? AlignmentType.CENTER : AlignmentType.LEFT,
+            shading: { type: ShadingType.CLEAR, fill: 'F6F8FA' },
+            border: {
+              left: { style: BorderStyle.SINGLE, size: 8, color: isMath ? '0969DA' : 'D0D7DE' },
+            },
+            spacing: { before: 140, after: 140, line: 300 },
+            children: codeLines.flatMap((cl, idx) =>
+              idx === 0
+                ? [new TextRun({ text: cl, font: CODE_FONT, size: CODE_SIZE, noProof: true })]
+                : [new TextRun({ text: cl, font: CODE_FONT, size: CODE_SIZE, noProof: true, break: 1 })]
+            ),
+          })
+        );
+      }
       continue;
     }
 
@@ -143,6 +167,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
                         shading: rIdx === 0 ? { type: ShadingType.CLEAR, fill: 'F0F4F8' } : undefined,
                         children: [
                           new Paragraph({
+                            spacing: { before: 60, after: 60 },
                             children: parseInlineRuns(cellText),
                           }),
                         ],
@@ -172,11 +197,20 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
+      const style = HEADING_STYLES[level] ?? HEADING_STYLES[1];
       children.push(
         new Paragraph({
-          heading: HEADING_MAP[level] ?? HeadingLevel.HEADING_1,
-          spacing: { before: 180, after: 90 },
-          children: parseInlineRuns(headingMatch[2]),
+          heading: style.level,
+          spacing: { before: 220, after: 110 },
+          children: [
+            new TextRun({
+              text: headingMatch[2].replace(/\*\*/g, '').trim(),
+              font: BODY_FONT,
+              size: style.size,
+              bold: true,
+              color: style.color,
+            }),
+          ],
         })
       );
       i++;
@@ -202,7 +236,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
             indent: { left: 280 },
             shading: { type: ShadingType.CLEAR, fill: 'F6F9FC' },
             border: { left: { style: BorderStyle.SINGLE, size: 14, color: '0969DA' } },
-            spacing: { before: 100, after: 100 },
+            spacing: { before: 100, after: 100, line: 340 },
             children: quoteRuns,
           })
         );
@@ -219,6 +253,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
       children.push(
         new Paragraph({
           bullet: { level: 0 },
+          spacing: { after: 60, line: 320 },
           children: parseInlineRuns(text),
         })
       );
@@ -236,7 +271,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     // Normal paragraph
     children.push(
       new Paragraph({
-        spacing: { after: 90 },
+        spacing: { after: 100, line: 340 },
         children: parseInlineRuns(line),
       })
     );
@@ -244,6 +279,20 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
   }
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: BODY_FONT,
+            size: BODY_SIZE,
+            color: '1F2328',
+          },
+          paragraph: {
+            spacing: { line: 340, after: 100 },
+          },
+        },
+      },
+    },
     sections: [{ children }],
   });
   return Packer.toBuffer(doc);

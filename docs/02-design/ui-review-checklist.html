@@ -312,6 +312,15 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R18_1",
+            title: "R18-1. Word (.docx) 导出字号层级统一、跳过空代码块灰条、关闭代码/公式拼写红线",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851205306_59a79723.png",
+            desc: "在 exportDocx.ts 中统一设置文档默认字体（PingFang SC 10.5pt）与 H1~H6 阶梯字号，跳过空白 ``` 代码块避免出现空灰条，并为代码/公式块开启 noProof 关闭红色拼写波浪线。",
+            plan: "请重新导出 Word (.docx) 在 WPS / Pages / Word 中查看字体大小层级、空代码块与无红线效果。"
+          },
+          {
             id: "R17_1",
             title: "R17-1. 代码语言下拉菜单（.vditor-hint）下移 26px，不再遮挡重叠代码语言标签",
             status: "done",
