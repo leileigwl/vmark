@@ -2,26 +2,43 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type { EditorPreferences } from '@vcat/shared';
 import Vditor from 'vditor';
 import { applyCodeSyntaxHighlights } from '../editor/codeHighlight';
+import { getPreviewBlockTarget, readClipboardImageAsDataUrl } from '../editor/editorHelpers';
 import { toggleInlineWrapInEditor, type InlineWrapCommand } from '../editor/inlineFormat';
 import { positionAndSortLanguageHint, safeDecode } from '../editor/languageHint';
+import { filterSlashCommands, type SlashCommandItem } from '../editor/slashCommands';
 import { executeTableAction } from '../editor/tableActions';
+import {
+  applyFormatAction,
+  applyImageActionInEditor,
+  insertTableWithSizeAction,
+} from '../editor/vditorCommands';
 import {
   cleanEmptyInlineNodes,
   cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
   cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
   ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
-  getCodeBlockLang,
   normalizeEmojiAndCalloutIcons,
   renderLatexBlocks as renderLatexBlocksInEl,
   rerenderBrokenMermaid as rerenderBrokenMermaidInEl,
 } from '../editor/vditorDomEnhancer';
+import {
+  clearFindHighlightsInDoc,
+  findMatchesInEl,
+  jumpToMatchInEl,
+  type FindOptions,
+} from '../editor/vditorFindHelpers';
+import { processVditorKeyDownCapture } from '../editor/vditorKeyboard';
+import {
+  handleEditorContextMenu,
+  handleEditorCopyCapture,
+  handleEditorMouseDownCapture,
+  handleEditorPasteCapture,
+  type PointerEventContext,
+} from '../editor/vditorPointerEvents';
 import { MediaLightbox, type LightboxPayload } from './MediaLightbox';
+import { SlashCommandMenu } from './SlashCommandMenu';
 
-export interface FindOptions {
-  caseSensitive?: boolean;
-  wholeWord?: boolean;
-  regex?: boolean;
-}
+export type { FindOptions };
 
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
@@ -40,44 +57,35 @@ interface VditorEditorProps {
   value: string;
   articleKey: string;
   loadSeq?: number;
+  readOnly?: boolean;
   preferences?: EditorPreferences;
   onChange: (markdown: string) => void;
   onSave?: (markdown: string) => void;
 }
 
-const FORMAT_SNIPPETS: Record<string, string> = {
-  h1: '# ',
-  h2: '## ',
-  h3: '### ',
-  h4: '#### ',
-  h5: '##### ',
-  h6: '###### ',
-  bold: '**加粗文本**',
-  italic: '*斜体文本*',
-  strike: '~~删除线~~',
-  'inline-code': '`code`',
-  link: '[链接文本](https://)',
-  quote: '> ',
-  list: '- ',
-  'ordered-list': '1. ',
-  check: '- [ ] ',
-  table: '\n| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |\n',
-  'code-block': '\n```python\n\n```\n',
-  line: '\n---\n',
-};
-
 /** Typora-style Instant Rendering (IR) Markdown editor powered by local Vditor assets. */
 export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
-  function VditorEditor({ value, articleKey, loadSeq, preferences, onChange, onSave }, ref) {
+  function VditorEditor({ value, articleKey, loadSeq, readOnly = false, preferences, onChange, onSave }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const vditorRef = useRef<Vditor | null>(null);
     const isReadyRef = useRef(false);
+    const readOnlyRef = useRef(readOnly);
+    readOnlyRef.current = readOnly;
     const pendingValueRef = useRef<string | null>(null);
     const lastSelectionElRef = useRef<HTMLElement | null>(null);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mermaidClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const activeZoomImgRef = useRef<HTMLImageElement | null>(null);
     const [lightboxItem, setLightboxItem] = useState<LightboxPayload | null>(null);
+    const [slashState, setSlashState] = useState<{
+      open: boolean;
+      x: number;
+      y: number;
+      query: string;
+      selectedIndex: number;
+    }>({ open: false, x: 0, y: 0, query: '', selectedIndex: 0 });
+    const slashStateRef = useRef(slashState);
+    slashStateRef.current = slashState;
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -124,82 +132,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       applyFormat(cmd: string) {
         const instance = vditorRef.current;
         const el = containerRef.current;
-        if (!instance || !el || !isReadyRef.current) return;
-        if (cmd === 'bold' || cmd === 'italic' || cmd === 'strike' || cmd === 'inline-code') {
-          toggleInlineWrap(cmd);
-          return;
-        }
-        // When applying H1-H6 inside an existing heading, replace its heading marker instead of stacking ####
-        if (/^h[1-6]$/.test(cmd)) {
-          const sel = window.getSelection();
-          const anchorEl =
-            sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-          const existingH = anchorEl?.closest('h1, h2, h3, h4, h5, h6') as HTMLElement | null;
-          if (existingH && el.contains(existingH)) {
-            const marker = existingH.querySelector('.vditor-ir__marker--heading');
-            if (marker) {
-              pushVditorUndo();
-              marker.textContent = FORMAT_SNIPPETS[cmd];
-              pushVditorUndo();
-              onChangeRef.current(instance.getValue());
-              return;
-            }
-          }
-        }
-        // When inserting a block element (like a table) while cursor is inside an existing table,
-        // jump out after the table first so it doesn't corrupt cells!
-        if (cmd === 'table' || cmd === 'code-block' || cmd === 'line') {
-          const sel = window.getSelection();
-          const anchorEl =
-            sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-          const blockWrapper = anchorEl?.closest('table, ul, ol, blockquote');
-          if (blockWrapper && el.contains(blockWrapper)) {
-            const p = document.createElement('p');
-            p.innerHTML = '<br>';
-            blockWrapper.parentNode?.insertBefore(p, blockWrapper.nextSibling);
-            const range = document.createRange();
-            range.selectNodeContents(p);
-            range.collapse(true);
-            sel?.removeAllRanges();
-            sel?.addRange(range);
-          }
-        }
-        if (cmd === 'line') {
-          const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
-          const sel = window.getSelection();
-          if (resetEl && sel) {
-            pushVditorUndo();
-            const anchorEl =
-              sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
-            const blockEl =
-              (anchorEl?.closest('table, ul, ol, blockquote, p, h1, h2, h3, h4, h5, h6, pre') as HTMLElement | null) ??
-              null;
-            const hr = document.createElement('hr');
-            hr.setAttribute('data-block', '0');
-            const nextP = document.createElement('p');
-            nextP.innerHTML = '<br>';
-            if (blockEl && resetEl.contains(blockEl) && blockEl.parentNode === resetEl) {
-              resetEl.insertBefore(hr, blockEl.nextSibling);
-              resetEl.insertBefore(nextP, hr.nextSibling);
-            } else {
-              resetEl.appendChild(hr);
-              resetEl.appendChild(nextP);
-            }
-            const range = document.createRange();
-            range.selectNodeContents(nextP);
-            range.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            pushVditorUndo();
-            onChangeRef.current(instance.getValue());
-          }
-          return;
-        }
-        const snippet = FORMAT_SNIPPETS[cmd];
-        if (snippet) {
-          instance.focus();
-          instance.insertValue(snippet);
-        }
+        if (!instance || !el || !isReadyRef.current || readOnlyRef.current) return;
+        applyFormatAction(cmd, instance, el, toggleInlineWrap, pushVditorUndo, (md) => onChangeRef.current(md));
       },
       getValue() {
         const instance = vditorRef.current;
@@ -212,135 +146,17 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       insertTableWithSize(cols: number, rows: number) {
         const instance = vditorRef.current;
         const el = containerRef.current;
-        if (!instance || !el || !isReadyRef.current) return;
-        const safeCols = Math.max(1, Math.min(20, cols));
-        const safeRows = Math.max(1, Math.min(50, rows));
-
-        const sel = window.getSelection();
-        const anchorEl =
-          sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-        const existingTable = anchorEl?.closest('table');
-        if (existingTable && el.contains(existingTable)) {
-          const p = document.createElement('p');
-          p.innerHTML = '<br>';
-          existingTable.parentNode?.insertBefore(p, existingTable.nextSibling);
-          const range = document.createRange();
-          range.selectNodeContents(p);
-          range.collapse(true);
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-        }
-
-        const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
-        const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
-        const bodyRows = Array.from({ length: safeRows }, () =>
-          `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
-        );
-        instance.focus();
-        instance.insertValue(`\n${[header, sep, ...bodyRows].join('\n')}\n`);
+        if (!instance || !el || !isReadyRef.current || readOnlyRef.current) return;
+        insertTableWithSizeAction(cols, rows, instance, el);
       },
       findMatches(findStr: string, opts?: FindOptions) {
-        const el = containerRef.current;
-        if (!el || !findStr) {
-          (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights?.delete('vcat-find');
-          return 0;
-        }
-        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
-        if (!resetEl) return 0;
-
-        let re: RegExp;
-        try {
-          const flags = opts?.caseSensitive ? 'g' : 'gi';
-          const escaped = opts?.regex ? findStr : findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = opts?.wholeWord ? `\\b${escaped}\\b` : escaped;
-          re = new RegExp(pattern, flags);
-        } catch {
-          return 0;
-        }
-
-        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-        const ranges: Range[] = [];
-        let curr = walker.nextNode() as Text | null;
-        while (curr) {
-          const val = curr.nodeValue || '';
-          re.lastIndex = 0;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(val)) !== null) {
-            if (m[0].length === 0) {
-              re.lastIndex++;
-              continue;
-            }
-            const r = document.createRange();
-            r.setStart(curr, m.index);
-            r.setEnd(curr, m.index + m[0].length);
-            ranges.push(r);
-          }
-          curr = walker.nextNode() as Text | null;
-        }
-
-        const cssApi = (globalThis as unknown as {
-          CSS?: { highlights?: Map<string, unknown> };
-          Highlight?: new (...ranges: Range[]) => unknown;
-        });
-        if (cssApi.CSS?.highlights && cssApi.Highlight) {
-          if (ranges.length > 0) {
-            cssApi.CSS.highlights.set('vcat-find', new cssApi.Highlight(...ranges));
-          } else {
-            cssApi.CSS.highlights.delete('vcat-find');
-          }
-        }
-        return ranges.length;
+        return findMatchesInEl(containerRef.current, findStr, opts);
       },
       clearFindHighlights() {
-        (globalThis as { CSS?: { highlights?: Map<string, unknown> } }).CSS?.highlights?.delete('vcat-find');
+        clearFindHighlightsInDoc();
       },
       jumpToMatch(findStr: string, targetIndex: number, opts?: FindOptions) {
-        const el = containerRef.current;
-        if (!el || !findStr) return 0;
-        const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
-        if (!resetEl) return 0;
-
-        let re: RegExp;
-        try {
-          const flags = opts?.caseSensitive ? 'g' : 'gi';
-          const escaped = opts?.regex ? findStr : findStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = opts?.wholeWord ? `\\b${escaped}\\b` : escaped;
-          re = new RegExp(pattern, flags);
-        } catch {
-          return 0;
-        }
-
-        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-        const ranges: Range[] = [];
-        let curr = walker.nextNode() as Text | null;
-        while (curr) {
-          const val = curr.nodeValue || '';
-          re.lastIndex = 0;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(val)) !== null) {
-            if (m[0].length === 0) {
-              re.lastIndex++;
-              continue;
-            }
-            const r = document.createRange();
-            r.setStart(curr, m.index);
-            r.setEnd(curr, m.index + m[0].length);
-            ranges.push(r);
-          }
-          curr = walker.nextNode() as Text | null;
-        }
-        if (ranges.length === 0) return 0;
-        const safeIdx = ((targetIndex % ranges.length) + ranges.length) % ranges.length;
-        const hitRange = ranges[safeIdx];
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(hitRange);
-        const parentEl =
-          hitRange.startContainer instanceof Element
-            ? hitRange.startContainer
-            : hitRange.startContainer.parentElement;
-        parentEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return ranges.length;
+        return jumpToMatchInEl(containerRef.current, findStr, targetIndex, opts);
       },
       replaceAllText(findStr: string, replaceStr: string, opts?: FindOptions) {
         const instance = vditorRef.current;
@@ -372,40 +188,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       },
       applyImageAction(action: string) {
-        const imgEl =
-          (activeZoomImgRef.current instanceof HTMLImageElement ? activeZoomImgRef.current : null) ??
-          (lastSelectionElRef.current?.closest('img') as HTMLImageElement | null);
-        if (!imgEl) return;
-
-        if (action === 'preview') {
-          setLightboxItem({
-            type: 'image',
-            src: imgEl.src,
-            alt: imgEl.alt,
-          });
-          return;
-        }
-
-        if (action.startsWith('scale:')) {
-          const pct = Number(action.slice(6));
-          if (pct > 0 && pct <= 100) {
-            imgEl.dataset.vcatScale = String(pct);
-            imgEl.style.maxWidth = `${pct}%`;
-            imgEl.style.width = `${pct}%`;
-          }
-          return;
-        }
-
-        if (action === 'delete') {
-          pushVditorUndo();
-          const imgNode = imgEl.closest('.vditor-ir__node[data-type="img"]') ?? imgEl;
-          imgNode.remove();
-          if (activeZoomImgRef.current === imgEl) {
-            activeZoomImgRef.current = null;
-          }
-          pushVditorUndo();
-          onChangeRef.current(vditorRef.current?.getValue() ?? value);
-        }
+        applyImageActionInEditor(
+          action,
+          activeZoomImgRef,
+          lastSelectionElRef,
+          setLightboxItem,
+          pushVditorUndo,
+          () => onChangeRef.current(vditorRef.current?.getValue() ?? value)
+        );
       },
     }));
 
@@ -464,6 +254,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         },
         // Debounce React state sync so typing & Cmd+Z undo remain instant on 68KB+ docs
         input: (md) => {
+          detectSlashCommand();
           if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
           debounceTimerRef.current = setTimeout(() => {
             onChangeRef.current(md);
@@ -635,30 +426,110 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const toggleLightboxFromActive = () => {
+        const activeEl = activeZoomImgRef.current as HTMLElement | null;
+        if (!activeEl) return;
+        setLightboxItem((prev) => {
+          if (prev) return null;
+          if (activeEl.classList.contains('language-mermaid')) {
+            return { type: 'mermaid', svgHtml: activeEl.innerHTML };
+          }
+          const img = activeEl as HTMLImageElement;
+          return { type: 'image', src: img.src, alt: img.alt };
+        });
+      };
+
+      let heavyEnhanceTimer: ReturnType<typeof setTimeout> | null = null;
+      const runHeavyEnhance = () => {
+        rewriteLocalImagesSync();
+        ensureCodeBlockInfoMarkers();
+        cleanStrayCodeBlockFences();
+        cleanEmptyInlineNodes(el);
+        normalizeEmojiAndCalloutIcons(el);
+        applyCodeSyntaxHighlights(el);
+        renderLatexBlocks();
+        rerenderBrokenMermaid();
+        const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
+        htmlNodes.forEach((node) => {
+          const rawText = (node.textContent || '').trim();
+          if (rawText === '</details>' || rawText === '<details>') {
+            node.classList.add('vcat-details-boundary');
+          } else {
+            node.classList.remove('vcat-details-boundary');
+          }
+        });
+      };
+
+      const suppressPreviewClickUntilRef = { current: 0 };
+
       const enhanceDom = () => {
+        if (Date.now() < suppressPreviewClickUntilRef.current) return;
         rewriteLocalImagesSync();
         positionLanguageHint();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
-          rewriteLocalImagesSync();
+          if (Date.now() < suppressPreviewClickUntilRef.current) return;
           positionLanguageHint();
           ensureCodeBlockInfoMarkers();
-          cleanStrayCodeBlockFences();
-          cleanEmptyInlineNodes(el);
-          normalizeEmojiAndCalloutIcons(el);
-          applyCodeSyntaxHighlights(el);
-          renderLatexBlocks();
-          rerenderBrokenMermaid();
-          const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
-          htmlNodes.forEach((node) => {
-            const rawText = (node.textContent || '').trim();
-            if (rawText === '</details>' || rawText === '<details>') {
-              node.classList.add('vcat-details-boundary');
-            } else {
-              node.classList.remove('vcat-details-boundary');
-            }
-          });
         });
+        if (heavyEnhanceTimer) clearTimeout(heavyEnhanceTimer);
+        heavyEnhanceTimer = setTimeout(runHeavyEnhance, 140);
+      };
+
+      const detectSlashCommand = () => {
+        if (readOnlyRef.current) return;
+        const sel = window.getSelection();
+        if (!sel || !sel.isCollapsed || !sel.anchorNode || !el.contains(sel.anchorNode)) {
+          if (slashStateRef.current.open) setSlashState((s) => ({ ...s, open: false }));
+          return;
+        }
+        const anchorNode = sel.anchorNode;
+        const anchorEl = anchorNode instanceof Element ? anchorNode : anchorNode.parentElement;
+        if (!anchorEl || anchorEl.closest('pre:not(.vditor-reset), code, .vditor-ir__marker--info')) {
+          if (slashStateRef.current.open) setSlashState((s) => ({ ...s, open: false }));
+          return;
+        }
+        if (anchorNode.nodeType !== Node.TEXT_NODE) {
+          if (slashStateRef.current.open) setSlashState((s) => ({ ...s, open: false }));
+          return;
+        }
+        const before = (anchorNode.nodeValue || '').slice(0, sel.anchorOffset).replace(/\u200b/g, '');
+        const match = before.match(/(?:^|\s)\/([a-zA-Z0-9\u4e00-\u9fa5_-]{0,20})$/);
+        if (!match) {
+          if (slashStateRef.current.open) setSlashState((s) => ({ ...s, open: false }));
+          return;
+        }
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        const x = rect.left || 80;
+        const y = (rect.bottom || 120) + 6;
+        setSlashState((prev) => ({
+          open: true,
+          x,
+          y,
+          query: match[1],
+          selectedIndex: prev.query === match[1] ? prev.selectedIndex : 0,
+        }));
+      };
+
+      const applySlashCommand = (item: SlashCommandItem) => {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && sel.anchorNode?.nodeType === Node.TEXT_NODE) {
+          const tNode = sel.anchorNode as Text;
+          const raw = tNode.nodeValue || '';
+          const before = raw.slice(0, sel.anchorOffset);
+          const m = before.match(/\/[a-zA-Z0-9\u4e00-\u9fa5_-]{0,20}$/);
+          if (m && m.index !== undefined) {
+            const delRange = document.createRange();
+            delRange.setStart(tNode, m.index);
+            delRange.setEnd(tNode, sel.anchorOffset);
+            delRange.deleteContents();
+            sel.removeAllRanges();
+            sel.addRange(delRange);
+          }
+        }
+        setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
+        instance.focus();
+        instance.insertValue(item.insertText);
       };
 
       const observer = new MutationObserver(enhanceDom);
@@ -671,319 +542,71 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       });
       enhanceDom();
 
+      const lastActiveInfoMarkerRef = {
+        get current() {
+          return lastActiveInfoMarker;
+        },
+        set current(v: HTMLElement | null) {
+          lastActiveInfoMarker = v;
+        },
+      };
+      const hintNavigatedByArrowRef = {
+        get current() {
+          return hintNavigatedByArrow;
+        },
+        set current(v: boolean) {
+          hintNavigatedByArrow = v;
+        },
+      };
+
       const handleKeyDownCapture = (e: KeyboardEvent) => {
-        const targetNode = e.target as HTMLElement | null;
-        if (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA')) {
-          return;
-        }
-
-        // Inside code block language tag (.vditor-ir__marker--info):
-        // Use selection anchorNode (e.target in contenteditable is outer .vditor-reset, not inner span!)
-        const selInfo = window.getSelection();
-        const selAnchorEl =
-          selInfo?.anchorNode instanceof Element
-            ? selInfo.anchorNode
-            : selInfo?.anchorNode?.parentElement;
-        const infoMarker =
-          (selAnchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
-          (targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null);
-        if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-          if (lastActiveInfoMarker !== infoMarker) {
-            hintNavigatedByArrow = false;
-          }
-          lastActiveInfoMarker = infoMarker;
-          const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
-          const hintButtons = hintEl
-            ? Array.from(hintEl.querySelectorAll('button'))
-            : [];
-          const hintVisible = Boolean(
-            hintEl && hintEl.style.display !== 'none' && hintButtons.length > 0
-          );
-
-          if (e.key === 'Backspace' || e.key === 'Delete') {
-            hintNavigatedByArrow = false;
-            setVditorRecentLang('');
-            const curLangText = (infoMarker.textContent || '').replace(/\u200b/g, '');
-            if (e.key === 'Backspace' && curLangText.length === 0) {
-              // Keep the marker span intact when already empty so Backspace never deletes the badge node
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              if (infoMarker.textContent !== '\u200b') {
-                infoMarker.textContent = '\u200b';
-              }
-              return;
+        processVditorKeyDownCapture(e, {
+          el,
+          instance,
+          readOnly: readOnlyRef.current,
+          autoPairBrackets: prefsRef.current.autoPairSymbols,
+          slashMenuOpen: slashStateRef.current.open,
+          lastActiveInfoMarkerRef,
+          hintNavigatedByArrowRef,
+          activeZoomImgRef,
+          setVditorRecentLang,
+          commitCodeBlockLanguage,
+          pushVditorUndo,
+          toggleInlineWrap,
+          rerenderBrokenMermaid,
+          onChangeValue: (md) => onChangeRef.current(md),
+          toggleLightboxFromActive,
+          closeLightbox: () => setLightboxItem(null),
+          onSlashKeyDown: (ev) => {
+            const items = filterSlashCommands(slashStateRef.current.query);
+            if (ev.key === 'Escape') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              setSlashState((s) => ({ ...s, open: false }));
+              return true;
             }
-            queueMicrotask(() => {
-              if ((infoMarker.textContent || '').replace(/\u200b/g, '').trim() === '') {
-                setVditorRecentLang('');
-                if (infoMarker.textContent !== '\u200b') {
-                  infoMarker.textContent = '\u200b';
-                }
-                infoMarker.closest('.vditor-ir__node[data-type="code-block"]')?.setAttribute('data-CodeLang', 'text');
-              }
-            });
-          }
-
-          if (hintVisible && (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowLeft')) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            hintNavigatedByArrow = true;
-            const curIdx = hintButtons.findIndex((b) => b.classList.contains('vditor-hint--current'));
-            const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
-            const nextIdx =
-              curIdx < 0
-                ? delta > 0
-                  ? 0
-                  : hintButtons.length - 1
-                : (curIdx + delta + hintButtons.length) % hintButtons.length;
-            hintButtons.forEach((b, i) => b.classList.toggle('vditor-hint--current', i === nextIdx));
-            hintButtons[nextIdx]?.scrollIntoView({ block: 'nearest' });
-            return;
-          }
-
-          if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            const rawCurText = (infoMarker.textContent || '').replace(/\u200b/g, '').trim();
-            const shouldUseHint = hintVisible && (rawCurText.length > 0 || hintNavigatedByArrow);
-            const chosenBtn = shouldUseHint
-              ? hintButtons.find((b) => b.classList.contains('vditor-hint--current')) ?? hintButtons[0]
-              : null;
-            const rawChoice = chosenBtn
-              ? chosenBtn.getAttribute('data-value') || chosenBtn.textContent || ''
-              : rawCurText;
-            commitCodeBlockLanguage(infoMarker, rawChoice);
-            return;
-          }
-
-          if (e.key === 'Escape') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            commitCodeBlockLanguage(infoMarker, infoMarker.textContent || '');
-            return;
-          }
-
-          if (e.key.length === 1) {
-            hintNavigatedByArrow = false;
-          }
-        }
-
-        // Space key toggles Lightbox when an image or Mermaid diagram is currently selected
-        // (and prevents page-down scrolling when pressing Space repeatedly!)
-        if (
-          e.key === ' ' &&
-          !e.metaKey &&
-          !e.ctrlKey &&
-          !e.altKey &&
-          !e.shiftKey &&
-          activeZoomImgRef.current &&
-          el.contains(activeZoomImgRef.current)
-        ) {
-          e.preventDefault();
-          e.stopPropagation();
-          const activeEl = activeZoomImgRef.current as HTMLElement;
-          setLightboxItem((prev) => {
-            if (prev) return null;
-            if (activeEl.classList.contains('language-mermaid')) {
-              return { type: 'mermaid', svgHtml: activeEl.innerHTML };
+            if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              if (items.length === 0) return true;
+              const delta = ev.key === 'ArrowDown' ? 1 : -1;
+              setSlashState((s) => ({
+                ...s,
+                selectedIndex: (s.selectedIndex + delta + items.length) % items.length,
+              }));
+              return true;
             }
-            const img = activeEl as HTMLImageElement;
-            return { type: 'image', src: img.src, alt: img.alt };
-          });
-          return;
-        }
-
-        // Backspace or Delete removes a selected image immediately
-        if (
-          (e.key === 'Backspace' || e.key === 'Delete') &&
-          activeZoomImgRef.current &&
-          el.contains(activeZoomImgRef.current) &&
-          activeZoomImgRef.current.tagName === 'IMG'
-        ) {
-          e.preventDefault();
-          e.stopPropagation();
-          pushVditorUndo();
-          const activeImg = activeZoomImgRef.current;
-          const imgWrapper = activeImg.closest('.vditor-ir__node[data-type="img"]') ?? activeImg;
-          imgWrapper.remove();
-          activeZoomImgRef.current = null;
-          setLightboxItem(null);
-          pushVditorUndo();
-          onChangeRef.current(instance.getValue());
-          return;
-        }
-
-        if (!el.contains(targetNode)) return;
-
-        const sel = window.getSelection();
-        const anchorEl =
-          sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-        const activeCell = anchorEl?.closest('td, th') as HTMLTableCellElement | null;
-
-        // Prevent accidental table column splitting or row corruption inside table cells
-        if (activeCell && el.contains(activeCell)) {
-          // Allow Backspace/Delete inside a table cell to delete an image inside that cell
-          if (e.key === 'Backspace' || e.key === 'Delete') {
-            const cellImg = activeCell.querySelector('.vditor-ir__node[data-type="img"], img');
-            if (cellImg && (!sel || sel.isCollapsed)) {
-              const visibleText = Array.from(activeCell.childNodes)
-                .filter((n) => !(n instanceof HTMLElement && (n.matches('.vditor-ir__node[data-type="img"], img') || n.querySelector('img'))))
-                .map((n) => n.textContent || '')
-                .join('')
-                .trim();
-              if (!visibleText) {
-                e.preventDefault();
-                e.stopPropagation();
-                pushVditorUndo();
-                cellImg.remove();
-                pushVditorUndo();
-                onChangeRef.current(instance.getValue());
-                return;
-              }
+            if (ev.key === 'Enter' || ev.key === 'Tab') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              ev.stopImmediatePropagation();
+              const chosen = items[slashStateRef.current.selectedIndex] ?? items[0];
+              if (chosen) applySlashCommand(chosen);
+              return true;
             }
-          }
-          if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            const tr = activeCell.parentElement as HTMLTableRowElement | null;
-            const table = activeCell.closest('table');
-            if (tr && table) {
-              const allRows = Array.from(table.querySelectorAll('tr'));
-              const rIdx = allRows.indexOf(tr);
-              const cIdx = Array.from(tr.cells).indexOf(activeCell);
-              const nextRow = allRows[rIdx + 1];
-              const targetCell = nextRow?.cells[cIdx] ?? nextRow?.cells[0];
-              if (targetCell && sel) {
-                const range = document.createRange();
-                range.selectNodeContents(targetCell);
-                range.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-            }
-            return;
-          }
-          // Block Vditor built-in table column/row split hotkeys (Cmd/Ctrl+Shift+L/R/U/D/Enter)
-          if ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey || e.key === 'Enter')) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-        }
-
-        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
-          const k = e.key.toLowerCase();
-          if (k === 'b' || k === 'i') {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            if (e.repeat) return;
-            toggleInlineWrap(k === 'b' ? 'bold' : 'italic');
-            return;
-          } else if (k === 'z' || k === 'y') {
-            setTimeout(rerenderBrokenMermaid, 50);
-          }
-        } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
-          setTimeout(rerenderBrokenMermaid, 50);
-          return;
-        }
-
-        // Auto-pair matching brackets/quotes when enabled (exclude backtick ` so typing ``` code fences works natively)
-        const PAIR_MAP: Record<string, string> = {
-          '(': ')',
-          '[': ']',
-          '{': '}',
-          '"': '"',
-          "'": "'",
-          '（': '）',
-          '【': '】',
-          '「': '」',
-        };
-        const CLOSE_CHARS = new Set(Object.values(PAIR_MAP));
-        if (
-          prefsRef.current.autoPairSymbols &&
-          !e.metaKey &&
-          !e.ctrlKey &&
-          !e.altKey &&
-          !e.isComposing &&
-          targetNode &&
-          el.contains(targetNode) &&
-          !selAnchorEl?.closest('.vditor-ir__marker--info') &&
-          !targetNode.closest('.vditor-ir__marker--info')
-        ) {
-          const selNow = window.getSelection();
-          if (selNow && selNow.rangeCount > 0) {
-            const range = selNow.getRangeAt(0);
-
-            // Overtype skip: if the next character immediately after the collapsed caret matches the typed closing symbol, step over it
-            if (CLOSE_CHARS.has(e.key) && range.collapsed) {
-              const container = range.startContainer;
-              const offset = range.startOffset;
-              if (container.nodeType === Node.TEXT_NODE) {
-                const text = container.nodeValue || '';
-                if (text.charAt(offset) === e.key) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.stopImmediatePropagation();
-                  const nextRange = document.createRange();
-                  nextRange.setStart(container, offset + 1);
-                  nextRange.collapse(true);
-                  selNow.removeAllRanges();
-                  selNow.addRange(nextRange);
-                  return;
-                }
-                if (
-                  offset === text.length &&
-                  container.nextSibling?.nodeType === Node.TEXT_NODE &&
-                  (container.nextSibling.nodeValue || '').startsWith(e.key)
-                ) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.stopImmediatePropagation();
-                  const nextRange = document.createRange();
-                  nextRange.setStart(container.nextSibling, 1);
-                  nextRange.collapse(true);
-                  selNow.removeAllRanges();
-                  selNow.addRange(nextRange);
-                  return;
-                }
-              }
-            }
-
-            if (PAIR_MAP[e.key]) {
-              const selectedText = range.toString();
-              const closeChar = PAIR_MAP[e.key];
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              if (selectedText) {
-                const wrapped = `${e.key}${selectedText}${closeChar}`;
-                const textNode = document.createTextNode(wrapped);
-                range.deleteContents();
-                range.insertNode(textNode);
-                const nextRange = document.createRange();
-                nextRange.setStart(textNode, 1);
-                nextRange.setEnd(textNode, 1 + selectedText.length);
-                selNow.removeAllRanges();
-                selNow.addRange(nextRange);
-              } else {
-                const textNode = document.createTextNode(`${e.key}${closeChar}`);
-                range.deleteContents();
-                range.insertNode(textNode);
-                const nextRange = document.createRange();
-                nextRange.setStart(textNode, 1);
-                nextRange.collapse(true);
-                selNow.removeAllRanges();
-                selNow.addRange(nextRange);
-              }
-              onChangeRef.current(instance.getValue());
-            }
-          }
-        }
+            return false;
+          },
+        });
       };
 
       // Single-click image or Mermaid diagram opens Lightbox; single-click LaTeX focuses silently without source flash; double-click edits source
@@ -1004,8 +627,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         expanded.forEach((node) => {
           if (node !== exceptBlock) {
             node.classList.remove('vditor-ir__node--expand');
-            const previewPre = node.querySelector('pre.vditor-ir__preview') as HTMLElement | null;
-            if (previewPre) previewPre.style.display = '';
             changed = true;
           }
         });
@@ -1019,229 +640,29 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      const getPreviewBlockTarget = (
-        target: HTMLElement | null
-      ): { kind: 'mermaid' | 'math'; previewPre: HTMLElement; irNode: HTMLElement } | null => {
-        if (!target || target.closest('.vditor-copy')) return null;
-        const irNode = target.closest('.vditor-ir__node') as HTMLElement | null;
-        if (!irNode || irNode.classList.contains('vditor-ir__node--expand')) return null;
-        const previewPre =
-          (target.closest('pre.vditor-ir__preview') as HTMLElement | null) ??
-          (irNode.querySelector('pre.vditor-ir__preview') as HTMLElement | null);
-        if (!previewPre) return null;
-        const nodeType = irNode.getAttribute('data-type');
-        if (nodeType === 'math-block') {
-          return { kind: 'math', previewPre, irNode };
-        }
-        if (nodeType === 'code-block') {
-          const lang = getCodeBlockLang(irNode);
-          if (lang === 'mermaid') {
-            return { kind: 'mermaid', previewPre, irNode };
-          }
-          if (lang === 'latex' || lang === 'tex' || lang === 'math') {
-            return { kind: 'math', previewPre, irNode };
-          }
-        }
-        return null;
+      const handledGapClickRef = { current: false };
+
+      const pointerCtx: PointerEventContext = {
+        el,
+        instance,
+        get readOnly() {
+          return readOnlyRef.current;
+        },
+        prefsRef,
+        lastActiveInfoMarkerRef,
+        lastSelectionElRef,
+        activeZoomImgRef,
+        mermaidClickTimerRef,
+        handledGapClickRef,
+        suppressPreviewClickUntilRef,
+        setLightboxItem,
+        commitCodeBlockLanguage,
+        clearActiveZoomTarget,
+        collapseExpandedCodeBlocks,
+        cleanupUnusedTempGapParagraphs,
       };
 
-      let handledGapClick = false;
-      let suppressPreviewClickUntil = 0;
-
-      const handleMouseDownCapture = (e: MouseEvent) => {
-        handledGapClick = false;
-        if (e.button !== 0) return;
-        const target = e.target as HTMLElement | null;
-
-        // Intercept language autocomplete click BEFORE focus leaves contenteditable marker--info
-        const hintBtn = target?.closest('.vditor-hint button') as HTMLElement | null;
-        if (hintBtn) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          const rawVal = hintBtn.getAttribute('data-value') || hintBtn.textContent || '';
-          const selNow = window.getSelection();
-          const selEl =
-            selNow?.anchorNode instanceof Element
-              ? selNow.anchorNode
-              : selNow?.anchorNode?.parentElement;
-          const activeInfo =
-            (selEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
-            (lastActiveInfoMarker && el.contains(lastActiveInfoMarker) ? lastActiveInfoMarker : null) ??
-            (el.querySelector('.vditor-ir__node--expand .vditor-ir__marker--info') as HTMLElement | null) ??
-            (el.querySelector('.vditor-ir__marker--info') as HTMLElement | null);
-          if (activeInfo && el.contains(activeInfo)) {
-            commitCodeBlockLanguage(activeInfo, rawVal);
-          }
-          return;
-        }
-
-        // Clicking the 3 macOS dots or language badge at top-left of a code block expands & focuses its language tag
-        const codeBlockNode = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
-        if (codeBlockNode) {
-          const clickedInfo = target?.closest('.vditor-ir__marker--info') as HTMLElement | null;
-          const rect = codeBlockNode.getBoundingClientRect();
-          const relX = e.clientX - rect.left;
-          const relY = e.clientY - rect.top;
-          if (clickedInfo || (relX >= 4 && relX <= 68 && relY >= 4 && relY <= 30)) {
-            const infoSpan = codeBlockNode.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
-            if (infoSpan) {
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              lastActiveInfoMarker = infoSpan;
-              clearActiveZoomTarget();
-              collapseExpandedCodeBlocks(codeBlockNode);
-              codeBlockNode.classList.add('vditor-ir__node--expand');
-              const sel = window.getSelection();
-              if (sel) {
-                const range = document.createRange();
-                range.selectNodeContents(infoSpan);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-              return;
-            }
-          }
-        }
-
-        const imgEl = target?.closest('img') as HTMLImageElement | null;
-        const previewTarget = imgEl ? null : getPreviewBlockTarget(target);
-
-        if (previewTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          cleanupUnusedTempGapParagraphs(target);
-          if (mermaidClickTimerRef.current) {
-            clearTimeout(mermaidClickTimerRef.current);
-            mermaidClickTimerRef.current = null;
-          }
-          collapseExpandedCodeBlocks(previewTarget.irNode);
-
-          // Double-click any rendered LaTeX / Mermaid card to expand source editor intentionally
-          if (e.detail >= 2) {
-            suppressPreviewClickUntil = Date.now() + 350;
-            clearActiveZoomTarget();
-            setLightboxItem(null);
-            previewTarget.previewPre.style.display = 'none';
-            previewTarget.irNode.classList.add('vditor-ir__node--expand');
-            (el.querySelector('.vditor-ir .vditor-reset') as HTMLElement | null)?.focus({ preventScroll: true });
-            const editEl =
-              (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null) ??
-              (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre') as HTMLElement | null);
-            if (editEl) {
-              const sel = window.getSelection();
-              if (sel) {
-                const range = document.createRange();
-                range.selectNodeContents(editEl);
-                range.collapse(true);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-            }
-            return;
-          }
-
-          clearActiveZoomTarget();
-          previewTarget.irNode.classList.add('vcat-mermaid-active');
-
-          if (previewTarget.kind === 'mermaid') {
-            const mermaidDiv = previewTarget.previewPre.querySelector('div.language-mermaid') as HTMLElement | null;
-            if (mermaidDiv) {
-              activeZoomImgRef.current = mermaidDiv as unknown as HTMLImageElement;
-              const svgSnapshot = mermaidDiv.innerHTML;
-              mermaidClickTimerRef.current = setTimeout(() => {
-                mermaidClickTimerRef.current = null;
-                setLightboxItem({
-                  type: 'mermaid',
-                  svgHtml: svgSnapshot,
-                });
-              }, 200);
-            }
-          }
-          return;
-        }
-
-        // Clicking a vertical gap between blocks or blank space below/above blocks inserts/focuses an editable paragraph
-        // Measure child rects BEFORE collapsing any expanded code blocks so click Y matches what the user saw
-        if (target && target.classList.contains('vditor-reset')) {
-          const children = Array.from(target.children) as HTMLElement[];
-          const hitInsideChild = children.some((c) => {
-            const r = c.getBoundingClientRect();
-            return e.clientY >= r.top && e.clientY <= r.bottom;
-          });
-          if (!hitInsideChild) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            handledGapClick = true;
-            clearActiveZoomTarget();
-            const nextChild = children.find((c) => c.getBoundingClientRect().top > e.clientY) ?? null;
-            const prevChild = nextChild ? (nextChild.previousElementSibling as HTMLElement | null) : children[children.length - 1] ?? null;
-            collapseExpandedCodeBlocks(null);
-            const isEmptyPara = (node: HTMLElement | null) =>
-              Boolean(node && node.tagName === 'P' && (node.textContent || '').replace(/\u200b/g, '').trim() === '');
-
-            let targetPara: HTMLElement | null = null;
-            if (isEmptyPara(prevChild)) {
-              targetPara = prevChild;
-            } else if (isEmptyPara(nextChild)) {
-              targetPara = nextChild;
-            } else {
-              targetPara = document.createElement('p');
-              targetPara.setAttribute('data-block', '0');
-              targetPara.setAttribute('data-vcat-temp-gap', '1');
-              targetPara.textContent = '\u200b';
-              if (nextChild) {
-                target.insertBefore(targetPara, nextChild);
-              } else {
-                target.appendChild(targetPara);
-              }
-            }
-
-            cleanupUnusedTempGapParagraphs(targetPara);
-            target.focus({ preventScroll: true });
-            if (targetPara) {
-              if (!targetPara.firstChild) {
-                targetPara.textContent = '\u200b';
-              }
-              const sel = window.getSelection();
-              if (sel) {
-                const range = document.createRange();
-                range.selectNodeContents(targetPara);
-                range.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
-            }
-            return;
-          }
-        }
-
-        cleanupUnusedTempGapParagraphs(target);
-        collapseExpandedCodeBlocks(codeBlockNode ?? target?.closest('.vditor-ir__node[data-type="math-block"]'));
-
-        if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
-          clearActiveZoomTarget();
-        } else if (!imgEl) {
-          el.querySelectorAll('.vditor-ir__node.vcat-mermaid-active').forEach((n) => {
-            n.classList.remove('vcat-mermaid-active');
-          });
-        }
-        if (imgEl) {
-          e.preventDefault();
-          e.stopPropagation();
-          activeZoomImgRef.current = imgEl;
-          imgEl.style.outline = '2px solid var(--accent)';
-          imgEl.style.outlineOffset = '2px';
-          setLightboxItem({
-            type: 'image',
-            src: imgEl.src,
-            alt: imgEl.alt,
-          });
-        }
-      };
+      const handleMouseDownCapture = (e: MouseEvent) => handleEditorMouseDownCapture(e, pointerCtx);
 
       const handleClickCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
@@ -1252,14 +673,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.stopImmediatePropagation();
           return;
         }
-        if (handledGapClick) {
-          handledGapClick = false;
+        if (handledGapClickRef.current) {
+          handledGapClickRef.current = false;
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
           return;
         }
-        if (Date.now() < suppressPreviewClickUntil) {
+        if (Date.now() < suppressPreviewClickUntilRef.current) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -1274,71 +695,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      const handleContextMenu = (e: MouseEvent) => {
-        e.preventDefault();
-        const target = e.target as HTMLElement | null;
-        lastSelectionElRef.current = target;
-        const imgEl = target?.closest('img') as HTMLImageElement | null;
-        if (imgEl) {
-          activeZoomImgRef.current = imgEl;
-          const rawScale = Number(imgEl.dataset.vcatScale || '');
-          const rootScale = Number(
-            document.documentElement.style.getPropertyValue('--vcat-img-max-width').replace('%', '') || 50
-          );
-          const imageScale = rawScale > 0 ? rawScale : rootScale;
-          void window.electronAPI?.showEditorContextMenu?.({
-            inTable: Boolean(target?.closest('table')),
-            inImage: true,
-            imageScale,
-            hasSelection: false,
-          });
-          return;
-        }
-        const inTable = Boolean(target?.closest('table'));
-        const sel = window.getSelection();
-        const hasSelection = Boolean(sel && !sel.isCollapsed);
-        void window.electronAPI?.showEditorContextMenu?.({ inTable, hasSelection });
-      };
+      const handleContextMenu = (e: MouseEvent) => handleEditorContextMenu(e, pointerCtx);
+      const handlePasteCapture = (e: ClipboardEvent) => handleEditorPasteCapture(e, instance);
+      const handleCopyCapture = (e: ClipboardEvent) => handleEditorCopyCapture(e, el, instance, prefsRef);
 
-      const handlePasteCapture = (e: ClipboardEvent) => {
-        const html = e.clipboardData?.getData('text/html') ?? '';
-        const plain = e.clipboardData?.getData('text/plain') ?? '';
-        // Strip external editor internal HTML/SVG wrappers (e.g. .md-fences, .md-diagram, <svg)
-        // so pasting produces clean Markdown/code instead of raw HTML or black SVG boxes
-        if (plain && /(md-fences|md-diagram|mdtype=|<svg\b)/i.test(html)) {
+      const handleMouseUpCapture = (e: MouseEvent) => {
+        if (Date.now() < suppressPreviewClickUntilRef.current) {
           e.preventDefault();
           e.stopPropagation();
-          instance.insertValue(plain);
-        }
-      };
-
-      const handleCopyCapture = (e: ClipboardEvent) => {
-        const mode = prefsRef.current.copyFormat;
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !el.contains(sel.anchorNode)) return;
-        const plain = sel.toString();
-        if (!plain) return;
-
-        if (mode === 'plain') {
-          e.preventDefault();
-          e.stopPropagation();
-          e.clipboardData?.setData('text/plain', plain);
-          return;
-        }
-        if (mode === 'markdown') {
-          const frag = sel.getRangeAt(0).cloneContents();
-          const tmp = document.createElement('div');
-          tmp.appendChild(frag);
-          const md = instance.html2md(tmp.innerHTML).trim() || plain;
-          e.preventDefault();
-          e.stopPropagation();
-          e.clipboardData?.setData('text/plain', md);
+          e.stopImmediatePropagation();
         }
       };
 
       const handleDblClickCapture = (e: MouseEvent) => {
         const target = e.target as HTMLElement | null;
-        if (Date.now() < suppressPreviewClickUntil || getPreviewBlockTarget(target)) {
+        if (Date.now() < suppressPreviewClickUntilRef.current || getPreviewBlockTarget(target)) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -1376,18 +747,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('paste', handlePasteCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
+      el.addEventListener('mouseup', handleMouseUpCapture, true);
       el.addEventListener('dblclick', handleDblClickCapture, true);
       el.addEventListener('click', handleClickCapture, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
+        if (heavyEnhanceTimer) clearTimeout(heavyEnhanceTimer);
         document.removeEventListener('selectionchange', handleSelectionChange);
         el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
+        el.removeEventListener('mouseup', handleMouseUpCapture, true);
         el.removeEventListener('dblclick', handleDblClickCapture, true);
         el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);
@@ -1417,9 +791,54 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     }, [articleKey, loadSeq]);
 
+    useEffect(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const resetEl = el.querySelector('.vditor-ir .vditor-reset') as HTMLElement | null;
+      if (resetEl) {
+        resetEl.setAttribute('contenteditable', readOnly ? 'false' : 'true');
+      }
+      if (readOnly) {
+        setSlashState((s) => (s.open ? { ...s, open: false } : s));
+        el.querySelectorAll('.vditor-ir__node--expand').forEach((n) => n.classList.remove('vditor-ir__node--expand'));
+      }
+    }, [readOnly, articleKey, loadSeq]);
+
+    const slashItems = filterSlashCommands(slashState.query);
+
     return (
       <>
-        <div ref={containerRef} className="h-full w-full" />
+        <div ref={containerRef} className={`h-full w-full ${readOnly ? 'vcat-readonly' : ''}`} />
+        <SlashCommandMenu
+          open={slashState.open && !readOnly}
+          x={slashState.x}
+          y={slashState.y}
+          query={slashState.query}
+          items={slashItems}
+          selectedIndex={Math.min(slashState.selectedIndex, Math.max(0, slashItems.length - 1))}
+          onHoverIndex={(idx) => setSlashState((s) => ({ ...s, selectedIndex: idx }))}
+          onSelect={(item) => {
+            const instance = vditorRef.current;
+            if (!instance) return;
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0 && sel.anchorNode?.nodeType === Node.TEXT_NODE) {
+              const tNode = sel.anchorNode as Text;
+              const before = (tNode.nodeValue || '').slice(0, sel.anchorOffset);
+              const m = before.match(/\/[a-zA-Z0-9\u4e00-\u9fa5_-]{0,20}$/);
+              if (m && m.index !== undefined) {
+                const delRange = document.createRange();
+                delRange.setStart(tNode, m.index);
+                delRange.setEnd(tNode, sel.anchorOffset);
+                delRange.deleteContents();
+                sel.removeAllRanges();
+                sel.addRange(delRange);
+              }
+            }
+            setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
+            instance.focus();
+            instance.insertValue(item.insertText);
+          }}
+        />
         <MediaLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
       </>
     );

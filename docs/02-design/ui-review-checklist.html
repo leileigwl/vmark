@@ -312,6 +312,42 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R29_1",
+            title: "R29-1. LaTeX / Mermaid 双击进入源码彻底无闪烁 + ### 输入即时响应不卡顿",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794857627633_a22e25d9.png",
+            desc: "新增 mouseup 捕获拦截与 CSS 纯态切换彻底消除双击闪烁；enhanceDom 拆分为轻量即时 + 140ms 防抖重渲染，输入 ### fjsl 即时响应。",
+            plan: "请双击 LaTeX/Mermaid 卡片确认零闪烁；在长文章内输入 ### fjsl 确认毫秒级响应。"
+          },
+          {
+            id: "R29_2",
+            title: "R29-2. 左侧删除支持撤销/重做 + 鼠标左键拖拽框选批量文件",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794856891766_868c5b63.png",
+            desc: "App.tsx 支持单删与批量删除的文件内容快照与撤销恢复；Sidebar.tsx 支持从列表空白区按住左键拖拽蓝框批量选中文件。",
+            plan: "请尝试删除文件后按 Cmd+Z/点撤销按钮恢复；并在侧边栏空白处左键拖拽框选多个文件。"
+          },
+          {
+            id: "R29_3",
+            title: "R29-3. / 斜杠命令菜单（支持拼音/汉字/英文搜索、↑↓ Enter/Tab 选择）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794857774299_52f57acb.jpg",
+            desc: "新增 slashCommands.ts 与 SlashCommandMenu.tsx，输入 /bg、/biaoge、/表格、/gs 等均可上下键筛选并一键插入表格/公式/代码块/警告框/列表等。",
+            plan: "请在正文输入 /bg 或 /yinyong，用上下键选择并回车插入。"
+          },
+          {
+            id: "R29_4",
+            title: "R29-4. 代码块多语言 Tab/Shift+Tab 缩进与回车自动缩进 + 只读/编辑模式切换",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794857774299_52f57acb.jpg",
+            desc: "codeBlockIndent.ts 支持 Python/C/Rust 等 4 空格与 JS/TS/YAML 等 2 空格缩进；TopBar 新增「编辑/只读」切换按钮。",
+            plan: "请在代码块内测试 Tab/Shift+Tab 与回车缩进；点击顶部栏「编辑/只读」切换只读预览模式。"
+          },
+          {
             id: "R28_1",
             title: "R28-1. 「快速打开... (⇧⌘O)」弹窗与「打开最近的文件（最多 5 篇）」可用",
             status: "done",

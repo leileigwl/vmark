@@ -84,6 +84,22 @@
    - `Sidebar.tsx` 拆出 `sidebar/sidebarTreeUtils.ts`、`sidebar/SidebarTreeNodes.tsx`、`sidebar/SidebarPopoverMenu.tsx`；`VditorEditor.tsx` 拆出 `editor/vditorDomEnhancer.ts`、`editor/languageHint.ts`。
    - 新增 `apps/desktop/tsconfig.json` 并显式标注回调类型，消除 IDE 中 `Window.electronAPI` 与隐式 `any` 报错。
 
+### Round 29（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **LaTeX / Mermaid 双击零闪烁再加固**：
+   - `VditorEditor.tsx` 新增 `handleMouseUpCapture` 拦截 `suppressPreviewClickUntilRef` 窗口期，并移除内联 `previewPre.style.display = 'none'`（纯 CSS 切换 + `enhanceDom` 抑制），彻底消除双击时 Vditor `mouseup` 与 `MutationObserver` 导致的重绘闪跳。
+2. **输入 `### fjsl` 等实时输入零卡顿**：
+   - 将 `enhanceDom()` 拆分为轻量即时同步与 140ms 防抖重增强（`runHeavyEnhance`），消除 68KB 长文档下每敲一个字符触发全量高亮/Emoji 遍历造成的数秒卡顿。
+3. **左侧边栏删除撤销（单删 & 批量删除）+ 鼠标左键拖拽框选批量文件**：
+   - `App.tsx` 的 `FileHistoryOp` 新增 `kind: 'delete'`，删除/批量删除前自动快照文件内容，支持 `Cmd/Ctrl+Z` 一键还原及 `Cmd/Ctrl+Shift+Z` 重做。
+   - `Sidebar.tsx` 文件列表支持鼠标左键在空白区拖拽拉出蓝色框选矩形，实时选中多篇文件。
+4. **`/` 斜杠命令（拼音/拼音首字母/中文/英文搜索 + `↑↓ Enter/Tab`）**：
+   - 新增 `slashCommands.ts` 与 `SlashCommandMenu.tsx`，支持标题、表格、公式块、代码块、Mermaid、警告框、提示框、引用、有序/无序/任务列表、分割线等，打 `/bg` / `/biaoge` / `/表格` 均可快速筛选插入。
+5. **代码块多语言智能缩进 + 只读/编辑模式切换**：
+   - 新增 `codeBlockIndent.ts`，支持按语言切换 2/4 空格的 `Tab` / `Shift+Tab` 缩进与 `Enter` 自动缩进。
+   - `TopBar.tsx` 新增「编辑 / 只读」切换按钮，只读模式下锁定编辑区但保留图片/Mermaid 灯箱预览。
+6. **`VditorEditor.tsx` 与 `Sidebar.tsx` 持续解耦**：
+   - 新增 `vditorFindHelpers.ts`、`editorHelpers.ts`、`vditorKeyboard.ts`、`vditorPointerEvents.ts`、`vditorCommands.ts`，`Sidebar.tsx` 784 行、`VditorEditor.tsx` 846 行。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）

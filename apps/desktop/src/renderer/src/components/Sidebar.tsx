@@ -112,6 +112,8 @@ export function Sidebar({
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
+  const fileListRef = useRef<HTMLDivElement>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const isConfirmingCreateRef = useRef(false);
 
   // Keep single selection synced with activeArticle so switching via ArticleManagerView or shortcuts never leaves two highlighted items
@@ -432,6 +434,49 @@ export function Sidebar({
               void onMoveArticle(sourcePath, '');
             }
           }}
+          onMouseDown={(e) => {
+            if (e.button !== 0 || sideTab !== 'files' || renamingPath || creatingItem) return;
+            const t = e.target as HTMLElement | null;
+            if (t?.closest('input, textarea, button')) return;
+            const startX = e.clientX;
+            const startY = e.clientY;
+            let active = false;
+            const onMove = (ev: MouseEvent) => {
+              const dx = ev.clientX - startX;
+              const dy = ev.clientY - startY;
+              if (!active && Math.hypot(dx, dy) < 6) return;
+              active = true;
+              const left = Math.min(startX, ev.clientX);
+              const top = Math.min(startY, ev.clientY);
+              const width = Math.abs(dx);
+              const height = Math.abs(dy);
+              setMarqueeRect({ left, top, width, height });
+              const container = fileListRef.current;
+              if (container) {
+                const hits: string[] = [];
+                container.querySelectorAll<HTMLElement>('[data-article-path]').forEach((row) => {
+                  const pathVal = row.dataset.articlePath;
+                  if (!pathVal) return;
+                  const r = row.getBoundingClientRect();
+                  const intersects =
+                    r.right >= left &&
+                    r.left <= left + width &&
+                    r.bottom >= top &&
+                    r.top <= top + height;
+                  if (intersects) hits.push(pathVal);
+                });
+                setSelectedPaths(hits);
+              }
+            };
+            const onUp = () => {
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+              setMarqueeRect(null);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+          ref={fileListRef}
           className="flex-1 overflow-y-auto px-1.5 py-2 outline-none"
         >
           {sideTab === 'files' && creatingItem && (
@@ -521,6 +566,7 @@ export function Sidebar({
                 return (
                   <button
                     key={art.relativePath}
+                    data-article-path={art.relativePath}
                     type="button"
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', art.relativePath)}
@@ -698,6 +744,18 @@ export function Sidebar({
           <div className="h-11 w-[3.5px] rounded-full bg-[var(--control-text-color)]/25 transition-colors group-hover:bg-[var(--accent)]" />
         </div>
       </aside>
+
+      {marqueeRect && (
+        <div
+          style={{
+            left: `${marqueeRect.left}px`,
+            top: `${marqueeRect.top}px`,
+            width: `${marqueeRect.width}px`,
+            height: `${marqueeRect.height}px`,
+          }}
+          className="pointer-events-none fixed z-50 rounded-sm border border-[var(--accent)] bg-[var(--accent)]/12"
+        />
+      )}
 
       <SidebarContextMenus
         fileContextMenu={fileContextMenu}

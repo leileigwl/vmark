@@ -1,14 +1,16 @@
-import { Clock, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
+import { Clock, Edit3, Eye, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
 import type { ArticleMeta } from '@vcat/shared';
 
 interface TopBarProps {
   activeView: 'editor' | 'manager' | 'settings';
   sidebarOpen: boolean;
   isFullscreen: boolean;
+  readOnly: boolean;
   activeArticle: ArticleMeta | null;
   liveWordCount: number;
   saveState: string;
   onToggleSidebar: () => void;
+  onToggleReadOnly: () => void;
   onOpenQuickOpen: () => void;
   onSetActiveView: (view: 'editor' | 'manager' | 'settings') => void;
   onOpenPublishModal: () => void;
@@ -19,10 +21,12 @@ export function TopBar({
   activeView,
   sidebarOpen,
   isFullscreen,
+  readOnly,
   activeArticle,
   liveWordCount,
   saveState,
   onToggleSidebar,
+  onToggleReadOnly,
   onOpenQuickOpen,
   onSetActiveView,
   onOpenPublishModal,
@@ -76,6 +80,21 @@ export function TopBar({
         <span className="mr-2 text-[11.5px] tabular-nums opacity-85">
           {liveWordCount} 词 · {saveState}
         </span>
+        {activeView === 'editor' && (
+          <button
+            type="button"
+            title={readOnly ? '当前为只读模式，点击切换回正常编辑模式' : '当前为正常编辑模式，点击切换为只读模式'}
+            onClick={onToggleReadOnly}
+            className={`mr-1 flex h-6 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium transition ${
+              readOnly
+                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]'
+            }`}
+          >
+            {readOnly ? <Eye className="h-3 w-3" /> : <Edit3 className="h-3 w-3" />}
+            <span>{readOnly ? '只读' : '编辑'}</span>
+          </button>
+        )}
         <button
           type="button"
           title="文章管理台"

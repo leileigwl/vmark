@@ -136,6 +136,7 @@ export function SidebarTreeNodes({
         return (
           <div
             key={node.path}
+            data-article-path={article?.relativePath}
             onContextMenu={(e) => {
               if (!article) return;
               e.preventDefault();

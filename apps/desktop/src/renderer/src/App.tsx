@@ -20,12 +20,18 @@ import { VditorEditor, type FindOptions, type VditorEditorHandle } from './compo
 
 type MainView = 'editor' | 'manager' | 'settings';
 type SideTab = 'files' | 'outline';
-interface FileHistoryOp {
-  kind: 'create';
-  relativePath: string;
-  previousArticlePath?: string | null;
-  content?: string;
-}
+type FileHistoryOp =
+  | {
+      kind: 'create';
+      relativePath: string;
+      previousArticlePath?: string | null;
+      content?: string;
+    }
+  | {
+      kind: 'delete';
+      items: Array<{ relativePath: string; content: string }>;
+      previousArticlePath?: string | null;
+    };
 
 const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
@@ -53,6 +59,7 @@ export default function App() {
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [readOnly, setReadOnly] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(248);
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
@@ -410,43 +417,59 @@ export default function App() {
     const op = fileUndoStack[fileUndoStack.length - 1];
     setFileUndoStack((prev) => prev.slice(0, -1));
 
-    // Optimistically remove from sidebar and switch back to the previously active file immediately
-    const remaining = articles.filter((a) => a.relativePath !== op.relativePath);
-    setArticles(remaining);
-    const restoreTarget =
-      (op.previousArticlePath && remaining.find((a) => a.relativePath === op.previousArticlePath)) ||
-      remaining[0] ||
-      null;
-
     try {
-      let snapshot = '';
-      try {
-        snapshot = await window.electronAPI.readArticle(op.relativePath);
-      } catch {
-        // ignore if file was already removed externally
-      }
+      if (op.kind === 'create') {
+        const remaining = articles.filter((a) => a.relativePath !== op.relativePath);
+        setArticles(remaining);
+        const restoreTarget =
+          (op.previousArticlePath && remaining.find((a) => a.relativePath === op.previousArticlePath)) ||
+          remaining[0] ||
+          null;
 
-      if (activeArticle?.relativePath === op.relativePath) {
-        if (restoreTarget) {
-          await openArticle(restoreTarget);
-        } else {
-          setActiveArticle(null);
-          setMarkdown('');
+        let snapshot = '';
+        try {
+          snapshot = await window.electronAPI.readArticle(op.relativePath);
+        } catch {
+          // ignore if file was already removed externally
         }
-      }
 
-      await window.electronAPI.deleteArticle(op.relativePath);
-      const list = await window.electronAPI.listArticles();
-      setArticles(list);
-      setFileRedoStack((prev) => [
-        ...prev,
-        {
-          kind: 'create',
-          relativePath: op.relativePath,
-          previousArticlePath: op.previousArticlePath,
-          content: snapshot,
-        },
-      ]);
+        if (activeArticle?.relativePath === op.relativePath) {
+          if (restoreTarget) {
+            await openArticle(restoreTarget);
+          } else {
+            setActiveArticle(null);
+            setMarkdown('');
+          }
+        }
+
+        await window.electronAPI.deleteArticle(op.relativePath);
+        const list = await window.electronAPI.listArticles();
+        setArticles(list);
+        setFileRedoStack((prev) => [
+          ...prev,
+          {
+            kind: 'create',
+            relativePath: op.relativePath,
+            previousArticlePath: op.previousArticlePath,
+            content: snapshot,
+          },
+        ]);
+      } else {
+        // Restore deleted files
+        let lastCreated: ArticleMeta | null = null;
+        for (const item of op.items) {
+          const created = await window.electronAPI.createArticle(item.relativePath);
+          await window.electronAPI.saveArticle(created.relativePath, item.content);
+          lastCreated = created;
+        }
+        const list = await window.electronAPI.listArticles();
+        setArticles(list);
+        if (lastCreated) {
+          await openArticle(lastCreated);
+          setActiveView('editor');
+        }
+        setFileRedoStack((prev) => [...prev, op]);
+      }
     } catch (err) {
       showToast(err);
     } finally {
@@ -458,21 +481,40 @@ export default function App() {
     if (fileOpBusyRef.current || fileRedoStack.length === 0) return;
     fileOpBusyRef.current = true;
     const op = fileRedoStack[fileRedoStack.length - 1];
-    const prevPath = activeArticle?.relativePath ?? op.previousArticlePath ?? null;
     setFileRedoStack((prev) => prev.slice(0, -1));
     try {
-      const created = await window.electronAPI.createArticle(op.relativePath);
-      if (op.content !== undefined) {
-        await window.electronAPI.saveArticle(created.relativePath, op.content);
+      if (op.kind === 'create') {
+        const prevPath = activeArticle?.relativePath ?? op.previousArticlePath ?? null;
+        const created = await window.electronAPI.createArticle(op.relativePath);
+        if (op.content !== undefined) {
+          await window.electronAPI.saveArticle(created.relativePath, op.content);
+        }
+        const list = await window.electronAPI.listArticles();
+        setArticles(list);
+        await openArticle(created);
+        setActiveView('editor');
+        setFileUndoStack((prev) => [
+          ...prev,
+          { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
+        ]);
+      } else {
+        const deletedSet = new Set(op.items.map((i) => i.relativePath));
+        const remaining = articles.filter((a) => !deletedSet.has(a.relativePath));
+        setArticles(remaining);
+        for (const item of op.items) {
+          await window.electronAPI.deleteArticle(item.relativePath);
+        }
+        const list = await window.electronAPI.listArticles();
+        setArticles(list);
+        if (activeArticle && deletedSet.has(activeArticle.relativePath)) {
+          if (list.length > 0) await openArticle(list[0]);
+          else {
+            setActiveArticle(null);
+            setMarkdown('');
+          }
+        }
+        setFileUndoStack((prev) => [...prev, op]);
       }
-      const list = await window.electronAPI.listArticles();
-      setArticles(list);
-      await openArticle(created);
-      setActiveView('editor');
-      setFileUndoStack((prev) => [
-        ...prev,
-        { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
-      ]);
     } catch (err) {
       showToast(err);
     } finally {
@@ -603,9 +645,21 @@ export default function App() {
         }}
         onDeleteArticle={async (art) => {
           if (!window.confirm(`确定要将「${art.relativePath}」移到废纸篓吗？`)) return;
+          const prevPath = activeArticle?.relativePath ?? null;
+          let content = '';
+          try {
+            content = await window.electronAPI.readArticle(art.relativePath);
+          } catch {
+            // ignore
+          }
           await window.electronAPI.deleteArticle(art.relativePath);
           const list = await window.electronAPI.listArticles();
           setArticles(list);
+          setFileUndoStack((prev) => [
+            ...prev,
+            { kind: 'delete', items: [{ relativePath: art.relativePath, content }], previousArticlePath: prevPath },
+          ]);
+          setFileRedoStack([]);
           if (activeArticle?.relativePath === art.relativePath) {
             if (list.length > 0) await openArticle(list[0]);
             else {
@@ -617,12 +671,28 @@ export default function App() {
         onBatchDeleteArticles={async (targets) => {
           if (targets.length === 0) return;
           if (!window.confirm(`确定要将选中的 ${targets.length} 篇文章移到废纸篓吗？`)) return;
+          const prevPath = activeArticle?.relativePath ?? null;
+          const items: Array<{ relativePath: string; content: string }> = [];
+          for (const t of targets) {
+            let content = '';
+            try {
+              content = await window.electronAPI.readArticle(t.relativePath);
+            } catch {
+              // ignore
+            }
+            items.push({ relativePath: t.relativePath, content });
+          }
           const deletedSet = new Set(targets.map((t) => t.relativePath));
           for (const t of targets) {
             await window.electronAPI.deleteArticle(t.relativePath);
           }
           const list = await window.electronAPI.listArticles();
           setArticles(list);
+          setFileUndoStack((prev) => [
+            ...prev,
+            { kind: 'delete', items, previousArticlePath: prevPath },
+          ]);
+          setFileRedoStack([]);
           if (activeArticle && deletedSet.has(activeArticle.relativePath)) {
             if (list.length > 0) await openArticle(list[0]);
             else {
@@ -711,10 +781,12 @@ export default function App() {
           activeView={activeView}
           sidebarOpen={sidebarOpen}
           isFullscreen={isFullscreen}
+          readOnly={readOnly}
           activeArticle={activeArticle}
           liveWordCount={liveWordCount}
           saveState={saveState}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          onToggleReadOnly={() => setReadOnly((v) => !v)}
           onOpenQuickOpen={() => setQuickOpenModalOpen(true)}
           onSetActiveView={setActiveView}
           onOpenPublishModal={() => setPublishModalOpen(true)}
@@ -772,6 +844,7 @@ export default function App() {
                 ref={editorRef}
                 articleKey={activeArticle.relativePath}
                 loadSeq={loadSeq}
+                readOnly={readOnly}
                 value={markdown}
                 preferences={editorPrefs}
                 onChange={(md) => {
