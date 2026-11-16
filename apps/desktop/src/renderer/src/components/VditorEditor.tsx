@@ -405,13 +405,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       const cdnBase = window.location.protocol === 'file:' ? './vditor' : '/vditor';
 
-      // Ensure local KaTeX stylesheet is loaded upfront so math formulas never render unstyled
+      // Ensure local KaTeX stylesheet & script are loaded upfront so math formulas render synchronously
       if (!document.getElementById('vcat-katex-css')) {
         const link = document.createElement('link');
         link.id = 'vcat-katex-css';
         link.rel = 'stylesheet';
         link.href = `${cdnBase}/dist/js/katex/katex.min.css`;
         document.head.appendChild(link);
+      }
+      if (!document.getElementById('vcat-katex-js')) {
+        const script = document.createElement('script');
+        script.id = 'vcat-katex-js';
+        script.src = `${cdnBase}/dist/js/katex/katex.min.js`;
+        document.head.appendChild(script);
       }
 
       const instance = new Vditor(el, {
@@ -524,47 +530,223 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      let lastActiveInfoMarker: HTMLElement | null = null;
+      let hintNavigatedByArrow = false;
+
+      const setVditorRecentLang = (lang: string) => {
+        const internal = instance as unknown as {
+          vditor?: { hint?: { recentLanguage?: string } };
+        };
+        if (internal.vditor?.hint) {
+          internal.vditor.hint.recentLanguage = lang;
+        }
+      };
+
+      const safeDecode = (raw: string): string => {
+        try {
+          return decodeURIComponent(raw);
+        } catch {
+          return raw;
+        }
+      };
+
+      const getCodeBlockLang = (codeBlock: Element): string => {
+        const infoEl = codeBlock.querySelector('.vditor-ir__marker--info');
+        const infoLang = (infoEl?.textContent || '').replace(/\u200b/g, '').trim().toLowerCase();
+        if (infoLang) return infoLang;
+        const codeEl = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
+        const match = codeEl?.className.match(/language-([^\s]+)/);
+        return match ? match[1].toLowerCase() : '';
+      };
+
+      const ensurePreviewPre = (codeBlock: Element): HTMLElement => {
+        let previewPre = codeBlock.querySelector('pre.vditor-ir__preview') as HTMLElement | null;
+        if (!previewPre) {
+          previewPre = document.createElement('pre');
+          previewPre.className = 'vditor-ir__preview';
+          previewPre.setAttribute('contenteditable', 'false');
+          const markerPre = codeBlock.querySelector('pre.vditor-ir__marker--pre');
+          if (markerPre) {
+            markerPre.insertAdjacentElement('afterend', previewPre);
+          } else {
+            codeBlock.appendChild(previewPre);
+          }
+        }
+        return previewPre;
+      };
+
+      const cleanStrayCodeBlockFences = () => {
+        const editCodes = el.querySelectorAll('.vditor-ir__node[data-type="code-block"] pre.vditor-ir__marker--pre > code');
+        editCodes.forEach((node) => {
+          const text = node.textContent || '';
+          if (/^[\u200b\s]*`{3,}[\u200b\s]*$/.test(text)) {
+            node.textContent = '\u200b';
+          }
+        });
+      };
+
       const rerenderBrokenMermaid = () => {
-        const mermaidPreviews = el.querySelectorAll('.vditor-ir__preview div.language-mermaid');
-        mermaidPreviews.forEach((node) => {
-          const mermaidDiv = node as HTMLElement;
-          const irNode = mermaidDiv.closest('.vditor-ir__node');
-          if (irNode?.classList.contains('vditor-ir__node--expand')) return;
-          if (!mermaidDiv.querySelector('svg') && (mermaidDiv.textContent || '').trim()) {
-            mermaidDiv.removeAttribute('data-processed');
-            const previewPre = mermaidDiv.parentElement as HTMLElement | null;
-            if (previewPre) {
-              previewPre.setAttribute('data-render', '2');
-              const vditorStatic = Vditor as unknown as {
-                mermaidRender?: (el: HTMLElement, cdn?: string) => void;
-              };
-              vditorStatic.mermaidRender?.(previewPre, cdnBase);
+        const vditorStatic = Vditor as unknown as {
+          mermaidRender?: (el: HTMLElement, cdn?: string) => void;
+        };
+        const codeBlocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
+        codeBlocks.forEach((codeBlock) => {
+          if (codeBlock.classList.contains('vditor-ir__node--expand')) return;
+          if (getCodeBlockLang(codeBlock) !== 'mermaid') return;
+          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code');
+          const previewPre = ensurePreviewPre(codeBlock);
+          const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
+          if (!srcText.trim()) return;
+
+          let mermaidDiv = previewPre.querySelector('div.language-mermaid') as HTMLElement | null;
+          if (!mermaidDiv) {
+            previewPre.innerHTML = '';
+            mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'language-mermaid';
+            previewPre.appendChild(mermaidDiv);
+          }
+          if (!mermaidDiv.querySelector('svg') || previewPre.dataset.vcatMermaidSrc !== srcText) {
+            previewPre.dataset.vcatMermaidSrc = srcText;
+            if (!mermaidDiv.querySelector('svg') || mermaidDiv.textContent !== srcText) {
+              mermaidDiv.textContent = srcText;
+              mermaidDiv.removeAttribute('data-processed');
             }
+            previewPre.setAttribute('data-render', '2');
+            vditorStatic.mermaidRender?.(previewPre, cdnBase);
           }
         });
       };
 
       const renderLatexBlocks = () => {
-        const latexCodes = el.querySelectorAll(
+        const vditorStatic = Vditor as unknown as {
+          mathRender?: (
+            element: HTMLElement,
+            options?: { cdn?: string; math?: { engine?: string; inlineDigit?: boolean } }
+          ) => void;
+        };
+        const katexGlobal = (window as unknown as {
+          katex?: { renderToString?: (tex: string, opts: Record<string, unknown>) => string };
+        }).katex;
+
+        const codeBlocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
+        codeBlocks.forEach((codeBlock) => {
+          const lang = getCodeBlockLang(codeBlock);
+          if (lang !== 'latex' && lang !== 'tex' && lang !== 'math') return;
+          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code');
+          const previewPre = ensurePreviewPre(codeBlock);
+          const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
+          if (!srcText.trim()) {
+            previewPre.dataset.vcatMathSrc = '';
+            return;
+          }
+          if (!previewPre.querySelector('.katex') || previewPre.dataset.vcatMathSrc !== srcText) {
+            previewPre.setAttribute('data-render', '2');
+            if (katexGlobal?.renderToString) {
+              previewPre.dataset.vcatMathSrc = srcText;
+              previewPre.innerHTML = '';
+              const mathDiv = document.createElement('div');
+              mathDiv.className = 'language-math';
+              mathDiv.setAttribute('data-math', srcText);
+              mathDiv.innerHTML = katexGlobal.renderToString(srcText, {
+                displayMode: true,
+                output: 'html',
+                throwOnError: false,
+              });
+              previewPre.appendChild(mathDiv);
+            } else {
+              previewPre.innerHTML = '';
+              const previewCode = document.createElement('code');
+              previewCode.className = 'language-math';
+              previewCode.textContent = srcText;
+              previewPre.appendChild(previewCode);
+              vditorStatic.mathRender?.(previewPre, {
+                cdn: cdnBase,
+                math: { engine: 'KaTeX', inlineDigit: true },
+              });
+            }
+          }
+        });
+
+        const standaloneMath = el.querySelectorAll(
           '.vditor-ir__preview code.language-latex, .vditor-ir__preview code.language-tex, .vditor-ir__preview code.language-math'
         );
-        latexCodes.forEach((codeEl) => {
+        standaloneMath.forEach((codeEl) => {
+          if (codeEl.closest('.vditor-ir__node[data-type="code-block"]')) return;
           const previewPre = codeEl.closest('pre.vditor-ir__preview') as HTMLElement | null;
           if (!previewPre) return;
           if (!codeEl.classList.contains('language-math')) {
             codeEl.classList.add('language-math');
           }
           if (!previewPre.querySelector('.katex')) {
-            const vditorStatic = Vditor as unknown as {
-              mathRender?: (
-                element: HTMLElement,
-                options?: { cdn?: string; math?: { engine?: string; inlineDigit?: boolean } }
-              ) => void;
-            };
             vditorStatic.mathRender?.(previewPre, {
               cdn: cdnBase,
               math: { engine: 'KaTeX', inlineDigit: true },
             });
+          }
+        });
+      };
+
+      const commitCodeBlockLanguage = (infoMarker: HTMLElement, rawLang: string) => {
+        const cleanLang = safeDecode(rawLang).replace(/\u200b/g, '').trim();
+        lastActiveInfoMarker = infoMarker;
+        hintNavigatedByArrow = false;
+        setVditorRecentLang(cleanLang);
+        infoMarker.textContent = cleanLang ? `\u200b${cleanLang}` : '\u200b';
+
+        const codeBlock = infoMarker.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
+        if (codeBlock) {
+          codeBlock.setAttribute('data-CodeLang', cleanLang || 'text');
+          const codeEl = codeBlock.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
+          const previewCodeEl = codeBlock.querySelector('pre.vditor-ir__preview > code') as HTMLElement | null;
+          if (codeEl) {
+            codeEl.className = cleanLang ? `language-${cleanLang}` : '';
+            const rawCode = codeEl.textContent || '';
+            if (/^[\u200b\s]*`{3,}[\u200b\s]*$/.test(rawCode)) {
+              codeEl.textContent = '\u200b';
+            }
+          }
+          if (previewCodeEl) {
+            previewCodeEl.className = cleanLang ? `language-${cleanLang}` : '';
+          }
+          const previewPre = codeBlock.querySelector('pre.vditor-ir__preview') as HTMLElement | null;
+          if (previewPre) {
+            delete previewPre.dataset.vcatMathSrc;
+            delete previewPre.dataset.vcatMermaidSrc;
+          }
+        }
+
+        const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
+        if (hintEl) {
+          hintEl.style.display = 'none';
+        }
+
+        if (codeBlock) {
+          codeBlock.classList.add('vditor-ir__node--expand');
+          const codeEl = codeBlock.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
+          if (codeEl) {
+            if (!codeEl.firstChild || (codeEl.textContent || '').length === 0) {
+              codeEl.textContent = '\u200b';
+            }
+            const sel = window.getSelection();
+            if (sel) {
+              const range = document.createRange();
+              range.selectNodeContents(codeEl);
+              range.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          }
+        }
+
+        requestAnimationFrame(() => {
+          cleanStrayCodeBlockFences();
+          applyCodeSyntaxHighlights(el);
+          renderLatexBlocks();
+          rerenderBrokenMermaid();
+          try {
+            onChangeRef.current(instance.getValue());
+          } catch {
+            // ignore serialization race while tearing down
           }
         });
       };
@@ -579,8 +761,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           selNow?.anchorNode instanceof Element ? selNow.anchorNode : selNow?.anchorNode?.parentElement;
         const infoMarker =
           (anchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
-          (document.activeElement?.closest?.('.vditor-ir__marker--info') as HTMLElement | null);
+          (document.activeElement?.closest?.('.vditor-ir__marker--info') as HTMLElement | null) ??
+          (lastActiveInfoMarker && el.contains(lastActiveInfoMarker) ? lastActiveInfoMarker : null);
         if (!infoMarker || !el.contains(infoMarker)) return;
+        lastActiveInfoMarker = infoMarker;
 
         const infoRect = infoMarker.getBoundingClientRect();
         if (infoRect.width === 0 && infoRect.height === 0) return;
@@ -638,9 +822,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
           positionLanguageHint();
+          cleanStrayCodeBlockFences();
           cleanEmptyInlineNodes();
           applyCodeSyntaxHighlights(el);
           renderLatexBlocks();
+          rerenderBrokenMermaid();
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
           htmlNodes.forEach((node) => {
             const rawText = (node.textContent || '').trim();
@@ -659,7 +845,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         subtree: true,
         characterData: true,
         attributes: true,
-        attributeFilter: ['src', 'style'],
+        attributeFilter: ['src', 'style', 'class'],
       });
       enhanceDom();
 
@@ -680,6 +866,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           (selAnchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
           (targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null);
         if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          if (lastActiveInfoMarker !== infoMarker) {
+            hintNavigatedByArrow = false;
+          }
+          lastActiveInfoMarker = infoMarker;
           const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
           const hintButtons = hintEl
             ? Array.from(hintEl.querySelectorAll('button'))
@@ -688,9 +878,36 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             hintEl && hintEl.style.display !== 'none' && hintButtons.length > 0
           );
 
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            hintNavigatedByArrow = false;
+            setVditorRecentLang('');
+            const curLangText = (infoMarker.textContent || '').replace(/\u200b/g, '');
+            if (e.key === 'Backspace' && curLangText.length === 0) {
+              // Keep the marker span intact when already empty so Backspace never deletes the badge node
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              if (infoMarker.textContent !== '\u200b') {
+                infoMarker.textContent = '\u200b';
+              }
+              return;
+            }
+            queueMicrotask(() => {
+              if ((infoMarker.textContent || '').replace(/\u200b/g, '').trim() === '') {
+                setVditorRecentLang('');
+                if (infoMarker.textContent !== '\u200b') {
+                  infoMarker.textContent = '\u200b';
+                }
+                infoMarker.closest('.vditor-ir__node[data-type="code-block"]')?.setAttribute('data-CodeLang', 'text');
+              }
+            });
+          }
+
           if (hintVisible && (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowLeft')) {
             e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
+            hintNavigatedByArrow = true;
             const curIdx = hintButtons.findIndex((b) => b.classList.contains('vditor-hint--current'));
             const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
             const nextIdx =
@@ -707,36 +924,29 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           if (e.key === 'Enter' || e.key === 'Tab') {
             e.preventDefault();
             e.stopPropagation();
-            const codeBlockNode = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
-            const codeEl = codeBlockNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
-            if (hintVisible) {
-              const chosenBtn =
-                hintButtons.find((b) => b.classList.contains('vditor-hint--current')) ?? hintButtons[0];
-              const chosenLang = (chosenBtn?.textContent || '').trim();
-              if (chosenLang) {
-                infoMarker.textContent = `\u200b${chosenLang}`;
-                if (codeEl) {
-                  codeEl.className = `language-${chosenLang}`;
-                }
-                const previewCode = codeBlockNode?.querySelector('pre.vditor-ir__preview > code');
-                if (previewCode) {
-                  previewCode.className = `language-${chosenLang}`;
-                }
-              }
-              if (hintEl) hintEl.style.display = 'none';
-              onChangeRef.current(instance.getValue());
-            }
-            if (codeEl) {
-              const selNow = window.getSelection();
-              if (selNow) {
-                const range = document.createRange();
-                range.selectNodeContents(codeEl);
-                range.collapse(true);
-                selNow.removeAllRanges();
-                selNow.addRange(range);
-              }
-            }
+            e.stopImmediatePropagation();
+            const rawCurText = (infoMarker.textContent || '').replace(/\u200b/g, '').trim();
+            const shouldUseHint = hintVisible && (rawCurText.length > 0 || hintNavigatedByArrow);
+            const chosenBtn = shouldUseHint
+              ? hintButtons.find((b) => b.classList.contains('vditor-hint--current')) ?? hintButtons[0]
+              : null;
+            const rawChoice = chosenBtn
+              ? chosenBtn.getAttribute('data-value') || chosenBtn.textContent || ''
+              : rawCurText;
+            commitCodeBlockLanguage(infoMarker, rawChoice);
             return;
+          }
+
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            commitCodeBlockLanguage(infoMarker, infoMarker.textContent || '');
+            return;
+          }
+
+          if (e.key.length === 1) {
+            hintNavigatedByArrow = false;
           }
         }
 
@@ -872,44 +1082,85 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           '【': '】',
           '「': '」',
         };
+        const CLOSE_CHARS = new Set(Object.values(PAIR_MAP));
         if (
           prefsRef.current.autoPairSymbols &&
           !e.metaKey &&
           !e.ctrlKey &&
           !e.altKey &&
-          PAIR_MAP[e.key] &&
+          !e.isComposing &&
           targetNode &&
           el.contains(targetNode) &&
+          !selAnchorEl?.closest('.vditor-ir__marker--info') &&
           !targetNode.closest('.vditor-ir__marker--info')
         ) {
           const selNow = window.getSelection();
           if (selNow && selNow.rangeCount > 0) {
             const range = selNow.getRangeAt(0);
-            const selectedText = range.toString();
-            const closeChar = PAIR_MAP[e.key];
-            e.preventDefault();
-            e.stopPropagation();
-            if (selectedText) {
-              const wrapped = `${e.key}${selectedText}${closeChar}`;
-              const textNode = document.createTextNode(wrapped);
-              range.deleteContents();
-              range.insertNode(textNode);
-              const nextRange = document.createRange();
-              nextRange.setStart(textNode, 1);
-              nextRange.setEnd(textNode, 1 + selectedText.length);
-              selNow.removeAllRanges();
-              selNow.addRange(nextRange);
-            } else {
-              const textNode = document.createTextNode(`${e.key}${closeChar}`);
-              range.deleteContents();
-              range.insertNode(textNode);
-              const nextRange = document.createRange();
-              nextRange.setStart(textNode, 1);
-              nextRange.collapse(true);
-              selNow.removeAllRanges();
-              selNow.addRange(nextRange);
+
+            // Overtype skip: if the next character immediately after the collapsed caret matches the typed closing symbol, step over it
+            if (CLOSE_CHARS.has(e.key) && range.collapsed) {
+              const container = range.startContainer;
+              const offset = range.startOffset;
+              if (container.nodeType === Node.TEXT_NODE) {
+                const text = container.nodeValue || '';
+                if (text.charAt(offset) === e.key) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.stopImmediatePropagation();
+                  const nextRange = document.createRange();
+                  nextRange.setStart(container, offset + 1);
+                  nextRange.collapse(true);
+                  selNow.removeAllRanges();
+                  selNow.addRange(nextRange);
+                  return;
+                }
+                if (
+                  offset === text.length &&
+                  container.nextSibling?.nodeType === Node.TEXT_NODE &&
+                  (container.nextSibling.nodeValue || '').startsWith(e.key)
+                ) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.stopImmediatePropagation();
+                  const nextRange = document.createRange();
+                  nextRange.setStart(container.nextSibling, 1);
+                  nextRange.collapse(true);
+                  selNow.removeAllRanges();
+                  selNow.addRange(nextRange);
+                  return;
+                }
+              }
             }
-            onChangeRef.current(instance.getValue());
+
+            if (PAIR_MAP[e.key]) {
+              const selectedText = range.toString();
+              const closeChar = PAIR_MAP[e.key];
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              if (selectedText) {
+                const wrapped = `${e.key}${selectedText}${closeChar}`;
+                const textNode = document.createTextNode(wrapped);
+                range.deleteContents();
+                range.insertNode(textNode);
+                const nextRange = document.createRange();
+                nextRange.setStart(textNode, 1);
+                nextRange.setEnd(textNode, 1 + selectedText.length);
+                selNow.removeAllRanges();
+                selNow.addRange(nextRange);
+              } else {
+                const textNode = document.createTextNode(`${e.key}${closeChar}`);
+                range.deleteContents();
+                range.insertNode(textNode);
+                const nextRange = document.createRange();
+                nextRange.setStart(textNode, 1);
+                nextRange.collapse(true);
+                selNow.removeAllRanges();
+                selNow.addRange(nextRange);
+              }
+              onChangeRef.current(instance.getValue());
+            }
           }
         }
       };
@@ -935,6 +1186,29 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
 
+        // Intercept language autocomplete click BEFORE focus leaves contenteditable marker--info
+        const hintBtn = target?.closest('.vditor-hint button') as HTMLElement | null;
+        if (hintBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const rawVal = hintBtn.getAttribute('data-value') || hintBtn.textContent || '';
+          const selNow = window.getSelection();
+          const selEl =
+            selNow?.anchorNode instanceof Element
+              ? selNow.anchorNode
+              : selNow?.anchorNode?.parentElement;
+          const activeInfo =
+            (selEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
+            (lastActiveInfoMarker && el.contains(lastActiveInfoMarker) ? lastActiveInfoMarker : null) ??
+            (el.querySelector('.vditor-ir__node--expand .vditor-ir__marker--info') as HTMLElement | null) ??
+            (el.querySelector('.vditor-ir__marker--info') as HTMLElement | null);
+          if (activeInfo && el.contains(activeInfo)) {
+            commitCodeBlockLanguage(activeInfo, rawVal);
+          }
+          return;
+        }
+
         // Clicking the 3 macOS dots at top-left of a code block highlights & focuses its language tag
         const codeBlockNode = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
         if (codeBlockNode) {
@@ -946,6 +1220,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             if (infoSpan) {
               e.preventDefault();
               e.stopPropagation();
+              lastActiveInfoMarker = infoSpan;
               codeBlockNode.classList.add('vditor-ir__node--expand');
               const sel = window.getSelection();
               if (sel) {
@@ -1024,6 +1299,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const handleClickCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
+        if (target?.closest('.vditor-hint button')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return;
+        }
         const imgEl = target?.closest('img');
         const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
         if (imgEl || mermaidEl) {
@@ -1094,6 +1375,29 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
+      const handleSelectionChange = () => {
+        const sel = window.getSelection();
+        if (!sel || !sel.anchorNode || !el.contains(sel.anchorNode)) return;
+        const anchorEl =
+          sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement;
+        const curInfo = anchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null;
+        if (curInfo && el.contains(curInfo)) {
+          lastActiveInfoMarker = curInfo;
+        }
+        const curCodeBlock = anchorEl?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
+        const expandedBlocks = el.querySelectorAll('.vditor-ir__node--expand[data-type="code-block"]');
+        expandedBlocks.forEach((node) => {
+          if (node !== curCodeBlock) {
+            node.classList.remove('vditor-ir__node--expand');
+          }
+        });
+        requestAnimationFrame(() => {
+          renderLatexBlocks();
+          rerenderBrokenMermaid();
+        });
+      };
+
+      document.addEventListener('selectionchange', handleSelectionChange);
       el.addEventListener('copy', handleCopyCapture, true);
       el.addEventListener('paste', handlePasteCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
@@ -1103,6 +1407,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
+        document.removeEventListener('selectionchange', handleSelectionChange);
         el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);

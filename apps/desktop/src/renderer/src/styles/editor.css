@@ -182,7 +182,7 @@
 .vditor-reset blockquote > :last-child {
   margin-bottom: 0.2em !important;
 }
-.vditor-reset code:not(.hljs):not([class*='language-']) {
+.vditor-reset :not(pre) > code:not(.hljs):not([class*='language-']) {
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
   background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
   color: var(--ir-bracket-color) !important;
@@ -229,8 +229,10 @@
 /* Language label badge next to 3-dots header (also editable to switch language) */
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
   display: inline-block !important;
+  min-width: 24px !important;
   width: auto !important;
   height: auto !important;
+  text-align: center !important;
   overflow: visible !important;
   position: absolute !important;
   top: 8px !important;

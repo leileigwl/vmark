@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R23_1",
+            title: "R23-1. 语言提示弹窗（.vditor-hint）鼠标点击选词 + 上下方向键 + Enter/Tab 全链路畅通",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794852166586_62676d25.png",
+            desc: "在 mousedown 与 click 捕获阶段双拦截 .vditor-hint button（阻断焦点离开 contenteditable 导致 Vditor fillEmoji 失效的根因），并统一由 commitCodeBlockLanguage 提交语言、更新类名、关闭弹窗且把光标直接送入代码框；键盘 ↑/↓/←/→ 与 Enter/Tab 同理。",
+            plan: "请在代码块语言标签输入 js，测试1) 直接鼠标点击弹窗中的 json；2) 按 ↓ 选 json 后按回车或 Tab，均能立即改语言并落入下方代码区。"
+          },
+          {
+            id: "R23_2",
+            title: "R23-2. 删空语言标签不回填旧语言、消除空白代码块内嵌蓝色圆角条、清理残留 ```",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850985547_86651998.png",
+            desc: "1) 在删空或提交空语言标签时清空 vditor.hint.recentLanguage，阻止 Vditor 自动回填旧语言，且支持按回车/Tab直接落入代码区；2) 将 editor.css 行内代码权重限定为 :not(pre) > code，彻底去掉无语言代码块内部的蓝色圆角底条；3) 自动清理代码框内残留的纯 ```。",
+            plan: "请删光代码块语言标签并按回车/Tab 进入代码框，确认不会自动弹回旧语言，且代码框内部干净无蓝色边框底条。"
+          },
+          {
+            id: "R23_3",
+            title: "R23-3. 代码块切换为 latex / math / mermaid 后输入内容，点击外部立即收起并实时渲染",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850918466_93a52f32.png",
+            desc: "监听 selectionchange：光标离开展开中的代码块时自动收起编辑态，并将最新源码同步至 pre.vditor-ir__preview 触发本地 KaTeX 公式与 Mermaid 图表实时渲染。",
+            plan: "请新建 ``` 代码块并选为 latex，输入分式/积分公式后点击代码块外部空白或正文段落，确认立即渲染为清晰公式。"
+          },
+          {
             id: "R18_1",
             title: "R18-1. Word (.docx) 导出字号层级统一、跳过空代码块灰条、关闭代码/公式拼写红线",
             status: "done",

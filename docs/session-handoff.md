@@ -28,14 +28,18 @@
 
 ---
 
-## 二、本轮待完成改造项（立即执行）
+## 二、本轮待完成改造项（Round 23：立即执行）
 
-1. **修复代码语言提示框（`.vditor-hint`）方向键上下选词与 `Enter`/`Tab` 生效**：
-   - 根因：`contenteditable` 区域触发 `keydown` 时 `e.target` 是外层 `.vditor-reset` 而非内层 `.vditor-ir__marker--info`，导致 `targetNode.closest('.vditor-ir__marker--info')` 返回 `null`。
-   - 方案：改为通过 `window.getSelection()?.anchorNode` 定位当前 `.vditor-ir__marker--info`，使 `↑/↓/←/→` 选词与 `Enter`/`Tab` 确认（含删除语言文本为空时）100% 生效并落入下方代码编辑区。
-2. **彻底根治多次 `Ctrl+B` / `Cmd+B` 叠加 `****...****`**：
-   - 根因：`window` `keydown` 与 Electron 菜单加速键（`CmdOrCtrl+B`）可能同帧双触发，且未检测选区前后已存在的 `**` 文本标记。
-   - 方案：在 `VditorEditor.tsx` 对 `bold`/`italic` 加 80ms 防重入节流，并在 `inlineFormat.ts` 中检测选区内外及前后相邻 `**` 标记，严格二态切换（绝不叠加）。
+1. **彻底根治 ` ``` ` 代码块全链路与 `.vditor-hint` 语言选词交互**：
+   - **鼠标点击 `.vditor-hint button` 失效根因**：鼠标按下（`mousedown`）时焦点先离开 `contenteditable` 的 `.vditor-ir__marker--info`，触发 Vditor 丢失选区或收起代码块，导致 `click` 找不到目标语言徽章。
+   - **键盘导航冲突与空标签回车失效**：Vditor 在内层 `.vditor-reset` 上绑定了 `keydown` 监听；未用 `stopImmediatePropagation()` 与统一提交函数会导致方向键、Enter/Tab 抢跳或删空语言标签后无法落入下方代码编辑区。
+   - **统一解决方案（`VditorEditor.tsx`）**：
+     - 追踪 `lastActiveInfoMarker`，抽离统一提交函数 `commitCodeBlockLanguage(infoMarker, rawLang)`，负责清理 `\u200b`、更新 `data-CodeLang` 与 `language-xxx` 类名、隐藏 `.vditor-hint`、清理代码框内残留的纯 ` ``` `，并把光标直接送入 `pre.vditor-ir__marker--pre > code`，随后触发 `applyCodeSyntaxHighlights`、`renderLatexBlocks` 与 `rerenderBrokenMermaid`。
+     - 在 `mousedown` 与 `click` 捕获阶段同时拦截 `.vditor-hint button`（阻止失焦与 Vditor 内部重入），100% 选中点击的语言并跳入代码区。
+     - 在 `keydown` 捕获阶段处理 `ArrowUp/Down/Left/Right`、`Enter`、`Tab`、`Escape`（含空标签按回车/Tab 直接落入代码框）。
+     - 监听 `selectionchange` / 失焦：当光标离开正在编辑的 `.vditor-ir__node--expand[data-type="code-block"]`（且未点击 `.vditor-hint`）时，自动收起展开态并实时重绘 `latex` / `math` / `mermaid` 预览。
+2. **核验并更新 `ui-review-checklist.html`**：
+   - 新增 Round 23 验收项，且全部保持未勾选（`checked: false`）状态交由用户逐项验收打勾。
 
 ---
 
