@@ -751,6 +751,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const COMMON_CODE_LANGUAGES = [
+        'c', 'cpp', 'csharp', 'css', 'csv', 'cmake', 'clojure', 'coffeescript',
+        'python', 'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx',
+        'json', 'latex', 'tex', 'math', 'mermaid', 'echarts', 'mindmap', 'flowchart', 'plantuml', 'graphviz',
+        'yaml', 'yml', 'toml', 'ini', 'sql', 'bash', 'sh', 'shell', 'zsh', 'powershell',
+        'html', 'xml', 'markdown', 'md', 'go', 'rust', 'java', 'kotlin', 'swift', 'ruby', 'php',
+        'dockerfile', 'makefile', 'nginx', 'graphql', 'diff', 'text', 'plaintext', 'txt',
+      ];
+
       let isRepositioningHint = false;
       const positionLanguageHint = () => {
         if (isRepositioningHint) return;
@@ -766,8 +775,70 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (!infoMarker || !el.contains(infoMarker)) return;
         lastActiveInfoMarker = infoMarker;
 
+        const curKey = (infoMarker.textContent || '').replace(/\u200b/g, '').trim().toLowerCase();
+        if (curKey && (hintEl.dataset.vcatSortedFor !== curKey || !hintEl.querySelector('button[data-vcat-sorted]'))) {
+          hintEl.dataset.vcatSortedFor = curKey;
+          const existingVals = Array.from(hintEl.querySelectorAll('button')).map((b) =>
+            safeDecode(b.getAttribute('data-value') || b.textContent || '').replace(/\u200b/g, '').trim()
+          );
+          const hljsLangs =
+            (window as unknown as { hljs?: { listLanguages?: () => string[] } }).hljs?.listLanguages?.() ?? [];
+          const seen = new Set<string>();
+          const pool: string[] = [];
+          for (const raw of [...COMMON_CODE_LANGUAGES, ...hljsLangs, ...existingVals]) {
+            const v = raw.trim();
+            if (!v) continue;
+            const low = v.toLowerCase();
+            if (!seen.has(low) && low.includes(curKey)) {
+              seen.add(low);
+              pool.push(v);
+            }
+          }
+          pool.sort((a, b) => {
+            const al = a.toLowerCase();
+            const bl = b.toLowerCase();
+            const aRank = al === curKey ? 0 : al.startsWith(curKey) ? 1 : 2;
+            const bRank = bl === curKey ? 0 : bl.startsWith(curKey) ? 1 : 2;
+            if (aRank !== bRank) return aRank - bRank;
+            if (al.length !== bl.length) return al.length - bl.length;
+            return al.localeCompare(bl);
+          });
+          const topLangs = pool.slice(0, 8);
+          if (topLangs.length > 0) {
+            isRepositioningHint = true;
+            hintEl.innerHTML = '';
+            topLangs.forEach((lang, idx) => {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.setAttribute('data-vcat-sorted', '1');
+              btn.setAttribute('data-value', `${encodeURIComponent(lang)} `);
+              if (idx === 0) btn.className = 'vditor-hint--current';
+              const low = lang.toLowerCase();
+              const matchPos = low.indexOf(curKey);
+              btn.appendChild(document.createTextNode(' '));
+              if (matchPos >= 0) {
+                if (matchPos > 0) btn.appendChild(document.createTextNode(lang.slice(0, matchPos)));
+                const bEl = document.createElement('b');
+                bEl.textContent = lang.slice(matchPos, matchPos + curKey.length);
+                btn.appendChild(bEl);
+                if (matchPos + curKey.length < lang.length) {
+                  btn.appendChild(document.createTextNode(lang.slice(matchPos + curKey.length)));
+                }
+              } else {
+                btn.appendChild(document.createTextNode(lang));
+              }
+              hintEl.appendChild(btn);
+            });
+          }
+        } else if (!curKey) {
+          delete hintEl.dataset.vcatSortedFor;
+        }
+
         const infoRect = infoMarker.getBoundingClientRect();
-        if (infoRect.width === 0 && infoRect.height === 0) return;
+        if (infoRect.width === 0 && infoRect.height === 0) {
+          isRepositioningHint = false;
+          return;
+        }
         const hintH = hintEl.offsetHeight || 220;
         const spaceBelow = window.innerHeight - infoRect.bottom - 12;
         const topPx =
@@ -780,9 +851,48 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         hintEl.style.top = `${topPx}px`;
         hintEl.style.left = `${leftPx}px`;
         hintEl.style.marginTop = '0px';
-        requestAnimationFrame(() => {
+        queueMicrotask(() => {
           isRepositioningHint = false;
         });
+      };
+
+      const normalizeEmojiAndCalloutIcons = () => {
+        const resetEl = el.querySelector('.vditor-ir .vditor-reset');
+        if (!resetEl) return;
+        const activeNode = window.getSelection()?.anchorNode ?? null;
+        // Monochrome text-presentation icons lacking \uFE0F variant selector -> upgrade to Apple Color Emoji
+        const MONO_TO_COLOR_RE =
+          /([\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u203C\u2049\u{1F5C2}\u{1F3D7}\u{1F6E0}\u{1F5BC}\u{1F441}\u{1F3F7}\u{1F5DD}\u{1F5C3}\u{1F5C4}\u{1F5D1}\u{1F5D3}\u{1F5D2}])(?!\uFE0F)/gu;
+        const TIGHT_INLINE_ICON_RE =
+          /((?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?)(?=[\p{Script=Han}A-Za-z0-9])/gu;
+        const ENDS_WITH_ICON_RE =
+          /(?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?$/u;
+
+        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
+        let tNode = walker.nextNode() as Text | null;
+        while (tNode) {
+          if (
+            tNode !== activeNode &&
+            !tNode.parentElement?.closest('pre:not(.vditor-reset), code, .katex, .vditor-ir__marker')
+          ) {
+            const orig = tNode.nodeValue || '';
+            let nextVal = orig.replace(MONO_TO_COLOR_RE, '$1\uFE0F');
+            nextVal = nextVal.replace(TIGHT_INLINE_ICON_RE, '$1 ');
+            // Also add a space when an emoji/icon ends a text node immediately before an inline element (e.g. ⚠️**学习者**)
+            if (
+              ENDS_WITH_ICON_RE.test(nextVal) &&
+              tNode.nextSibling instanceof Element &&
+              tNode.nextSibling.tagName !== 'BR' &&
+              !(tNode.nextSibling.textContent || '').startsWith(' ')
+            ) {
+              nextVal = `${nextVal} `;
+            }
+            if (nextVal !== orig) {
+              tNode.nodeValue = nextVal;
+            }
+          }
+          tNode = walker.nextNode() as Text | null;
+        }
       };
 
       const cleanEmptyInlineNodes = () => {
@@ -807,7 +917,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           let tNode = walker.nextNode() as Text | null;
           while (tNode) {
             const val = tNode.nodeValue || '';
-            if (val.includes('****') && !tNode.parentElement?.closest('pre, code')) {
+            if (val.includes('****') && !tNode.parentElement?.closest('pre:not(.vditor-reset), code')) {
               tNode.nodeValue = val.replace(/\*{4,}/g, '');
             }
             tNode = walker.nextNode() as Text | null;
@@ -824,6 +934,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           positionLanguageHint();
           cleanStrayCodeBlockFences();
           cleanEmptyInlineNodes();
+          normalizeEmojiAndCalloutIcons();
           applyCodeSyntaxHighlights(el);
           renderLatexBlocks();
           rerenderBrokenMermaid();
@@ -1055,14 +1166,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
         if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
           const k = e.key.toLowerCase();
-          if (k === 'b') {
+          if (k === 'b' || k === 'i') {
             e.preventDefault();
             e.stopPropagation();
-            toggleInlineWrap('bold');
-          } else if (k === 'i') {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleInlineWrap('italic');
+            e.stopImmediatePropagation();
+            if (e.repeat) return;
+            toggleInlineWrap(k === 'b' ? 'bold' : 'italic');
+            return;
           } else if (k === 'z' || k === 'y') {
             setTimeout(rerenderBrokenMermaid, 50);
           }
@@ -1165,21 +1275,57 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      // Single-click image or Mermaid diagram opens Lightbox (same as Space); rapid double-click Mermaid edits code in-place
+      // Single-click image or Mermaid diagram opens Lightbox; single-click LaTeX focuses silently without source flash; double-click edits source
       const clearActiveZoomTarget = () => {
         if (activeZoomImgRef.current) {
           activeZoomImgRef.current.style.outline = '';
           activeZoomImgRef.current.closest('.vditor-ir__node')?.classList.remove('vcat-mermaid-active');
           activeZoomImgRef.current = null;
         }
+        el.querySelectorAll('.vditor-ir__node.vcat-mermaid-active').forEach((n) => {
+          n.classList.remove('vcat-mermaid-active');
+        });
       };
 
-      const getMermaidPreviewEl = (target: HTMLElement | null): HTMLElement | null => {
-        const mermaidEl = target?.closest('.vditor-ir__preview div.language-mermaid') as HTMLElement | null;
-        if (!mermaidEl) return null;
-        const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
-        if (irNode?.classList.contains('vditor-ir__node--expand')) return null;
-        return mermaidEl;
+      const collapseExpandedCodeBlocks = (exceptBlock?: Element | null) => {
+        const expanded = el.querySelectorAll('.vditor-ir__node--expand[data-type="code-block"], .vditor-ir__node--expand[data-type="math-block"]');
+        let changed = false;
+        expanded.forEach((node) => {
+          if (node !== exceptBlock) {
+            node.classList.remove('vditor-ir__node--expand');
+            changed = true;
+          }
+        });
+        if (changed) {
+          requestAnimationFrame(() => {
+            renderLatexBlocks();
+            rerenderBrokenMermaid();
+          });
+        }
+      };
+
+      const getPreviewBlockTarget = (
+        target: HTMLElement | null
+      ): { kind: 'mermaid' | 'math'; previewPre: HTMLElement; irNode: HTMLElement } | null => {
+        if (!target || target.closest('.vditor-copy')) return null;
+        const previewPre = target.closest('pre.vditor-ir__preview') as HTMLElement | null;
+        if (!previewPre) return null;
+        const irNode = previewPre.closest('.vditor-ir__node') as HTMLElement | null;
+        if (!irNode || irNode.classList.contains('vditor-ir__node--expand')) return null;
+        const nodeType = irNode.getAttribute('data-type');
+        if (nodeType === 'math-block') {
+          return { kind: 'math', previewPre, irNode };
+        }
+        if (nodeType === 'code-block') {
+          const lang = getCodeBlockLang(irNode);
+          if (lang === 'mermaid') {
+            return { kind: 'mermaid', previewPre, irNode };
+          }
+          if (lang === 'latex' || lang === 'tex' || lang === 'math') {
+            return { kind: 'math', previewPre, irNode };
+          }
+        }
+        return null;
       };
 
       const handleMouseDownCapture = (e: MouseEvent) => {
@@ -1209,18 +1355,22 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
 
-        // Clicking the 3 macOS dots at top-left of a code block highlights & focuses its language tag
+        // Clicking the 3 macOS dots or language badge at top-left of a code block expands & focuses its language tag
         const codeBlockNode = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
         if (codeBlockNode) {
+          const clickedInfo = target?.closest('.vditor-ir__marker--info') as HTMLElement | null;
           const rect = codeBlockNode.getBoundingClientRect();
           const relX = e.clientX - rect.left;
           const relY = e.clientY - rect.top;
-          if (relX >= 4 && relX <= 68 && relY >= 4 && relY <= 30) {
+          if (clickedInfo || (relX >= 4 && relX <= 68 && relY >= 4 && relY <= 30)) {
             const infoSpan = codeBlockNode.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
             if (infoSpan) {
               e.preventDefault();
               e.stopPropagation();
+              e.stopImmediatePropagation();
               lastActiveInfoMarker = infoSpan;
+              clearActiveZoomTarget();
+              collapseExpandedCodeBlocks(codeBlockNode);
               codeBlockNode.classList.add('vditor-ir__node--expand');
               const sel = window.getSelection();
               if (sel) {
@@ -1235,26 +1385,31 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
 
         const imgEl = target?.closest('img') as HTMLImageElement | null;
-        const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
+        const previewTarget = imgEl ? null : getPreviewBlockTarget(target);
 
-        if (mermaidEl) {
+        if (previewTarget) {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
           if (mermaidClickTimerRef.current) {
             clearTimeout(mermaidClickTimerRef.current);
             mermaidClickTimerRef.current = null;
           }
+          collapseExpandedCodeBlocks(previewTarget.irNode);
+
+          // Double-click any rendered LaTeX / Mermaid card to expand source editor intentionally
           if (e.detail >= 2) {
             clearActiveZoomTarget();
             setLightboxItem(null);
-            const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
-            const codeEl = irNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
-            if (irNode && codeEl) {
-              irNode.classList.add('vditor-ir__node--expand');
+            previewTarget.irNode.classList.add('vditor-ir__node--expand');
+            const editEl =
+              (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null) ??
+              (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre') as HTMLElement | null);
+            if (editEl) {
               const sel = window.getSelection();
               if (sel) {
                 const range = document.createRange();
-                range.selectNodeContents(codeEl);
+                range.selectNodeContents(editEl);
                 range.collapse(true);
                 sel.removeAllRanges();
                 sel.addRange(range);
@@ -1262,25 +1417,35 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             }
             return;
           }
-          if (activeZoomImgRef.current && activeZoomImgRef.current !== mermaidEl) {
-            clearActiveZoomTarget();
-          }
-          activeZoomImgRef.current = mermaidEl as unknown as HTMLImageElement;
-          mermaidEl.closest('.vditor-ir__node')?.classList.add('vcat-mermaid-active');
 
-          const svgSnapshot = mermaidEl.innerHTML;
-          mermaidClickTimerRef.current = setTimeout(() => {
-            mermaidClickTimerRef.current = null;
-            setLightboxItem({
-              type: 'mermaid',
-              svgHtml: svgSnapshot,
-            });
-          }, 200);
+          clearActiveZoomTarget();
+          previewTarget.irNode.classList.add('vcat-mermaid-active');
+
+          if (previewTarget.kind === 'mermaid') {
+            const mermaidDiv = previewTarget.previewPre.querySelector('div.language-mermaid') as HTMLElement | null;
+            if (mermaidDiv) {
+              activeZoomImgRef.current = mermaidDiv as unknown as HTMLImageElement;
+              const svgSnapshot = mermaidDiv.innerHTML;
+              mermaidClickTimerRef.current = setTimeout(() => {
+                mermaidClickTimerRef.current = null;
+                setLightboxItem({
+                  type: 'mermaid',
+                  svgHtml: svgSnapshot,
+                });
+              }, 200);
+            }
+          }
           return;
         }
 
+        collapseExpandedCodeBlocks(codeBlockNode ?? target?.closest('.vditor-ir__node[data-type="math-block"]'));
+
         if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
           clearActiveZoomTarget();
+        } else if (!imgEl) {
+          el.querySelectorAll('.vditor-ir__node.vcat-mermaid-active').forEach((n) => {
+            n.classList.remove('vcat-mermaid-active');
+          });
         }
         if (imgEl) {
           e.preventDefault();
@@ -1306,10 +1471,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
         const imgEl = target?.closest('img');
-        const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
-        if (imgEl || mermaidEl) {
+        const previewTarget = imgEl ? null : getPreviewBlockTarget(target);
+        if (imgEl || previewTarget) {
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
         }
       };
 
@@ -1384,13 +1550,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (curInfo && el.contains(curInfo)) {
           lastActiveInfoMarker = curInfo;
         }
-        const curCodeBlock = anchorEl?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
-        const expandedBlocks = el.querySelectorAll('.vditor-ir__node--expand[data-type="code-block"]');
-        expandedBlocks.forEach((node) => {
-          if (node !== curCodeBlock) {
-            node.classList.remove('vditor-ir__node--expand');
-          }
-        });
+        const curCodeBlock = anchorEl?.closest('.vditor-ir__node[data-type="code-block"], .vditor-ir__node[data-type="math-block"]') as HTMLElement | null;
+        collapseExpandedCodeBlocks(curCodeBlock);
         requestAnimationFrame(() => {
           renderLatexBlocks();
           rerenderBrokenMermaid();

@@ -28,7 +28,7 @@
   max-width: none !important;
   margin: 0 !important;
   padding: 32px max(48px, calc((100% - 1100px) / 2)) 110px !important;
-  font-family: var(--font-editorial) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Apple Color Emoji", var(--font-editorial), sans-serif !important;
   font-size: 16px;
   line-height: 1.78 !important;
   letter-spacing: 0.012em;
@@ -152,14 +152,30 @@
 .vditor-ir__node[data-type="a"],
 .vditor-ir__node[data-type="a"] .vditor-ir__marker--bracket {
   color: var(--ir-bracket-color) !important;
-  text-decoration-color: color-mix(in srgb, var(--ir-bracket-color) 45%, transparent) !important;
+  text-decoration: none !important;
+}
+.vditor-reset a:hover,
+.vditor-ir__link:hover,
+.vditor-ir__node[data-type="a"]:hover,
+.vditor-ir__node[data-type="a"]:hover .vditor-ir__marker--bracket {
+  text-decoration: underline !important;
+  text-decoration-color: color-mix(in srgb, var(--ir-bracket-color) 55%, transparent) !important;
+  text-underline-offset: 3px !important;
 }
 [data-theme*='-dark'] .vditor-reset a,
 [data-theme*='-dark'] .vditor-ir__link,
 [data-theme*='-dark'] .vditor-ir__node[data-type="a"],
 [data-theme*='-dark'] .vditor-ir__node[data-type="a"] .vditor-ir__marker--bracket {
   color: #78aee8 !important;
-  text-decoration-color: rgba(120, 174, 232, 0.45) !important;
+  text-decoration: none !important;
+}
+[data-theme*='-dark'] .vditor-reset a:hover,
+[data-theme*='-dark'] .vditor-ir__link:hover,
+[data-theme*='-dark'] .vditor-ir__node[data-type="a"]:hover,
+[data-theme*='-dark'] .vditor-ir__node[data-type="a"]:hover .vditor-ir__marker--bracket {
+  text-decoration: underline !important;
+  text-decoration-color: rgba(120, 174, 232, 0.55) !important;
+  text-underline-offset: 3px !important;
 }
 /* Authentic Typora Bloom rounded callout card blockquote */
 .vditor-reset blockquote {
@@ -255,10 +271,35 @@
   border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
   background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
-/* Language autocomplete popup (.vditor-hint) positioned dynamically via JS below/above the active badge */
-.vditor-ir .vditor-hint {
+/* Language autocomplete popup (.vditor-hint) positioned dynamically above all badges */
+.vditor .vditor-hint,
+.vditor-hint {
   margin-top: 0 !important;
-  z-index: 40 !important;
+  z-index: 9999 !important;
+  background-color: var(--bg-main, #ffffff) !important;
+  color: var(--text-main, #1d1d1f) !important;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16) !important;
+  padding: 4px 0 !important;
+}
+[data-theme*='-dark'] .vditor .vditor-hint,
+[data-theme*='-dark'] .vditor-hint {
+  background-color: #1f242c !important;
+  color: #e6edf3 !important;
+  border-color: rgba(240, 246, 252, 0.16) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5) !important;
+}
+[data-theme*='-dark'] .vditor-hint button {
+  color: #c9d1d9 !important;
+}
+[data-theme*='-dark'] .vditor-hint button b {
+  color: var(--accent) !important;
+}
+[data-theme*='-dark'] .vditor-hint button.vditor-hint--current,
+[data-theme*='-dark'] .vditor-hint button:hover {
+  background-color: color-mix(in srgb, var(--accent) 24%, #2b3340) !important;
+  color: #ffffff !important;
 }
 
 /* 1. Normal code blocks (excluding Mermaid & Math/LaTeX): permanently show the single editable pre.vditor-ir__marker--pre so 1st click lands caret directly with zero flash/jump */
@@ -318,6 +359,26 @@
   margin: 0 !important;
   cursor: text !important;
   box-shadow: none !important;
+}
+.vditor-ir__node[data-type="code-block"].vcat-mermaid-active:not(.vditor-ir__node--expand) > pre.vditor-ir__preview {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+/* Override Vditor hardcoded 420px height on echarts/mindmap so code editing stays adaptive & preview stays compact */
+.vditor-ir__node[data-type="code-block"] pre.vditor-ir__marker--pre > code.language-echarts,
+.vditor-ir__node[data-type="code-block"] pre.vditor-ir__marker--pre > code.language-mindmap {
+  height: auto !important;
+  min-height: 1.55em !important;
+}
+.vditor-reset .vditor-ir__preview .language-echarts:not([_echarts_instance_]),
+.vditor-reset .vditor-ir__preview .language-mindmap:not([_echarts_instance_]) {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.vditor-reset .vditor-ir__preview .language-echarts[_echarts_instance_],
+.vditor-reset .vditor-ir__preview .language-mindmap[_echarts_instance_] {
+  height: 260px !important;
 }
 
 /* Shared typography for all code blocks (exclude .katex math formulas so KaTeX layout is never broken!) */

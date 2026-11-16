@@ -312,6 +312,69 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R24_1",
+            title: "R24-1. 禁止代码块内误加粗破坏结构 + 混合/连续 Ctrl+B 加粗二态切换不残留 **",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794852396713_fc250281.png",
+            desc: "1) inlineFormat.ts 禁止在代码块及语言徽章内执行 Ctrl+B/I 等行内格式化；2) 选中包含已有加粗的混合文字时，自动扩展边界并剥离内部碎片 ** 后合并为单一加粗，再按一次 Ctrl+B 干净还原为纯文本；3) 拦截长按连发 repeat 与同帧双触发。",
+            plan: "请在代码块内按 Ctrl+B 确认不注入 **；在正文中选中「**Workflow（工作流）**：流程由**代码**决定」连按 5 次 Ctrl+B，确认干净来回切换无残留星号。"
+          },
+          {
+            id: "R24_2",
+            title: "R24-2. LaTeX 与 Mermaid 单击零闪烁（仅双击或点左上角徽章/圆点才进入源码编辑）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794852558448_e88c57eb.png",
+            desc: "在 mousedown 与 click 捕获阶段拦截未展开的 LaTeX/Math/Mermaid 预览层点击，防止 Vditor 触发 expandMarker 切到源码导致闪跳：单击 LaTeX 仅静默高亮、单击 Mermaid 打开灯箱，双击卡片才进入源码。",
+            plan: "请单击 LaTeX 公式卡片与 Mermaid 图表，确认零闪烁；双击卡片后再按确认正常展开源码。"
+          },
+          {
+            id: "R24_3",
+            title: "R24-3. 语言提示弹窗层级置顶防穿透遮挡（z-index 9999）+ 输入 c 前缀优先排序",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794853056025_e3c7e325.png",
+            desc: "修复 .vditor .vditor-hint 选择器层级与背景不透明样式，不再被下方代码块徽章穿透遮挡；并为候选词按「完全相等 → 前缀匹配 → 子串」重排。",
+            plan: "请在上方代码块语言标签输入 c 后查看下方弹出列表：确认 c / cmake / cpp / csharp / css / csv 排在前列且不会被下方代码块标签穿过。"
+          },
+          {
+            id: "R24_4",
+            title: "R24-4. ECharts / Mindmap 默认高度自适应紧凑展示（不默认占满 420px）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794853120915_23c71a43.png",
+            desc: "覆盖 Vditor 默认的 420px 写死高度，echarts/mindmap 编辑态随代码行数自适应高度，仅在渲染出图表实例时按 260px 紧凑展示。",
+            plan: "请新建或切换代码块语言为 echarts，确认空代码块不再占满 420px 超高空白。"
+          },
+          {
+            id: "R24_5",
+            title: "R24-5. 侧边栏新建文件按回车直接创建（不再误触发旧文件二次重命名）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794853626961_f11ed0be.png",
+            desc: "阻断新建输入框 Enter/Escape 键盘事件冒泡至外层列表容器，并为 confirmCreateItem 加防重入锁避免 onBlur 与 Enter 重复创建。",
+            plan: "请在侧边栏点击新建文件并确认默认 Untitled N.md，按回车后应直接创建并打开该新文件，不会跳去重命名旧文件。"
+          },
+          {
+            id: "R24_6",
+            title: "R24-6. 正文链接默认去掉下划线，仅鼠标悬停（Hover）时显示下划线",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794853714207_c979b9f3.png",
+            desc: "editor.css 统一在普通态与暗黑态去除超链接默认 text-decoration，仅在 :hover 时展现 3px 偏移下划线。",
+            plan: "请查看正文超链接：默认无下划线，鼠标悬停上去时显示下划线。"
+          },
+          {
+            id: "R24_7",
+            title: "R24-7. 缺失变体符的黑白线框图标（⚠ ⚙ ⚖ ✍ 等）自动升级为彩色 Emoji 并舒适留距",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794853755865_f4bc3813.png",
+            desc: "正文引入 Apple Color Emoji 字体栈，并在 DOM 渲染阶段为 ⚠ ⏱ ⚙ ⚖ ✍ ⛰ ℹ 等符号自动补齐 \\uFE0F 彩色变体选择符且与紧邻汉字/加粗文字保留空格。",
+            plan: "请查看引用块开头的 ⚠️ 学习者请勿... 以及包含 ⚙️ ⚖️ 的段落，确认图标彩色显示且不与文字紧贴重叠。"
+          },
+          {
             id: "R23_1",
             title: "R23-1. 语言提示弹窗（.vditor-hint）鼠标点击选词 + 上下方向键 + Enter/Tab 全链路畅通",
             status: "done",

@@ -157,6 +157,7 @@ export function Sidebar({
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
+  const isConfirmingCreateRef = useRef(false);
 
   // Keep single selection synced with activeArticle so switching via ArticleManagerView or shortcuts never leaves two highlighted items
   useEffect(() => {
@@ -284,18 +285,23 @@ export function Sidebar({
   }
 
   async function confirmCreateItem() {
-    if (!creatingItem) return;
+    if (isConfirmingCreateRef.current || !creatingItem) return;
+    isConfirmingCreateRef.current = true;
     const { type, parentDir, draft } = creatingItem;
     const raw = draft.trim();
     setCreatingItem(null);
-    if (!raw) return;
-    if (type === 'folder') {
-      const rel = parentDir ? `${parentDir}/${raw}` : raw;
-      await onCreateFolder(rel, parentDir);
-      setExpandedDirs((prev) => ({ ...prev, [rel]: true }));
-      return;
+    try {
+      if (!raw) return;
+      if (type === 'folder') {
+        const rel = parentDir ? `${parentDir}/${raw}` : raw;
+        await onCreateFolder(rel, parentDir);
+        setExpandedDirs((prev) => ({ ...prev, [rel]: true }));
+        return;
+      }
+      await onCreateFile(raw, parentDir);
+    } finally {
+      isConfirmingCreateRef.current = false;
     }
-    await onCreateFile(raw, parentDir);
   }
 
   function handleRenameStart(article: ArticleMeta) {
@@ -514,7 +520,7 @@ export function Sidebar({
         <div
           tabIndex={0}
           onKeyDown={(e) => {
-            if (sideTab !== 'files' || renamingPath || filteredArticles.length === 0) return;
+            if (sideTab !== 'files' || renamingPath || creatingItem || filteredArticles.length === 0) return;
             const idx = filteredArticles.findIndex((a) => a.relativePath === activeArticle?.relativePath);
             if (e.key === 'ArrowDown') {
               e.preventDefault();
@@ -595,10 +601,16 @@ export function Sidebar({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
+                    e.stopPropagation();
                     void confirmCreateItem();
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
+                    e.stopPropagation();
+                    isConfirmingCreateRef.current = true;
                     setCreatingItem(null);
+                    queueMicrotask(() => {
+                      isConfirmingCreateRef.current = false;
+                    });
                   }
                 }}
                 placeholder={creatingItem.type === 'folder' ? '输入文件夹名后回车...' : '输入文件名 (.md) 后回车...'}

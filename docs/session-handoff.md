@@ -28,18 +28,27 @@
 
 ---
 
-## 二、本轮待完成改造项（Round 23：立即执行）
+## 二、已完成与本轮改造记录
 
-1. **彻底根治 ` ``` ` 代码块全链路与 `.vditor-hint` 语言选词交互**：
-   - **鼠标点击 `.vditor-hint button` 失效根因**：鼠标按下（`mousedown`）时焦点先离开 `contenteditable` 的 `.vditor-ir__marker--info`，触发 Vditor 丢失选区或收起代码块，导致 `click` 找不到目标语言徽章。
-   - **键盘导航冲突与空标签回车失效**：Vditor 在内层 `.vditor-reset` 上绑定了 `keydown` 监听；未用 `stopImmediatePropagation()` 与统一提交函数会导致方向键、Enter/Tab 抢跳或删空语言标签后无法落入下方代码编辑区。
-   - **统一解决方案（`VditorEditor.tsx`）**：
-     - 追踪 `lastActiveInfoMarker`，抽离统一提交函数 `commitCodeBlockLanguage(infoMarker, rawLang)`，负责清理 `\u200b`、更新 `data-CodeLang` 与 `language-xxx` 类名、隐藏 `.vditor-hint`、清理代码框内残留的纯 ` ``` `，并把光标直接送入 `pre.vditor-ir__marker--pre > code`，随后触发 `applyCodeSyntaxHighlights`、`renderLatexBlocks` 与 `rerenderBrokenMermaid`。
-     - 在 `mousedown` 与 `click` 捕获阶段同时拦截 `.vditor-hint button`（阻止失焦与 Vditor 内部重入），100% 选中点击的语言并跳入代码区。
-     - 在 `keydown` 捕获阶段处理 `ArrowUp/Down/Left/Right`、`Enter`、`Tab`、`Escape`（含空标签按回车/Tab 直接落入代码框）。
-     - 监听 `selectionchange` / 失焦：当光标离开正在编辑的 `.vditor-ir__node--expand[data-type="code-block"]`（且未点击 `.vditor-hint`）时，自动收起展开态并实时重绘 `latex` / `math` / `mermaid` 预览。
-2. **核验并更新 `ui-review-checklist.html`**：
-   - 新增 Round 23 验收项，且全部保持未勾选（`checked: false`）状态交由用户逐项验收打勾。
+### Round 23（已完成）
+- `commitCodeBlockLanguage` 统一提交代码块语言；`mousedown`/`click` 双拦截 `.vditor-hint button` 解决点击失效；`ArrowUp/Down` + `Enter`/`Tab` 键盘选词；删空语言标签清除 `recentLanguage` 且不回填旧语言、消除空代码块内嵌蓝底框；`selectionchange` 自动收起并同步 KaTeX / Mermaid 预览；`PAIR_MAP` 补齐右括号 Overtype Skip。
+
+### Round 24（本轮立即执行，已通过 `/grill-me` 对齐设计决策）
+1. **禁止代码块内行内加粗（图 1）与重构嵌套/连续 `Ctrl+B` 加粗剥离（图 3）**：
+   - `inlineFormat.ts`：检测到选区位于 `pre, .vditor-ir__node[data-type="code-block"], .vditor-ir__marker--info` 时直接返回，绝不在代码块内注入 `**` 或 `<span data-type="strong">`；对于含局部已加粗子节点的混合选区，自动扩展起止边界至完整包裹节点，整体未全粗则剥离内部碎片 `**` 合并为唯一干净加粗，整体已全粗或二次连按则还原为纯净纯文本。
+   - `VditorEditor.tsx`：拦截 `Cmd/Ctrl+B` / `Cmd/Ctrl+I` 的 `e.repeat` 并调用 `e.stopImmediatePropagation()`。
+2. **LaTeX / Mermaid 单击零闪烁（图 2）**：
+   - 单击 `pre.vditor-ir__preview`（LaTeX / Math / Mermaid）绝不展开源码（LaTeX 静默高亮卡片、Mermaid 打开灯箱）；仅**双击卡片**或**点击左上角语言徽章/三圆点**才展开源码编辑。
+3. **`.vditor-hint` 防穿透遮挡与前缀优先排序（图 4）**：
+   - `editor.css` 将 `.vditor-ir .vditor-hint` 修正为 `.vditor .vditor-hint, .vditor-hint` 并提高至 `z-index: 9999`，确保绝不被下方代码块的 `z-index: 5` 语言徽章穿透；`positionLanguageHint()` 对输入前缀（如 `c`）按「完全相等 → 前缀匹配 → 子串」重排。
+4. **`echarts` / `mindmap` 紧凑高度自适应（图 5）**：
+   - 覆盖 Vditor 默认 `height: 420px`，空编辑态保持单行自适应高度，已渲染出实例时采用紧凑 `260px`。
+5. **侧边栏新建文件回车不触发二次重命名（图 6 & 图 7）**：
+   - `Sidebar.tsx` 新建输入框 `onKeyDown` 调用 `e.stopPropagation()`，列表容器守卫增加 `|| creatingItem`，并使用防重入标记防止 `onBlur` 与 `Enter` 双重触发。
+6. **超链接默认无下划线，仅 `:hover` 显示（图 8）** 与 **黑白符号升级为 Apple Color Emoji + 舒适间距（图 9）**：
+   - 默认移除超链接下划线，悬停时显示 3px 偏移下划线；自动为缺 `\uFE0F` 的黑白符号（如 `⚠` `⏱` `⚙` `⚖` `✍` 等）补齐彩色变体符并拉开图标与正文字符间距。
+7. **自动化校验强制规范**：
+   - 此后所有 UI 与交互改动必须编写 Playwright JS 自动化脚本在真机 Electron 窗口中跑通断言，再提交 Git 稳态基线。
 
 ---
 
