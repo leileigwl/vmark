@@ -1,0 +1,10 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Minimalist macOS Squircle Base (Logosystem Grid + Typora Paper White) -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="#FFFFFF" stroke="#E5E7EB" stroke-width="8"/>
+  <!-- Subtle Typora Top Rule -->
+  <line x1="120" y1="136" x2="392" y2="136" stroke="#E5E7EB" stroke-width="10" stroke-linecap="round"/>
+  <!-- Geometric V-Nib / Cat-Ear Negative Space Mark (2 Primitives, Monochrome First) -->
+  <path d="M156 196L256 364L356 196" stroke="#18181B" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Minimalist Ink / Cursor Accent Dot -->
+  <circle cx="256" cy="212" r="22" fill="#4183C4"/>
+</svg>

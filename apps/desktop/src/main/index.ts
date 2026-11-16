@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -58,13 +59,23 @@ function resolveSafePath(workspaceRoot: string, relativePath: string): string {
   return target;
 }
 
+function getAppIconPath(): string | undefined {
+  const candidates = [
+    path.join(app.getAppPath(), 'build/icon.png'),
+    path.join(process.resourcesPath, 'icon.png'),
+  ];
+  return candidates.find((p) => existsSync(p));
+}
+
 function createWindow(): void {
+  const iconPath = getAppIconPath();
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 960,
     minHeight: 640,
     show: false,
+    ...(iconPath ? { icon: iconPath } : {}),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 14, y: 12 },
     backgroundColor: '#ffffff',
@@ -252,6 +263,11 @@ function registerIpcHandlers(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vcat.publisher');
+
+  if (process.platform === 'darwin') {
+    const iconPath = getAppIconPath();
+    if (iconPath) app.dock?.setIcon(iconPath);
+  }
 
   protocol.handle('vcat-asset', async (request) => {
     const cfg = await readAppConfig();
