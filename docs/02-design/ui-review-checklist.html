@@ -321,6 +321,24 @@
             plan: "请重新导出 Word (.docx) 在 WPS / Pages / Word 中查看字体大小层级、空代码块与无红线效果。"
           },
           {
+            id: "R19_1",
+            title: "R19-1. 动态计算代码语言弹窗坐标（贴紧标签正下方/正上方 4px，绝不遮挡代码框）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851290008_b2eedf35.png",
+            desc: "移除固定 margin-top，改为实时读取当前 .vditor-ir__marker--info 标签坐标并动态定位 .vditor-hint（优先正下方 4px，底部空间不足时贴正上方 4px），绝不遮挡标签或上下代码块。",
+            plan: "请在代码框语言标签内输入字符触发提示框，确认贴紧标签下方或上方显示且无遮挡。"
+          },
+          {
+            id: "R19_2",
+            title: "R19-2. 删光文字后自动清理空的 **** / ** / ~~ 残留标记",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851315819_a6d67d6e.png",
+            desc: "在 DOM 增强周期自动检测内部文本为空的 strong/em/s/code 行内节点，彻底清理如 #### **** 的空标记残留。",
+            plan: "请在标题或正文中删光加粗文字，确认不会残留空的 ****。"
+          },
+          {
             id: "R17_1",
             title: "R17-1. 代码语言下拉菜单（.vditor-hint）下移 26px，不再遮挡重叠代码语言标签",
             status: "done",

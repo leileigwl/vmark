@@ -253,9 +253,9 @@
   border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
   background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
-/* Ensure code language autocomplete popup (.vditor-hint) opens cleanly below the language badge without overlapping it */
+/* Language autocomplete popup (.vditor-hint) positioned dynamically via JS below/above the active badge */
 .vditor-ir .vditor-hint {
-  margin-top: 26px !important;
+  margin-top: 0 !important;
   z-index: 40 !important;
 }
 

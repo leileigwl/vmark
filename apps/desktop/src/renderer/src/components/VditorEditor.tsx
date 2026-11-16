@@ -563,11 +563,56 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const positionLanguageHint = () => {
+        const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
+        if (!hintEl || hintEl.style.display === 'none' || hintEl.childElementCount === 0) return;
+        const selNow = window.getSelection();
+        const anchorEl =
+          selNow?.anchorNode instanceof Element ? selNow.anchorNode : selNow?.anchorNode?.parentElement;
+        const infoMarker =
+          (anchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
+          (document.activeElement?.closest?.('.vditor-ir__marker--info') as HTMLElement | null);
+        if (!infoMarker || !el.contains(infoMarker)) return;
+
+        const infoRect = infoMarker.getBoundingClientRect();
+        const hintParent = (hintEl.offsetParent as HTMLElement | null) ?? el;
+        const parentRect = hintParent.getBoundingClientRect();
+        const hintH = hintEl.offsetHeight || 220;
+        const spaceBelow = window.innerHeight - infoRect.bottom - 12;
+        const topPx =
+          spaceBelow >= Math.min(hintH, 160)
+            ? infoRect.bottom - parentRect.top + 4
+            : Math.max(4, infoRect.top - parentRect.top - hintH - 4);
+        hintEl.style.top = `${Math.round(topPx)}px`;
+        hintEl.style.left = `${Math.max(4, Math.round(infoRect.left - parentRect.left))}px`;
+        hintEl.style.marginTop = '0px';
+      };
+
+      const cleanEmptyInlineNodes = () => {
+        const inlineNodes = el.querySelectorAll(
+          'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
+        );
+        inlineNodes.forEach((node) => {
+          const inner = node.querySelector('strong, b, em, i, s, del, code');
+          const innerText = (inner?.textContent || '').replace(/\u200b/g, '');
+          if (innerText.length === 0) {
+            const parent = node.parentNode;
+            node.remove();
+            if (parent instanceof HTMLElement && parent.childNodes.length === 0) {
+              parent.innerHTML = '<br>';
+            }
+          }
+        });
+      };
+
       const enhanceDom = () => {
         rewriteLocalImagesSync();
+        positionLanguageHint();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
+          positionLanguageHint();
+          cleanEmptyInlineNodes();
           applyCodeSyntaxHighlights(el);
           renderLatexBlocks();
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
