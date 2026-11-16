@@ -637,3 +637,7 @@
   text-align: center !important;
   padding: 14px 0 !important;
 }
+
+.vcat-readonly .vditor-reset {
+  cursor: default !important;
+}

@@ -172,10 +172,6 @@ export function SidebarTreeNodes({
             ) : (
               <button
                 type="button"
-                draggable={Boolean(article)}
-                onDragStart={(e) => {
-                  if (article) e.dataTransfer.setData('text/plain', article.relativePath);
-                }}
                 onClick={(e) => {
                   if (article) onArticleClick(e, article);
                 }}
@@ -189,7 +185,17 @@ export function SidebarTreeNodes({
                     : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
-                <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
+                <span
+                  draggable={Boolean(article)}
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    if (article) e.dataTransfer.setData('text/plain', article.relativePath);
+                  }}
+                  title="拖拽图标可移动到文件夹"
+                  className="inline-flex shrink-0 cursor-grab items-center"
+                >
+                  <FileText className="h-3.5 w-3.5 opacity-75" />
+                </span>
                 <span className="truncate">{node.name}</span>
               </button>
             )}

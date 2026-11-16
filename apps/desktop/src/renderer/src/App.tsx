@@ -231,11 +231,35 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         setQuickOpenModalOpen((v) => !v);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const activeEl = document.activeElement as HTMLElement | null;
+        const inTextInput = Boolean(activeEl?.closest('input, textarea, .vditor-reset'));
+        if (!inTextInput) {
+          if (k === 'z' && !e.shiftKey) {
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void undoFileOpRef.current();
+            return;
+          }
+          if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void redoFileOpRef.current();
+          }
+        }
       }
     };
     window.addEventListener('keydown', onGlobalKeyDown, true);
     return () => window.removeEventListener('keydown', onGlobalKeyDown, true);
   }, []);
+
+  const undoFileOpRef = useRef<() => Promise<void>>(async () => {});
+  const redoFileOpRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     if (!window.electronAPI?.onMenuAction) return;
@@ -295,6 +319,24 @@ export default function App() {
       } else if (action === 'editor:find') {
         setActiveView('editor');
         setFindBarOpen(true);
+      } else if (action === 'edit:undo') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl?.closest('input, textarea')) {
+          document.execCommand('undo');
+        } else if (activeEl?.closest('.vditor-reset')) {
+          editorRef.current?.undo();
+        } else {
+          void undoFileOpRef.current();
+        }
+      } else if (action === 'edit:redo') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (activeEl?.closest('input, textarea')) {
+          document.execCommand('redo');
+        } else if (activeEl?.closest('.vditor-reset')) {
+          editorRef.current?.redo();
+        } else {
+          void redoFileOpRef.current();
+        }
       } else if (action === 'window:fullscreen') {
         setIsFullscreen(true);
       } else if (action === 'window:unfullscreen') {
@@ -312,6 +354,27 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         setQuickOpenModalOpen((v) => !v);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        const activeEl = document.activeElement as HTMLElement | null;
+        const inTextInput = Boolean(activeEl?.closest('input, textarea, .vditor-reset'));
+        if (!inTextInput) {
+          if (k === 'z' && !e.shiftKey) {
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void undoFileOpRef.current();
+            return;
+          }
+          if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
+            if (e.repeat) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void redoFileOpRef.current();
+          }
+        }
       }
     };
     window.addEventListener('keydown', onGlobalKeyDown, true);
@@ -521,6 +584,9 @@ export default function App() {
       fileOpBusyRef.current = false;
     }
   }
+
+  undoFileOpRef.current = handleUndoFileOp;
+  redoFileOpRef.current = handleRedoFileOp;
 
   async function handleExportArticle(format: 'md' | 'html' | 'pdf' | 'docx') {
     if (!activeArticle) return;

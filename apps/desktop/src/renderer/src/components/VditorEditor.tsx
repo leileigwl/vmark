@@ -51,6 +51,8 @@ export interface VditorEditorHandle {
   jumpToMatch: (findStr: string, index: number, opts?: FindOptions) => number;
   clearFindHighlights: () => void;
   replaceAllText: (findStr: string, replaceStr: string, opts?: FindOptions) => number;
+  undo: () => void;
+  redo: () => void;
 }
 
 interface VditorEditorProps {
@@ -154,6 +156,26 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       },
       clearFindHighlights() {
         clearFindHighlightsInDoc();
+      },
+      undo() {
+        const instance = vditorRef.current as unknown as {
+          vditor?: { undo?: { undo?: (v: unknown) => void } };
+        } | null;
+        if (instance?.vditor?.undo?.undo) {
+          instance.vditor.undo.undo(instance.vditor);
+        } else {
+          document.execCommand('undo');
+        }
+      },
+      redo() {
+        const instance = vditorRef.current as unknown as {
+          vditor?: { undo?: { redo?: (v: unknown) => void } };
+        } | null;
+        if (instance?.vditor?.undo?.redo) {
+          instance.vditor.undo.redo(instance.vditor);
+        } else {
+          document.execCommand('redo');
+        }
       },
       jumpToMatch(findStr: string, targetIndex: number, opts?: FindOptions) {
         return jumpToMatchInEl(containerRef.current, findStr, targetIndex, opts);
@@ -499,9 +521,16 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           if (slashStateRef.current.open) setSlashState((s) => ({ ...s, open: false }));
           return;
         }
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        const x = rect.left || 80;
-        const y = (rect.bottom || 120) + 6;
+        const r = document.createRange();
+        const slashOffset = Math.max(0, sel.anchorOffset - match[0].trimStart().length);
+        r.setStart(anchorNode, slashOffset);
+        r.setEnd(anchorNode, Math.min(anchorNode.nodeValue?.length ?? sel.anchorOffset, slashOffset + 1));
+        let rect = r.getBoundingClientRect();
+        if (!rect || (rect.left === 0 && rect.bottom === 0)) {
+          rect = sel.getRangeAt(0).getClientRects()[0] || anchorEl.getBoundingClientRect();
+        }
+        const x = rect.left || anchorEl.getBoundingClientRect().left || 80;
+        const y = (rect.bottom || anchorEl.getBoundingClientRect().bottom || 120) + 6;
         setSlashState((prev) => ({
           open: true,
           x,
@@ -750,12 +779,16 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('mouseup', handleMouseUpCapture, true);
       el.addEventListener('dblclick', handleDblClickCapture, true);
       el.addEventListener('click', handleClickCapture, true);
+      el.addEventListener('input', detectSlashCommand, true);
+      el.addEventListener('keyup', detectSlashCommand, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
         if (heavyEnhanceTimer) clearTimeout(heavyEnhanceTimer);
         document.removeEventListener('selectionchange', handleSelectionChange);
+        el.removeEventListener('input', detectSlashCommand, true);
+        el.removeEventListener('keyup', detectSlashCommand, true);
         el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);

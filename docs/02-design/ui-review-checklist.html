@@ -312,6 +312,42 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R30_1",
+            title: "R30-1. 左侧 Ctrl+Z / Cmd+Z 撤销与重做全场景打通",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794858272285_f80a2f66.jpg",
+            desc: "主进程编辑菜单与 App.tsx 全局捕获协同路由，焦点在侧边栏或非文本输入区时按 Cmd+Z / Ctrl+Z 立即触发侧边栏撤销。",
+            plan: "请在侧边栏新建或删除文件后，直接按 Ctrl+Z 或 Cmd+Z 确认能立刻撤销与恢复。"
+          },
+          {
+            id: "R30_2",
+            title: "R30-2. 文件菜单「关闭窗口」去掉前置 × 符号对齐视觉",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794858272285_f80a2f66.jpg",
+            desc: "移除 role: 'close' 改用 BrowserWindow.getFocusedWindow()?.close()，去除 macOS 自动注入的 × 图标，与「保存」「打开最近的文件」等左对齐。",
+            plan: "请打开顶部「文件」菜单，确认「关闭窗口」文字与上下菜单项完全对齐。"
+          },
+          {
+            id: "R30_3",
+            title: "R30-3. / 斜杠命令贴近光标对齐 + 打字即时跟随筛选",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794858817121_8fd935d8.png",
+            desc: "改用原生 input/keyup 即时检测并直接测量 / 字符位置，弹窗紧贴当前输入行不飘到顶部，连续打字筛选零延迟。",
+            plan: "请在页面中下部输入 /le 或 /bg，确认弹窗紧贴光标且打字筛选流畅。"
+          },
+          {
+            id: "R30_4",
+            title: "R30-4. 侧边栏中间区域左键直接拖拽框选 + 只读模式无色偏仅禁编辑",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794858874037_0f266025.png",
+            desc: "draggable 收敛至文件图标，允许在文件列表中间任意空白/行文字处左键拖拽框选多篇；只读模式保留原色与正常下滑，仅指针改为默认非编辑态。",
+            plan: "请在侧边栏文件列表中间按住左键上下拖拽框选；切换「只读」模式确认颜色不变且可正常滑动。"
+          },
+          {
             id: "R29_1",
             title: "R29-1. LaTeX / Mermaid 双击进入源码彻底无闪烁 + ### 输入即时响应不卡顿",
             status: "done",

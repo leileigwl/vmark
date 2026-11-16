@@ -100,6 +100,18 @@
 6. **`VditorEditor.tsx` 与 `Sidebar.tsx` 持续解耦**：
    - 新增 `vditorFindHelpers.ts`、`editorHelpers.ts`、`vditorKeyboard.ts`、`vditorPointerEvents.ts`、`vditorCommands.ts`，`Sidebar.tsx` 784 行、`VditorEditor.tsx` 846 行。
 
+### Round 30（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **左侧边栏 `Ctrl+Z` / `Cmd+Z` 绑定彻底打通**：
+   - `main/index.ts` 将「编辑 → 撤销/重做」由原生 `role: 'undo'/'redo'` 改为分发 `edit:undo` / `edit:redo`，并在 `App.tsx` 按当前焦点（输入框 / `.vditor-reset` / 侧边栏及非编辑区）智能路由至对应撤销栈，同时补齐 `Ctrl+Z`/`Ctrl+Y` 全局捕获快捷键。
+2. **系统菜单「关闭窗口」移除多余 `×` 图标对齐文字视觉**：
+   - `main/index.ts` 将「关闭窗口」改为 `click: () => BrowserWindow.getFocusedWindow()?.close()`，去除 macOS 系统自动注入的 `×` 符号，文字与其他菜单项完全左对齐。
+3. **`/` 斜杠命令光标精准跟随 + 打字即时响应**：
+   - `VditorEditor.tsx` 改用原生 `input` + `keyup` 捕获即时检测 `/query`（不再等待 68KB `html2md`），并精确测量 `/` 字符边界矩形定位弹窗，彻底告别左上角错位与打字卡顿。
+4. **左侧边栏中间区域左键直接拖拽框选**：
+   - 将文件拖拽移动的 `draggable` 收敛到左侧 `<FileText>` 图标上，文件列表 `onMouseDown` 不再被整行 `<button>` 拦截，直接在文件列表中间按住左键拖拽即可拉出蓝框批量选中，松手不误触取消选区。
+5. **只读模式保持原色无滤镜，支持正常下滑**：
+   - 移除任何额外色彩滤镜，仅设置 `.vcat-readonly .vditor-reset { cursor: default !important; }`，正常滚轮滑动、不可鼠标编辑。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）

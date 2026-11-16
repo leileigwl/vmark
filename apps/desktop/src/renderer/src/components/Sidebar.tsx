@@ -113,6 +113,7 @@ export function Sidebar({
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
   const fileListRef = useRef<HTMLDivElement>(null);
+  const suppressNextClickRef = useRef(false);
   const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const isConfirmingCreateRef = useRef(false);
 
@@ -197,6 +198,7 @@ export function Sidebar({
   }, [fileViewMode, filteredArticles, fileTree, expandedDirs]);
 
   function handleArticleItemClick(e: React.MouseEvent, article: ArticleMeta) {
+    if (suppressNextClickRef.current) return;
     if (e.shiftKey) {
       e.preventDefault();
       const anchorPath = lastClickedPath ?? activeArticle?.relativePath ?? article.relativePath;
@@ -437,7 +439,7 @@ export function Sidebar({
           onMouseDown={(e) => {
             if (e.button !== 0 || sideTab !== 'files' || renamingPath || creatingItem) return;
             const t = e.target as HTMLElement | null;
-            if (t?.closest('input, textarea, button')) return;
+            if (t?.closest('input, textarea, [draggable="true"]')) return;
             const startX = e.clientX;
             const startY = e.clientY;
             let active = false;
@@ -471,6 +473,12 @@ export function Sidebar({
             const onUp = () => {
               window.removeEventListener('mousemove', onMove);
               window.removeEventListener('mouseup', onUp);
+              if (active) {
+                suppressNextClickRef.current = true;
+                setTimeout(() => {
+                  suppressNextClickRef.current = false;
+                }, 0);
+              }
               setMarqueeRect(null);
             };
             window.addEventListener('mousemove', onMove);
@@ -568,8 +576,6 @@ export function Sidebar({
                     key={art.relativePath}
                     data-article-path={art.relativePath}
                     type="button"
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData('text/plain', art.relativePath)}
                     onClick={(e) => handleArticleItemClick(e, art)}
                     onContextMenu={(e) => {
                       e.preventDefault();

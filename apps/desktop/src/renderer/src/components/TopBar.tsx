@@ -87,7 +87,7 @@ export function TopBar({
             onClick={onToggleReadOnly}
             className={`mr-1 flex h-6 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium transition ${
               readOnly
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
                 : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]'
             }`}
           >

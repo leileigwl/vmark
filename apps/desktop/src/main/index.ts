@@ -178,7 +178,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
         { label: '快速打开...', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendMenuAction('file:quickOpen') },
         { label: '打开最近的文件', submenu: recentSubmenu },
         { type: 'separator' },
-        { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', role: 'close' },
+        { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', click: () => BrowserWindow.getFocusedWindow()?.close() },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
         { label: '在 Finder 中显示', click: () => sendMenuAction('file:reveal') },
         {
@@ -198,8 +198,8 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
     {
       label: '编辑',
       submenu: [
-        { label: '撤销', role: 'undo' },
-        { label: '重做', role: 'redo' },
+        { label: '撤销', accelerator: 'CmdOrCtrl+Z', click: () => sendMenuAction('edit:undo') },
+        { label: '重做', accelerator: 'CmdOrCtrl+Shift+Z', click: () => sendMenuAction('edit:redo') },
         { type: 'separator' },
         { label: '剪切', role: 'cut' },
         { label: '拷贝', role: 'copy' },
