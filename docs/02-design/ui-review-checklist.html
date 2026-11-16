@@ -514,21 +514,21 @@
           },
           {
             id: "C4",
-            title: "C4. 普通代码块点击后上下双份重复渲染 & 白色遮挡块",
+            title: "C4. 普通代码块点击后原位单框卡片编辑（修复红黄绿三点与代码重叠）",
             status: "done",
             statusText: "本轮已改待打勾",
             img: "media_1794831378268_bf63e65e.png",
-            desc: "已在展开普通代码块（非 Mermaid）时隐藏重复预览层并清理遮挡伪元素，点击后直接原位单框修改。",
-            plan: "请在文章中点击 Python 代码块，确认只保留原位单一编辑框且无白色遮挡。"
+            desc: "修复 .vditor-ir__marker--pre 展开态丢失圆角边框与顶部 38px 留白导致红黄绿三点遮挡代码第 2 行的问题，保持单一 macOS 卡片原位编辑，无多余嵌套蓝框。",
+            plan: "请在文章中点击 Python 代码块，确认只保留原位单一 macOS 卡片编辑框且红黄绿三点不遮挡代码。"
           },
           {
             id: "C5",
-            title: "C5. Mermaid 单击放大仍先展开源码 & 白色遮挡错位",
+            title: "C5. Mermaid 单击激活滚轮缩放（不跳源码），快速双击原位改代码",
             status: "done",
             statusText: "本轮已改待打勾",
             img: "media_1794831351615_e42da0b4.jpg",
-            desc: "已在 capture 阶段同时拦截 mousedown 与 click 单击事件，单击只弹出 Lightbox 放大，双击才原位展开源码。",
-            plan: "请单击 Mermaid 图表确认不再在背后展开源码，双击时可正常改代码。"
+            desc: "已在 capture 阶段拦截单击 mousedown/click：单击 Mermaid 仅选中并支持滚轮缩放（50%–150%，与图片一致），不跳源码；快速双击才原位展开 macOS 代码卡片编辑。",
+            plan: "请单击 Mermaid 测试滚轮放大/缩小（不跳源码），再快速双击测试原位代码编辑。"
           },
           {
             id: "C6",

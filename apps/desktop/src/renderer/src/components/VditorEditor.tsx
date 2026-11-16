@@ -513,14 +513,47 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      // Click image to activate wheel-zoom (15% ~ 100%); click elsewhere to deactivate
+      // Click image or Mermaid diagram to activate wheel-zoom; rapid double-click Mermaid to edit code in-place
+      const clearActiveZoomTarget = () => {
+        if (activeZoomImgRef.current) {
+          activeZoomImgRef.current.style.outline = '';
+          activeZoomImgRef.current = null;
+        }
+      };
+
+      const getMermaidPreviewEl = (target: HTMLElement | null): HTMLElement | null => {
+        const mermaidEl = target?.closest('.language-mermaid') as HTMLElement | null;
+        if (!mermaidEl) return null;
+        const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
+        if (irNode?.classList.contains('vditor-ir__node--expand')) return null;
+        return mermaidEl;
+      };
+
       const handleMouseDownCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
         const imgEl = target?.closest('img') as HTMLImageElement | null;
+        const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
+
+        if (mermaidEl) {
+          if (e.detail >= 2) {
+            clearActiveZoomTarget();
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          if (activeZoomImgRef.current && activeZoomImgRef.current !== mermaidEl) {
+            clearActiveZoomTarget();
+          }
+          activeZoomImgRef.current = mermaidEl as unknown as HTMLImageElement;
+          mermaidEl.style.outline = '2px solid var(--accent)';
+          mermaidEl.style.outlineOffset = '4px';
+          mermaidEl.style.borderRadius = '8px';
+          return;
+        }
+
         if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
-          activeZoomImgRef.current.style.outline = '';
-          activeZoomImgRef.current = null;
+          clearActiveZoomTarget();
         }
         if (imgEl) {
           activeZoomImgRef.current = imgEl;
@@ -529,18 +562,40 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
+      const handleClickCapture = (e: MouseEvent) => {
+        if (e.button !== 0) return;
+        const mermaidEl = getMermaidPreviewEl(e.target as HTMLElement | null);
+        if (mermaidEl && e.detail === 1) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+
       const handleWheel = (e: WheelEvent) => {
-        const imgEl = activeZoomImgRef.current;
-        if (!imgEl || !el.contains(imgEl)) return;
-        const targetImg = (e.target as HTMLElement | null)?.closest('img');
-        if (targetImg !== imgEl && !e.ctrlKey && !e.metaKey) return;
+        const activeEl = activeZoomImgRef.current as HTMLElement | null;
+        if (!activeEl || !el.contains(activeEl)) return;
+        const isMermaid = activeEl.classList.contains('language-mermaid');
+        const targetEl = e.target as HTMLElement | null;
+        const matchedTarget = isMermaid
+          ? targetEl?.closest('.language-mermaid')
+          : targetEl?.closest('img');
+        if (matchedTarget !== activeEl && !e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
-        const currentPct = Number.parseFloat(imgEl.dataset.zoomPct || '50') || 50;
+
         const delta = e.deltaY < 0 ? 5 : -5;
+        if (isMermaid) {
+          const currentPct = Number.parseFloat(activeEl.dataset.zoomPct || '100') || 100;
+          const nextPct = Math.min(150, Math.max(50, currentPct + delta));
+          activeEl.dataset.zoomPct = String(nextPct);
+          activeEl.style.zoom = `${nextPct}%`;
+          return;
+        }
+
+        const currentPct = Number.parseFloat(activeEl.dataset.zoomPct || '50') || 50;
         const nextPct = Math.min(100, Math.max(15, currentPct + delta));
-        imgEl.dataset.zoomPct = String(nextPct);
-        imgEl.style.width = `${nextPct}%`;
-        imgEl.style.maxWidth = `${nextPct}%`;
+        activeEl.dataset.zoomPct = String(nextPct);
+        activeEl.style.width = `${nextPct}%`;
+        activeEl.style.maxWidth = `${nextPct}%`;
       };
 
       const handleContextMenu = (e: MouseEvent) => {
@@ -568,6 +623,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('paste', handlePasteCapture, true);
       el.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
+      el.addEventListener('click', handleClickCapture, true);
       el.addEventListener('wheel', handleWheel, { passive: false });
       el.addEventListener('contextmenu', handleContextMenu);
 
@@ -576,6 +632,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('paste', handlePasteCapture, true);
         el.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
+        el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('wheel', handleWheel);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
