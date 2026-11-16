@@ -49,13 +49,7 @@ export function FindReplaceBar({
           {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </button>
 
-        <div
-          className={`flex items-center rounded-lg border bg-[var(--bg-elevated)] px-1.5 py-0.5 transition ${
-            noResults
-              ? 'border-[#d1d5db] text-[#9ca3af]'
-              : 'border-[var(--border-color)] focus-within:border-[var(--accent)]'
-          }`}
-        >
+        <div className="flex items-center rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-1.5 py-0.5 transition focus-within:border-[var(--accent)]">
           <input
             type="text"
             autoFocus
@@ -71,9 +65,7 @@ export function FindReplaceBar({
                 onClose();
               }
             }}
-            className={`w-36 bg-transparent px-1 py-0.5 text-xs outline-none ${
-              noResults ? 'text-[#9ca3af]' : 'text-[var(--text-main)]'
-            }`}
+            className="w-36 bg-transparent px-1 py-0.5 text-xs text-[var(--text-main)] outline-none"
           />
 
           {/* Case Sensitive */}
