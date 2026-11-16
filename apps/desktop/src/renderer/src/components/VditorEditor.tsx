@@ -563,7 +563,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      let isRepositioningHint = false;
       const positionLanguageHint = () => {
+        if (isRepositioningHint) return;
         const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
         if (!hintEl || hintEl.style.display === 'none' || hintEl.childElementCount === 0) return;
         const selNow = window.getSelection();
@@ -575,17 +577,22 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (!infoMarker || !el.contains(infoMarker)) return;
 
         const infoRect = infoMarker.getBoundingClientRect();
-        const hintParent = (hintEl.offsetParent as HTMLElement | null) ?? el;
-        const parentRect = hintParent.getBoundingClientRect();
+        if (infoRect.width === 0 && infoRect.height === 0) return;
         const hintH = hintEl.offsetHeight || 220;
         const spaceBelow = window.innerHeight - infoRect.bottom - 12;
         const topPx =
-          spaceBelow >= Math.min(hintH, 160)
-            ? infoRect.bottom - parentRect.top + 4
-            : Math.max(4, infoRect.top - parentRect.top - hintH - 4);
-        hintEl.style.top = `${Math.round(topPx)}px`;
-        hintEl.style.left = `${Math.max(4, Math.round(infoRect.left - parentRect.left))}px`;
+          spaceBelow >= Math.min(hintH, 140)
+            ? Math.round(infoRect.bottom + 4)
+            : Math.max(8, Math.round(infoRect.top - hintH - 4));
+        const leftPx = Math.max(8, Math.round(infoRect.left));
+        isRepositioningHint = true;
+        hintEl.style.position = 'fixed';
+        hintEl.style.top = `${topPx}px`;
+        hintEl.style.left = `${leftPx}px`;
         hintEl.style.marginTop = '0px';
+        requestAnimationFrame(() => {
+          isRepositioningHint = false;
+        });
       };
 
       const cleanEmptyInlineNodes = () => {
@@ -603,6 +610,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             }
           }
         });
+        // Strip literal orphaned **** markers left when bold text inside was deleted
+        const resetEl = el.querySelector('.vditor-ir .vditor-reset');
+        if (resetEl) {
+          const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
+          let tNode = walker.nextNode() as Text | null;
+          while (tNode) {
+            const val = tNode.nodeValue || '';
+            if (val.includes('****') && !tNode.parentElement?.closest('pre, code')) {
+              tNode.nodeValue = val.replace(/\*{4,}/g, '');
+            }
+            tNode = walker.nextNode() as Text | null;
+          }
+        }
       };
 
       const enhanceDom = () => {
@@ -633,7 +653,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         subtree: true,
         characterData: true,
         attributes: true,
-        attributeFilter: ['src'],
+        attributeFilter: ['src', 'style'],
       });
       enhanceDom();
 

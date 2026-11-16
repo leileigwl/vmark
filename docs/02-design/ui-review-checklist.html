@@ -321,6 +321,24 @@
             plan: "请重新导出 Word (.docx) 在 WPS / Pages / Word 中查看字体大小层级、空代码块与无红线效果。"
           },
           {
+            id: "R21_1",
+            title: "R21-1. 监听 .vditor-hint style 变化并用 fixed 坐标钉死在标签正下方 4px，绝不遮挡",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851758024_b9071172.png",
+            desc: "MutationObserver 新增监听 style 属性变化，并在重绘后立即将 .vditor-hint 设为 position: fixed 钉在标签正下方 4px（或空间不足时正上方 4px），不再被 Vditor 覆盖遮挡。",
+            plan: "请在代码块语言标签输入 lat，确认弹窗始终紧贴标签正下方且绝不遮挡。"
+          },
+          {
+            id: "R21_2",
+            title: "R21-2. 多次 Ctrl+B 不再叠加 ****...****，且删光内容后自动清除残留 ****",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851799901_c660f50a.png",
+            desc: "1) 多次按 Ctrl+B 时剥离任意数量外层星号，严格只在加粗/非加粗之间切换；2) 删光内部文字后自动清除空的 strong 节点及孤立 **** 文本残留。",
+            plan: "请选中正文多次连按 Ctrl+B，并尝试删光加粗文字，确认不叠加也不残留 ****。"
+          },
+          {
             id: "R20_1",
             title: "R20-1. Word (.docx) 导出渲染真实 LaTeX 数学公式（KaTeX 高清图片内嵌）",
             status: "done",

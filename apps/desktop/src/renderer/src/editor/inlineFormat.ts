@@ -125,8 +125,8 @@ export function toggleInlineWrapInEditor(
 
   const trimmedSel = selectedText.trim();
   if (
-    (cmd === 'bold' && /^\*\*[\s\S]+\*\*$/.test(trimmedSel)) ||
-    (cmd === 'italic' && /^\*[\s\S]+\*$/.test(trimmedSel))
+    (cmd === 'bold' && /^\*\*+[\s\S]*\*\*+$/.test(trimmedSel)) ||
+    (cmd === 'italic' && /^\*+[\s\S]*\*+$/.test(trimmedSel))
   ) {
     const stripped = trimmedSel.replace(/^\*+|\*+$/g, '');
     const textNode = document.createTextNode(stripped);
