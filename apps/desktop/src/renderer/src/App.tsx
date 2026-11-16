@@ -392,6 +392,9 @@ export default function App() {
 
   async function handleSaveArticle(nextContent: string, silent = false) {
     if (!activeArticle) return;
+    if (silent && activeArticle.wordCount > 20 && nextContent.trim().length === 0) {
+      return;
+    }
     if (!silent) setSaveState('保存中...');
     await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
     setSaveState('已保存');

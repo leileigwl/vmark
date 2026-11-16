@@ -95,8 +95,16 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         return;
       }
 
-      // Wrap exact selection in-place via execCommand so selection isn't collapsed & undo stack stays intact
-      document.execCommand('insertText', false, `${markerMap.marker}${selectedText}${markerMap.marker}`);
+      // Preserve leading/trailing spaces outside markers so "*3 *" never breaks CommonMark italic/bold
+      const leading = selectedText.match(/^\s*/)?.[0] ?? '';
+      const trailing = selectedText.match(/\s*$/)?.[0] ?? '';
+      const core = selectedText.trim();
+      if (!core) return;
+      document.execCommand(
+        'insertText',
+        false,
+        `${leading}${markerMap.marker}${core}${markerMap.marker}${trailing}`
+      );
     };
 
     useImperativeHandle(ref, () => ({
@@ -241,20 +249,32 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           const newRow = document.createElement('tr');
           for (let i = 0; i < colCount; i++) {
             const td = document.createElement('td');
-            td.innerHTML = ' ';
+            td.textContent = ' ';
             newRow.appendChild(td);
           }
-          if (action === 'row-above') {
+          const inHead = row.parentElement?.tagName === 'THEAD';
+          const tbody = table.tBodies[0] ?? table.createTBody();
+          if (inHead) {
+            tbody.insertBefore(newRow, tbody.firstChild);
+          } else if (action === 'row-above') {
             row.parentNode?.insertBefore(newRow, row);
           } else {
             row.parentNode?.insertBefore(newRow, row.nextSibling);
           }
         } else if (action === 'row-delete') {
-          if (table.rows.length > 1) row.remove();
+          const inHead = row.parentElement?.tagName === 'THEAD';
+          const tbody = table.tBodies[0];
+          if (!inHead && tbody && tbody.rows.length > 1) {
+            row.remove();
+          } else if (!inHead && (!tbody || tbody.rows.length <= 1)) {
+            const tableNode = table.closest('.vditor-ir__node') ?? table;
+            tableNode.remove();
+          }
         } else if (action === 'col-left' || action === 'col-right') {
-          Array.from(table.rows).forEach((r, idx) => {
-            const newCell = document.createElement(idx === 0 ? 'th' : 'td');
-            newCell.innerHTML = idx === 0 ? '列' : ' ';
+          Array.from(table.rows).forEach((r) => {
+            const isHead = r.parentElement?.tagName === 'THEAD';
+            const newCell = document.createElement(isHead ? 'th' : 'td');
+            newCell.textContent = isHead ? '列' : ' ';
             const refCell = r.cells[colIndex];
             if (action === 'col-left') {
               r.insertBefore(newCell, refCell ?? null);
@@ -267,6 +287,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             Array.from(table.rows).forEach((r) => {
               r.cells[colIndex]?.remove();
             });
+          } else {
+            const tableNode = table.closest('.vditor-ir__node') ?? table;
+            tableNode.remove();
           }
         }
 
@@ -305,8 +328,9 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         after: () => {
           isReadyRef.current = true;
           if (pendingValueRef.current !== null && pendingValueRef.current !== instance.getValue()) {
-            instance.setValue(pendingValueRef.current);
+            instance.setValue(pendingValueRef.current, true);
           }
+          instance.clearStack();
         },
         // Debounce React state sync so typing & Cmd+Z undo remain instant on 68KB+ docs
         input: (md) => {
@@ -454,7 +478,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       if (!instance || !isReadyRef.current) return;
       try {
         if (instance.getValue() !== value) {
-          instance.setValue(value);
+          instance.setValue(value, true);
+          instance.clearStack();
         }
       } catch {
         // Fallback handled by pendingValueRef in after()
