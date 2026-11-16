@@ -92,16 +92,22 @@
   padding: 0 !important;
 }
 
-/* Scope Mermaid hover & cursor strictly to the rendered diagram preview div */
+/* Scope Mermaid hover & active highlight strictly to the single outer preview card (no nested inner boxes!) */
 .vditor-ir__preview div.language-mermaid {
   cursor: zoom-in !important;
-  border-radius: 8px;
-  padding: 6px;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
-.vditor-ir__preview div.language-mermaid:hover {
-  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview:hover,
+.vditor-ir__node[data-type="code-block"].vcat-mermaid-active:not(.vditor-ir__node--expand) > pre.vditor-ir__preview {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) !important;
 }
 
 /* Window-adaptive Mermaid SVG sizing inside MediaLightbox */

@@ -622,6 +622,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const clearActiveZoomTarget = () => {
         if (activeZoomImgRef.current) {
           activeZoomImgRef.current.style.outline = '';
+          activeZoomImgRef.current.closest('.vditor-ir__node')?.classList.remove('vcat-mermaid-active');
           activeZoomImgRef.current = null;
         }
       };
@@ -694,9 +695,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             clearActiveZoomTarget();
           }
           activeZoomImgRef.current = mermaidEl as unknown as HTMLImageElement;
-          mermaidEl.style.outline = '1.5px solid color-mix(in srgb, var(--accent) 55%, transparent)';
-          mermaidEl.style.outlineOffset = '4px';
-          mermaidEl.style.borderRadius = '8px';
+          mermaidEl.closest('.vditor-ir__node')?.classList.add('vcat-mermaid-active');
 
           const svgSnapshot = mermaidEl.innerHTML;
           mermaidClickTimerRef.current = setTimeout(() => {
