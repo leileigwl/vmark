@@ -26,9 +26,11 @@ export function VditorEditor({ value, articleKey, onChange, onSave }: VditorEdit
     if (!el) return;
     isReadyRef.current = false;
 
+    const cdnBase = window.location.protocol === 'file:' ? './vditor' : '/vditor';
+
     const instance = new Vditor(el, {
       mode: 'ir',
-      cdn: './vditor',
+      cdn: cdnBase,
       height: '100%',
       cache: { enable: false },
       toolbar: [],

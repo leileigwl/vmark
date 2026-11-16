@@ -1,26 +1,26 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-16
-- **当前阶段**：**Phase 1 完成（Monorepo 骨架 + Electron 桌面端 + Typora White 写作台/文章管理/本地图床骨架已构建通过）**
+- **当前阶段**：**Phase 1.5 完成（完全对齐 macOS Typora 原生通顶左侧栏布局 + 本地 Git 仓库一键 Push 触发 CI/CD）**
 
 ## 本轮已完成事项
 
-1. **Monorepo 工程脚手架落地（`pnpm workspace + Turborepo`）**：
-   - `packages/shared`：全局类型契约与 `ElectronAPI` 接口定义。
-   - `packages/core`：本地 Markdown 工作区递归扫描、标题/字数/大纲提取、本地图片引用计数。
-   - `packages/image-pipeline`：图片哈希持久化至本地 `assets/`、内存副本 URL 替换（不污染本地源文件）。
-   - `packages/adapters`：全量平台注册目录与 `PlatformAdapter` 接口契约（明确标明各平台参考来源：`references/Wechatsync`、`references/siyuan-plugin-publisher`）。
-   - `apps/desktop`：Electron 主进程 + ContextBridge Preload + React 18 + Tailwind + Vditor (`ir` 模式，复刻 Typora `github.css` 白色配色)，打通「文章管理台」、「写作台（含本地贴图落盘）」、「图床与平台设置」。
+1. **100% 对标 macOS 原生 Typora 布局重构**：
+   - 取消割裂的全宽 Web 顶部导航栏，改为**左侧栏通顶**（macOS 红绿灯自然嵌入左侧栏左上角、`文件 | 大纲` 切换、真实折叠文件夹树、底部 `+` 新建与切换目录动作条）。
+   - 右侧编辑区采用极简 `38px` 统一顶栏（居中文件名 + 右侧字数/保存状态 + `管理台`/`设置`/`分发`小图标），打开默认直入写作台。
+2. **GitHub 静态博客（本地 Git 直推）**：
+   - 主进程实现 `git:status` 与 `git:push`，打开本地 Hexo/Hugo/VitePress/Astro 仓库即可在设置或分发弹窗一键 `Commit & Push` 触发 CI/CD。
 
 ## 真实测试与验证状态
 
-- `pnpm test`：7/7 单元测试通过（`@vcat/core`: 4/4, `@vcat/image-pipeline`: 3/3）。
+- `pnpm test`：7/7 单元测试通过。
 - `pnpm typecheck`：5/5 包全部通过。
-- `pnpm --filter @vcat/desktop build`：成功构建。
+- `pnpm --filter @vcat/desktop build`：构建成功。
 - **Electron 真实端到端测试（Playwright `_electron.launch`）**：**全部通过（Exit 0）**
+  - ✓ 默认进入 Typora 原生通顶左侧栏 + 写作台渲染正常
+  - ✓ 侧边栏底部 `+` 新建空白文章成功且未崩溃
   - ✓ 文章管理台渲染正常
-  - ✓ 点击「新建空白文章」进入写作台（Vditor IR）未崩溃且渲染成功（已改为本地 `src/renderer/public/vditor/dist` 离线加载，彻底修复 `zh_CN.js` / `lute.min.js` 404 与竞态崩溃）
-  - ✓ Typora 风格「偏好设置 → 平台授权托管」渲染正常
+  - ✓ Typora 风格偏好设置（图床 / 平台托管 / GitHub 静态博客）渲染正常
   - ✓ 全程零 `pageerror` 与零 `console.error`
 
 ## 下一步计划（Next Steps）

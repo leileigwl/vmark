@@ -1,22 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ChevronDown,
+  ChevronRight,
   FileText,
+  Folder,
   FolderOpen,
   GitBranch,
   Globe,
   Image as ImageIcon,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ListTree,
+  PanelLeft,
   Plus,
   Send,
   Settings,
   Table2,
 } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
-import type { ArticleMeta, ImageBedConfig, PlatformId } from '@vcat/shared';
+import { countWords, extractOutline } from '@vcat/core';
+import type { ArticleMeta, GitStatusInfo, ImageBedConfig, PlatformId } from '@vcat/shared';
 import { VditorEditor } from './components/VditorEditor';
 
-type MainTab = 'manager' | 'editor' | 'settings';
+type MainView = 'editor' | 'manager' | 'settings';
+type SideTab = 'files' | 'outline';
 type SettingCategory = 'image' | 'platforms' | 'github';
 
 const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
@@ -34,31 +39,71 @@ const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   xiaohongshu: 'https://creator.xiaohongshu.com/login',
 };
 
+interface TreeNode {
+  name: string;
+  path: string;
+  isDir: boolean;
+  article?: ArticleMeta;
+  children: TreeNode[];
+}
+
+function buildFileTree(articles: ArticleMeta[]): TreeNode[] {
+  const root: TreeNode[] = [];
+  for (const art of articles) {
+    const parts = art.relativePath.split('/');
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+      const nodePath = parts.slice(0, i + 1).join('/');
+      let existing = current.find((n) => n.name === part && n.isDir === !isLast);
+      if (!existing) {
+        existing = {
+          name: part,
+          path: nodePath,
+          isDir: !isLast,
+          article: isLast ? art : undefined,
+          children: [],
+        };
+        current.push(existing);
+      }
+      current = existing.children;
+    }
+  }
+  return root.sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<MainTab>('manager');
+  const [activeView, setActiveView] = useState<MainView>('editor');
+  const [sideTab, setSideTab] = useState<SideTab>('files');
   const [settingCategory, setSettingCategory] = useState<SettingCategory>('image');
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [articles, setArticles] = useState<ArticleMeta[]>([]);
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const [saveState, setSaveState] = useState<string>('已同步本地');
+  const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>({});
+  const [saveState, setSaveState] = useState<string>('已同步');
   const [imageBed, setImageBed] = useState<ImageBedConfig>({ strategy: 'platform_private' });
   const [authStates, setAuthStates] = useState<Partial<Record<PlatformId, boolean>>>({});
+  const [gitStatus, setGitStatus] = useState<GitStatusInfo>({ isGitRepo: false, changedFiles: 0 });
+  const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, list, imgCfg, auths] = await Promise.all([
+    const [wsPath, list, imgCfg, auths, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.listArticles(),
       window.electronAPI.getImageBedConfig(),
       window.electronAPI.getPlatformAuthStates(),
+      window.electronAPI.getGitStatus(),
     ]);
     setWorkspacePath(wsPath);
     setArticles(list);
     setImageBed(imgCfg);
     setAuthStates(auths);
+    setGitStatus(git);
     if (!activeArticle && list.length > 0) {
       await openArticle(list[0]);
     }
@@ -72,15 +117,19 @@ export default function App() {
     const content = await window.electronAPI.readArticle(meta.relativePath);
     setActiveArticle(meta);
     setMarkdown(content);
-    setSaveState('已加载');
+    setSaveState('已保存');
   }
 
   async function handleSelectWorkspace() {
     const selected = await window.electronAPI.selectWorkspace();
     if (selected) {
       setWorkspacePath(selected);
-      const list = await window.electronAPI.listArticles();
+      const [list, git] = await Promise.all([
+        window.electronAPI.listArticles(),
+        window.electronAPI.getGitStatus(),
+      ]);
       setArticles(list);
+      setGitStatus(git);
       if (list.length > 0) {
         await openArticle(list[0]);
       } else {
@@ -96,16 +145,20 @@ export default function App() {
     const list = await window.electronAPI.listArticles();
     setArticles(list);
     await openArticle(created);
-    setActiveTab('editor');
+    setActiveView('editor');
   }
 
   async function handleSaveArticle(nextContent: string) {
     if (!activeArticle) return;
     setSaveState('保存中...');
     await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
-    setSaveState('已保存至本地');
-    const list = await window.electronAPI.listArticles();
+    setSaveState('已保存');
+    const [list, git] = await Promise.all([
+      window.electronAPI.listArticles(),
+      window.electronAPI.getGitStatus(),
+    ]);
     setArticles(list);
+    setGitStatus(git);
   }
 
   async function handleChangeImageStrategy(strategy: ImageBedConfig['strategy']) {
@@ -120,148 +173,330 @@ export default function App() {
     setAuthStates((prev) => ({ ...prev, [platformId]: ok }));
   }
 
+  async function handleGitPush() {
+    setGitPushLog('正在执行 git add / commit / push...');
+    const title = activeArticle?.title || 'update';
+    const res = await window.electronAPI.pushGitWorkspace(`post: ${title}`);
+    setGitPushLog(res.message);
+    const git = await window.electronAPI.getGitStatus();
+    setGitStatus(git);
+  }
+
+  const fileTree = useMemo(() => buildFileTree(articles), [articles]);
+  const outlineNodes = useMemo(() => extractOutline(markdown), [markdown]);
+  const liveWordCount = useMemo(() => countWords(markdown), [markdown]);
   const totalLocalImages = useMemo(
     () => articles.reduce((sum, item) => sum + item.localImageCount, 0),
     [articles]
   );
+  const workspaceName = workspacePath ? workspacePath.split('/').pop() || workspacePath : '未挂载目录';
 
-  return (
-    <div className="flex h-screen w-screen flex-col bg-white text-[#333333]">
-      {/* 顶部经典导航栏 */}
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-[#e5e7eb] bg-[#fafafa] px-4 pl-20 select-none">
-        <div className="flex items-center gap-4">
-          <span className="text-[13px] font-semibold text-[#333333]">VCat Publisher</span>
-          <nav className="flex gap-1 rounded-md bg-[#eceef1] p-0.5">
+  function renderTreeNodes(nodes: TreeNode[], depth = 0) {
+    return nodes.map((node) => {
+      if (node.isDir) {
+        const isOpen = expandedDirs[node.path] ?? true;
+        return (
+          <div key={node.path}>
             <button
               type="button"
-              onClick={() => setActiveTab('manager')}
-              className={`flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium ${
-                activeTab === 'manager' ? 'bg-white text-[#333333] shadow-xs' : 'text-[#777777]'
+              onClick={() => setExpandedDirs((prev) => ({ ...prev, [node.path]: !isOpen }))}
+              style={{ paddingLeft: `${8 + depth * 12}px` }}
+              className="flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] text-[#333333] hover:bg-[#eceef1]"
+            >
+              {isOpen ? (
+                <ChevronDown className="h-3 w-3 shrink-0 text-[#777777]" />
+              ) : (
+                <ChevronRight className="h-3 w-3 shrink-0 text-[#777777]" />
+              )}
+              <Folder className="h-3.5 w-3.5 shrink-0 text-[#777777]" />
+              <span className="truncate">{node.name}</span>
+            </button>
+            {isOpen && renderTreeNodes(node.children, depth + 1)}
+          </div>
+        );
+      }
+
+      const isSelected = activeArticle?.relativePath === node.article?.relativePath;
+      return (
+        <button
+          key={node.path}
+          type="button"
+          onClick={() => {
+            if (node.article) {
+              void openArticle(node.article);
+              setActiveView('editor');
+            }
+          }}
+          style={{ paddingLeft: `${22 + depth * 12}px` }}
+          className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] ${
+            isSelected
+              ? 'bg-[#e6eff8] font-medium text-[#4183c4]'
+              : 'text-[#333333] hover:bg-[#eceef1]'
+          }`}
+        >
+          <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
+          <span className="truncate">{node.name}</span>
+        </button>
+      );
+    });
+  }
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-white text-[#333333]">
+      {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 底部动作条） */}
+      {sidebarOpen && (
+        <aside className="flex h-screen w-[248px] shrink-0 flex-col border-r border-[#e5e7eb] bg-[#fafafa] select-none">
+          {/* 顶部 macOS 红绿灯留白拖动区 */}
+          <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
+
+          {/* Typora 式 文件 / 大纲 切换栏 */}
+          <div className="flex h-8 shrink-0 items-center border-b border-[#e5e7eb] px-4 text-[12px]">
+            <button
+              type="button"
+              onClick={() => setSideTab('files')}
+              className={`flex-1 py-1 text-center font-medium ${
+                sideTab === 'files'
+                  ? 'border-b-2 border-[#4183c4] text-[#333333]'
+                  : 'text-[#777777] hover:text-[#333333]'
+              }`}
+            >
+              文件
+            </button>
+            <button
+              type="button"
+              onClick={() => setSideTab('outline')}
+              className={`flex-1 py-1 text-center font-medium ${
+                sideTab === 'outline'
+                  ? 'border-b-2 border-[#4183c4] text-[#333333]'
+                  : 'text-[#777777] hover:text-[#333333]'
+              }`}
+            >
+              大纲
+            </button>
+          </div>
+
+          {/* 目录树 / 大纲区 */}
+          <div className="flex-1 overflow-y-auto px-1.5 py-2">
+            {sideTab === 'files' ? (
+              articles.length === 0 ? (
+                <div className="px-3 py-4 text-xs text-[#777777]">暂无 Markdown 文件</div>
+              ) : (
+                renderTreeNodes(fileTree)
+              )
+            ) : outlineNodes.length === 0 ? (
+              <div className="px-3 py-4 text-xs text-[#777777]">暂无标题大纲</div>
+            ) : (
+              outlineNodes.map((node, idx) => (
+                <div
+                  key={`${node.line}-${idx}`}
+                  style={{ paddingLeft: `${8 + (node.level - 1) * 12}px` }}
+                  className="truncate rounded py-1 pr-2 text-[12.5px] text-[#333333] hover:bg-[#eceef1]"
+                >
+                  {node.text}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Typora 底部工作区动作条（+ 新建 / 切换文件夹 / 列表大纲） */}
+          <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[#e5e7eb] px-2.5 text-[11.5px] text-[#777777]">
+            <button
+              type="button"
+              title="新建空白文章"
+              onClick={() => void handleCreateBlankArticle()}
+              className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              title="切换本地博客目录"
+              onClick={() => void handleSelectWorkspace()}
+              className="max-w-[145px] truncate rounded px-1.5 py-0.5 hover:bg-[#eceef1] hover:text-[#333333]"
+            >
+              {workspaceName}
+            </button>
+            <button
+              type="button"
+              title="切换大纲视图"
+              onClick={() => setSideTab((t) => (t === 'files' ? 'outline' : 'files'))}
+              className="rounded p-1 hover:bg-[#eceef1] hover:text-[#333333]"
+            >
+              <ListTree className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* 右侧主区 */}
+      <div className="flex h-screen flex-1 flex-col overflow-hidden bg-white">
+        {/* Typora 式 38px 极简统一顶栏 */}
+        <header
+          className={`app-drag flex h-[38px] shrink-0 items-center justify-between border-b border-[#eeeeee] bg-white pr-4 select-none ${
+            sidebarOpen ? 'pl-3' : 'pl-20'
+          }`}
+        >
+          <div className="app-no-drag flex items-center gap-2">
+            <button
+              type="button"
+              title={sidebarOpen ? '隐藏侧边栏' : '显示侧边栏'}
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="rounded p-1 text-[#777777] hover:bg-[#f3f4f6] hover:text-[#333333]"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+            {activeView !== 'editor' && (
+              <button
+                type="button"
+                onClick={() => setActiveView('editor')}
+                className="rounded px-2 py-0.5 text-xs text-[#4183c4] hover:bg-[#f0f6fc]"
+              >
+                ← 返回写作台
+              </button>
+            )}
+          </div>
+
+          {/* 居中当前标题（仿 Typora 居中文件名） */}
+          <div className="truncate text-[12.5px] font-medium text-[#555555]">
+            {activeView === 'editor'
+              ? activeArticle?.relativePath ?? 'VCat Publisher'
+              : activeView === 'manager'
+                ? '文章管理台'
+                : '偏好设置'}
+          </div>
+
+          {/* 右侧极简指标与核心动作 */}
+          <div className="app-no-drag flex items-center gap-2 text-xs text-[#777777]">
+            <span className="mr-1 text-[11.5px]">{liveWordCount} 词 · {saveState}</span>
+            <button
+              type="button"
+              title="文章管理台"
+              onClick={() => setActiveView((v) => (v === 'manager' ? 'editor' : 'manager'))}
+              className={`rounded p-1.5 hover:bg-[#f3f4f6] ${
+                activeView === 'manager' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
               }`}
             >
               <Table2 className="h-3.5 w-3.5" />
-              文章管理台
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('editor')}
-              className={`flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium ${
-                activeTab === 'editor' ? 'bg-white text-[#333333] shadow-xs' : 'text-[#777777]'
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              写作台
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium ${
-                activeTab === 'settings' ? 'bg-white text-[#333333] shadow-xs' : 'text-[#777777]'
+              title="偏好设置 (图床 / 平台 / GitHub)"
+              onClick={() => setActiveView((v) => (v === 'settings' ? 'editor' : 'settings'))}
+              className={`rounded p-1.5 hover:bg-[#f3f4f6] ${
+                activeView === 'settings' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
               }`}
             >
               <Settings className="h-3.5 w-3.5" />
-              偏好设置
             </button>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {activeTab === 'editor' && (
             <button
               type="button"
-              onClick={() => setSidebarOpen((v) => !v)}
-              className="flex items-center gap-1 rounded border border-[#e5e7eb] bg-white px-2.5 py-1 text-xs hover:bg-[#f6f8fa]"
+              onClick={() => setPublishModalOpen(true)}
+              className="ml-1 flex items-center gap-1 rounded bg-[#4183c4] px-2.5 py-1 text-[11.5px] font-medium text-white hover:bg-[#3572b0]"
             >
-              {sidebarOpen ? (
-                <PanelLeftClose className="h-3.5 w-3.5" />
-              ) : (
-                <PanelLeftOpen className="h-3.5 w-3.5" />
-              )}
-              {sidebarOpen ? '收起左栏' : '展开左栏'}
+              <Send className="h-3 w-3" />
+              分发
             </button>
+          </div>
+        </header>
+
+        {/* 主视图切换 */}
+        <main className="flex flex-1 overflow-hidden">
+          {activeView === 'editor' && (
+            <section className="flex-1 overflow-hidden bg-white">
+              {activeArticle ? (
+                <VditorEditor
+                  articleKey={activeArticle.relativePath}
+                  value={markdown}
+                  onChange={(md) => {
+                    setMarkdown(md);
+                    setSaveState('未保存');
+                  }}
+                  onSave={(md) => void handleSaveArticle(md)}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-[#777777]">
+                  <p>当前工作区暂无文章</p>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateBlankArticle()}
+                    className="rounded bg-[#4183c4] px-3 py-1.5 text-xs text-white"
+                  >
+                    + 新建空白文章
+                  </button>
+                </div>
+              )}
+            </section>
           )}
-          <button
-            type="button"
-            onClick={() => void handleCreateBlankArticle()}
-            className="flex items-center gap-1 rounded border border-[#e5e7eb] bg-white px-2.5 py-1 text-xs hover:bg-[#f6f8fa]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            新建空白文章
-          </button>
-          <button
-            type="button"
-            onClick={() => setPublishModalOpen(true)}
-            className="flex items-center gap-1 rounded bg-[#4183c4] px-3 py-1 text-xs font-medium text-white hover:bg-[#3572b0]"
-          >
-            <Send className="h-3.5 w-3.5" />
-            合并分发
-          </button>
-        </div>
-      </header>
 
-      {/* 主体内容区 */}
-      <main className="flex flex-1 overflow-hidden">
-        {activeTab === 'manager' && (
-          <div className="flex-1 overflow-y-auto p-8">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-semibold">本地工作区文章管理</h1>
-                <p className="mt-1 text-xs text-[#777777]">
-                  工作区目录：<code className="rounded bg-[#f5f5f5] px-1.5 py-0.5">{workspacePath ?? '未选择'}</code>
-                </p>
+          {activeView === 'manager' && (
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h1 className="text-lg font-semibold">文章管理台</h1>
+                  <p className="mt-1 text-xs text-[#777777]">
+                    当前目录：<code>{workspacePath ?? '未挂载'}</code>
+                    {gitStatus.isGitRepo && (
+                      <span className="ml-2 rounded bg-[#dafbe1] px-2 py-0.5 text-[#116329]">
+                        Git: {gitStatus.branch} ({gitStatus.changedFiles} 项待推送)
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSelectWorkspace()}
+                    className="flex items-center gap-1.5 rounded border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs hover:bg-[#f6f8fa]"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    切换目录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateBlankArticle()}
+                    className="flex items-center gap-1 rounded bg-[#4183c4] px-3 py-1.5 text-xs text-white hover:bg-[#3572b0]"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    新建空白文章
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleSelectWorkspace()}
-                className="flex items-center gap-1.5 rounded border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs hover:bg-[#f6f8fa]"
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                切换本地目录
-              </button>
-            </div>
 
-            <div className="mb-5 grid grid-cols-3 gap-3">
-              <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
-                <div className="text-xs text-[#777777]">本地文章总数</div>
-                <div className="mt-1 text-xl font-semibold">{articles.length} 篇</div>
+              <div className="mb-5 grid grid-cols-3 gap-3">
+                <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
+                  <div className="text-xs text-[#777777]">本地文章总数</div>
+                  <div className="mt-1 text-xl font-semibold">{articles.length} 篇</div>
+                </div>
+                <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
+                  <div className="text-xs text-[#777777]">本地 assets 引用</div>
+                  <div className="mt-1 text-xl font-semibold">{totalLocalImages} 张</div>
+                </div>
+                <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
+                  <div className="text-xs text-[#777777]">已注册平台适配器</div>
+                  <div className="mt-1 text-xl font-semibold text-[#4183c4]">{PLATFORM_CATALOG.length} 个</div>
+                </div>
               </div>
-              <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
-                <div className="text-xs text-[#777777]">本地 assets 引用图片</div>
-                <div className="mt-1 text-xl font-semibold">{totalLocalImages} 张</div>
-              </div>
-              <div className="rounded-md border border-[#e5e7eb] bg-[#fafafa] px-4 py-3">
-                <div className="text-xs text-[#777777]">已注册平台适配器</div>
-                <div className="mt-1 text-xl font-semibold text-[#4183c4]">{PLATFORM_CATALOG.length} 个</div>
-              </div>
-            </div>
 
-            <div className="overflow-hidden rounded-md border border-[#e5e7eb]">
-              <table className="w-full border-collapse text-left text-[13px]">
-                <thead className="border-b border-[#e5e7eb] bg-[#fafafa] text-[#777777]">
-                  <tr>
-                    <th className="px-4 py-2.5 font-semibold">文章标题 & 相对路径</th>
-                    <th className="px-4 py-2.5 font-semibold">字数</th>
-                    <th className="px-4 py-2.5 font-semibold">本地配图</th>
-                    <th className="px-4 py-2.5 font-semibold">最后修改</th>
-                    <th className="px-4 py-2.5 font-semibold">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#eeeeee]">
-                  {articles.length === 0 ? (
+              <div className="overflow-hidden rounded-md border border-[#e5e7eb]">
+                <table className="w-full border-collapse text-left text-[13px]">
+                  <thead className="border-b border-[#e5e7eb] bg-[#fafafa] text-[#777777]">
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-[#777777]">
-                        当前目录暂无 `.md` 文章，点击右上角「+ 新建空白文章」开始写作。
-                      </td>
+                      <th className="px-4 py-2.5 font-semibold">文章标题 & 路径</th>
+                      <th className="px-4 py-2.5 font-semibold">字数</th>
+                      <th className="px-4 py-2.5 font-semibold">本地配图</th>
+                      <th className="px-4 py-2.5 font-semibold">最后修改</th>
+                      <th className="px-4 py-2.5 font-semibold">操作</th>
                     </tr>
-                  ) : (
-                    articles.map((art) => (
+                  </thead>
+                  <tbody className="divide-y divide-[#eeeeee]">
+                    {articles.map((art) => (
                       <tr key={art.relativePath} className="hover:bg-[#fafbfc]">
                         <td className="px-4 py-3">
                           <button
                             type="button"
                             onClick={() => {
                               void openArticle(art);
-                              setActiveTab('editor');
+                              setActiveView('editor');
                             }}
                             className="font-semibold text-[#4183c4] hover:underline"
                           >
@@ -280,7 +515,7 @@ export default function App() {
                               type="button"
                               onClick={() => {
                                 void openArticle(art);
-                                setActiveTab('editor');
+                                setActiveView('editor');
                               }}
                               className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1 text-xs hover:bg-[#f6f8fa]"
                             >
@@ -299,208 +534,180 @@ export default function App() {
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'editor' && (
-          <>
-            {sidebarOpen && (
-              <aside className="flex w-60 shrink-0 flex-col border-r border-[#e5e7eb] bg-[#fafafa]">
-                <div className="border-b border-[#e5e7eb] px-3 py-2 text-xs font-semibold text-[#777777]">
-                  本地工作区文件
-                </div>
-                <div className="flex-1 overflow-y-auto p-2">
-                  {articles.map((art) => (
-                    <button
-                      key={art.relativePath}
-                      type="button"
-                      onClick={() => void openArticle(art)}
-                      className={`mb-0.5 flex w-full items-center gap-2 rounded px-2.5 py-1.5 text-left text-[13px] ${
-                        activeArticle?.relativePath === art.relativePath
-                          ? 'bg-[#e6eff8] font-medium text-[#4183c4]'
-                          : 'hover:bg-[#eef1f4]'
-                      }`}
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{art.relativePath}</span>
-                    </button>
-                  ))}
-                </div>
-              </aside>
-            )}
-
-            <section className="flex-1 overflow-hidden bg-white">
-              {activeArticle ? (
-                <VditorEditor
-                  articleKey={activeArticle.relativePath}
-                  value={markdown}
-                  onChange={(md) => {
-                    setMarkdown(md);
-                    setSaveState('未保存（Cmd+Enter 保存）');
-                  }}
-                  onSave={(md) => void handleSaveArticle(md)}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-[#777777]">
-                  请选择左侧文章或新建一篇空白文章开始写作
-                </div>
-              )}
-            </section>
-          </>
-        )}
-
-        {/* Typora 偏好设置风格（左侧分类菜单 + 右侧表单区） */}
-        {activeTab === 'settings' && (
-          <div className="flex flex-1 overflow-hidden">
-            <aside className="w-52 shrink-0 border-r border-[#e5e7eb] bg-[#fafafa] p-3">
-              <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[#777777] uppercase">
-                偏好设置 (Preferences)
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <button
-                type="button"
-                onClick={() => setSettingCategory('image')}
-                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
-                  settingCategory === 'image'
-                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
-                    : 'text-[#333333] hover:bg-[#eef1f4]'
-                }`}
-              >
-                <ImageIcon className="h-3.5 w-3.5" />
-                图像与图床
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingCategory('platforms')}
-                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
-                  settingCategory === 'platforms'
-                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
-                    : 'text-[#333333] hover:bg-[#eef1f4]'
-                }`}
-              >
-                <Globe className="h-3.5 w-3.5" />
-                平台授权托管
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingCategory('github')}
-                className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
-                  settingCategory === 'github'
-                    ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
-                    : 'text-[#333333] hover:bg-[#eef1f4]'
-                }`}
-              >
-                <GitBranch className="h-3.5 w-3.5" />
-                GitHub 静态博客
-              </button>
-            </aside>
+            </div>
+          )}
 
-            <section className="flex-1 overflow-y-auto bg-white p-8">
-              {settingCategory === 'image' && (
-                <div className="max-w-2xl space-y-5">
-                  <div>
-                    <h2 className="text-base font-semibold">插入图片时</h2>
-                    <p className="mt-1 text-xs text-[#777777]">
-                      对齐 Typora 图像设置：日常本地写作始终保存至相对路径 <code>./assets/</code>，离线完全可用。
-                    </p>
-                  </div>
-                  <div className="space-y-3 rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-[13px]">
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <input
-                        type="radio"
-                        className="mt-1"
-                        checked={imageBed.strategy === 'platform_private'}
-                        onChange={() => void handleChangeImageStrategy('platform_private')}
-                      />
-                      <div>
-                        <div className="font-medium">分发时直传目标平台官方图床（推荐）</div>
-                        <div className="text-xs text-[#777777]">
-                          推送公众号/博客园/CSDN 时自动上传为官方素材，彻底免疫跨平台防盗链
-                        </div>
-                      </div>
-                    </label>
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <input
-                        type="radio"
-                        className="mt-1"
-                        checked={imageBed.strategy === 'custom_oss'}
-                        onChange={() => void handleChangeImageStrategy('custom_oss')}
-                      />
-                      <div>
-                        <div className="font-medium">上传至通用云图床（PicGo-Core / OSS / COS / S3）</div>
-                        <div className="text-xs text-[#777777]">
-                          适用于 GitHub 静态博客、Hexo / VitePress 等自建站
-                        </div>
-                      </div>
-                    </label>
-                  </div>
+          {activeView === 'settings' && (
+            <div className="flex flex-1 overflow-hidden">
+              <aside className="w-48 shrink-0 border-r border-[#e5e7eb] bg-[#fafafa] p-3">
+                <div className="mb-2 px-2 text-[11px] font-semibold tracking-wider text-[#777777] uppercase">
+                  偏好设置
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setSettingCategory('image')}
+                  className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                    settingCategory === 'image'
+                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                  }`}
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  图像与图床
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingCategory('platforms')}
+                  className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                    settingCategory === 'platforms'
+                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                  }`}
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  平台授权托管
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingCategory('github')}
+                  className={`mb-1 flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs ${
+                    settingCategory === 'github'
+                      ? 'bg-[#e6eff8] font-semibold text-[#4183c4]'
+                      : 'text-[#333333] hover:bg-[#eef1f4]'
+                  }`}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  GitHub 静态博客
+                </button>
+              </aside>
 
-              {settingCategory === 'platforms' && (
-                <div className="max-w-3xl">
-                  <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
-                  <p className="mt-1 mb-4 text-xs text-[#777777]">
-                    每个平台运行在独立的 Electron <code>persist:platform_*</code> 沙箱内，Cookie 本地持久化不串号。
-                  </p>
-                  <div className="divide-y divide-[#eeeeee] rounded border border-[#e5e7eb]">
-                    {PLATFORM_CATALOG.map((p) => {
-                      const online = Boolean(authStates[p.id]);
-                      return (
-                        <div
-                          key={p.id}
-                          className="flex items-center justify-between px-4 py-3 hover:bg-[#fafafa]"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2 text-[13px] font-semibold">
-                              <span>{p.name}</span>
-                              {online ? (
-                                <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
-                                  ● 已授权
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[11px] text-[#57606a]">
-                                  未登录
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-[#777777]">
-                              默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
-                            </div>
+              <section className="flex-1 overflow-y-auto bg-white p-8">
+                {settingCategory === 'image' && (
+                  <div className="max-w-2xl space-y-4">
+                    <h2 className="text-base font-semibold">插入图片时</h2>
+                    <p className="text-xs text-[#777777]">
+                      本地写作始终保存至 <code>./assets/</code>，离线完全可用。
+                    </p>
+                    <div className="space-y-3 rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-[13px]">
+                      <label className="flex cursor-pointer items-start gap-2.5">
+                        <input
+                          type="radio"
+                          className="mt-1"
+                          checked={imageBed.strategy === 'platform_private'}
+                          onChange={() => void handleChangeImageStrategy('platform_private')}
+                        />
+                        <div>
+                          <div className="font-medium">分发时直传目标平台官方图床（推荐）</div>
+                          <div className="text-xs text-[#777777]">
+                            推送公众号/博客园/CSDN 时自动上传为官方素材，彻底免疫跨平台防盗链
                           </div>
+                        </div>
+                      </label>
+                      <label className="flex cursor-pointer items-start gap-2.5">
+                        <input
+                          type="radio"
+                          className="mt-1"
+                          checked={imageBed.strategy === 'custom_oss'}
+                          onChange={() => void handleChangeImageStrategy('custom_oss')}
+                        />
+                        <div>
+                          <div className="font-medium">上传至通用云图床（PicGo-Core / OSS / COS / S3）</div>
+                          <div className="text-xs text-[#777777]">
+                            适用于 GitHub 静态博客、Hexo / VitePress 等自建站
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {settingCategory === 'platforms' && (
+                  <div className="max-w-3xl">
+                    <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
+                    <p className="mt-1 mb-4 text-xs text-[#777777]">
+                      每个平台运行在独立的 Electron <code>persist:platform_*</code> 沙箱内，Cookie 本地持久化不串号。
+                    </p>
+                    <div className="divide-y divide-[#eeeeee] rounded border border-[#e5e7eb]">
+                      {PLATFORM_CATALOG.map((p) => {
+                        const online = Boolean(authStates[p.id]);
+                        return (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between px-4 py-3 hover:bg-[#fafafa]"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2 text-[13px] font-semibold">
+                                <span>{p.name}</span>
+                                {online ? (
+                                  <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
+                                    ● 已授权
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full bg-[#f3f4f6] px-2 py-0.5 text-[11px] text-[#57606a]">
+                                    未登录
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-0.5 text-[11px] text-[#777777]">
+                                默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handlePlatformLogin(p.id)}
+                              className="rounded border border-[#e5e7eb] bg-white px-3 py-1 text-xs hover:border-[#4183c4] hover:text-[#4183c4]"
+                            >
+                              {online ? '更新授权' : '打开登录窗授权'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {settingCategory === 'github' && (
+                  <div className="max-w-2xl space-y-4">
+                    <h2 className="text-base font-semibold">GitHub 静态博客直推（本地 Git 模式）</h2>
+                    <p className="text-xs text-[#777777]">
+                      像平时用 Typora 一样打开你的 Hexo / Hugo / VitePress 仓库，写完直接 Commit & Push 触发 GitHub Actions CI/CD。
+                    </p>
+                    <div className="rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-xs space-y-2">
+                      <div>当前工作区：<code>{workspacePath ?? '未挂载'}</code></div>
+                      <div>
+                        Git 仓库状态：
+                        {gitStatus.isGitRepo ? (
+                          <span className="font-semibold text-[#116329]">
+                            ✓ 已识别 Git 仓库（分支：{gitStatus.branch} · {gitStatus.changedFiles} 项待提交）
+                          </span>
+                        ) : (
+                          <span className="text-[#777777]">当前目录不是 Git 仓库（可在左下角切换至静态博客仓库目录）</span>
+                        )}
+                      </div>
+                      {gitStatus.isGitRepo && (
+                        <div className="pt-2">
                           <button
                             type="button"
-                            onClick={() => void handlePlatformLogin(p.id)}
-                            className="rounded border border-[#e5e7eb] bg-white px-3 py-1 text-xs hover:border-[#4183c4] hover:text-[#4183c4]"
+                            onClick={() => void handleGitPush()}
+                            className="rounded bg-[#4183c4] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3572b0]"
                           >
-                            {online ? '更新授权' : '打开登录窗授权'}
+                            一键 Commit & Push 触发 CI/CD
                           </button>
                         </div>
-                      );
-                    })}
+                      )}
+                      {gitPushLog && <div className="pt-1 text-[#4183c4]">{gitPushLog}</div>}
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {settingCategory === 'github' && (
-                <div className="max-w-2xl space-y-4">
-                  <h2 className="text-base font-semibold">GitHub 静态博客 & CI/CD 同步</h2>
-                  <p className="text-xs text-[#777777]">
-                    支持将当前工作区挂载的 Hexo / Hugo / VitePress / Astro 博客仓库一键 Commit & Push 到 GitHub，自动触发 CI/CD 构建部署。
-                  </p>
-                  <div className="rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-xs text-[#555555]">
-                    当前工作区：<code>{workspacePath ?? '未挂载'}</code>
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-      </main>
+                )}
+              </section>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* 合并分发弹窗 */}
       {publishModalOpen && (
@@ -516,11 +723,27 @@ export default function App() {
                 关闭
               </button>
             </div>
-            <div className="p-4 text-[13px] text-[#555555]">
-              <p className="mb-3">
-                已注册 <strong>{PLATFORM_CATALOG.length}</strong> 个平台适配器（含 GitHub 静态博客 CI/CD、公众号、Linux.do、小红书等）。请先在「偏好设置 → 平台授权托管」完成对应平台沙箱登录。
+            <div className="space-y-3 p-4 text-[13px] text-[#555555]">
+              {gitStatus.isGitRepo && (
+                <div className="flex items-center justify-between rounded border border-[#e5e7eb] bg-[#fafafa] px-3 py-2">
+                  <div>
+                    <div className="font-medium text-[#333333]">GitHub 静态博客 ({gitStatus.branch})</div>
+                    <div className="text-[11px] text-[#777777]">{gitStatus.changedFiles} 项改动待推送</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleGitPush()}
+                    className="rounded bg-[#4183c4] px-2.5 py-1 text-xs text-white hover:bg-[#3572b0]"
+                  >
+                    Commit & Push
+                  </button>
+                </div>
+              )}
+              {gitPushLog && <div className="text-xs text-[#4183c4]">{gitPushLog}</div>}
+              <p className="text-xs text-[#777777]">
+                其他平台（微信公众号、Linux.do、博客园、掘金、小红书等）已注册 {PLATFORM_CATALOG.length} 个适配器，可在「偏好设置 → 平台授权托管」先完成沙箱登录。
               </p>
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2">
                 {activeArticle && (
                   <button
                     type="button"
@@ -528,9 +751,9 @@ export default function App() {
                       void handleSaveArticle(markdown);
                       setPublishModalOpen(false);
                     }}
-                    className="rounded bg-[#4183c4] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#3572b0]"
+                    className="rounded border border-[#e5e7eb] px-3 py-1.5 text-xs hover:bg-[#f6f8fa]"
                   >
-                    保存当前本地文章
+                    保存本地文章
                   </button>
                 )}
               </div>
@@ -538,12 +761,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* 底部极简状态栏 */}
-      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#e5e7eb] bg-[#fafafa] px-3.5 text-[11px] text-[#777777]">
-        <span>工作区：{workspacePath ?? '未挂载'} · 样式：Typora White (github.css)</span>
-        <span>{saveState}</span>
-      </footer>
     </div>
   );
 }

@@ -19,6 +19,13 @@ body {
   overflow: hidden;
 }
 
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 /* Typora github.css style polish for Vditor IR */
 .vditor {
   border: none !important;

@@ -17,6 +17,9 @@ const api: ElectronAPI = {
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
     ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
   getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),
+  getGitStatus: () => ipcRenderer.invoke('git:status'),
+  pushGitWorkspace: (commitMessage: string) =>
+    ipcRenderer.invoke('git:push', commitMessage),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

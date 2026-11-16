@@ -65,6 +65,12 @@ export interface PipelineProgressEvent {
   message: string;
 }
 
+export interface GitStatusInfo {
+  isGitRepo: boolean;
+  branch?: string;
+  changedFiles: number;
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -80,4 +86,6 @@ export interface ElectronAPI {
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
+  getGitStatus: () => Promise<GitStatusInfo>;
+  pushGitWorkspace: (commitMessage: string) => Promise<{ ok: boolean; message: string }>;
 }

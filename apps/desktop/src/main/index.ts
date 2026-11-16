@@ -1,10 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
 import { saveImageToAssets } from '@vcat/image-pipeline';
 import type { ImageBedConfig, PlatformId } from '@vcat/shared';
+
+const execFileAsync = promisify(execFile);
 
 interface AppConfig {
   workspacePath: string | null;
@@ -54,6 +58,7 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 14, y: 12 },
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -196,6 +201,44 @@ function registerIpcHandlers(): void {
       states[id] = cookies.length > 0;
     }
     return states;
+  });
+
+  ipcMain.handle('git:status', async () => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return { isGitRepo: false, changedFiles: 0 };
+    try {
+      const { stdout: branch } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: cfg.workspacePath,
+      });
+      const { stdout: statusOut } = await execFileAsync('git', ['status', '--short'], {
+        cwd: cfg.workspacePath,
+      });
+      const changedFiles = statusOut.trim() ? statusOut.trim().split('\n').length : 0;
+      return { isGitRepo: true, branch: branch.trim(), changedFiles };
+    } catch {
+      return { isGitRepo: false, changedFiles: 0 };
+    }
+  });
+
+  ipcMain.handle('git:push', async (_event, commitMessage: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return { ok: false, message: '未挂载本地工作区' };
+    try {
+      await execFileAsync('git', ['add', '.'], { cwd: cfg.workspacePath });
+      const { stdout: statusOut } = await execFileAsync('git', ['status', '--short'], {
+        cwd: cfg.workspacePath,
+      });
+      if (statusOut.trim()) {
+        await execFileAsync('git', ['commit', '-m', commitMessage || 'chore(blog): update post'], {
+          cwd: cfg.workspacePath,
+        });
+      }
+      await execFileAsync('git', ['push'], { cwd: cfg.workspacePath });
+      return { ok: true, message: '已成功 Commit & Push 至 GitHub，CI/CD 已触发' };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { ok: false, message: `Git 推送失败：${msg}` };
+    }
   });
 }
 
