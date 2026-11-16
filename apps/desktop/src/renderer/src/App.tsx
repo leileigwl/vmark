@@ -19,6 +19,11 @@ import { VditorEditor, type FindOptions, type VditorEditorHandle } from './compo
 
 type MainView = 'editor' | 'manager' | 'settings';
 type SideTab = 'files' | 'outline';
+interface FileHistoryOp {
+  kind: 'create';
+  relativePath: string;
+  content?: string;
+}
 
 const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
@@ -63,6 +68,8 @@ export default function App() {
   const [tableModalOpen, setTableModalOpen] = useState<boolean>(false);
   const [tableCols, setTableCols] = useState<number>(3);
   const [tableRows, setTableRows] = useState<number>(4);
+  const [fileUndoStack, setFileUndoStack] = useState<FileHistoryOp[]>([]);
+  const [fileRedoStack, setFileRedoStack] = useState<FileHistoryOp[]>([]);
   const [imageBed, setImageBed] = useState<ImageBedConfig>({
     strategy: 'platform_private',
     provider: 'picgo_core',
@@ -316,8 +323,56 @@ export default function App() {
     const created = await window.electronAPI.createArticle();
     const list = await window.electronAPI.listArticles();
     setArticles(list);
+    setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+    setFileRedoStack([]);
     await openArticle(created);
     setActiveView('editor');
+  }
+
+  async function handleUndoFileOp() {
+    if (fileUndoStack.length === 0) return;
+    const op = fileUndoStack[fileUndoStack.length - 1];
+    setFileUndoStack((prev) => prev.slice(0, -1));
+    let snapshot = '';
+    try {
+      snapshot = await window.electronAPI.readArticle(op.relativePath);
+    } catch {
+      // ignore if file was already removed externally
+    }
+    try {
+      await window.electronAPI.deleteArticle(op.relativePath);
+      const list = await window.electronAPI.listArticles();
+      setArticles(list);
+      if (activeArticle?.relativePath === op.relativePath) {
+        if (list.length > 0) await openArticle(list[0]);
+        else {
+          setActiveArticle(null);
+          setMarkdown('');
+        }
+      }
+      setFileRedoStack((prev) => [...prev, { kind: 'create', relativePath: op.relativePath, content: snapshot }]);
+    } catch (err) {
+      showToast(err);
+    }
+  }
+
+  async function handleRedoFileOp() {
+    if (fileRedoStack.length === 0) return;
+    const op = fileRedoStack[fileRedoStack.length - 1];
+    setFileRedoStack((prev) => prev.slice(0, -1));
+    try {
+      const created = await window.electronAPI.createArticle(op.relativePath);
+      if (op.content !== undefined) {
+        await window.electronAPI.saveArticle(created.relativePath, op.content);
+      }
+      const list = await window.electronAPI.listArticles();
+      setArticles(list);
+      await openArticle(created);
+      setActiveView('editor');
+      setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+    } catch (err) {
+      showToast(err);
+    }
   }
 
   async function handleExportArticle(format: 'md' | 'html' | 'pdf' | 'docx') {
@@ -415,9 +470,15 @@ export default function App() {
           const created = await window.electronAPI.createArticle(relPath);
           const list = await window.electronAPI.listArticles();
           setArticles(list);
+          setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+          setFileRedoStack([]);
           await openArticle(created);
           setActiveView('editor');
         }}
+        canUndoFileOp={fileUndoStack.length > 0}
+        canRedoFileOp={fileRedoStack.length > 0}
+        onUndoFileOp={handleUndoFileOp}
+        onRedoFileOp={handleRedoFileOp}
         onCreateFolder={async (rel) => {
           await window.electronAPI.createFolder(rel);
           setFolders(await window.electronAPI.listFolders());

@@ -575,6 +575,41 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         return previewPre;
       };
 
+      const ensureCodeBlockInfoMarkers = () => {
+        const blocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
+        const sel = window.getSelection();
+        blocks.forEach((codeBlock) => {
+          const existingInfo = codeBlock.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
+          const match = editCode?.className.match(/language-([^\s]+)/);
+          const attrLang = codeBlock.getAttribute('data-CodeLang');
+          const fallbackLang =
+            match?.[1] || (attrLang && attrLang !== 'text' ? attrLang : '');
+          if (existingInfo) {
+            const existingLang = (existingInfo.textContent || '').replace(/\u200b/g, '').trim();
+            if (existingLang) {
+              codeBlock.setAttribute('data-CodeLang', existingLang);
+              return;
+            }
+            const cursorInInfo = Boolean(sel?.anchorNode && existingInfo.contains(sel.anchorNode));
+            if (!cursorInInfo && fallbackLang) {
+              existingInfo.textContent = `\u200b${fallbackLang}`;
+            }
+            return;
+          }
+          const infoSpan = document.createElement('span');
+          infoSpan.className = 'vditor-ir__marker vditor-ir__marker--info';
+          infoSpan.setAttribute('data-type', 'code-block-info');
+          infoSpan.textContent = fallbackLang ? `\u200b${fallbackLang}` : '\u200b';
+          const markerPre = codeBlock.querySelector('pre.vditor-ir__marker--pre');
+          if (markerPre) {
+            codeBlock.insertBefore(infoSpan, markerPre);
+          } else {
+            codeBlock.prepend(infoSpan);
+          }
+        });
+      };
+
       const cleanStrayCodeBlockFences = () => {
         const editCodes = el.querySelectorAll('.vditor-ir__node[data-type="code-block"] pre.vditor-ir__marker--pre > code');
         editCodes.forEach((node) => {
@@ -593,7 +628,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         codeBlocks.forEach((codeBlock) => {
           if (codeBlock.classList.contains('vditor-ir__node--expand')) return;
           if (getCodeBlockLang(codeBlock) !== 'mermaid') return;
-          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code');
+          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
           const previewPre = ensurePreviewPre(codeBlock);
           const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
           if (!srcText.trim()) return;
@@ -632,7 +667,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         codeBlocks.forEach((codeBlock) => {
           const lang = getCodeBlockLang(codeBlock);
           if (lang !== 'latex' && lang !== 'tex' && lang !== 'math') return;
-          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code');
+          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
           const previewPre = ensurePreviewPre(codeBlock);
           const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
           if (!srcText.trim()) {
@@ -932,6 +967,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
           positionLanguageHint();
+          ensureCodeBlockInfoMarkers();
           cleanStrayCodeBlockFences();
           cleanEmptyInlineNodes();
           normalizeEmojiAndCalloutIcons();
@@ -1628,7 +1664,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const handleCompositionEnd = () => {
+        ensureCodeBlockInfoMarkers();
+        requestAnimationFrame(() => {
+          ensureCodeBlockInfoMarkers();
+        });
+      };
+
       document.addEventListener('selectionchange', handleSelectionChange);
+      el.addEventListener('compositionend', handleCompositionEnd, true);
       el.addEventListener('copy', handleCopyCapture, true);
       el.addEventListener('paste', handlePasteCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
@@ -1639,6 +1683,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
         document.removeEventListener('selectionchange', handleSelectionChange);
+        el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);

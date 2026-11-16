@@ -312,6 +312,42 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R26_1",
+            title: "R26-1. 侧边栏新建文件支持撤销（Undo）与重做（Redo）按钮及 Cmd+Z / Cmd+Shift+Z",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794855416846_a5fd8910.png",
+            desc: "App.tsx 与 Sidebar.tsx 新增文件操作栈，在侧边栏底部新建按钮旁增加撤销/恢复按钮，并在侧边栏聚焦时支持 Cmd/Ctrl+Z 撤销新建文件、Cmd/Ctrl+Shift+Z（或 Ctrl+Y）重新创建。",
+            plan: "请在侧边栏新建一个空白文章，点击底部撤销按钮或按 Cmd+Z 确认文件撤销删除，再点击恢复按钮或按 Cmd+Shift+Z 确认文件重新创建。"
+          },
+          {
+            id: "R26_2",
+            title: "R26-2. 中英文输入法切换（compositionend）后代码块语言角标自动恢复",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794855416846_a5fd8910.png",
+            desc: "VditorEditor.tsx 新增 ensureCodeBlockInfoMarkers()，在 compositionend 捕获阶段与 DOM 增强阶段同步 data-CodeLang，并在非编辑角标状态下自动补回丢失或被清空的 .vditor-ir__marker--info。",
+            plan: "请在代码块内输入代码并多次切换中英文输入法，确认左上角语言角标不再无故消失。"
+          },
+          {
+            id: "R26_3",
+            title: "R26-3. 跨多段落快速连续 Ctrl+B / Ctrl+I 保持选区完整且不残留 *",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794855698805_0d22d350.png",
+            desc: "inlineFormat.ts 按段落拆分子选区后自动向外扩展至完整行内 IR 节点并保留嵌套非目标格式，避免连续加粗+斜体切换时劈开 span 导致选区丢失或残留孤立 *。",
+            plan: "请跨两段以上文本拉选区后快速连续按 Ctrl+B 和 Ctrl+I 来回切换，确认选区始终高亮不断开，且不残留多余星号。"
+          },
+          {
+            id: "R26_4",
+            title: "R26-4. macOS 桌面应用打包产物（.app / .dmg）生成可用",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794855416846_a5fd8910.png",
+            desc: "apps/desktop/package.json 已配置 electron-builder 与 package:mac 脚本，产出 Vmark.app 与安装包至 apps/desktop/release/。",
+            plan: "请打开 apps/desktop/release/ 确认 Vmark .dmg / .app 可正常双击启动。"
+          },
+          {
             id: "R24_1",
             title: "R24-1. 禁止代码块内误加粗破坏结构 + 混合/连续 Ctrl+B 加粗二态切换不残留 **",
             status: "done",

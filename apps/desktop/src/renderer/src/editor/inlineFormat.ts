@@ -24,7 +24,7 @@ const INLINE_SPECS: Record<InlineWrapCommand, InlineSpec> = {
     altTag: 'i',
     marker: '*',
     markerClass: 'vditor-ir__marker vditor-ir__marker--bi',
-    stripRegex: /\*+/g,
+    stripRegex: /(?<!\*)\*(?!\*)/g,
   },
   strike: {
     dataType: 's',
@@ -44,6 +44,10 @@ const INLINE_SPECS: Record<InlineWrapCommand, InlineSpec> = {
   },
 };
 
+const BLOCK_SELECTOR = 'p, li, h1, h2, h3, h4, h5, h6, td, th';
+const CODE_CONTEXT = 'pre:not(.vditor-reset), .vditor-ir__node[data-type="code-block"], .vditor-ir__marker--info';
+const INLINE_IR_NODE = 'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]';
+
 function findOuterInlineWrapper(
   node: Node | null,
   selector: string,
@@ -56,23 +60,43 @@ function findOuterInlineWrapper(
   return hit;
 }
 
-function extractCleanText(frag: DocumentFragment, spec: InlineSpec): string {
-  const clone = frag.cloneNode(true) as DocumentFragment;
-  // Remove IR marker spans that represent the target syntax markers (e.g. **, ~~, `)
-  clone.querySelectorAll('.vditor-ir__marker').forEach((m) => {
-    const txt = (m.textContent || '').trim();
-    if (
-      (spec.dataType === 'strong' && /^\*{2,}$/.test(txt)) ||
-      (spec.dataType === 'em' && /^\*+$/.test(txt)) ||
-      (spec.dataType === 's' && /^~~+$/.test(txt)) ||
-      (spec.dataType === 'code' && /^`+$/.test(txt))
-    ) {
-      m.remove();
+/**
+ * Removes ONLY the target command's IR wrappers & syntax markers inside `frag`
+ * while preserving other inline formatting nodes (e.g. keeps **bold** when toggling *italic*).
+ */
+function stripTargetWrappersInFragment(
+  frag: DocumentFragment,
+  selector: string,
+  spec: InlineSpec
+): void {
+  // Unwrap matching inline IR nodes from innermost/outermost cleanly
+  let guard = 0;
+  while (guard++ < 20) {
+    const node = frag.querySelector(selector) as HTMLElement | null;
+    if (!node) break;
+    const irNode = node.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) as HTMLElement | null;
+    const targetNode = irNode ?? node;
+    const innerContent = irNode
+      ? irNode.querySelector(`${spec.tag}, ${spec.altTag}`)
+      : targetNode;
+    const replacementFrag = document.createDocumentFragment();
+    if (innerContent) {
+      while (innerContent.firstChild) {
+        replacementFrag.appendChild(innerContent.firstChild);
+      }
     }
-  });
-  return (clone.textContent || '')
-    .replace(/\u200b/g, '')
-    .replace(spec.stripRegex, '');
+    targetNode.replaceWith(replacementFrag);
+  }
+
+  // Strip literal marker text nodes for this command only
+  const walker = document.createTreeWalker(frag, NodeFilter.SHOW_TEXT);
+  let t = walker.nextNode() as Text | null;
+  while (t) {
+    if (t.nodeValue) {
+      t.nodeValue = t.nodeValue.replace(/\u200b/g, '').replace(spec.stripRegex, '');
+    }
+    t = walker.nextNode() as Text | null;
+  }
 }
 
 function hasUnformattedTextOutsideWrappers(
@@ -99,44 +123,164 @@ function hasUnformattedTextOutsideWrappers(
 
 function stripAdjacentMarkerBoundary(range: Range, spec: InlineSpec): void {
   if (spec.dataType !== 'strong' && spec.dataType !== 'em') return;
-  const checkBefore = (node: Node | null) => {
-    if (node && node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-      node.nodeValue = node.nodeValue.replace(/\*+$/, '');
-    }
-  };
-  const checkAfter = (node: Node | null) => {
-    if (node && node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-      node.nodeValue = node.nodeValue.replace(/^\*+/, '');
-    }
-  };
+  const stripEnd = (str: string) =>
+    spec.dataType === 'strong' ? str.replace(/\*{2,}$/, '') : str.replace(/(?<!\*)\*$/, '');
+  const stripStart = (str: string) =>
+    spec.dataType === 'strong' ? str.replace(/^\*{2,}/, '') : str.replace(/^\*(?!\*)/, '');
+
   if (range.startContainer.nodeType === Node.TEXT_NODE) {
     const t = range.startContainer as Text;
     const head = (t.nodeValue || '').slice(0, range.startOffset);
-    if (/\*+$/.test(head)) {
-      const cleanedHead = head.replace(/\*+$/, '');
+    const cleanedHead = stripEnd(head);
+    if (cleanedHead !== head) {
       const tail = (t.nodeValue || '').slice(range.startOffset);
       t.nodeValue = cleanedHead + tail;
       range.setStart(t, cleanedHead.length);
-    } else if (range.startOffset === 0) {
-      checkBefore(t.previousSibling);
+    } else if (range.startOffset === 0 && t.previousSibling?.nodeType === Node.TEXT_NODE && t.previousSibling.nodeValue) {
+      t.previousSibling.nodeValue = stripEnd(t.previousSibling.nodeValue);
     }
   }
   if (range.endContainer.nodeType === Node.TEXT_NODE) {
     const t = range.endContainer as Text;
     const tail = (t.nodeValue || '').slice(range.endOffset);
-    if (/^\*+/.test(tail)) {
-      const cleanedTail = tail.replace(/^\*+/, '');
+    const cleanedTail = stripStart(tail);
+    if (cleanedTail !== tail) {
       const head = (t.nodeValue || '').slice(0, range.endOffset);
       t.nodeValue = head + cleanedTail;
-    } else if (range.endOffset === (t.nodeValue || '').length) {
-      checkAfter(t.nextSibling);
+    } else if (range.endOffset === (t.nodeValue || '').length && t.nextSibling?.nodeType === Node.TEXT_NODE && t.nextSibling.nodeValue) {
+      t.nextSibling.nodeValue = stripStart(t.nextSibling.nodeValue);
     }
   }
 }
 
+function expandRangeToEnclosingWrappers(
+  range: Range,
+  selector: string,
+  containerEl: HTMLElement
+): void {
+  const startWrapper = findOuterInlineWrapper(range.startContainer, selector, containerEl);
+  const endWrapper = findOuterInlineWrapper(range.endContainer, selector, containerEl);
+  if (startWrapper && startWrapper.parentNode) {
+    const topStart = startWrapper.closest(INLINE_IR_NODE) ?? startWrapper;
+    if (topStart.parentNode && containerEl.contains(topStart)) {
+      range.setStartBefore(topStart);
+    }
+  }
+  if (endWrapper && endWrapper.parentNode) {
+    const topEnd = endWrapper.closest(INLINE_IR_NODE) ?? endWrapper;
+    if (topEnd.parentNode && containerEl.contains(topEnd)) {
+      range.setEndAfter(topEnd);
+    }
+  }
+}
+
+function isRangeFullyWrapped(
+  range: Range,
+  cmd: InlineWrapCommand,
+  selector: string,
+  spec: InlineSpec
+): boolean {
+  const rawSelected = range.toString();
+  const trimmedRaw = rawSelected.trim();
+  if (!trimmedRaw) return false;
+
+  if (
+    (cmd === 'bold' && /^\*\*[^*]+[\s\S]*\*\*$/.test(trimmedRaw) && !trimmedRaw.slice(2, -2).includes('**')) ||
+    (cmd === 'italic' && /^\*[^*]+\*$/.test(trimmedRaw)) ||
+    (cmd === 'strike' && /^~~[\s\S]+~~$/.test(trimmedRaw) && !trimmedRaw.slice(2, -2).includes('~~')) ||
+    (cmd === 'inline-code' && /^`[^`]+`$/.test(trimmedRaw))
+  ) {
+    return true;
+  }
+
+  const frag = range.cloneContents();
+  const wrapperNodes = Array.from(frag.querySelectorAll(selector));
+  return wrapperNodes.length > 0 && !hasUnformattedTextOutsideWrappers(frag, selector, spec);
+}
+
+function toggleSingleRange(
+  containerEl: HTMLElement,
+  range: Range,
+  cmd: InlineWrapCommand,
+  spec: InlineSpec,
+  selector: string,
+  forceUnwrap?: boolean
+): Node | null {
+  // Expand to ANY enclosing inline IR node so we never bisect a **strong** or *em* node
+  expandRangeToEnclosingWrappers(range, `${selector}, ${INLINE_IR_NODE}`, containerEl);
+  if (range.collapsed) return null;
+
+  const rawSelected = range.toString();
+  if (!rawSelected.trim()) return null;
+
+  if (
+    cmd === 'bold' &&
+    range.startContainer === range.endContainer &&
+    range.startContainer.nodeType === Node.TEXT_NODE
+  ) {
+    const tNode = range.startContainer as Text;
+    const fullStr = tNode.nodeValue || '';
+    const before = fullStr.slice(0, range.startOffset);
+    const after = fullStr.slice(range.endOffset);
+    if (/\*{2,}$/.test(before) && /^\*{2,}/.test(after)) {
+      const cleanBefore = before.replace(/\*{2,}$/, '');
+      const cleanAfter = after.replace(/^\*{2,}/, '');
+      const mid = rawSelected.replace(spec.stripRegex, '');
+      tNode.nodeValue = `${cleanBefore}${mid}${cleanAfter}`;
+      const r = document.createRange();
+      r.setStart(tNode, cleanBefore.length);
+      r.setEnd(tNode, cleanBefore.length + mid.length);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      return tNode;
+    }
+  }
+
+  const shouldUnwrap = forceUnwrap ?? isRangeFullyWrapped(range, cmd, selector, spec);
+
+  stripAdjacentMarkerBoundary(range, spec);
+  const extracted = range.extractContents();
+  stripTargetWrappersInFragment(extracted, selector, spec);
+
+  if (!(extracted.textContent || '').trim()) return null;
+
+  if (shouldUnwrap) {
+    const nodes = Array.from(extracted.childNodes);
+    const parent = range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer.parentNode
+      : range.startContainer;
+    range.insertNode(extracted);
+    if (nodes.length === 1) return nodes[0];
+    if (parent && nodes.length > 1) return nodes[0];
+    return null;
+  }
+
+  const irSpan = document.createElement('span');
+  irSpan.setAttribute('data-type', spec.dataType);
+  irSpan.className = 'vditor-ir__node';
+
+  const openMarker = document.createElement('span');
+  openMarker.className = spec.markerClass;
+  openMarker.textContent = spec.marker;
+
+  const contentEl = document.createElement(spec.tag);
+  contentEl.setAttribute('data-newline', '1');
+  contentEl.appendChild(extracted);
+
+  const closeMarker = document.createElement('span');
+  closeMarker.className = spec.markerClass;
+  closeMarker.textContent = spec.marker;
+
+  irSpan.append(openMarker, contentEl, closeMarker);
+  range.insertNode(irSpan);
+
+  return contentEl;
+}
+
 /**
  * Toggles bold/italic/strike/inline-code directly on Vditor IR DOM nodes
- * with code-block protection, clean nested-bold normalization, and strict binary toggling.
+ * with code-block protection, composable bold+italic, per-block multi-line support, and strict binary toggling.
  */
 export function toggleInlineWrapInEditor(
   containerEl: HTMLElement,
@@ -159,9 +303,7 @@ export function toggleInlineWrapInEditor(
       ? range.commonAncestorContainer
       : range.commonAncestorContainer.parentElement;
 
-  // Never allow inline formatting inside fenced code blocks or code language badges
-  const codeContext = 'pre:not(.vditor-reset), .vditor-ir__node[data-type="code-block"], .vditor-ir__marker--info';
-  if (anchorEl?.closest(codeContext) || focusEl?.closest(codeContext) || commonEl?.closest(codeContext)) {
+  if (anchorEl?.closest(CODE_CONTEXT) || focusEl?.closest(CODE_CONTEXT) || commonEl?.closest(CODE_CONTEXT)) {
     return;
   }
 
@@ -170,7 +312,74 @@ export function toggleInlineWrapInEditor(
     range.selectNodeContents(anchorCell);
   }
 
-  // Never wrap/delete a heading's `#### ` marker; also disallow bold inside H1-H6
+  const startEl =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+  const endEl =
+    range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement;
+  const startBlock = startEl?.closest(BLOCK_SELECTOR) as HTMLElement | null;
+  const endBlock = endEl?.closest(BLOCK_SELECTOR) as HTMLElement | null;
+
+  if (
+    !range.collapsed &&
+    startBlock &&
+    endBlock &&
+    startBlock !== endBlock &&
+    containerEl.contains(startBlock) &&
+    containerEl.contains(endBlock)
+  ) {
+    const blocks = Array.from(containerEl.querySelectorAll(BLOCK_SELECTOR)).filter((b) => {
+      if (b.closest(CODE_CONTEXT)) return false;
+      if (cmd === 'bold' && /^H[1-6]$/.test(b.tagName)) return false;
+      return range.intersectsNode(b);
+    }) as HTMLElement[];
+
+    const subRanges: Range[] = [];
+    for (const blk of blocks) {
+      const sub = document.createRange();
+      if (blk === startBlock) {
+        sub.setStart(range.startContainer, range.startOffset);
+      } else {
+        sub.setStart(blk, 0);
+      }
+      if (blk === endBlock) {
+        sub.setEnd(range.endContainer, range.endOffset);
+      } else {
+        sub.setEnd(blk, blk.childNodes.length);
+      }
+      if (/^H[1-6]$/.test(blk.tagName)) {
+        const headingMarker = blk.querySelector('.vditor-ir__marker--heading');
+        if (headingMarker && sub.intersectsNode(headingMarker)) {
+          sub.setStartAfter(headingMarker);
+        }
+      }
+      expandRangeToEnclosingWrappers(sub, `${selector}, ${INLINE_IR_NODE}`, containerEl);
+      if (sub.toString().trim()) {
+        subRanges.push(sub);
+      }
+    }
+    if (subRanges.length === 0) return;
+
+    const allWrapped = subRanges.every((sr) => isRangeFullyWrapped(sr, cmd, selector, spec));
+
+    pushUndo();
+    const resultNodes: Node[] = [];
+    for (const sr of subRanges) {
+      const out = toggleSingleRange(containerEl, sr, cmd, spec, selector, allWrapped);
+      if (out) resultNodes.push(out);
+    }
+    if (resultNodes.length > 0) {
+      const finalRange = document.createRange();
+      finalRange.setStart(resultNodes[0], 0);
+      const last = resultNodes[resultNodes.length - 1];
+      finalRange.setEnd(last, last.nodeType === Node.TEXT_NODE ? (last.nodeValue || '').length : last.childNodes.length);
+      sel.removeAllRanges();
+      sel.addRange(finalRange);
+    }
+    pushUndo();
+    commitMarkdown();
+    return;
+  }
+
   const headingEl =
     anchorEl?.closest('h1, h2, h3, h4, h5, h6') ??
     focusEl?.closest('h1, h2, h3, h4, h5, h6') ??
@@ -186,116 +395,12 @@ export function toggleInlineWrapInEditor(
     }
   }
 
-  // Expand selection boundaries to full enclosing target IR nodes so partial selection never leaves dangling **
-  const startWrapper = findOuterInlineWrapper(range.startContainer, selector, containerEl);
-  const endWrapper = findOuterInlineWrapper(range.endContainer, selector, containerEl);
-  if (startWrapper) {
-    const outerStart =
-      startWrapper.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) ?? startWrapper;
-    range.setStartBefore(outerStart);
-  }
-  if (endWrapper) {
-    const outerEnd =
-      endWrapper.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) ?? endWrapper;
-    range.setEndAfter(outerEnd);
-  }
-
-  if (range.collapsed) return;
-
-  const rawSelected = range.toString();
-  if (!rawSelected.trim()) return;
-
-  // Check if plain text within one Text node is directly flanked by **...** (e.g. legacy marker residue)
-  if (
-    cmd === 'bold' &&
-    range.startContainer === range.endContainer &&
-    range.startContainer.nodeType === Node.TEXT_NODE
-  ) {
-    const tNode = range.startContainer as Text;
-    const fullStr = tNode.nodeValue || '';
-    const before = fullStr.slice(0, range.startOffset);
-    const after = fullStr.slice(range.endOffset);
-    if (/\*+$/.test(before) && /^\*+/.test(after)) {
-      pushUndo();
-      const cleanBefore = before.replace(/\*+$/, '');
-      const cleanAfter = after.replace(/^\*+/, '');
-      const mid = rawSelected.replace(spec.stripRegex, '');
-      tNode.nodeValue = `${cleanBefore}${mid}${cleanAfter}`;
-      const nextRange = document.createRange();
-      nextRange.setStart(tNode, cleanBefore.length);
-      nextRange.setEnd(tNode, cleanBefore.length + mid.length);
-      sel.removeAllRanges();
-      sel.addRange(nextRange);
-      pushUndo();
-      commitMarkdown();
-      return;
-    }
-  }
-
-  const frag = range.cloneContents();
-  const wrapperNodes = Array.from(frag.querySelectorAll(selector));
-  const cleanText = extractCleanText(frag, spec);
-  if (!cleanText.trim()) return;
-
-  const trimmedRaw = rawSelected.trim();
-  const isLiteralWrapped =
-    (cmd === 'bold' && /^\*\*[^*]+[\s\S]*\*\*$/.test(trimmedRaw) && !trimmedRaw.slice(2, -2).includes('**')) ||
-    (cmd === 'italic' && /^\*[^*]+\*$/.test(trimmedRaw)) ||
-    (cmd === 'strike' && /^~~[\s\S]+~~$/.test(trimmedRaw) && !trimmedRaw.slice(2, -2).includes('~~')) ||
-    (cmd === 'inline-code' && /^`[^`]+`$/.test(trimmedRaw));
-
-  const isFullyWrapped =
-    isLiteralWrapped ||
-    (wrapperNodes.length > 0 && !hasUnformattedTextOutsideWrappers(frag, selector, spec));
-
   pushUndo();
-  stripAdjacentMarkerBoundary(range, spec);
-  range.deleteContents();
-
-  if (isFullyWrapped) {
-    const textNode = document.createTextNode(cleanText);
-    range.insertNode(textNode);
-    const nextRange = document.createRange();
-    nextRange.selectNodeContents(textNode);
-    sel.removeAllRanges();
-    sel.addRange(nextRange);
-    pushUndo();
-    commitMarkdown();
-    return;
-  }
-
-  // Merge mixed / partial bold selections cleanly into a single wrapper node without stray ** markers
-  const leading = cleanText.match(/^\s*/)?.[0] ?? '';
-  const trailing = cleanText.match(/\s*$/)?.[0] ?? '';
-  const core = cleanText.trim();
-  if (!core) return;
-
-  const irSpan = document.createElement('span');
-  irSpan.setAttribute('data-type', spec.dataType);
-  irSpan.className = 'vditor-ir__node';
-
-  const openMarker = document.createElement('span');
-  openMarker.className = spec.markerClass;
-  openMarker.textContent = spec.marker;
-
-  const contentEl = document.createElement(spec.tag);
-  contentEl.setAttribute('data-newline', '1');
-  contentEl.textContent = core;
-
-  const closeMarker = document.createElement('span');
-  closeMarker.className = spec.markerClass;
-  closeMarker.textContent = spec.marker;
-
-  irSpan.append(openMarker, contentEl, closeMarker);
-
-  const outFrag = document.createDocumentFragment();
-  if (leading) outFrag.appendChild(document.createTextNode(leading));
-  outFrag.appendChild(irSpan);
-  if (trailing) outFrag.appendChild(document.createTextNode(trailing));
-  range.insertNode(outFrag);
+  const resultNode = toggleSingleRange(containerEl, range, cmd, spec, selector);
+  if (!resultNode) return;
 
   const nextRange = document.createRange();
-  nextRange.selectNodeContents(contentEl);
+  nextRange.selectNodeContents(resultNode);
   sel.removeAllRanges();
   sel.addRange(nextRange);
   pushUndo();

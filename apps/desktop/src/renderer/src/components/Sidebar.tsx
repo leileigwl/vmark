@@ -9,7 +9,9 @@ import {
   Pin,
   PinOff,
   Plus,
+  Redo2,
   Search,
+  Undo2,
 } from 'lucide-react';
 import type { ArticleMeta, ArticleSearchResult, OutlineNode } from '@vcat/shared';
 import {
@@ -99,6 +101,10 @@ interface SidebarProps {
   onSwitchRecentWorkspace: (dir: string) => Promise<void>;
   onRefreshWorkspace: () => Promise<void>;
   onJumpOutline: (headingText: string, index: number) => void;
+  canUndoFileOp?: boolean;
+  canRedoFileOp?: boolean;
+  onUndoFileOp?: () => Promise<void>;
+  onRedoFileOp?: () => Promise<void>;
 }
 
 /** Left macOS full-height sidebar with File Tree, Outline, Content Search, Drag-Move & Popover Menu. */
@@ -129,6 +135,10 @@ export function Sidebar({
   onSwitchRecentWorkspace,
   onRefreshWorkspace,
   onJumpOutline,
+  canUndoFileOp = false,
+  canRedoFileOp = false,
+  onUndoFileOp,
+  onRedoFileOp,
 }: SidebarProps) {
   const [sortBy, setSortBy] = useState<'name' | 'time'>('name');
   const [fileViewMode, setFileViewMode] = useState<'tree' | 'list'>('tree');
@@ -520,7 +530,23 @@ export function Sidebar({
         <div
           tabIndex={0}
           onKeyDown={(e) => {
-            if (sideTab !== 'files' || renamingPath || creatingItem || filteredArticles.length === 0) return;
+            if (sideTab !== 'files' || renamingPath || creatingItem) return;
+            if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+              const k = e.key.toLowerCase();
+              if (k === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                void onUndoFileOp?.();
+                return;
+              }
+              if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
+                e.preventDefault();
+                e.stopPropagation();
+                void onRedoFileOp?.();
+                return;
+              }
+            }
+            if (filteredArticles.length === 0) return;
             const idx = filteredArticles.findIndex((a) => a.relativePath === activeArticle?.relativePath);
             if (e.key === 'ArrowDown') {
               e.preventDefault();
@@ -873,14 +899,34 @@ export function Sidebar({
           )}
 
           <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[var(--border-color)] px-2 text-[11.5px] text-[var(--control-text-color)]">
-            <button
-              type="button"
-              title="新建空白文章"
-              onClick={() => startCreateItem('file')}
-              className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                title="新建空白文章"
+                onClick={() => startCreateItem('file')}
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                title="撤销新建文件 (Cmd+Z)"
+                disabled={!canUndoFileOp}
+                onClick={() => void onUndoFileOp?.()}
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)] disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                title="恢复新建文件 (Cmd+Shift+Z)"
+                disabled={!canRedoFileOp}
+                onClick={() => void onRedoFileOp?.()}
+                className="flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)] disabled:cursor-not-allowed disabled:opacity-35"
+              >
+                <Redo2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <button
               type="button"
               title="工作区操作与最近目录"

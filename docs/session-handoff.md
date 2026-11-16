@@ -50,6 +50,16 @@
 7. **自动化校验强制规范**：
    - 此后所有 UI 与交互改动必须编写 Playwright JS 自动化脚本在真机 Electron 窗口中跑通断言，再提交 Git 稳态基线。
 
+### Round 26（已完成，真机 Playwright + 打包全通过）
+1. **侧边栏文件创建撤销 / 重做（按钮 + 快捷键）**：
+   - `App.tsx` 与 `Sidebar.tsx` 新增 `fileUndoStack` / `fileRedoStack`，在侧边栏底部工具栏 `+` 按钮旁新增 `Undo2` / `Redo2` 按钮，并绑定 `Cmd/Ctrl+Z` 撤销新建文件（移入废纸篓并切回上一篇）与 `Cmd/Ctrl+Shift+Z` / `Ctrl+Y` 恢复新建文件。
+2. **输入法切换后代码块语言角标（`.vditor-ir__marker--info`）自动兜底恢复**：
+   - `VditorEditor.tsx` 新增 `ensureCodeBlockInfoMarkers()`，在 `enhanceDom()` 与 `compositionend` 捕获/帧回调中同步 `data-CodeLang`，当语言角标因中英文输入法切换被清除或置空时自动从 `language-*` / `data-CodeLang` 恢复（不干扰用户主动删空角标）。
+3. **跨段落快速连续 `Ctrl+B` / `Ctrl+I` 保留选区且不残留 `*`**：
+   - `inlineFormat.ts` 在按段落拆分子选区后调用 `expandRangeToEnclosingWrappers(..., INLINE_IR_NODE)`，避免将 `<span data-type="strong">` / `<span data-type="em">` 从中间劈开，并保留非目标行内节点结构及精准匹配单星号 `(?<!\*)\*(?!\*)`，确保多段落连续叠加/剥离加粗与斜体时选区不塌缩、无残留 `*`。
+4. **macOS 桌面端打包（`electron-builder`）**：
+   - `apps/desktop/package.json` 新增 `electron-builder` 配置与 `package:mac` 脚本，生成 `.app` 与 `.dmg` 桌面安装包（`apps/desktop/release/` 已加入 `.gitignore`）。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）
