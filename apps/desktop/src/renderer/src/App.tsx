@@ -228,9 +228,9 @@ export default function App() {
             }
           }}
           style={{ paddingLeft: `${22 + depth * 12}px` }}
-          className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] ${
+              className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
             isSelected
-              ? 'bg-[#e6eff8] font-medium text-[#4183c4]'
+              ? 'bg-[#e6eff8] font-medium text-[#2c5e91]'
               : 'text-[#333333] hover:bg-[#eceef1]'
           }`}
         >
@@ -330,11 +330,11 @@ export default function App() {
 
       {/* 右侧主区 */}
       <div className="flex h-screen flex-1 flex-col overflow-hidden bg-white">
-        {/* Typora 式 38px 极简统一顶栏 */}
+        {/* Typora 式 36px 极简统一顶栏（去掉生硬分割线，更贴近原版无界纸张感） */}
         <header
-          className={`app-drag flex h-[38px] shrink-0 items-center justify-between border-b border-[#eeeeee] bg-white pr-4 select-none ${
-            sidebarOpen ? 'pl-3' : 'pl-20'
-          }`}
+          className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-white pr-4 select-none ${
+            activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[#eeeeee]'
+          } ${sidebarOpen ? 'pl-3' : 'pl-20'}`}
         >
           <div className="app-no-drag flex items-center gap-2">
             <button

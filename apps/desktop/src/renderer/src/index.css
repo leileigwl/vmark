@@ -26,7 +26,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* Typora github.css style polish for Vditor IR */
+/* Typora github.css exact typography & spacing rules for Vditor IR */
 .vditor {
   border: none !important;
   background: #ffffff !important;
@@ -35,23 +35,90 @@ body {
   display: none !important;
 }
 .vditor-ir pre.vditor-reset {
-  padding: 32px 48px 96px !important;
+  padding: 28px 36px 100px !important;
   max-width: 860px;
   margin: 0 auto;
+  font-family: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
   font-size: 16px;
-  line-height: 1.65;
+  line-height: 1.6;
   color: rgb(51, 51, 51);
   background: #ffffff !important;
 }
 .vditor-reset h1,
+.vditor-reset h2,
+.vditor-reset h3,
+.vditor-reset h4,
+.vditor-reset h5,
+.vditor-reset h6 {
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+  font-weight: bold !important;
+  line-height: 1.4 !important;
+}
+.vditor-reset h1 {
+  font-size: 2.25em !important;
+  line-height: 1.2 !important;
+  border-bottom: 1px solid #eeeeee !important;
+  padding-bottom: 0.3em !important;
+}
 .vditor-reset h2 {
-  border-bottom: 1px solid #eeeeee;
-  padding-bottom: 0.3em;
+  font-size: 1.75em !important;
+  line-height: 1.225 !important;
+  border-bottom: 1px solid #eeeeee !important;
+  padding-bottom: 0.3em !important;
+}
+.vditor-reset h3 {
+  font-size: 1.5em !important;
+  line-height: 1.43 !important;
+}
+.vditor-reset h4 {
+  font-size: 1.25em !important;
+}
+.vditor-reset p,
+.vditor-reset blockquote,
+.vditor-reset ul,
+.vditor-reset ol,
+.vditor-reset table {
+  margin: 0.8em 0 !important;
 }
 .vditor-reset a {
-  color: #4183c4;
+  color: #4183c4 !important;
 }
 .vditor-reset blockquote {
-  border-left: 4px solid #dfe2e5;
-  color: #777777;
+  border-left: 4px solid #dfe2e5 !important;
+  padding: 0 15px !important;
+  color: #777777 !important;
+  background: transparent !important;
+}
+.vditor-reset code:not(.hljs) {
+  border: 1px solid #e7eaed !important;
+  background-color: #f3f4f4 !important;
+  border-radius: 3px !important;
+  padding: 0 3px !important;
+  font-size: 0.9em !important;
+}
+.vditor-reset pre > code,
+.vditor-reset .vditor-ir__node pre {
+  border: 1px solid #e7eaed !important;
+  background-color: #f8f8f8 !important;
+  border-radius: 3px !important;
+  padding: 10px 14px !important;
+}
+.vditor-reset table tr {
+  border: 1px solid #dfe2e5 !important;
+}
+.vditor-reset table tr:nth-child(2n),
+.vditor-reset table thead {
+  background-color: #f8f8f8 !important;
+}
+.vditor-reset table th,
+.vditor-reset table td {
+  border: 1px solid #dfe2e5 !important;
+  padding: 6px 13px !important;
+}
+.vditor-reset hr {
+  height: 2px !important;
+  margin: 16px 0 !important;
+  background-color: #e7e7e7 !important;
+  border: 0 !important;
 }
