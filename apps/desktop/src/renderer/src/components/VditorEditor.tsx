@@ -582,7 +582,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       };
 
       const getMermaidPreviewEl = (target: HTMLElement | null): HTMLElement | null => {
-        const mermaidEl = target?.closest('.language-mermaid') as HTMLElement | null;
+        const mermaidEl = target?.closest('.vditor-ir__preview div.language-mermaid') as HTMLElement | null;
         if (!mermaidEl) return null;
         const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
         if (irNode?.classList.contains('vditor-ir__node--expand')) return null;
@@ -592,16 +592,52 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const handleMouseDownCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
+
+        // Clicking the 3 macOS dots at top-left of a code block highlights & focuses its language tag
+        const codeBlockNode = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
+        if (codeBlockNode) {
+          const rect = codeBlockNode.getBoundingClientRect();
+          if (e.clientX - rect.left <= 68 && e.clientY - rect.top <= 30) {
+            const infoSpan = codeBlockNode.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+            if (infoSpan) {
+              e.preventDefault();
+              e.stopPropagation();
+              codeBlockNode.classList.add('vditor-ir__node--expand');
+              const sel = window.getSelection();
+              if (sel) {
+                const range = document.createRange();
+                range.selectNodeContents(infoSpan);
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+              return;
+            }
+          }
+        }
+
         const imgEl = target?.closest('img') as HTMLImageElement | null;
         const mermaidEl = imgEl ? null : getMermaidPreviewEl(target);
 
         if (mermaidEl) {
-          if (e.detail >= 2) {
-            clearActiveZoomTarget();
-            return;
-          }
           e.preventDefault();
           e.stopPropagation();
+          if (e.detail >= 2) {
+            clearActiveZoomTarget();
+            const irNode = mermaidEl.closest('.vditor-ir__node') as HTMLElement | null;
+            const codeEl = irNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
+            if (irNode && codeEl) {
+              irNode.classList.add('vditor-ir__node--expand');
+              const sel = window.getSelection();
+              if (sel) {
+                const range = document.createRange();
+                range.selectNodeContents(codeEl);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            }
+            return;
+          }
           if (activeZoomImgRef.current && activeZoomImgRef.current !== mermaidEl) {
             clearActiveZoomTarget();
           }
@@ -625,7 +661,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const handleClickCapture = (e: MouseEvent) => {
         if (e.button !== 0) return;
         const mermaidEl = getMermaidPreviewEl(e.target as HTMLElement | null);
-        if (mermaidEl && e.detail === 1) {
+        if (mermaidEl) {
           e.preventDefault();
           e.stopPropagation();
         }

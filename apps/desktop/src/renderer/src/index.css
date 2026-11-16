@@ -11,6 +11,10 @@
   --text-main: #1d1d1f;
   --accent: #007aff;
   --border-color: #e5e5ea;
+  --ir-bracket-color: var(--accent);
+  --ir-link-color: var(--accent);
+  --ir-bi-color: var(--accent);
+  --ir-heading-color: var(--accent);
   --font-editorial: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
 }
 
@@ -95,6 +99,10 @@
   color-scheme: dark;
   --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 75%, #ffffff 6%);
   --bg-hover: rgba(255, 255, 255, 0.1);
+  --ir-bracket-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
+  --ir-link-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
+  --ir-bi-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
+  --ir-heading-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
 }
 
 [data-theme='typora-white'] {
@@ -240,18 +248,20 @@ body {
   margin: 0.8em 0 !important;
 }
 /* Prevent markdown paragraph/line-height overrides from clipping Mermaid SVG labels */
-.vditor-reset .language-mermaid,
-.vditor-reset .language-mermaid * {
+.vditor-ir__preview div.language-mermaid,
+.vditor-ir__preview div.language-mermaid * {
   line-height: 1.35 !important;
 }
-.vditor-reset .language-mermaid p,
-.vditor-reset .language-mermaid div,
-.vditor-reset .language-mermaid span {
+.vditor-ir__preview div.language-mermaid p,
+.vditor-ir__preview div.language-mermaid div,
+.vditor-ir__preview div.language-mermaid span {
   margin: 0 !important;
   padding: 0 !important;
 }
-.vditor-reset a {
-  color: var(--accent) !important;
+.vditor-reset a,
+.vditor-ir__link,
+.vditor-ir__node[data-type="a"] .vditor-ir__marker--bracket {
+  color: var(--ir-bracket-color) !important;
 }
 .vditor-reset blockquote {
   border-left: 4px solid var(--accent) !important;
@@ -262,7 +272,7 @@ body {
 .vditor-reset code:not(.hljs):not([class*='language-']) {
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
   background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
-  color: var(--accent) !important;
+  color: var(--ir-bracket-color) !important;
   border-radius: 5px !important;
   padding: 1px 6px !important;
   font-size: 0.88em !important;
@@ -272,7 +282,7 @@ body {
   color: var(--accent) !important;
 }
 
-/* macOS 3-dot windowed code block styling (single clean card in both preview and in-place edit) */
+/* macOS 3-dot windowed code block styling (single clean card, direct click-to-edit with syntax colors) */
 .vditor-ir__node[data-type="code-block"] {
   position: relative !important;
   display: block !important;
@@ -283,25 +293,9 @@ body {
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--bracket {
   display: none !important;
 }
-/* Remove Vditor's trailing ``` pseudo-element when expanded */
+/* Remove Vditor's leading/trailing ``` pseudo-elements when expanded */
 .vditor-ir__node--expand[data-type="code-block"]::after {
   content: none !important;
-  display: none !important;
-}
-/* Keep hidden pre marker completely zero-sized when not expanded so it never renders an empty box */
-.vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
-  width: 0 !important;
-  height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  overflow: hidden !important;
-  position: absolute !important;
-  pointer-events: none !important;
-}
-/* Single in-place edit for both regular code blocks and double-clicked Mermaid blocks */
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > .vditor-ir__preview {
   display: none !important;
 }
 /* Clean macOS 3-dot header top-left */
@@ -315,29 +309,107 @@ body {
   border-radius: 50% !important;
   background: #ce7069 !important;
   box-shadow: 18px 0 0 #dbb155, 36px 0 0 #72b875 !important;
-  z-index: 4 !important;
+  z-index: 5 !important;
   pointer-events: none !important;
 }
-/* Language label cleanly aligned at top-right in both preview and edit states */
+/* Language label badge next to 3-dots header (also editable to switch language) */
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
-  display: block !important;
+  display: inline-block !important;
   width: auto !important;
   height: auto !important;
   overflow: visible !important;
   position: absolute !important;
-  top: 9px !important;
-  right: 16px !important;
+  top: 8px !important;
+  left: 72px !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: 1px 8px !important;
+  border-radius: 5px !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace !important;
   font-size: 11.5px !important;
+  line-height: 1.4 !important;
   color: var(--control-text-color) !important;
-  background: transparent !important;
-  border: none !important;
-  z-index: 4 !important;
+  background: color-mix(in srgb, var(--text-main) 6%, transparent) !important;
+  border: 1px solid transparent !important;
+  cursor: text !important;
+  z-index: 5 !important;
 }
-.vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info:focus,
+.vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info:hover {
+  color: var(--accent) !important;
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+/* 1. NORMAL CODE BLOCKS (:not(:has(.language-mermaid))) — dual-layer live syntax-highlighted editor */
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__preview {
   display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
+  background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
+  color: var(--text-main) !important;
+  border-radius: 10px !important;
+  padding: 38px 18px 16px !important;
+  margin: 0 !important;
+  z-index: 1 !important;
+}
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre {
+  display: block !important;
+  position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: var(--text-main) !important;
+  cursor: text !important;
+  border-radius: 10px !important;
+  padding: 38px 18px 16px !important;
+  margin: 0 !important;
+  z-index: 2 !important;
+}
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre > code {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: var(--text-main) !important;
+  cursor: text !important;
+}
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre::selection,
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre code::selection {
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+/* 2. MERMAID BLOCKS (:has(.language-mermaid)) — preview diagram by default, macOS code card on double-click */
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__preview {
+  display: none !important;
+}
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  display: block !important;
+  position: relative !important;
   width: 100% !important;
   height: auto !important;
   overflow: auto !important;
@@ -348,10 +420,23 @@ body {
   border-radius: 10px !important;
   padding: 38px 18px 16px !important;
   margin: 0 !important;
+  cursor: text !important;
+  box-shadow: none !important;
+}
+
+/* Shared typography for all code blocks so top and bottom layers align 1:1 pixel-for-pixel */
+.vditor-ir__node[data-type="code-block"] pre,
+.vditor-ir__node[data-type="code-block"] pre > code,
+.vditor-ir__node[data-type="code-block"] pre > code * {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 13.5px !important;
   line-height: 1.55 !important;
-  box-shadow: none !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  letter-spacing: 0px !important;
+  tab-size: 4 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
 }
 .vditor-ir__node[data-type="code-block"] pre > code {
   display: block !important;
@@ -359,62 +444,127 @@ body {
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
-  color: var(--text-main) !important;
-  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-  font-size: 13.5px !important;
-  line-height: 1.55 !important;
+  color: var(--text-main);
+  cursor: text !important;
 }
 
-/* Dark theme high-contrast overrides for code blocks, syntax tokens, and Mermaid */
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > pre.vditor-ir__marker--pre {
-  background-color: #1b2028 !important;
-  border-color: rgba(255, 255, 255, 0.14) !important;
+/* Dark theme high-contrast overrides for code blocks, full GitHub-Dark syntax tokens, and Mermaid */
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__preview,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  background-color: #161b22 !important;
+  border-color: rgba(240, 246, 252, 0.15) !important;
   color: #e6edf3 !important;
 }
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre > code {
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] > pre.vditor-ir__preview > code,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre > code {
   color: #e6edf3 !important;
+  -webkit-text-fill-color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code,
+[data-theme*='-dark'] .vditor-reset pre code.hljs,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-subst,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-params,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-punctuation,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-Emphasis,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-strong {
+  color: #e6edf3 !important;
+  background: transparent !important;
 }
 [data-theme*='-dark'] .vditor-reset pre code .hljs-comment,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-quote {
-  color: #9198a1 !important;
+[data-theme*='-dark'] .vditor-reset pre code .hljs-code,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-formula {
+  color: #8b949e !important;
 }
 [data-theme*='-dark'] .vditor-reset pre code .hljs-keyword,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-tag,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-type {
+[data-theme*='-dark'] .vditor-reset pre code .hljs-doctag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta .hljs-keyword,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-template-tag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-template-variable,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-type,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-variable.language_ {
   color: #ff7b72 !important;
 }
 [data-theme*='-dark'] .vditor-reset pre code .hljs-string,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-doctag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta .hljs-string,
 [data-theme*='-dark'] .vditor-reset pre code .hljs-regexp {
   color: #a5d6ff !important;
 }
 [data-theme*='-dark'] .vditor-reset pre code .hljs-title,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-section,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-built_in {
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title.class_,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title.function_ {
   color: #d2a8ff !important;
 }
-[data-theme*='-dark'] .vditor-reset pre code .hljs-number,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-built_in,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-symbol {
+  color: #ffa657 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-name,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-quote,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-tag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-pseudo {
+  color: #7ee787 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-attr,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-attribute,
 [data-theme*='-dark'] .vditor-reset pre code .hljs-literal,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-meta,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-number,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-operator,
 [data-theme*='-dark'] .vditor-reset pre code .hljs-variable,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-template-variable,
-[data-theme*='-dark'] .vditor-reset pre code .hljs-attr {
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-attr,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-class,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-id {
   color: #79c0ff !important;
 }
-[data-theme*='-dark'] .vditor-reset .language-mermaid {
-  background-color: rgba(255, 255, 255, 0.92) !important;
-  color: #1d1d1f !important;
-  border-radius: 8px !important;
-  padding: 12px !important;
+
+/* Dark mode native Mermaid diagram styling (no bright white box!) */
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid {
+  background: transparent !important;
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgePath .path,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .flowchart-link {
+  stroke: #9ba8b5 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .marker {
+  fill: #9ba8b5 !important;
+  stroke: #9ba8b5 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .cluster rect {
+  fill: rgba(255, 255, 255, 0.04) !important;
+  stroke: rgba(255, 255, 255, 0.22) !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node rect,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node polygon,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node circle,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .node path {
+  fill: #212936 !important;
+  stroke: var(--accent) !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .nodeLabel,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .cluster-label,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg text,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg span,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg p {
+  color: #e6edf3 !important;
+  fill: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .edgeLabel rect,
+[data-theme*='-dark'] .vditor-ir__preview div.language-mermaid svg .labelBkg {
+  fill: #161b22 !important;
+  background-color: #161b22 !important;
 }
 
-.vditor-reset .language-mermaid {
-  cursor: pointer !important;
+/* Scope Mermaid hover & cursor strictly to the rendered diagram preview div, NEVER the code editor! */
+.vditor-ir__preview div.language-mermaid {
+  cursor: default !important;
   border-radius: 8px;
   padding: 6px;
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
-.vditor-reset .language-mermaid:hover {
+.vditor-ir__preview div.language-mermaid:hover {
   background-color: color-mix(in srgb, var(--accent) 6%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
