@@ -35,6 +35,18 @@ export function VditorEditor({ value, articleKey, onChange, onSave }: VditorEdit
       cache: { enable: false },
       toolbar: [],
       outline: { enable: false, position: 'left' },
+      preview: {
+        markdown: {
+          autoSpace: true,
+          mark: true,
+          gfmAutoLink: true,
+        },
+        hljs: {
+          enable: true,
+          style: 'github',
+          lineNumber: false,
+        },
+      },
       value,
       after: () => {
         isReadyRef.current = true;

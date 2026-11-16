@@ -113,6 +113,31 @@ export default function App() {
     void refreshWorkspace();
   }, []);
 
+  // Typora-identical macOS / Windows global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+
+      if (key === 's') {
+        e.preventDefault();
+        void handleSaveArticle(markdown);
+      } else if (key === 'n') {
+        e.preventDefault();
+        void handleCreateBlankArticle();
+      } else if (key === ',' && !e.shiftKey) {
+        e.preventDefault();
+        setActiveView((v) => (v === 'settings' ? 'editor' : 'settings'));
+      } else if (key === '\\' || (e.shiftKey && key === 'l')) {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeArticle, markdown]);
+
   async function openArticle(meta: ArticleMeta) {
     const content = await window.electronAPI.readArticle(meta.relativePath);
     setActiveArticle(meta);
@@ -287,13 +312,22 @@ export default function App() {
               <div className="px-3 py-4 text-xs text-[#777777]">暂无标题大纲</div>
             ) : (
               outlineNodes.map((node, idx) => (
-                <div
+                <button
+                  type="button"
                   key={`${node.line}-${idx}`}
+                  onClick={() => {
+                    setActiveView('editor');
+                    const headings = document.querySelectorAll('.vditor-ir h1, .vditor-ir h2, .vditor-ir h3, .vditor-ir h4');
+                    const target = Array.from(headings).find(
+                      (h) => h.textContent?.trim() === node.text
+                    );
+                    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
                   style={{ paddingLeft: `${8 + (node.level - 1) * 12}px` }}
-                  className="truncate rounded py-1 pr-2 text-[12.5px] text-[#333333] hover:bg-[#eceef1]"
+                  className="block w-full truncate rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 text-[#333333] hover:bg-[#eceef1]"
                 >
                   {node.text}
-                </div>
+                </button>
               ))
             )}
           </div>
