@@ -312,6 +312,24 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R17_1",
+            title: "R17-1. 代码语言下拉菜单（.vditor-hint）下移 26px，不再遮挡重叠代码语言标签",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850985547_86651998.png",
+            desc: "在 editor.css 中为 .vditor-ir .vditor-hint 增加 margin-top: 26px 与 z-index: 40，输入语言名时下拉候选列表清晰显示在标签下方，完全不遮挡文字。",
+            plan: "请在代码框左上角输入 lat，确认下方弹出列表与上方标签框互不重叠。"
+          },
+          {
+            id: "R17_2",
+            title: "R17-2. 大标题（H1~H6）禁止额外叠加加粗（**），保护标题结构",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851039123_924a96ee.png",
+            desc: "在 inlineFormat.ts 中禁止对 H1~H6 标题内部选区再添加 ** 加粗标记（仅允许剥离历史残留的 **），彻底防止大标题结构被破坏。",
+            plan: "请在任意 H1~H4 大标题上选中文字按 Cmd+B，确认不会额外加上 ** 标记。"
+          },
+          {
             id: "R16_1",
             title: "R16-1. 快速连续切换文章彻底不串文、不错乱（请求序号防竞态 + loadSeq 强制刷新）",
             status: "done",

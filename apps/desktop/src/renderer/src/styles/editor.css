@@ -253,6 +253,11 @@
   border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
   background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
+/* Ensure code language autocomplete popup (.vditor-hint) opens cleanly below the language badge without overlapping it */
+.vditor-ir .vditor-hint {
+  margin-top: 26px !important;
+  z-index: 40 !important;
+}
 
 /* 1. Normal code blocks (excluding Mermaid & Math/LaTeX): permanently show the single editable pre.vditor-ir__marker--pre so 1st click lands caret directly with zero flash/jump */
 .vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.language-latex)) > pre.vditor-ir__preview {

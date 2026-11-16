@@ -114,6 +114,10 @@ export function toggleInlineWrapInEditor(
   }
 
   if (sel.isCollapsed) return;
+  if (cmd === 'bold' && headingEl) {
+    // Headings (H1-H6) are already bold; disallow adding extra **...** inside headings to protect structure
+    return;
+  }
   const selectedText = range.toString();
   if (!selectedText.trim()) return;
 
