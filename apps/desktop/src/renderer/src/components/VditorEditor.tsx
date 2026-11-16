@@ -859,17 +859,43 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.stopImmediatePropagation();
           return;
         }
-        const htmlPreview = target?.closest('.vditor-ir__node[data-type="html-block"] .vditor-ir__preview') as HTMLElement | null;
-        if (htmlPreview) {
+
+        // 1. Double click inside HTML block (<details> / <summary>)
+        const htmlBlock = target?.closest('.vditor-ir__node[data-type="html-block"]') as HTMLElement | null;
+        if (htmlBlock) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          const selectTarget = (target?.closest('summary') as HTMLElement | null) ?? htmlPreview;
+          const summary = target?.closest('summary') as HTMLElement | null;
+          const details = target?.closest('details') as HTMLElement | null;
+          const selectTarget = summary ?? details ?? htmlBlock.querySelector('.vditor-ir__preview') ?? htmlBlock;
           const range = document.createRange();
           range.selectNodeContents(selectTarget);
           const sel = window.getSelection();
           sel?.removeAllRanges();
           sel?.addRange(range);
+          return;
+        }
+
+        // 2. Double click inside code block (select all code contents)
+        const codeBlock = target?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
+        if (codeBlock) {
+          if (target?.closest('.vditor-copy, .vditor-ir__marker--info')) return;
+          const codeEl =
+            (codeBlock.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null) ??
+            (codeBlock.querySelector('pre.vditor-ir__preview > code') as HTMLElement | null) ??
+            (codeBlock.querySelector('pre.vditor-ir__marker--pre') as HTMLElement | null);
+          if (codeEl) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const range = document.createRange();
+            range.selectNodeContents(codeEl);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+            return;
+          }
         }
       };
 

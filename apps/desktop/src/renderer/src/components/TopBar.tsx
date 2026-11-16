@@ -36,7 +36,7 @@ export function TopBar({
 
   return (
     <header
-      className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-[var(--bg-main)] pr-5 select-none ${
+      className={`relative app-drag flex h-[36px] shrink-0 items-center justify-between bg-[var(--bg-main)] pr-5 select-none ${
         activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[var(--border-color)]'
       } ${reserveTrafficLights ? 'pl-[76px]' : 'pl-3'}`}
     >
@@ -47,7 +47,7 @@ export function TopBar({
           onClick={onToggleSidebar}
           className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
@@ -68,7 +68,7 @@ export function TopBar({
         )}
       </div>
 
-      <div className="truncate text-[12.5px] font-medium text-[var(--control-text-color)]">
+      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 max-w-[40%] truncate text-center text-[12.5px] font-medium text-[var(--control-text-color)]">
         {activeView === 'editor'
           ? activeArticle?.relativePath ?? 'Vmark（维记）'
           : activeView === 'manager'

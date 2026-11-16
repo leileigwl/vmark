@@ -2,23 +2,26 @@
 
 - **日期**：2026-11-17
 - **当前阶段**：**Phase 1.5 深度精修与工程化规范落地**
-- **最新基线提交**：`8b75e9e`（Round 33 已完成并经 `typecheck` / `test` / `build` / Playwright 验证通过）
+- **最新基线提交**：`Round 34`（已完成并经 `typecheck` / `test` / `build` / Playwright 验证通过）
 
 ---
 
-## 零、下轮（Round 34）优先待办交接清单
+## 零、下轮（Round 35）优先待办交接清单
 
-### 已在本轮尾声抢修完成的项（已验证 typecheck / test / build）
-- ✅ **批量选中后按 `Delete` / `Backspace` 触发批量删除**：`Sidebar.tsx` 在 `selectedPaths.length > 1` 时走 `onBatchDeleteArticles` 而非单文件删除。
-- ✅ **修复批量删除右键时选区退化为单文件菜单的 Bug**：`SidebarContextMenus.tsx` 增加 `data-sidebar-context-menu="1"`，使 `Sidebar.tsx` 的外部 `mousedown` 清空多选逻辑放行右键菜单点击；同时排除 `e.ctrlKey` 误触发左键框选。
-- ✅ **修复 `<details>` / `<summary>`（`html-block`）预览区双击全选**：`VditorEditor.tsx` 的 `handleDblClickCapture` 对 `.vditor-ir__node[data-type="html-block"] .vditor-ir__preview` 直接选中 `<summary>` 或预览文本内容。
+### 已在本轮（Round 34）完成的项（已验证 typecheck / test / build / Playwright）
+- ✅ **顶部红黄绿与标题/按钮视觉像素级对齐**：`main/index.ts` 将 `trafficLightPosition: { x: 14, y: 10 }`，使三圆点中心线与 TopBar 按钮/标题（Y=10）水平线完全重合；`TopBar.tsx` 将 `PanelLeft` 尺寸统一为 `h-3.5 w-3.5`，标题采用 `absolute left-1/2 -translate-x-1/2` 保证在整窗数学绝对居中。
+- ✅ **本地文件链接打不开改为精致弹窗**：`App.tsx` 针对找不到本地链接目标文件，改用 macOS 居中毛玻璃弹窗提示「无法打开文件：工作区中未找到目标文件：「xxx」」，支持 Enter / Esc / 按钮确认关闭。
+- ✅ **侧边栏右键菜单重叠彻底根治**：重构 `SidebarContextMenus.tsx` 与 `Sidebar.tsx`，将分散的 `fileContextMenu` / `emptyContextMenu` 收敛为单状态互斥联合类型 `contextMenu: SidebarContextMenu | null`（`file | folder | empty`），同一时刻最多只存在一个右键菜单，彻底根治重叠 Bug。
+- ✅ **侧边栏支持文件夹框选与批量删除 + 删空目录回退**：
+  - `SidebarTreeNodes.tsx` 文件夹节点添加 `data-folder-path` 标识，选中态加亮；
+  - 鼠标左键框选（Marquee）与连选同时支持文件与文件夹；
+  - `App.tsx` 与 `Sidebar.tsx` 新增 `onDeleteFolder` 与 `onBatchDeleteItems`，支持按 `Delete`/`Backspace` 或右键批量删除文件与文件夹；
+  - 删空工作区所有文件后（`list.length === 0`）立即回退至空白目录占位，若仍有文章则自动切换到剩余第一篇。
+- ✅ **`<details>` / `<summary>` 与代码块双击全选**：`VditorEditor.tsx` `handleDblClickCapture` 双击 `<details>` / `<summary>` 时全选文本并不触发折叠切换；双击代码块（包含右侧空白区）时直接选中该代码块全部代码文本。
 
-### 待下轮继续完成的项
-1. **侧边栏支持批量框选文件夹 & 批量删除文件夹 + `App.tsx` / `Sidebar.tsx` 进一步解耦**：
-   - `SidebarTreeNodes.tsx` 为文件夹节点补充 `data-folder-path` 等标识，让框选（Marquee）与 `Shift` 连选同时覆盖文件与文件夹。
-   - 支持选中文件+文件夹混合批量删除（含确认与 `Cmd/Ctrl+Z` 撤销/重做，避免父文件夹与子文件重复删除冲突）。
-   - **代码解耦**：将 `App.tsx` 中的文件撤销/重做栈（`FileHistoryOp`、`handleUndoFileOp`、`handleRedoFileOp`）及批量操作抽离为独立 hook/模块（如 `src/renderer/src/hooks/useFileHistory.ts`），控制 `App.tsx` 与 `Sidebar.tsx` 体积。
-2. **打包提醒**：macOS（带图标 + DMG 拖拽安装）与 Windows 双端打包**继续延后，待用户确认上述全部体验满意后再统一执行**。
+### 待下轮继续关注的项
+1. **打包提醒**：macOS（带图标 + DMG 拖拽安装）与 Windows 双端打包**继续延后，待用户确认上述全部体验满意后再统一执行**。
+2. **`VditorEditor.tsx` 与 `App.tsx` 继续小步解耦**：将文件撤销栈与批量操作剥离为独立 hook，保持主文件清爽。
 
 ---
 

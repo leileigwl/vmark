@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { countWords, extractOutline } from '@vcat/core';
 import type {
   ArticleMeta,
@@ -805,12 +806,11 @@ export default function App() {
             { kind: 'delete', items: [{ relativePath: art.relativePath, content }], previousArticlePath: prevPath },
           ]);
           setFileRedoStack([]);
-          if (activeArticle?.relativePath === art.relativePath) {
-            if (list.length > 0) await openArticle(list[0]);
-            else {
-              setActiveArticle(null);
-              setMarkdown('');
-            }
+          if (list.length === 0) {
+            setActiveArticle(null);
+            setMarkdown('');
+          } else if (activeArticle?.relativePath === art.relativePath) {
+            await openArticle(list[0]);
           }
         }}
         onBatchDeleteArticles={async (targets) => {
@@ -838,12 +838,94 @@ export default function App() {
             { kind: 'delete', items, previousArticlePath: prevPath },
           ]);
           setFileRedoStack([]);
-          if (activeArticle && deletedSet.has(activeArticle.relativePath)) {
-            if (list.length > 0) await openArticle(list[0]);
-            else {
+          if (list.length === 0) {
+            setActiveArticle(null);
+            setMarkdown('');
+          } else if (activeArticle && deletedSet.has(activeArticle.relativePath)) {
+            await openArticle(list[0]);
+          }
+        }}
+        onDeleteFolder={async (folderPath) => {
+          if (!window.confirm(`确定要将文件夹「${folderPath}」移到废纸篓吗？`)) return;
+          try {
+            await window.electronAPI.deleteFolder?.(folderPath);
+            const [list, folderList] = await Promise.all([
+              window.electronAPI.listArticles(),
+              window.electronAPI.listFolders(),
+            ]);
+            setArticles(list);
+            setFolders(folderList);
+            if (list.length === 0) {
               setActiveArticle(null);
               setMarkdown('');
+            } else if (
+              activeArticle &&
+              (activeArticle.relativePath === folderPath ||
+                activeArticle.relativePath.startsWith(`${folderPath}/`))
+            ) {
+              await openArticle(list[0]);
             }
+          } catch (err) {
+            showToast(err);
+          }
+        }}
+        onBatchDeleteItems={async (targetArticles, targetFolders) => {
+          const totalCount = targetArticles.length + targetFolders.length;
+          if (totalCount === 0) return;
+          const summary =
+            targetFolders.length > 0
+              ? `${targetArticles.length} 篇文章与 ${targetFolders.length} 个文件夹`
+              : `${targetArticles.length} 篇文章`;
+          if (!window.confirm(`确定要将选中的 ${totalCount} 个项目（${summary}）移到废纸篓吗？`)) return;
+          const prevPath = activeArticle?.relativePath ?? null;
+          const items: Array<{ relativePath: string; content: string }> = [];
+          for (const t of targetArticles) {
+            let content = '';
+            try {
+              content = await window.electronAPI.readArticle(t.relativePath);
+            } catch {
+              // ignore
+            }
+            items.push({ relativePath: t.relativePath, content });
+          }
+          const deletedArticleSet = new Set(targetArticles.map((t) => t.relativePath));
+          const deletedFolderList = [...targetFolders];
+
+          for (const f of targetFolders) {
+            await window.electronAPI.deleteFolder?.(f);
+          }
+          for (const a of targetArticles) {
+            await window.electronAPI.deleteArticle(a.relativePath);
+          }
+
+          const [list, folderList] = await Promise.all([
+            window.electronAPI.listArticles(),
+            window.electronAPI.listFolders(),
+          ]);
+          setArticles(list);
+          setFolders(folderList);
+
+          if (items.length > 0) {
+            setFileUndoStack((prev) => [
+              ...prev,
+              { kind: 'delete', items, previousArticlePath: prevPath },
+            ]);
+            setFileRedoStack([]);
+          }
+
+          if (list.length === 0) {
+            setActiveArticle(null);
+            setMarkdown('');
+          } else if (
+            activeArticle &&
+            (deletedArticleSet.has(activeArticle.relativePath) ||
+              deletedFolderList.some(
+                (f) =>
+                  activeArticle.relativePath === f ||
+                  activeArticle.relativePath.startsWith(`${f}/`)
+              ))
+          ) {
+            await openArticle(list[0]);
           }
         }}
         onDuplicateArticle={async (art) => {
@@ -993,15 +1075,37 @@ export default function App() {
             )}
 
             {missingLinkTarget && (
-              <div className="flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--side-bar-bg-color)] px-4 py-1.5 text-[12px] text-[var(--text-main)] shadow-2xs">
-                <span className="truncate">无法打开「{missingLinkTarget}」，未在工作区找到该文件</span>
-                <button
-                  type="button"
-                  onClick={() => setMissingLinkTarget(null)}
-                  className="ml-3 shrink-0 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-0.5 text-[11px] text-[var(--control-text-color)] hover:text-[var(--text-main)]"
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs"
+                onClick={() => setMissingLinkTarget(null)}
+              >
+                <div
+                  className="w-[340px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] p-5 shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  关闭
-                </button>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/12 text-[var(--accent)]">
+                      <AlertCircle className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-[14px] font-semibold text-[var(--text-main)]">无法打开文件</h3>
+                      <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--control-text-color)] break-all">
+                        工作区中未找到目标文件：<br />
+                        <span className="font-mono text-[var(--text-main)]">「{missingLinkTarget}」</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      autoFocus
+                      onClick={() => setMissingLinkTarget(null)}
+                      className="rounded-md bg-[#007aff] px-4 py-1.5 text-[12px] font-medium text-white shadow-2xs hover:bg-[#0066d6]"
+                    >
+                      确定
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 

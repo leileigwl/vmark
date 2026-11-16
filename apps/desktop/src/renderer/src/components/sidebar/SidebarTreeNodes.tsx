@@ -9,6 +9,7 @@ interface SidebarTreeNodesProps {
   expandedDirs: Record<string, boolean>;
   dragOverFolder: string | null;
   selectedPaths: string[];
+  selectedFolders?: string[];
   activeArticlePath?: string | null;
   renamingPath: string | null;
   renameDraft: string;
@@ -18,11 +19,13 @@ interface SidebarTreeNodesProps {
   onMoveFolder: (oldFolder: string, targetFolder: string) => Promise<void>;
   onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
   onArticleClick: (e: MouseEvent, article: ArticleMeta) => void;
+  onFolderClick?: (e: MouseEvent, folderPath: string) => void;
   onRenameStart: (article: ArticleMeta) => void;
   onRenameDraftChange: (val: string) => void;
   onRenameSubmit: (oldPath: string) => Promise<void>;
   onRenameCancel: () => void;
   onOpenFileContextMenu: (x: number, y: number, article: ArticleMeta) => void;
+  onOpenFolderContextMenu?: (x: number, y: number, folderPath: string) => void;
 }
 
 /** Recursive file tree renderer supporting drag-move, multi-selection, and inline renaming. */
@@ -32,6 +35,7 @@ export function SidebarTreeNodes({
   expandedDirs,
   dragOverFolder,
   selectedPaths,
+  selectedFolders = [],
   activeArticlePath,
   renamingPath,
   renameDraft,
@@ -41,11 +45,13 @@ export function SidebarTreeNodes({
   onMoveFolder,
   onMoveArticle,
   onArticleClick,
+  onFolderClick,
   onRenameStart,
   onRenameDraftChange,
   onRenameSubmit,
   onRenameCancel,
   onOpenFileContextMenu,
+  onOpenFolderContextMenu,
 }: SidebarTreeNodesProps) {
   return (
     <>
@@ -53,15 +59,25 @@ export function SidebarTreeNodes({
         if (node.isDir) {
           const isOpen = expandedDirs[node.path] ?? true;
           const isDragOver = dragOverFolder === node.path;
+          const isFolderSelected = selectedFolders.includes(node.path);
           return (
             <div key={node.path}>
               <button
                 type="button"
+                data-folder-path={node.path}
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.setData('application/x-vcat-folder', node.path);
                 }}
-                onClick={() => onToggleDir(node.path)}
+                onClick={(e) => {
+                  if (onFolderClick) onFolderClick(e, node.path);
+                  else onToggleDir(node.path);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpenFolderContextMenu?.(e.clientX, e.clientY, node.path);
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -87,8 +103,12 @@ export function SidebarTreeNodes({
                   }
                 }}
                 style={{ paddingLeft: `${8 + depth * 12}px` }}
-                className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] text-[var(--text-main)] ${
-                  isDragOver ? 'bg-[var(--accent)]/15 ring-1 ring-[var(--accent)]' : 'hover:bg-[var(--bg-hover)]'
+                className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] ${
+                  isDragOver
+                    ? 'bg-[var(--accent)]/15 text-[var(--text-main)] ring-1 ring-[var(--accent)]'
+                    : isFolderSelected
+                      ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 {isOpen ? (
@@ -106,6 +126,7 @@ export function SidebarTreeNodes({
                   expandedDirs={expandedDirs}
                   dragOverFolder={dragOverFolder}
                   selectedPaths={selectedPaths}
+                  selectedFolders={selectedFolders}
                   activeArticlePath={activeArticlePath}
                   renamingPath={renamingPath}
                   renameDraft={renameDraft}
@@ -115,11 +136,13 @@ export function SidebarTreeNodes({
                   onMoveFolder={onMoveFolder}
                   onMoveArticle={onMoveArticle}
                   onArticleClick={onArticleClick}
+                  onFolderClick={onFolderClick}
                   onRenameStart={onRenameStart}
                   onRenameDraftChange={onRenameDraftChange}
                   onRenameSubmit={onRenameSubmit}
                   onRenameCancel={onRenameCancel}
                   onOpenFileContextMenu={onOpenFileContextMenu}
+                  onOpenFolderContextMenu={onOpenFolderContextMenu}
                 />
               )}
             </div>

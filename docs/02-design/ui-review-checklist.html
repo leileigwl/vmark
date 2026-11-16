@@ -312,6 +312,51 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R34_1",
+            title: "R34-1. 顶部栏红绿灯与按钮/标题像素级居中对齐",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794861529441_5eab5b59.png",
+            desc: "trafficLightPosition 调整为 { x: 14, y: 10 }，与所有顶部栏按钮（Y=10）水平线完全重合；PanelLeft 统一为 h-3.5 w-3.5；文章标题居中绝对定位，不被左右挤偏。",
+            plan: "请检查顶部红黄绿三圆点与侧边栏开关、时钟、编辑按钮及标题是否完全在同一水平中轴线上。"
+          },
+          {
+            id: "R34_2",
+            title: "R34-2. 无法打开本地链接改用精致居中弹窗",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794861544714_df845c59.png",
+            desc: "点击工作区内不存在的目标链接时，弹出 macOS 居中毛玻璃弹窗提示「无法打开文件：工作区中未找到目标文件：「xxx」」，支持 Enter / Esc / 按钮确认关闭。",
+            plan: "请在文档中点击一个不存在的本地链接（如 [test](not_found.md)），确认弹出精致居中弹窗。"
+          },
+          {
+            id: "R34_3",
+            title: "R34-3. 侧边栏右键菜单重叠彻底根治",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794861280444_be6b2560.png",
+            desc: "重构 SidebarContextMenus 为单状态互斥模型（contextMenu: SidebarContextMenu | null），同一时刻最多只挂载一个菜单，彻底杜绝菜单层叠重叠。",
+            plan: "请连续右键文件、文件夹或空白处，确认每次只显示当前唯一的右键菜单，绝无任何重叠。"
+          },
+          {
+            id: "R34_4",
+            title: "R34-4. 侧边栏文件夹框选与批量删除 + 删空工作区回退",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794860629475_b631f4ed.jpg",
+            desc: "文件夹节点支持 data-folder-path 与高亮；鼠标左键框选与连选支持文件夹与文件；按 Delete/Backspace 或右键可批量删除文件夹+文件；删空所有文件后自动回退至空白目录占位，未删空则跳到剩余第一篇。",
+            plan: "请在侧边栏用鼠标左键拖拽框选多个文件夹与文件，按 Delete 键确认能批量删除；删空后确认回退到空白工作区。"
+          },
+          {
+            id: "R34_5",
+            title: "R34-5. <details> / <summary> 与代码块双击文本全选",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794860728528_35386f29.png",
+            desc: "双击 <details> 或 <summary> 直接选中文字全文并不触发折叠切换；双击代码块容器（含右侧空白区域）直接选中该代码块全部代码文本。",
+            plan: "请在文档中双击 <summary> 确认全选文本且不折叠；在代码块内或右侧空白处双击确认直接选中整块代码。"
+          },
+          {
             id: "R33_1",
             title: "R33-1. 顶部栏与侧边栏高度及按钮对齐",
             status: "done",

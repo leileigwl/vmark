@@ -93,7 +93,7 @@ function createWindow(): void {
     show: false,
     ...(iconPath ? { icon: iconPath } : {}),
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 12 },
+    trafficLightPosition: { x: 14, y: 10 },
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

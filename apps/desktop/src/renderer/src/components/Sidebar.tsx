@@ -12,8 +12,7 @@ import {
 import type { ArticleMeta, ArticleSearchResult, OutlineNode } from '@vcat/shared';
 import {
   SidebarContextMenus,
-  type EmptyContextMenuState,
-  type FileContextMenuState,
+  type SidebarContextMenu,
 } from './sidebar/SidebarContextMenus';
 import { SidebarPopoverMenu } from './sidebar/SidebarPopoverMenu';
 import { SidebarTreeNodes } from './sidebar/SidebarTreeNodes';
@@ -39,6 +38,8 @@ interface SidebarProps {
   onRenameArticle: (oldPath: string, newName: string) => Promise<void>;
   onDeleteArticle: (art: ArticleMeta) => Promise<void>;
   onBatchDeleteArticles?: (targets: ArticleMeta[]) => Promise<void>;
+  onDeleteFolder?: (folderPath: string) => Promise<void>;
+  onBatchDeleteItems?: (articles: ArticleMeta[], folders: string[]) => Promise<void>;
   onDuplicateArticle: (art: ArticleMeta) => Promise<void>;
   onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
   onMoveFolder: (oldFolder: string, targetParent: string) => Promise<void>;
@@ -73,6 +74,8 @@ export function Sidebar({
   onRenameArticle,
   onDeleteArticle,
   onBatchDeleteArticles,
+  onDeleteFolder,
+  onBatchDeleteItems,
   onDuplicateArticle,
   onMoveArticle,
   onMoveFolder,
@@ -104,12 +107,7 @@ export function Sidebar({
   const [activeOutlineIdx, setActiveOutlineIdx] = useState<number | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [lastClickedPath, setLastClickedPath] = useState<string | null>(null);
-  const [fileContextMenu, setFileContextMenu] = useState<{
-    x: number;
-    y: number;
-    article: ArticleMeta;
-  } | null>(null);
-  const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<SidebarContextMenu | null>(null);
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
@@ -159,14 +157,15 @@ export function Sidebar({
   }, [fileSearchQuery]);
 
   useEffect(() => {
-    if (!fileContextMenu && !emptyContextMenu) return;
-    const close = () => {
-      setFileContextMenu(null);
-      setEmptyContextMenu(null);
+    if (!contextMenu) return;
+    const handleDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-sidebar-context-menu]')) return;
+      setContextMenu(null);
     };
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
-  }, [fileContextMenu, emptyContextMenu]);
+    window.addEventListener('mousedown', handleDown, true);
+    return () => window.removeEventListener('mousedown', handleDown, true);
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!sidebarMenuOpen || sidebarMenuPinned) return;
@@ -212,6 +211,24 @@ export function Sidebar({
     walk(fileTree);
     return acc;
   }, [fileViewMode, filteredArticles, fileTree, expandedDirs]);
+
+  function handleFolderClick(e: React.MouseEvent, folderPath: string) {
+    if (suppressNextClickRef.current) return;
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      setSelectedPaths((prev) =>
+        prev.includes(folderPath) ? prev.filter((p) => p !== folderPath) : [...prev, folderPath]
+      );
+      setLastClickedPath(folderPath);
+      return;
+    }
+    setSelectedPaths([folderPath]);
+    setLastClickedPath(folderPath);
+    setExpandedDirs((prev) => ({
+      ...prev,
+      [folderPath]: !(prev[folderPath] ?? true),
+    }));
+  }
 
   function handleArticleItemClick(e: React.MouseEvent, article: ArticleMeta) {
     if (suppressNextClickRef.current) return;
@@ -434,10 +451,27 @@ export function Sidebar({
               if (selectedPaths.length > 1) {
                 e.preventDefault();
                 const selectedSet = new Set(selectedPaths);
-                const targets = articles.filter((a) => selectedSet.has(a.relativePath));
-                if (targets.length > 0) {
-                  void onBatchDeleteArticles?.(targets);
+                const targetArticles = articles.filter((a) => selectedSet.has(a.relativePath));
+                const targetFolders = folders.filter((f) => selectedSet.has(f));
+                if (targetFolders.length > 0 && onBatchDeleteItems) {
+                  void onBatchDeleteItems(targetArticles, targetFolders);
+                } else if (targetArticles.length > 0 && onBatchDeleteArticles) {
+                  void onBatchDeleteArticles(targetArticles);
+                }
+                setSelectedPaths([]);
+              } else if (selectedPaths.length === 1) {
+                const single = selectedPaths[0];
+                if (folders.includes(single)) {
+                  e.preventDefault();
+                  void onDeleteFolder?.(single);
                   setSelectedPaths([]);
+                } else {
+                  const targetArt = articles.find((a) => a.relativePath === single) ?? activeArticle;
+                  if (targetArt) {
+                    e.preventDefault();
+                    void onDeleteArticle(targetArt);
+                    setSelectedPaths([]);
+                  }
                 }
               } else if (activeArticle) {
                 e.preventDefault();
@@ -448,8 +482,7 @@ export function Sidebar({
           onContextMenu={(e) => {
             if (sideTab !== 'files') return;
             e.preventDefault();
-            setFileContextMenu(null);
-            setEmptyContextMenu({ x: e.clientX, y: e.clientY });
+            setContextMenu({ type: 'empty', x: e.clientX, y: e.clientY });
           }}
           onDragOver={(e) => {
             if (sideTab !== 'files') return;
@@ -489,8 +522,8 @@ export function Sidebar({
               const container = fileListRef.current;
               if (container) {
                 const hits: string[] = [];
-                container.querySelectorAll<HTMLElement>('[data-article-path]').forEach((row) => {
-                  const pathVal = row.dataset.articlePath;
+                container.querySelectorAll<HTMLElement>('[data-article-path], [data-folder-path]').forEach((row) => {
+                  const pathVal = row.dataset.articlePath || row.dataset.folderPath;
                   if (!pathVal) return;
                   const r = row.getBoundingClientRect();
                   const intersects =
@@ -511,7 +544,7 @@ export function Sidebar({
                 setTimeout(() => {
                   suppressNextClickRef.current = false;
                 }, 80);
-              } else if (!t?.closest('[data-article-path]')) {
+              } else if (!t?.closest('[data-article-path], [data-folder-path]')) {
                 setSelectedPaths([]);
               }
               setMarqueeRect(null);
@@ -618,7 +651,7 @@ export function Sidebar({
                         setSelectedPaths([art.relativePath]);
                         setLastClickedPath(art.relativePath);
                       }
-                      setFileContextMenu({ x: e.clientX, y: e.clientY, article: art });
+                      setContextMenu({ type: 'file', x: e.clientX, y: e.clientY, article: art });
                     }}
                     className={`flex w-full items-center gap-1.5 rounded px-2.5 py-[4px] text-left text-[12.5px] leading-5 ${
                       isSelected
@@ -637,6 +670,7 @@ export function Sidebar({
                 expandedDirs={expandedDirs}
                 dragOverFolder={dragOverFolder}
                 selectedPaths={selectedPaths}
+                selectedFolders={selectedPaths.filter((p) => folders.includes(p))}
                 activeArticlePath={activeArticle?.relativePath ?? null}
                 renamingPath={renamingPath}
                 renameDraft={renameDraft}
@@ -650,16 +684,24 @@ export function Sidebar({
                 onMoveFolder={onMoveFolder}
                 onMoveArticle={onMoveArticle}
                 onArticleClick={handleArticleItemClick}
+                onFolderClick={handleFolderClick}
                 onRenameStart={handleRenameStart}
                 onRenameDraftChange={setRenameDraft}
                 onRenameSubmit={handleRenameSubmit}
                 onRenameCancel={() => setRenamingPath(null)}
+                onOpenFolderContextMenu={(x, y, folderPath) => {
+                  if (!selectedPaths.includes(folderPath)) {
+                    setSelectedPaths([folderPath]);
+                    setLastClickedPath(folderPath);
+                  }
+                  setContextMenu({ type: 'folder', x, y, folderPath });
+                }}
                 onOpenFileContextMenu={(x, y, art) => {
                   if (!selectedPaths.includes(art.relativePath)) {
                     setSelectedPaths([art.relativePath]);
                     setLastClickedPath(art.relativePath);
                   }
-                  setFileContextMenu({ x, y, article: art });
+                  setContextMenu({ type: 'file', x, y, article: art });
                 }}
               />
             )
@@ -798,13 +840,12 @@ export function Sidebar({
       )}
 
       <SidebarContextMenus
-        fileContextMenu={fileContextMenu}
-        emptyContextMenu={emptyContextMenu}
+        menu={contextMenu}
         selectedPaths={selectedPaths}
         articles={articles}
+        folders={folders}
         fileViewMode={fileViewMode}
-        onCloseFileMenu={() => setFileContextMenu(null)}
-        onCloseEmptyMenu={() => setEmptyContextMenu(null)}
+        onCloseMenu={() => setContextMenu(null)}
         onClearSelection={() => setSelectedPaths([])}
         onOpenArticle={onOpenArticle}
         onStartCreateItem={startCreateItem}
@@ -817,6 +858,8 @@ export function Sidebar({
         onRenameStart={handleRenameStart}
         onDeleteArticle={onDeleteArticle}
         onBatchDeleteArticles={onBatchDeleteArticles}
+        onDeleteFolder={onDeleteFolder}
+        onBatchDeleteItems={onBatchDeleteItems}
         onRefreshWorkspace={onRefreshWorkspace}
       />
     </>
