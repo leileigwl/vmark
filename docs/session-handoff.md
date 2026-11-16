@@ -60,6 +60,18 @@
 4. **macOS 桌面端打包（`electron-builder`）**：
    - `apps/desktop/package.json` 新增 `electron-builder` 配置与 `package:mac` 脚本，生成 `.app` 与 `.dmg` 桌面安装包（`apps/desktop/release/` 已加入 `.gitignore`）。
 
+### Round 27（构思与技术方案，待用户确认后开始编码）
+1. **LaTeX / Mermaid 双击进入源码编辑零闪烁**：
+   - 捕获阶段拦截 `dblclick` 阻止 Vditor 二次重绘；`renderLatexBlocks()` / `rerenderBrokenMermaid()` 跳过 `.vditor-ir__node--expand` 节点；双击切入时同步隐藏 `previewPre` 并稳定焦点选区。
+2. **块间缝隙临时空行未编辑自动回收**：
+   - 为缝隙点击插入的临时 `<p>` 打上 `data-vcat-temp-gap="1"`；有真实输入则转为正式段落；光标移走且内容仍为空时自动清理该临时 `<p>`，恢复紧凑排版。
+3. **隐藏侧边栏时顶部左上角按钮贴左对齐**：
+   - 主进程同步窗口全屏状态（`enter-full-screen` / `leave-full-screen`）至渲染进程；仅在「macOS 非全屏且 `!sidebarOpen`」时保留红绿灯避让边距，全屏或非 macOS 统一贴左 `pl-3`。
+4. **整行按 `Ctrl+B` 加粗出现额外空行修复**：
+   - `inlineFormat.ts` 在包裹前剥离三击/整行选区尾随 `<br>` 与纯换行节点，确保加粗标记只包裹文字本身，不产生额外空行。
+5. **macOS（带图标拖拽安装 DMG）+ Windows（NSIS 安装包）打包规划**：
+   - 补充 `icon.icns`（`iconutil` 多分辨率）与 `icon.ico`，配置 DMG `Applications` 拖拽布局及 `package:win`；**等全部体验问题确认改完后再统一打包**。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）
