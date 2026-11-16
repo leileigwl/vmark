@@ -125,7 +125,7 @@ export function toggleInlineWrapInEditor(
 
   const trimmedSel = selectedText.trim();
   if (
-    (cmd === 'bold' && /^\*\*+[\s\S]*\*\*+$/.test(trimmedSel)) ||
+    (cmd === 'bold' && (/^\*\*+[\s\S]*\*\*+$/.test(trimmedSel) || /^\*\*|\*\*$/.test(trimmedSel))) ||
     (cmd === 'italic' && /^\*+[\s\S]*\*+$/.test(trimmedSel))
   ) {
     const stripped = trimmedSel.replace(/^\*+|\*+$/g, '');
@@ -139,6 +139,32 @@ export function toggleInlineWrapInEditor(
     pushUndo();
     commitMarkdown();
     return;
+  }
+
+  // If the selection is inside a text node directly flanked by **...**, unwrap those asterisks instead of adding more
+  if (
+    cmd === 'bold' &&
+    range.startContainer === range.endContainer &&
+    range.startContainer.nodeType === Node.TEXT_NODE
+  ) {
+    const tNode = range.startContainer as Text;
+    const fullStr = tNode.nodeValue || '';
+    const before = fullStr.slice(0, range.startOffset);
+    const after = fullStr.slice(range.endOffset);
+    if (/\*+$/.test(before) && /^\*+/.test(after)) {
+      const cleanBefore = before.replace(/\*+$/, '');
+      const cleanAfter = after.replace(/^\*+/, '');
+      const mid = selectedText.replace(/^\*+|\*+$/g, '');
+      tNode.nodeValue = `${cleanBefore}${mid}${cleanAfter}`;
+      const nextRange = document.createRange();
+      nextRange.setStart(tNode, cleanBefore.length);
+      nextRange.setEnd(tNode, cleanBefore.length + mid.length);
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+      pushUndo();
+      commitMarkdown();
+      return;
+    }
   }
 
   const leading = selectedText.match(/^\s*/)?.[0] ?? '';

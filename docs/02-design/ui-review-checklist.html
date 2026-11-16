@@ -321,6 +321,24 @@
             plan: "请重新导出 Word (.docx) 在 WPS / Pages / Word 中查看字体大小层级、空代码块与无红线效果。"
           },
           {
+            id: "R22_1",
+            title: "R22-1. 代码语言提示框方向键上下选词 + 删空标签后回车/Tab 正常落入代码编辑区",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794851935916_96b56a3a.png",
+            desc: "改用 window.getSelection().anchorNode 定位当前 .vditor-ir__marker--info（解决 contenteditable 下 e.target 指向外层容器导致方向键与 Enter/Tab 失效的根因），上下左右选词与删空标签后回车/Tab 跳入代码框均 100% 生效。",
+            plan: "请在代码标签内输入 js 后按 ↓/↑ 切换选中 json，按回车跳入代码区；再测试删空标签按 Tab/回车也能进入代码区。"
+          },
+          {
+            id: "R22_2",
+            title: "R22-2. 连按 Ctrl+B 严格二态切换（彻底消除多次按下叠加出 ************ 的问题）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794852095824_2ae1f9a2.png",
+            desc: "为 toggleInlineWrap 增加 80ms 防重入节流，防止键盘监听与菜单加速键同帧双触发；同时检测选区前后相邻文本节点中的 ** 标记并直接剥离，确保多次 Ctrl+B 绝不叠加多组星号。",
+            plan: "请选中文字连续按 5 次以上 Ctrl+B，确认只在「加粗 ↔ 原文」之间干净切换，绝不出现 ****。"
+          },
+          {
             id: "R21_1",
             title: "R21-1. 监听 .vditor-hint style 变化并用 fixed 坐标钉死在标签正下方 4px，绝不遮挡",
             status: "done",

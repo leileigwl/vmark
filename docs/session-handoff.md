@@ -30,14 +30,12 @@
 
 ## 二、本轮待完成改造项（立即执行）
 
-1. **修复快速连续切换文章导致内容错乱（竞态条件）**：
-   - 在 `App.tsx` 的 `openArticle` 中引入递增 `openRequestIdRef` 与 `loadSeq`，在 `setActiveArticle` 先行高亮后异步 `readArticle`，仅当请求 ID 未过期时才更新 `markdown` 与 `loadSeq`，并在 `VditorEditor` 中监听 `[articleKey, loadSeq]` 同步更新，彻底杜绝快速连点 A→B→C 时出现「标题是 B、正文是 A」的错乱。
-2. **修复 Word (`.docx`) 导出渲染与链接格式**：
-   - 升级 `main/exportDocx.ts`：将 `[文字](链接)` 解析为干净的蓝色可点击超链接文本（不暴露原始 `(url)`），过滤空 `>` 引用行与 `<details>`/`<summary>` 标签，对齐清晰简洁的 Word 排版风格。
-3. **精简「导出」子菜单文案**：
-   - 将 `导出` 子菜单精简为 `PDF`、`HTML`、`Word (.docx)`、`按默认格式导出 (Cmd+Shift+E)`。
-4. **优化代码语言标签回车直入代码框**：
-   - 在 `.vditor-ir__marker--info`（如输入 `lat` 选 `latex`）按 `Enter` 后自动将光标落入下方代码编辑区 `pre.vditor-ir__marker--pre > code`，可直接粘贴或输入公式。
+1. **修复代码语言提示框（`.vditor-hint`）方向键上下选词与 `Enter`/`Tab` 生效**：
+   - 根因：`contenteditable` 区域触发 `keydown` 时 `e.target` 是外层 `.vditor-reset` 而非内层 `.vditor-ir__marker--info`，导致 `targetNode.closest('.vditor-ir__marker--info')` 返回 `null`。
+   - 方案：改为通过 `window.getSelection()?.anchorNode` 定位当前 `.vditor-ir__marker--info`，使 `↑/↓/←/→` 选词与 `Enter`/`Tab` 确认（含删除语言文本为空时）100% 生效并落入下方代码编辑区。
+2. **彻底根治多次 `Ctrl+B` / `Cmd+B` 叠加 `****...****`**：
+   - 根因：`window` `keydown` 与 Electron 菜单加速键（`CmdOrCtrl+B`）可能同帧双触发，且未检测选区前后已存在的 `**` 文本标记。
+   - 方案：在 `VditorEditor.tsx` 对 `bold`/`italic` 加 80ms 防重入节流，并在 `inlineFormat.ts` 中检测选区内外及前后相邻 `**` 标记，严格二态切换（绝不叠加）。
 
 ---
 

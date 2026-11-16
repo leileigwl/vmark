@@ -94,7 +94,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       }
     };
 
+    const lastFormatRef = useRef<{ cmd: string; ts: number }>({ cmd: '', ts: 0 });
     const toggleInlineWrap = (cmd: InlineWrapCommand) => {
+      const now = Date.now();
+      if (lastFormatRef.current.cmd === cmd && now - lastFormatRef.current.ts < 80) {
+        return;
+      }
+      lastFormatRef.current = { cmd, ts: now };
       const instance = vditorRef.current;
       const el = containerRef.current;
       if (!instance || !el || !isReadyRef.current) return;
@@ -664,9 +670,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
 
         // Inside code block language tag (.vditor-ir__marker--info):
-        // - ArrowUp/Down/Left/Right navigate .vditor-hint candidates
-        // - Enter or Tab picks highlighted (or 1st) candidate and moves caret into code/LaTeX box
-        const infoMarker = targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null;
+        // Use selection anchorNode (e.target in contenteditable is outer .vditor-reset, not inner span!)
+        const selInfo = window.getSelection();
+        const selAnchorEl =
+          selInfo?.anchorNode instanceof Element
+            ? selInfo.anchorNode
+            : selInfo?.anchorNode?.parentElement;
+        const infoMarker =
+          (selAnchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
+          (targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null);
         if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
           const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
           const hintButtons = hintEl
