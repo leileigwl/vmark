@@ -215,7 +215,6 @@ export function handleEditorMouseDownCapture(e: MouseEvent, ctx: PointerEventCon
 
 export function handleEditorContextMenu(e: MouseEvent, ctx: PointerEventContext): void {
   e.preventDefault();
-  if (ctx.readOnly) return;
   const target = e.target as HTMLElement | null;
   ctx.lastSelectionElRef.current = target;
   const imgEl = target?.closest('img') as HTMLImageElement | null;
@@ -231,9 +230,11 @@ export function handleEditorContextMenu(e: MouseEvent, ctx: PointerEventContext)
       inImage: true,
       imageScale,
       hasSelection: false,
+      readOnly: ctx.readOnly,
     });
     return;
   }
+  if (ctx.readOnly) return;
   const inTable = Boolean(target?.closest('table'));
   const sel = window.getSelection();
   const hasSelection = Boolean(sel && !sel.isCollapsed);

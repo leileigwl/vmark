@@ -59,6 +59,12 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('file:export', options),
   setRecentFiles: (paths: string[]) =>
     ipcRenderer.send('menu:setRecentFiles', paths),
+  copyImage: (src: string) =>
+    ipcRenderer.invoke('image:copy', src),
+  saveImageAs: (src: string) =>
+    ipcRenderer.invoke('image:saveAs', src),
+  openWorkspaceLink: (href: string, currentRelativePath?: string) =>
+    ipcRenderer.invoke('workspace:openLink', href, currentRelativePath),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

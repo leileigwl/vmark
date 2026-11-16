@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, net, protocol, session, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -171,12 +171,12 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
     {
       label: '文件',
       submenu: [
-        { label: '新建空白文章', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('file:new') },
+        { label: '新建文章', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('file:new') },
         { label: '新建窗口', accelerator: 'CmdOrCtrl+Shift+N', click: () => createWindow() },
         { type: 'separator' },
         { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
         { label: '快速打开...', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendMenuAction('file:quickOpen') },
-        { label: '打开最近的文件', submenu: recentSubmenu },
+        { label: '打开最近文件', submenu: recentSubmenu },
         { type: 'separator' },
         { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', click: () => BrowserWindow.getFocusedWindow()?.close() },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
@@ -742,46 +742,59 @@ function registerIpcHandlers(): void {
 
     if (options.inImage) {
       const currScale = options.imageScale ?? 50;
-      const imageMenu = Menu.buildFromTemplate([
+      const imageTemplate: Electron.MenuItemConstructorOptions[] = [
         {
           label: '放大预览 (空格)',
           click: () => sendMenuAction('editor:image', 'preview'),
         },
         {
-          label: '显示比例',
-          submenu: [
-            {
-              label: '25%',
-              type: 'radio',
-              checked: currScale === 25,
-              click: () => sendMenuAction('editor:image', 'scale:25'),
-            },
-            {
-              label: '50%（默认）',
-              type: 'radio',
-              checked: currScale === 50,
-              click: () => sendMenuAction('editor:image', 'scale:50'),
-            },
-            {
-              label: '75%',
-              type: 'radio',
-              checked: currScale === 75,
-              click: () => sendMenuAction('editor:image', 'scale:75'),
-            },
-            {
-              label: '100%（原宽）',
-              type: 'radio',
-              checked: currScale === 100,
-              click: () => sendMenuAction('editor:image', 'scale:100'),
-            },
-          ],
+          label: '复制图片',
+          click: () => sendMenuAction('editor:image', 'copy'),
         },
-        { type: 'separator' },
         {
-          label: '删除图片',
-          click: () => sendMenuAction('editor:image', 'delete'),
+          label: '另存为图片...',
+          click: () => sendMenuAction('editor:image', 'save'),
         },
-      ]);
+      ];
+      if (!options.readOnly) {
+        imageTemplate.push(
+          {
+            label: '显示比例',
+            submenu: [
+              {
+                label: '25%',
+                type: 'radio',
+                checked: currScale === 25,
+                click: () => sendMenuAction('editor:image', 'scale:25'),
+              },
+              {
+                label: '50%（默认）',
+                type: 'radio',
+                checked: currScale === 50,
+                click: () => sendMenuAction('editor:image', 'scale:50'),
+              },
+              {
+                label: '75%',
+                type: 'radio',
+                checked: currScale === 75,
+                click: () => sendMenuAction('editor:image', 'scale:75'),
+              },
+              {
+                label: '100%（原宽）',
+                type: 'radio',
+                checked: currScale === 100,
+                click: () => sendMenuAction('editor:image', 'scale:100'),
+              },
+            ],
+          },
+          { type: 'separator' },
+          {
+            label: '删除图片',
+            click: () => sendMenuAction('editor:image', 'delete'),
+          }
+        );
+      }
+      const imageMenu = Menu.buildFromTemplate(imageTemplate);
       imageMenu.popup({ window: win });
       return;
     }
@@ -836,6 +849,105 @@ function registerIpcHandlers(): void {
       ...tableItems,
     ]);
     menu.popup({ window: win });
+  });
+
+  async function resolveImageBuffer(src: string): Promise<{ buffer: Buffer; ext: string } | null> {
+    if (!src) return null;
+    if (src.startsWith('data:')) {
+      const match = src.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+      if (!match) return null;
+      return { buffer: Buffer.from(match[2], 'base64'), ext: match[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg') };
+    }
+    if (src.startsWith('vcat-asset://')) {
+      const cfg = await readAppConfig();
+      if (!cfg.workspacePath) return null;
+      const url = new URL(src);
+      const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+      const target = resolveSafePath(cfg.workspacePath, relPath);
+      const buffer = await fs.readFile(target);
+      const ext = path.extname(target).replace(/^\./, '') || 'png';
+      return { buffer, ext };
+    }
+    if (src.startsWith('file://')) {
+      const filePath = decodeURIComponent(new URL(src).pathname);
+      const buffer = await fs.readFile(filePath);
+      const ext = path.extname(filePath).replace(/^\./, '') || 'png';
+      return { buffer, ext };
+    }
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      const res = await net.fetch(src);
+      if (!res.ok) return null;
+      const arr = await res.arrayBuffer();
+      const urlPath = new URL(src).pathname;
+      const ext = path.extname(urlPath).replace(/^\./, '') || 'png';
+      return { buffer: Buffer.from(arr), ext };
+    }
+    return null;
+  }
+
+  ipcMain.handle('image:copy', async (_event, src: string) => {
+    try {
+      const resolved = await resolveImageBuffer(src);
+      if (!resolved) return false;
+      const img = nativeImage.createFromBuffer(resolved.buffer);
+      if (img.isEmpty()) return false;
+      clipboard.writeImage(img);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  ipcMain.handle('image:saveAs', async (_event, src: string) => {
+    try {
+      const resolved = await resolveImageBuffer(src);
+      if (!resolved) return { ok: false };
+      const result = await dialog.showSaveDialog({
+        title: '另存为图片',
+        defaultPath: path.join(app.getPath('downloads'), `image.${resolved.ext}`),
+        filters: [{ name: 'Image', extensions: [resolved.ext, 'png', 'jpg', 'webp', 'gif'] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false };
+      await fs.writeFile(result.filePath, resolved.buffer);
+      return { ok: true, filePath: result.filePath };
+    } catch {
+      return { ok: false };
+    }
+  });
+
+  ipcMain.handle('workspace:openLink', async (_event, href: string, currentRelativePath?: string) => {
+    const rawHref = (href || '').trim();
+    if (!rawHref) return { ok: false, target: rawHref };
+    if (/^(https?:\/\/|mailto:)/i.test(rawHref)) {
+      await shell.openExternal(rawHref);
+      return { ok: true, kind: 'external' };
+    }
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return { ok: false, target: rawHref };
+    const cleanHref = decodeURIComponent(rawHref.split('#')[0].split('?')[0]);
+    const baseDir = currentRelativePath ? path.dirname(currentRelativePath) : '';
+    const candidateRel = baseDir && baseDir !== '.' ? path.posix.normalize(path.posix.join(baseDir, cleanHref)) : cleanHref;
+    try {
+      const absFromArticle = resolveSafePath(cfg.workspacePath, candidateRel);
+      if (existsSync(absFromArticle)) {
+        if (absFromArticle.endsWith('.md')) {
+          return { ok: true, kind: 'article', relativePath: candidateRel };
+        }
+        await shell.openPath(absFromArticle);
+        return { ok: true, kind: 'external' };
+      }
+      const absFromRoot = resolveSafePath(cfg.workspacePath, cleanHref);
+      if (existsSync(absFromRoot)) {
+        if (absFromRoot.endsWith('.md')) {
+          return { ok: true, kind: 'article', relativePath: cleanHref };
+        }
+        await shell.openPath(absFromRoot);
+        return { ok: true, kind: 'external' };
+      }
+    } catch {
+      // outside workspace or invalid path
+    }
+    return { ok: false, target: cleanHref || rawHref };
   });
 
   ipcMain.handle('theme:importTyporaCss', async () => {

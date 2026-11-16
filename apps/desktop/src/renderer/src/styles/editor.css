@@ -674,38 +674,24 @@
   display: none !important;
 }
 
-/* Top-right copy button on all code blocks (works in normal and read-only modes, empty textContent so getValue() stays clean) */
-.vditor-ir__node[data-type="code-block"] {
-  position: relative !important;
-}
-.vcat-code-copy {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  z-index: 6;
-  padding: 2px 8px;
-  border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent);
+/* React overlay copy button for code blocks (zero DOM pollution inside Vditor) */
+.vcat-code-copy-btn {
+  border-color: color-mix(in srgb, var(--border-color) 85%, transparent);
   background: color-mix(in srgb, var(--bg-main) 88%, transparent);
   color: var(--control-text-color);
-  font-size: 11px;
   line-height: 18px;
   cursor: pointer !important;
-  opacity: 0.72;
-  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  opacity: 0.78;
+  backdrop-filter: blur(6px);
 }
-.vcat-code-copy::after {
-  content: "复制";
+.vcat-code-copy-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--text-main);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-color));
 }
-.vcat-code-copy[data-copied="1"]::after {
-  content: "已复制 ✓";
-}
-.vcat-code-copy[data-copied="1"] {
+.vcat-code-copy-btn.is-copied {
   color: var(--accent);
   border-color: var(--accent);
   opacity: 1;
-}
-.vditor-ir__node[data-type="code-block"]:hover .vcat-code-copy,
-.vcat-code-copy:hover {
-  opacity: 1;
+  cursor: default !important;
 }

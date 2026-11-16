@@ -333,7 +333,7 @@ export function Sidebar({
           open ? 'border-r border-[var(--border-color)]' : 'border-r-0'
         } ${!isResizing ? 'transition-[width,opacity] duration-200 ease-out' : ''}`}
       >
-        <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
+        <div className="app-drag flex h-[36px] shrink-0 items-center justify-end px-3" />
 
         <div className="flex h-8 shrink-0 items-center border-b border-[var(--border-color)] px-3 text-[12px]">
           <button

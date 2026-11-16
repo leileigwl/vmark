@@ -40,20 +40,20 @@ export function TopBar({
         activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[var(--border-color)]'
       } ${reserveTrafficLights ? 'pl-[76px]' : 'pl-3'}`}
     >
-      <div className="app-no-drag flex items-center gap-2">
+      <div className="app-no-drag flex items-center gap-1.5">
         <button
           type="button"
           title={sidebarOpen ? '隐藏侧边栏' : '显示侧边栏'}
           onClick={onToggleSidebar}
-          className="rounded p-1 text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
         <button
           type="button"
-          title="打开最近的文件 / 快速打开 (⇧⌘O)"
+          title="打开最近文件 / 快速打开 (⇧⌘O)"
           onClick={onOpenQuickOpen}
-          className="rounded p-1 text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
         >
           <Clock className="h-3.5 w-3.5" />
         </button>
@@ -85,7 +85,7 @@ export function TopBar({
             type="button"
             title={readOnly ? '当前为只读模式，点击切换回正常编辑模式' : '当前为正常编辑模式，点击切换为只读模式'}
             onClick={onToggleReadOnly}
-            className={`mr-1 flex h-6 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium transition ${
+            className={`mr-1 flex h-7 items-center gap-1 rounded-md px-2 text-[11.5px] font-medium transition ${
               readOnly
                 ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
                 : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]'
@@ -122,7 +122,7 @@ export function TopBar({
         <button
           type="button"
           onClick={onOpenPublishModal}
-          className="ml-1.5 flex h-[26px] items-center gap-1 rounded-md bg-[#007aff] px-2.5 text-[12px] font-medium text-white shadow-2xs transition hover:bg-[#0066d6]"
+          className="ml-1.5 flex h-7 items-center gap-1 rounded-md bg-[#007aff] px-2.5 text-[12px] font-medium text-white shadow-2xs transition hover:bg-[#0066d6]"
         >
           <Send className="h-3 w-3" />
           分发

@@ -16,7 +16,6 @@ import {
   cleanEmptyInlineNodes,
   cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
   cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
-  ensureCodeBlockCopyButtons,
   ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
   normalizeEmojiAndCalloutIcons,
   renderLatexBlocks as renderLatexBlocksInEl,
@@ -64,11 +63,13 @@ interface VditorEditorProps {
   preferences?: EditorPreferences;
   onChange: (markdown: string) => void;
   onSave?: (markdown: string) => void;
+  onOpenLink?: (href: string) => void;
 }
 
 /** Typora-style Instant Rendering (IR) Markdown editor powered by local Vditor assets. */
 export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
-  function VditorEditor({ value, articleKey, loadSeq, readOnly = false, preferences, onChange, onSave }, ref) {
+  function VditorEditor({ value, articleKey, loadSeq, readOnly = false, preferences, onChange, onSave, onOpenLink }, ref) {
+    const wrapperRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const vditorRef = useRef<Vditor | null>(null);
     const isReadyRef = useRef(false);
@@ -80,6 +81,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const mermaidClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const activeZoomImgRef = useRef<HTMLImageElement | null>(null);
     const [lightboxItem, setLightboxItem] = useState<LightboxPayload | null>(null);
+    const [codeCopyOverlays, setCodeCopyOverlays] = useState<
+      Array<{ id: number; top: number; left: number; code: string }>
+    >([]);
+    const [copiedBlockId, setCopiedBlockId] = useState<number | null>(null);
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const insertSlashItemRef = useRef<(item: SlashCommandItem) => void>(() => {});
+    const onOpenLinkRef = useRef(onOpenLink);
+    onOpenLinkRef.current = onOpenLink;
     const [slashState, setSlashState] = useState<{
       open: boolean;
       x: number;
@@ -475,14 +484,35 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const syncCodeCopyOverlays = () => {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const wRect = wrapper.getBoundingClientRect();
+        const blocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
+        const next: Array<{ id: number; top: number; left: number; code: string }> = [];
+        blocks.forEach((cb, idx) => {
+          const rect = cb.getBoundingClientRect();
+          if (rect.height < 20 || rect.bottom < wRect.top + 8 || rect.top > wRect.bottom - 24) return;
+          const codeEl = cb.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
+          const code = (codeEl?.textContent || '').replace(/\u200b/g, '').replace(/\n$/, '');
+          next.push({
+            id: idx,
+            top: Math.max(8, rect.top - wRect.top + 8),
+            left: rect.right - wRect.left - 12,
+            code,
+          });
+        });
+        setCodeCopyOverlays(next);
+      };
+
       let heavyEnhanceTimer: ReturnType<typeof setTimeout> | null = null;
       const runHeavyEnhance = () => {
         rewriteLocalImagesSync();
         ensureCodeBlockInfoMarkers();
-        ensureCodeBlockCopyButtons(el);
         cleanStrayCodeBlockFences();
         cleanEmptyInlineNodes(el);
         normalizeEmojiAndCalloutIcons(el);
+        syncCodeCopyOverlays();
         applyCodeSyntaxHighlights(el);
         renderLatexBlocks();
         rerenderBrokenMermaid();
@@ -574,7 +604,32 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
         instance.focus();
         instance.insertValue(item.insertText);
+        if (item.id === 'code') {
+          const focusLanguageMarker = () => {
+            ensureCodeBlockInfoMarkers();
+            const selNow = window.getSelection();
+            const anchorEl =
+              selNow?.anchorNode instanceof Element ? selNow.anchorNode : selNow?.anchorNode?.parentElement;
+            const cb =
+              (anchorEl?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null) ??
+              (Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]')).pop() as HTMLElement | null);
+            const infoSpan = cb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+            if (cb && infoSpan) {
+              collapseExpandedCodeBlocks(cb);
+              cb.classList.add('vditor-ir__node--expand');
+              lastActiveInfoMarker = infoSpan;
+              const range = document.createRange();
+              range.selectNodeContents(infoSpan);
+              const s = window.getSelection();
+              s?.removeAllRanges();
+              s?.addRange(range);
+            }
+          };
+          requestAnimationFrame(focusLanguageMarker);
+          setTimeout(focusLanguageMarker, 60);
+        }
       };
+      insertSlashItemRef.current = applySlashCommand;
 
       const observer = new MutationObserver(enhanceDom);
       observer.observe(el, {
@@ -765,6 +820,22 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
+          return;
+        }
+        const linkAnchor = target?.closest('a, .vditor-ir__link') as HTMLElement | null;
+        const linkNode = target?.closest('.vditor-ir__node[data-type="a"]') as HTMLElement | null;
+        if ((linkAnchor || linkNode) && (readOnlyRef.current || e.metaKey || e.ctrlKey)) {
+          const href =
+            linkAnchor?.getAttribute('href') ||
+            linkNode?.querySelector('.vditor-ir__marker--link')?.textContent?.trim() ||
+            linkNode?.querySelector('a')?.getAttribute('href') ||
+            '';
+          if (href) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            onOpenLinkRef.current?.(href);
+          }
         }
       };
 
@@ -826,10 +897,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('input', detectSlashCommand, true);
       el.addEventListener('keyup', detectSlashCommand, true);
       el.addEventListener('contextmenu', handleContextMenu);
+      el.addEventListener('scroll', syncCodeCopyOverlays, { capture: true, passive: true });
+      window.addEventListener('resize', syncCodeCopyOverlays);
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
         if (heavyEnhanceTimer) clearTimeout(heavyEnhanceTimer);
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
         document.removeEventListener('selectionchange', handleSelectionChange);
         el.removeEventListener('input', detectSlashCommand, true);
         el.removeEventListener('keyup', detectSlashCommand, true);
@@ -842,6 +916,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('dblclick', handleDblClickCapture, true);
         el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);
+        el.removeEventListener('scroll', syncCodeCopyOverlays, true);
+        window.removeEventListener('resize', syncCodeCopyOverlays);
         observer.disconnect();
         if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
         if (mermaidClickTimerRef.current) clearTimeout(mermaidClickTimerRef.current);
@@ -885,7 +961,43 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
     return (
       <>
-        <div ref={containerRef} className={`h-full w-full ${readOnly ? 'vcat-readonly' : ''}`} />
+        <div ref={wrapperRef} className="relative h-full w-full overflow-hidden">
+          <div ref={containerRef} className={`h-full w-full ${readOnly ? 'vcat-readonly' : ''}`} />
+          <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+            {codeCopyOverlays.map((btn) => {
+              const isCopied = copiedBlockId === btn.id;
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  disabled={isCopied}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (copiedBlockId === btn.id) return;
+                    void navigator.clipboard?.writeText(btn.code).then(() => {
+                      setCopiedBlockId(btn.id);
+                      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+                      copiedTimerRef.current = setTimeout(() => {
+                        setCopiedBlockId(null);
+                      }, 1500);
+                    });
+                  }}
+                  style={{ top: `${btn.top}px`, left: `${btn.left}px`, transform: 'translateX(-100%)' }}
+                  className={`vcat-code-copy-btn pointer-events-auto absolute rounded-[5px] border px-2 py-0.5 text-[11px] font-medium transition ${
+                    isCopied ? 'is-copied' : ''
+                  }`}
+                >
+                  {isCopied ? '已复制 ✓' : '复制'}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <SlashCommandMenu
           open={slashState.open && !readOnly}
           x={slashState.x}
@@ -894,27 +1006,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           items={slashItems}
           selectedIndex={Math.min(slashState.selectedIndex, Math.max(0, slashItems.length - 1))}
           onHoverIndex={(idx) => setSlashState((s) => ({ ...s, selectedIndex: idx }))}
-          onSelect={(item) => {
-            const instance = vditorRef.current;
-            if (!instance) return;
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0 && sel.anchorNode?.nodeType === Node.TEXT_NODE) {
-              const tNode = sel.anchorNode as Text;
-              const before = (tNode.nodeValue || '').slice(0, sel.anchorOffset);
-              const m = before.match(/\/[a-zA-Z0-9\u4e00-\u9fa5_-]{0,20}$/);
-              if (m && m.index !== undefined) {
-                const delRange = document.createRange();
-                delRange.setStart(tNode, m.index);
-                delRange.setEnd(tNode, sel.anchorOffset);
-                delRange.deleteContents();
-                sel.removeAllRanges();
-                sel.addRange(delRange);
-              }
-            }
-            setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
-            instance.focus();
-            instance.insertValue(item.insertText);
-          }}
+          onSelect={(item) => insertSlashItemRef.current(item)}
         />
         <MediaLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
       </>

@@ -127,6 +127,7 @@ export default function App() {
   const [findMatchTotal, setFindMatchTotal] = useState<number>(0);
   const [replaceQuery, setReplaceQuery] = useState<string>('');
   const [replaceNotice, setReplaceNotice] = useState<string>('');
+  const [missingLinkTarget, setMissingLinkTarget] = useState<string | null>(null);
 
   const [theme, setTheme] = useState<ThemeId>('apple-light');
   const [customThemeName, setCustomThemeName] = useState<string>('');
@@ -991,6 +992,19 @@ export default function App() {
               />
             )}
 
+            {missingLinkTarget && (
+              <div className="flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--side-bar-bg-color)] px-4 py-1.5 text-[12px] text-[var(--text-main)] shadow-2xs">
+                <span className="truncate">无法打开「{missingLinkTarget}」，未在工作区找到该文件</span>
+                <button
+                  type="button"
+                  onClick={() => setMissingLinkTarget(null)}
+                  className="ml-3 shrink-0 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-0.5 text-[11px] text-[var(--control-text-color)] hover:text-[var(--text-main)]"
+                >
+                  关闭
+                </button>
+              </div>
+            )}
+
             {activeArticle ? (
               <VditorEditor
                 ref={editorRef}
@@ -1004,6 +1018,19 @@ export default function App() {
                   setSaveState('未保存');
                 }}
                 onSave={(md) => void handleSaveArticle(md)}
+                onOpenLink={(href) => {
+                  void window.electronAPI?.openWorkspaceLink?.(href, activeArticle.relativePath).then((res) => {
+                    if (!res) return;
+                    if (res.ok && res.kind === 'article' && res.relativePath) {
+                      const match = articles.find((a) => a.relativePath === res.relativePath);
+                      if (match) void openArticle(match);
+                      return;
+                    }
+                    if (!res.ok) {
+                      setMissingLinkTarget(res.target || href);
+                    }
+                  });
+                }}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-[var(--control-text-color)]">

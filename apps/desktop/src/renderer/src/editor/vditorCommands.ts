@@ -154,6 +154,14 @@ export function applyImageActionInEditor(
     setLightboxItem({ type: 'image', src: imgEl.src, alt: imgEl.alt });
     return;
   }
+  if (action === 'copy') {
+    void window.electronAPI?.copyImage?.(imgEl.src);
+    return;
+  }
+  if (action === 'save') {
+    void window.electronAPI?.saveImageAs?.(imgEl.src);
+    return;
+  }
   if (action.startsWith('scale:')) {
     const pct = Number(action.slice(6));
     if (pct > 0 && pct <= 100) {

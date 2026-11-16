@@ -134,6 +134,7 @@ export interface ContextMenuOptions {
   inImage?: boolean;
   imageScale?: number;
   hasSelection: boolean;
+  readOnly?: boolean;
 }
 
 export interface EditorPreferences {
@@ -193,4 +194,10 @@ export interface ElectronAPI {
   importTyporaThemeCss: () => Promise<{ name: string; css: string } | null>;
   exportArticle: (options: ExportArticleOptions) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   setRecentFiles?: (paths: string[]) => void;
+  copyImage?: (src: string) => Promise<boolean>;
+  saveImageAs?: (src: string) => Promise<{ ok: boolean; filePath?: string }>;
+  openWorkspaceLink?: (
+    href: string,
+    currentRelativePath?: string
+  ) => Promise<{ ok: boolean; kind?: 'article' | 'external'; relativePath?: string; target?: string }>;
 }

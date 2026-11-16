@@ -133,6 +133,19 @@
 4. **还原侧边栏柔和选中高亮**：
    - `SidebarTreeNodes.tsx` 将批量选中高亮恢复为柔和的 `bg-[var(--accent)]/15 font-medium text-[var(--accent)]`。
 
+### Round 33（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **顶部栏与侧边栏高度及按钮对齐**：
+   - `Sidebar.tsx` 顶部占位区统一为 `h-[36px]`（对齐 `TopBar.tsx` `h-[36px]` 与 `trafficLightPosition`），`TopBar.tsx` 左右两侧所有按钮统一 `h-7`（`28px`）并垂直居中。
+2. **彻底根治代码块 `<button>` 泄漏 + 复制 1.5s 缓冲冷却 + `/代码块` 默认聚焦语言框**：
+   - 移除 Vditor DOM 内部注入，改用 `VditorEditor.tsx` 独立 React 浮层 `.vcat-code-copy-btn` 定位到每个代码块右上角，从根本上杜绝编辑代码块时序列化出 `<button>`；点击复制后进入 `1500ms` 禁用冷却防连点。
+   - `/代码块`（`slashCommands.ts` `id: 'code'`）插入后自动展开代码块并选中 `.vditor-ir__marker--info`，光标直接停在语言输入框。
+3. **文件菜单名称优化**：
+   - `main/index.ts` 将「新建空白文章」改为「新建文章」，「打开最近的文件」改为「打开最近文件」。
+4. **图片右键新增「复制图片」与「另存为图片...」（普通与只读模式均可用）**：
+   - `vditorPointerEvents.ts` 允许只读模式下对图片呼出右键菜单；`main/index.ts` 新增 `image:copy`、`image:saveAs` IPC 支持本地 `vcat-asset://`、`file://`、`data:` 及远程 `http(s)://` 图片。
+5. **无法定位本地文件链接时的简洁横幅提示**：
+   - `main/index.ts` 新增 `workspace:openLink` IPC，`VditorEditor.tsx` 在只读点击或 `Cmd/Ctrl+Click` 链接时调用；若文件不存在，在 `App.tsx` 顶部展示简洁横幅 `无法打开「xxx」，未在工作区找到该文件` 与「关闭」按钮。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）
