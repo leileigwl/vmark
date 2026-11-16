@@ -5,7 +5,7 @@ export interface PlatformDescriptor {
   name: string;
   supportedModes: PublishMode[];
   defaultMode: PublishMode;
-  authChannel: 'metaweblog' | 'partition_cookie' | 'discourse' | 'isolated_profile';
+  authChannel: 'metaweblog' | 'partition_cookie' | 'discourse' | 'isolated_profile' | 'git_token';
   riskLevel: 'low' | 'medium' | 'high';
   referenceSource: string;
 }
@@ -37,6 +37,15 @@ export interface PlatformAdapter {
 
 /** Registry metadata for priority platforms (referencing Wechatsync & siyuan-plugin-publisher). */
 export const PLATFORM_CATALOG: PlatformDescriptor[] = [
+  {
+    id: 'github_static',
+    name: 'GitHub 静态博客 (CI/CD)',
+    supportedModes: ['direct', 'draft'],
+    defaultMode: 'direct',
+    authChannel: 'git_token',
+    riskLevel: 'low',
+    referenceSource: 'references/siyuan-plugin-publisher/src/adaptors/api/hexo & git-push',
+  },
   {
     id: 'weixin',
     name: '微信公众号',

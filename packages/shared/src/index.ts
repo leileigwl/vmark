@@ -11,7 +11,8 @@ export type PlatformId =
   | 'csdn'
   | 'zhihu'
   | 'baijiahao'
-  | 'weibo';
+  | 'weibo'
+  | 'github_static';
 
 export type PublishMode = 'draft' | 'direct';
 

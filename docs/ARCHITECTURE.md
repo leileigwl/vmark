@@ -33,6 +33,7 @@ vcat-publisher-desktop/
 | **微博 (头条文章)** | Partition 沙箱 Web API (`card.weibo.com`) | **草稿箱** | 校验 `draft/create` + `draft/save` 返回 `id` 与编辑 URL |
 | **CSDN** | Partition 沙箱 Web API (`editor.csdn.net`) | **草稿箱 / 可选直发** | 校验返回 `data.id`，生成 `editor.csdn.net/md?articleId=` |
 | **博客园 (Cnblogs)** | **MetaWeblog 官方协议**（极稳） | **草稿箱 / 可选直发** | 校验返回 `postid` 及博文直达链接 |
+| **GitHub 静态博客** | **本地 Git Push / GitHub API**（触发 CI/CD） | **直接推送仓库** | 校验 Commit SHA 与 GitHub Actions Workflow 触发状态 |
 | **Linux.do (Discourse)** | Discourse REST / 沙箱 Session (`posts.json` / `drafts.json`) | **直接发布(选板块) / 存全局草稿** | 校验返回 `topic_id` / `post_number`，拼装论坛贴直达链接 |
 | **知乎 / 掘金** | Partition 沙箱 Web API | **草稿箱** | 校验返回的草稿 `id` 与预览链接 |
 | **小红书 (P1)** | **对标小V猫/蚁小二**：Playwright 独立 Profile + 独立网络 | **草稿箱 (人工确认)** | 校验后台创作者草稿列表出现对应笔记 |
