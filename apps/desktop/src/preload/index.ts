@@ -8,6 +8,8 @@ const api: ElectronAPI = {
   switchWorkspace: (dirPath: string) => ipcRenderer.invoke('workspace:switch', dirPath),
   showInFinder: (relativePath?: string) => ipcRenderer.invoke('workspace:showInFinder', relativePath),
   listArticles: () => ipcRenderer.invoke('articles:list'),
+  listFolders: () => ipcRenderer.invoke('folders:list'),
+  createFolder: (folderName: string) => ipcRenderer.invoke('folders:create', folderName),
   readArticle: (relativePath: string) => ipcRenderer.invoke('articles:read', relativePath),
   saveArticle: (relativePath: string, content: string) =>
     ipcRenderer.invoke('articles:save', relativePath, content),

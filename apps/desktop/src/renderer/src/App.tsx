@@ -59,8 +59,24 @@ interface TreeNode {
   children: TreeNode[];
 }
 
-function buildFileTree(articles: ArticleMeta[]): TreeNode[] {
+function buildFileTree(articles: ArticleMeta[], folders: string[] = []): TreeNode[] {
   const root: TreeNode[] = [];
+  const ensureDirPath = (dirPath: string) => {
+    const parts = dirPath.split('/').filter(Boolean);
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const nodePath = parts.slice(0, i + 1).join('/');
+      let existing = current.find((n) => n.name === part && n.isDir);
+      if (!existing) {
+        existing = { name: part, path: nodePath, isDir: true, children: [] };
+        current.push(existing);
+      }
+      current = existing.children;
+    }
+  };
+  for (const dir of folders) ensureDirPath(dir);
+
   for (const art of articles) {
     const parts = art.relativePath.split('/');
     let current = root;
@@ -82,7 +98,11 @@ function buildFileTree(articles: ArticleMeta[]): TreeNode[] {
       current = existing.children;
     }
   }
-  return root.sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
+  const sortNodes = (nodes: TreeNode[]): TreeNode[] =>
+    nodes
+      .map((n) => (n.isDir ? { ...n, children: sortNodes(n.children) } : n))
+      .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
+  return sortNodes(root);
 }
 
 export default function App() {
@@ -92,6 +112,7 @@ export default function App() {
   const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<string[]>([]);
   const [articles, setArticles] = useState<ArticleMeta[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'name' | 'time'>('name');
   const [fileSearchOpen, setFileSearchOpen] = useState<boolean>(false);
   const [fileSearchQuery, setFileSearchQuery] = useState<string>('');
@@ -102,11 +123,17 @@ export default function App() {
   const [fileViewMode, setFileViewMode] = useState<'tree' | 'list'>('tree');
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState<string>('');
+  const [creatingItem, setCreatingItem] = useState<{
+    type: 'file' | 'folder';
+    parentDir?: string;
+    draft: string;
+  } | null>(null);
   const [fileContextMenu, setFileContextMenu] = useState<{
     x: number;
     y: number;
     article: ArticleMeta;
   } | null>(null);
+  const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contentSearchResults, setContentSearchResults] = useState<ArticleSearchResult[] | null>(null);
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
@@ -181,10 +208,11 @@ export default function App() {
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, recent, list, imgCfg, auths, git] = await Promise.all([
+    const [wsPath, recent, list, folderList, imgCfg, auths, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.getRecentWorkspaces(),
       window.electronAPI.listArticles(),
+      window.electronAPI.listFolders(),
       window.electronAPI.getImageBedConfig(),
       window.electronAPI.getPlatformAuthStates(),
       window.electronAPI.getGitStatus(),
@@ -192,6 +220,7 @@ export default function App() {
     setWorkspacePath(wsPath);
     setRecentWorkspaces(recent);
     setArticles(list);
+    setFolders(folderList);
     setImageBed(imgCfg);
     setAuthStates(auths);
     setGitStatus(git);
@@ -265,21 +294,37 @@ export default function App() {
   }, [activeArticle, markdown]);
 
   async function openArticle(meta: ArticleMeta) {
+    if (activeArticle && activeArticle.relativePath !== meta.relativePath && saveState === '未保存') {
+      const unsaved = editorRef.current?.getValue() ?? markdown;
+      await handleSaveArticle(unsaved);
+    }
     const content = await window.electronAPI.readArticle(meta.relativePath);
     setActiveArticle(meta);
     setMarkdown(content);
     setSaveState('已保存');
   }
 
+  // 停顿 1.5 秒自动保存，避免切换或关闭丢失内容
+  useEffect(() => {
+    if (saveState !== '未保存' || !activeArticle) return;
+    const timer = setTimeout(() => {
+      const latest = editorRef.current?.getValue() ?? markdown;
+      void handleSaveArticle(latest);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [markdown, saveState, activeArticle?.relativePath]);
+
   async function handleSelectWorkspace() {
     const selected = await window.electronAPI.selectWorkspace();
     if (selected) {
       setWorkspacePath(selected);
-      const [list, git] = await Promise.all([
+      const [list, folderList, git] = await Promise.all([
         window.electronAPI.listArticles(),
+        window.electronAPI.listFolders(),
         window.electronAPI.getGitStatus(),
       ]);
       setArticles(list);
+      setFolders(folderList);
       setGitStatus(git);
       if (list.length > 0) {
         await openArticle(list[0]);
@@ -290,12 +335,49 @@ export default function App() {
     }
   }
 
-  async function handleCreateBlankArticle() {
-    const created = await window.electronAPI.createArticle();
+  function startCreateItem(type: 'file' | 'folder', parentDir?: string) {
+    setSideTab('files');
+    setFileViewMode(type === 'folder' ? 'tree' : fileViewMode);
+    let defaultDraft = type === 'folder' ? '新建文件夹' : 'Untitled.md';
+    if (type === 'file') {
+      let candidate = 'Untitled.md';
+      let i = 2;
+      while (articles.some((a) => a.relativePath === (parentDir ? `${parentDir}/${candidate}` : candidate))) {
+        candidate = `Untitled ${i}.md`;
+        i++;
+      }
+      defaultDraft = candidate;
+    }
+    setCreatingItem({ type, parentDir, draft: defaultDraft });
+  }
+
+  async function handleConfirmCreateItem() {
+    if (!creatingItem) return;
+    const { type, parentDir, draft } = creatingItem;
+    const raw = draft.trim();
+    setCreatingItem(null);
+    if (!raw) return;
+
+    if (type === 'folder') {
+      const relFolder = parentDir ? `${parentDir}/${raw}` : raw;
+      await window.electronAPI.createFolder(relFolder);
+      const folderList = await window.electronAPI.listFolders();
+      setFolders(folderList);
+      setExpandedDirs((prev) => ({ ...prev, [relFolder]: true }));
+      return;
+    }
+
+    const fileName = raw.endsWith('.md') ? raw : `${raw}.md`;
+    const relPath = parentDir ? `${parentDir}/${fileName}` : fileName;
+    const created = await window.electronAPI.createArticle(relPath);
     const list = await window.electronAPI.listArticles();
     setArticles(list);
     await openArticle(created);
     setActiveView('editor');
+  }
+
+  async function handleCreateBlankArticle() {
+    startCreateItem('file');
   }
 
   async function handleSwitchRecentWorkspace(dirPath: string) {
@@ -356,30 +438,27 @@ export default function App() {
   }, [fileSearchQuery]);
 
   useEffect(() => {
-    if (!fileContextMenu) return;
-    const close = () => setFileContextMenu(null);
+    if (!fileContextMenu && !emptyContextMenu) return;
+    const close = () => {
+      setFileContextMenu(null);
+      setEmptyContextMenu(null);
+    };
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
-  }, [fileContextMenu]);
+  }, [fileContextMenu, emptyContextMenu]);
 
   function startSidebarResize(e: React.MouseEvent) {
     e.preventDefault();
     let latestWidth = sidebarWidth;
     setDragGhostX(Math.min(420, Math.max(200, e.clientX)));
-    let delayTimer: ReturnType<typeof setTimeout> | null = null;
 
     const onMove = (moveEvent: MouseEvent) => {
       const clamped = Math.min(420, Math.max(200, moveEvent.clientX));
       latestWidth = clamped;
       setDragGhostX(clamped);
-      if (delayTimer) clearTimeout(delayTimer);
-      delayTimer = setTimeout(() => {
-        setSidebarWidth(clamped);
-      }, 90);
     };
 
     const onUp = () => {
-      if (delayTimer) clearTimeout(delayTimer);
       setSidebarWidth(latestWidth);
       setDragGhostX(null);
       window.removeEventListener('mousemove', onMove);
@@ -449,7 +528,10 @@ export default function App() {
     return base.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
   }, [articles, fileSearchQuery, sortBy]);
 
-  const fileTree = useMemo(() => buildFileTree(filteredArticles), [filteredArticles]);
+  const fileTree = useMemo(
+    () => buildFileTree(filteredArticles, fileSearchQuery.trim() ? [] : folders),
+    [filteredArticles, folders, fileSearchQuery]
+  );
   const outlineNodes = useMemo(() => extractOutline(markdown), [markdown]);
   const liveWordCount = useMemo(() => countWords(markdown), [markdown]);
   const totalLocalImages = useMemo(
@@ -558,7 +640,7 @@ export default function App() {
       {sidebarOpen && (
         <aside
           style={{ width: `${sidebarWidth}px` }}
-          className="relative flex h-screen shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] transition-[width] duration-75 ease-out select-none"
+          className="relative flex h-screen shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--side-bar-bg-color)] select-none"
         >
           {/* 顶部 macOS 红绿灯留白拖动区 */}
           <div className="app-drag flex h-[38px] shrink-0 items-center justify-end px-3" />
@@ -574,7 +656,7 @@ export default function App() {
                   : 'text-[var(--control-text-color)] hover:text-[var(--text-main)]'
               }`}
             >
-              文件
+              文件 ({articles.length})
             </button>
             <button
               type="button"
@@ -661,8 +743,44 @@ export default function App() {
                 }
               }
             }}
+            onContextMenu={(e) => {
+              if (sideTab !== 'files') return;
+              e.preventDefault();
+              setFileContextMenu(null);
+              setEmptyContextMenu({ x: e.clientX, y: e.clientY });
+            }}
             className="flex-1 overflow-y-auto px-1.5 py-2 outline-none"
           >
+            {sideTab === 'files' && creatingItem && (
+              <div className="mb-1.5 flex items-center gap-1.5 rounded-md border border-[#007aff]/60 bg-white/80 px-2 py-1 shadow-sm backdrop-blur-md">
+                {creatingItem.type === 'folder' ? (
+                  <Folder className="h-3.5 w-3.5 shrink-0 text-[#007aff]" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-[#007aff]" />
+                )}
+                <input
+                  type="text"
+                  autoFocus
+                  onFocus={(e) => e.currentTarget.select()}
+                  value={creatingItem.draft}
+                  onChange={(e) =>
+                    setCreatingItem((prev) => (prev ? { ...prev, draft: e.target.value } : null))
+                  }
+                  onBlur={() => void handleConfirmCreateItem()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleConfirmCreateItem();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setCreatingItem(null);
+                    }
+                  }}
+                  placeholder={creatingItem.type === 'folder' ? '输入文件夹名后回车...' : '输入文件名 (.md) 后回车...'}
+                  className="min-w-0 flex-1 bg-transparent text-[12.5px] text-[#1d1d1f] outline-none"
+                />
+              </div>
+            )}
             {sideTab === 'files' ? (
               fileSearchQuery.trim() && contentSearchResults ? (
                 contentSearchResults.length === 0 ? (
@@ -967,6 +1085,16 @@ export default function App() {
             type="button"
             onClick={() => {
               setFileContextMenu(null);
+              startCreateItem('folder');
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            新建文件夹
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFileContextMenu(null);
               setSideTab('files');
               setFileSearchOpen(true);
             }}
@@ -1048,6 +1176,68 @@ export default function App() {
               const rel = fileContextMenu.article.relativePath;
               setFileContextMenu(null);
               void window.electronAPI.showInFinder(rel);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            在 Finder 中显示
+          </button>
+        </div>
+      )}
+
+      {/* 侧边栏空白处右键上下文菜单 */}
+      {emptyContextMenu && (
+        <div
+          style={{ left: `${emptyContextMenu.x}px`, top: `${emptyContextMenu.y}px` }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 w-44 rounded-lg border border-[#e5e7eb] bg-white/95 py-1 text-[12.5px] text-[#1d1d1f] shadow-xl backdrop-blur-md"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyContextMenu(null);
+              startCreateItem('file');
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            新建文件
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyContextMenu(null);
+              startCreateItem('folder');
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            新建文件夹
+          </button>
+          <div className="my-1 border-t border-[#eeeeee]" />
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyContextMenu(null);
+              setSideTab('files');
+              setFileSearchOpen(true);
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            搜索
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyContextMenu(null);
+              void refreshWorkspace();
+            }}
+            className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
+          >
+            刷新
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmptyContextMenu(null);
+              void window.electronAPI.showInFinder();
             }}
             className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
           >

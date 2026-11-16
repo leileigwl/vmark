@@ -307,6 +307,36 @@ function registerIpcHandlers(): void {
     return scanWorkspaceArticles(cfg.workspacePath);
   });
 
+  ipcMain.handle('folders:list', async () => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return [];
+    const dirs: string[] = [];
+    async function walk(dir: string, prefix = '') {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.') || entry.name === 'assets' || entry.name === 'node_modules') {
+          continue;
+        }
+        const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+        dirs.push(rel);
+        await walk(path.join(dir, entry.name), rel);
+      }
+    }
+    await walk(cfg.workspacePath);
+    return dirs.sort((a, b) => a.localeCompare(b));
+  });
+
+  ipcMain.handle('folders:create', async (_event, folderName: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const cleanName = folderName.trim().replace(/^[\\/]+|[\\/]+$/g, '');
+    if (!cleanName) throw new Error('文件夹名称不能为空');
+    const target = resolveSafePath(cfg.workspacePath, cleanName);
+    await fs.mkdir(target, { recursive: true });
+    return cleanName;
+  });
+
   ipcMain.handle('articles:read', async (_event, relativePath: string) => {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');

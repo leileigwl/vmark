@@ -109,10 +109,29 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     useImperativeHandle(ref, () => ({
       applyFormat(cmd: string) {
         const instance = vditorRef.current;
-        if (!instance || !isReadyRef.current) return;
+        const el = containerRef.current;
+        if (!instance || !el || !isReadyRef.current) return;
         if (cmd === 'bold' || cmd === 'italic' || cmd === 'strike' || cmd === 'inline-code') {
           toggleInlineWrap(cmd);
           return;
+        }
+        // When inserting a block element (like a table) while cursor is inside an existing table,
+        // jump out after the table first so it doesn't corrupt cells!
+        if (cmd === 'table' || cmd === 'code-block' || cmd === 'line') {
+          const sel = window.getSelection();
+          const anchorEl =
+            sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+          const existingTable = anchorEl?.closest('table');
+          if (existingTable && el.contains(existingTable)) {
+            const p = document.createElement('p');
+            p.innerHTML = '<br>';
+            existingTable.parentNode?.insertBefore(p, existingTable.nextSibling);
+            const range = document.createRange();
+            range.selectNodeContents(p);
+            range.collapse(true);
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          }
         }
         const snippet = FORMAT_SNIPPETS[cmd];
         if (snippet) {

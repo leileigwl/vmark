@@ -140,6 +140,8 @@ export interface ElectronAPI {
   switchWorkspace: (dirPath: string) => Promise<string | null>;
   showInFinder: (relativePath?: string) => Promise<void>;
   listArticles: () => Promise<ArticleMeta[]>;
+  listFolders: () => Promise<string[]>;
+  createFolder: (folderName: string) => Promise<string>;
   readArticle: (relativePath: string) => Promise<string>;
   saveArticle: (relativePath: string, content: string) => Promise<{ updatedAt: number }>;
   createArticle: (fileName?: string) => Promise<ArticleMeta>;
