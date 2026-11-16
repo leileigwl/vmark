@@ -6,17 +6,12 @@
 
 ## 本轮已完成事项
 
-1. 完成全网竞品与社区避坑调研的吸收，并已拉取核心参考仓库至 `references/`（已忽略提交）：
-   - `references/Wechatsync`、`references/siyuan-plugin-publisher`、`references/artipub`。
-   - 确立 **Zero-AI 确定性分发**（去掉多余 AI 依赖与软件自身账号），采用“轻量小窗勾选分发 + 可折叠手调单平台标题/标签 + 强制进草稿”的合规机制。
-   - 确立“分级双通道 Driver + 4 步可观测实时日志”解决接口失效与同步卡死痛点。
-   - 确立高风控平台（如小红书 P1）严格对标小V猫/蚁小二成熟架构（独立 Profile + 独立网络），不凭空臆测绕过。
-2. 对齐并落地 **FlowCanvas** 工程规范体系：
-   - 编写 [`AGENTS.md`](../AGENTS.md)（文档先行、视觉四步强制门控、安全红线、交接规范）。
-   - 编写 [`docs/PRODUCT.md`](PRODUCT.md)（产品边界、MVP vs P1、Non-Goals）。
-   - 编写 [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)（Monorepo `pnpm + turbo` 结构、Electron 沙箱、4 步管线）。
-   - 编写 [`docs/02-design/diagrams-and-style-guide.md`](02-design/diagrams-and-style-guide.md)（架构框架图、业务流程图、Bloom 莫兰迪象牙白双主题样式规范）。
-3. 同步更新 OpenSpec 规格文档：[`openspec/changes/init-cat-publisher/`](../openspec/changes/init-cat-publisher/proposal.md)。
+1. **全量平台矩阵与 BaiFu 风格 README 落地**：
+   - 新增根目录 [`README.md`](../README.md)，参考 BaiFu (`666ghj`) 标杆风格，明确 8 大主力平台（**微信公众号、小红书、X/Twitter、Linux.do、博客园、稀土掘金、B站专栏、抖音图文**）及 `Wechatsync` 全量 29+ 主流平台的接入规划。
+   - 确认原型中已去掉所有模板功能，增加「推送前全平台效果预览」与第 5 步 `VERIFY_DELIVERY` 送达检测。
+2. **当前工程状态**：
+   - Phase 0 规划与 HTML 交互原型（[`vcat-prototype.html`](02-design/prototypes/vcat-prototype.html)）已完整对齐。
+   - **尚未开始业务代码编写，未实机验证**。
 
 ## 真实测试与验证状态
 
