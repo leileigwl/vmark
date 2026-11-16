@@ -121,6 +121,9 @@ export function Sidebar({
     if (selectedPaths.length <= 1) return;
     const handleOutsideMouseDown = (e: MouseEvent) => {
       const target = e.target as Node | null;
+      if (target instanceof Element && target.closest('[data-sidebar-context-menu="1"]')) {
+        return;
+      }
       if (asideRef.current && target && !asideRef.current.contains(target)) {
         setSelectedPaths([]);
       }
@@ -428,7 +431,15 @@ export function Sidebar({
                 handleRenameStart(activeArticle);
               }
             } else if (e.key === 'Backspace' || e.key === 'Delete') {
-              if (activeArticle) {
+              if (selectedPaths.length > 1) {
+                e.preventDefault();
+                const selectedSet = new Set(selectedPaths);
+                const targets = articles.filter((a) => selectedSet.has(a.relativePath));
+                if (targets.length > 0) {
+                  void onBatchDeleteArticles?.(targets);
+                  setSelectedPaths([]);
+                }
+              } else if (activeArticle) {
                 e.preventDefault();
                 void onDeleteArticle(activeArticle);
               }
@@ -459,7 +470,7 @@ export function Sidebar({
             }
           }}
           onMouseDown={(e) => {
-            if (e.button !== 0 || sideTab !== 'files' || renamingPath || creatingItem) return;
+            if (e.button !== 0 || e.ctrlKey || sideTab !== 'files' || renamingPath || creatingItem) return;
             const t = e.target as HTMLElement | null;
             if (t?.closest('input, textarea, [draggable="true"]')) return;
             const startX = e.clientX;
@@ -499,7 +510,7 @@ export function Sidebar({
                 suppressNextClickRef.current = true;
                 setTimeout(() => {
                   suppressNextClickRef.current = false;
-                }, 0);
+                }, 80);
               } else if (!t?.closest('[data-article-path]')) {
                 setSelectedPaths([]);
               }

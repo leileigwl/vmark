@@ -857,6 +857,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
+          return;
+        }
+        const htmlPreview = target?.closest('.vditor-ir__node[data-type="html-block"] .vditor-ir__preview') as HTMLElement | null;
+        if (htmlPreview) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const selectTarget = (target?.closest('summary') as HTMLElement | null) ?? htmlPreview;
+          const range = document.createRange();
+          range.selectNodeContents(selectTarget);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
         }
       };
 

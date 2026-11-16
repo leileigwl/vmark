@@ -95,6 +95,7 @@ export function SidebarContextMenus({
       {fileContextMenu && (
         <div
           ref={filePos.menuRef}
+          data-sidebar-context-menu="1"
           style={{ left: `${filePos.pos.left}px`, top: `${filePos.pos.top}px` }}
           onClick={(e) => e.stopPropagation()}
           className="fixed z-50 max-h-[calc(100vh-20px)] w-48 overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
@@ -274,6 +275,7 @@ export function SidebarContextMenus({
       {emptyContextMenu && (
         <div
           ref={emptyPos.menuRef}
+          data-sidebar-context-menu="1"
           style={{ left: `${emptyPos.pos.left}px`, top: `${emptyPos.pos.top}px` }}
           onClick={(e) => e.stopPropagation()}
           className="fixed z-50 max-h-[calc(100vh-20px)] w-44 overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
