@@ -20,8 +20,8 @@
 
 ## Decisions
 
-### 1. 进程通信与架构模型（对标 AntiGravity / VS Code）
-- **选型**：Electron 主进程（Main Process）+ 预加载脚本（Preload with ContextBridge）+ 渲染进程（Renderer Process）。
+### 1. Monorepo 工程结构与进程通信模型（对标 AntiGravity / FlowCanvas）
+- **选型**：基于 `pnpm workspace + Turborepo` 的 Monorepo 结构：`apps/desktop`（Electron 主进程、Preload、React 18 渲染进程），`packages/shared`、`packages/core`、`packages/image-pipeline`、`packages/adapters`。
 - **理由**：
   - 主进程负责底层文件 I/O、SQLite 数据库读写、PicGo/云存储上传、网络请求拦截与会话持久化。
   - 渲染进程通过类型安全的 `window.electronAPI` 与主进程通信，确保页面与 Node 原生 API 彻底隔离，提升安全性。
