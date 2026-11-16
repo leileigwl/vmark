@@ -365,7 +365,9 @@ export function Sidebar({
       }
 
       const article = node.article;
-      const isMultiSelected = Boolean(article && selectedPaths.includes(article.relativePath));
+      const isMultiSelected = Boolean(
+        article && selectedPaths.length > 1 && selectedPaths.includes(article.relativePath)
+      );
       const isSelected = isMultiSelected || activeArticle?.relativePath === article?.relativePath;
       const isRenaming = renamingPath === article?.relativePath;
       return (
@@ -650,7 +652,7 @@ export function Sidebar({
             ) : fileViewMode === 'list' ? (
               filteredArticles.map((art) => {
                 const isSelected =
-                  selectedPaths.includes(art.relativePath) ||
+                  (selectedPaths.length > 1 && selectedPaths.includes(art.relativePath)) ||
                   activeArticle?.relativePath === art.relativePath;
                 return (
                   <button

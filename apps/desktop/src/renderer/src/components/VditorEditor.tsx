@@ -463,12 +463,39 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const renderLatexBlocks = () => {
+        const latexCodes = el.querySelectorAll(
+          '.vditor-ir__preview code.language-latex, .vditor-ir__preview code.language-math'
+        );
+        latexCodes.forEach((codeEl) => {
+          const previewPre = codeEl.closest('pre.vditor-ir__preview') as HTMLElement | null;
+          if (!previewPre) return;
+          if (!codeEl.classList.contains('language-math')) {
+            codeEl.classList.add('language-math');
+          }
+          if (!previewPre.querySelector('.katex') && !previewPre.dataset.vcatMathRendered) {
+            previewPre.dataset.vcatMathRendered = '1';
+            const vditorStatic = Vditor as unknown as {
+              mathRender?: (
+                element: HTMLElement,
+                options?: { cdn?: string; math?: { engine?: string; inlineDigit?: boolean } }
+              ) => void;
+            };
+            vditorStatic.mathRender?.(previewPre, {
+              cdn: cdnBase,
+              math: { engine: 'KaTeX', inlineDigit: true },
+            });
+          }
+        });
+      };
+
       const enhanceDom = () => {
         rewriteLocalImagesSync();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
           rewriteLocalImagesSync();
           applyCodeSyntaxHighlights(el);
+          renderLatexBlocks();
           const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
           htmlNodes.forEach((node) => {
             const rawText = (node.textContent || '').trim();

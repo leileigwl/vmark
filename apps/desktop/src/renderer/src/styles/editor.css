@@ -206,7 +206,8 @@
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--bracket {
   display: none !important;
 }
-/* Remove Vditor's leading/trailing ``` pseudo-elements when expanded */
+/* Remove Vditor's leading/trailing ``` pseudo-elements in both collapsed and expanded states so code card height never shrinks on click */
+.vditor-ir__node[data-type="code-block"]::after,
 .vditor-ir__node--expand[data-type="code-block"]::after {
   content: none !important;
   display: none !important;
@@ -253,11 +254,11 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
 }
 
-/* 1. Normal code blocks (:not(:has(.language-mermaid))): permanently show the single editable pre.vditor-ir__marker--pre so 1st click lands caret directly with zero flash/jump */
-.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__preview {
+/* 1. Normal code blocks (excluding Mermaid & Math/LaTeX): permanently show the single editable pre.vditor-ir__marker--pre so 1st click lands caret directly with zero flash/jump */
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.language-latex)) > pre.vditor-ir__preview {
   display: none !important;
 }
-.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)) > pre.vditor-ir__marker--pre {
+.vditor-ir__node[data-type="code-block"]:not(:has(.language-mermaid)):not(:has(.language-math)):not(:has(.language-latex)) > pre.vditor-ir__marker--pre {
   display: block !important;
   position: relative !important;
   width: 100% !important;
@@ -271,14 +272,14 @@
   background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
   color: var(--text-main) !important;
   border-radius: 10px !important;
-  padding: 36px 18px 12px !important;
+  padding: 36px 18px 20px !important;
   margin: 0 !important;
   cursor: text !important;
   box-shadow: none !important;
 }
 
-/* 2. Mermaid blocks (:has(.language-mermaid)): show diagram preview by default, switch to code card on rapid double-click */
-.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
+/* 2. Mermaid & Math/LaTeX blocks: show rendered diagram/equation preview by default, switch to code card on expand */
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid, .language-math, .language-latex):not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
   width: 0 !important;
   height: 0 !important;
   padding: 0 !important;
@@ -290,11 +291,11 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
-.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__preview {
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid, .language-math, .language-latex).vditor-ir__node--expand > pre.vditor-ir__preview {
   display: none !important;
 }
-.vditor-ir__node[data-type="code-block"]:has(.language-mermaid):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
-.vditor-ir__node[data-type="code-block"]:has(.language-mermaid).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid, .language-math, .language-latex):not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+.vditor-ir__node[data-type="code-block"]:has(.language-mermaid, .language-math, .language-latex).vditor-ir__node--expand > pre.vditor-ir__marker--pre {
   display: block !important;
   position: relative !important;
   width: 100% !important;
@@ -306,7 +307,7 @@
   background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
   color: var(--text-main) !important;
   border-radius: 10px !important;
-  padding: 36px 18px 12px !important;
+  padding: 36px 18px 20px !important;
   margin: 0 !important;
   cursor: text !important;
   box-shadow: none !important;
