@@ -30,19 +30,37 @@ body {
 .vditor {
   border: none !important;
   background: #ffffff !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 .vditor-toolbar {
   display: none !important;
 }
+.vditor-content {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+/* Full-width scroll container so scrollbar sits flush at far-right edge like Typora */
 .vditor-ir pre.vditor-reset {
-  padding: 28px 36px 100px !important;
-  max-width: 860px;
-  margin: 0 auto;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 28px max(48px, calc((100% - 920px) / 2)) 100px !important;
   font-family: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
   font-size: 16px;
   line-height: 1.6;
   color: rgb(51, 51, 51);
   background: #ffffff !important;
+  box-sizing: border-box !important;
+}
+/* Hide permanent H1-H6 gutter labels to match clean Typora look */
+.vditor-ir .vditor-reset > h1:before,
+.vditor-ir .vditor-reset > h2:before,
+.vditor-ir .vditor-reset > h3:before,
+.vditor-ir .vditor-reset > h4:before,
+.vditor-ir .vditor-reset > h5:before,
+.vditor-ir .vditor-reset > h6:before {
+  display: none !important;
 }
 .vditor-reset h1,
 .vditor-reset h2,
@@ -80,6 +98,17 @@ body {
 .vditor-reset ol,
 .vditor-reset table {
   margin: 0.8em 0 !important;
+}
+/* Prevent markdown paragraph/line-height overrides from clipping Mermaid SVG labels */
+.vditor-reset .language-mermaid,
+.vditor-reset .language-mermaid * {
+  line-height: 1.35 !important;
+}
+.vditor-reset .language-mermaid p,
+.vditor-reset .language-mermaid div,
+.vditor-reset .language-mermaid span {
+  margin: 0 !important;
+  padding: 0 !important;
 }
 .vditor-reset a {
   color: #4183c4 !important;

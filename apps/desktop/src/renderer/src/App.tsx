@@ -363,7 +363,7 @@ export default function App() {
       )}
 
       {/* 右侧主区 */}
-      <div className="flex h-screen flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-white">
         {/* Typora 式 36px 极简统一顶栏（去掉生硬分割线，更贴近原版无界纸张感） */}
         <header
           className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-white pr-4 select-none ${
