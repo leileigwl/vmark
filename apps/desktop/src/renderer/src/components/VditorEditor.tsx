@@ -11,6 +11,7 @@ export interface FindOptions {
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
+  insertTableWithSize: (cols: number, rows: number) => void;
   getValue: () => string;
   findMatches: (findStr: string, opts?: FindOptions) => number;
   jumpToMatch: (findStr: string, index: number, opts?: FindOptions) => number;
@@ -163,6 +164,36 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       getValue() {
         const instance = vditorRef.current;
         return instance && isReadyRef.current ? instance.getValue() : value;
+      },
+      insertTableWithSize(cols: number, rows: number) {
+        const instance = vditorRef.current;
+        const el = containerRef.current;
+        if (!instance || !el || !isReadyRef.current) return;
+        const safeCols = Math.max(1, Math.min(20, cols));
+        const safeRows = Math.max(1, Math.min(50, rows));
+
+        const sel = window.getSelection();
+        const anchorEl =
+          sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+        const existingTable = anchorEl?.closest('table');
+        if (existingTable && el.contains(existingTable)) {
+          const p = document.createElement('p');
+          p.innerHTML = '<br>';
+          existingTable.parentNode?.insertBefore(p, existingTable.nextSibling);
+          const range = document.createRange();
+          range.selectNodeContents(p);
+          range.collapse(true);
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+
+        const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
+        const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
+        const bodyRows = Array.from({ length: safeRows }, () =>
+          `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
+        );
+        instance.focus();
+        instance.insertValue(`\n${[header, sep, ...bodyRows].join('\n')}\n`);
       },
       findMatches(findStr: string, opts?: FindOptions) {
         const el = containerRef.current;

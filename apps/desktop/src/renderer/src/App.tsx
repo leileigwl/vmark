@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { countWords, extractOutline } from '@vcat/core';
-import type { ArticleMeta, GitStatusInfo, ImageBedConfig, PlatformId, ThemeId } from '@vcat/shared';
+import type {
+  ArticleMeta,
+  GitStatusInfo,
+  ImageBedConfig,
+  PlatformId,
+  StartupConfig,
+  ThemeId,
+} from '@vcat/shared';
 import { ArticleManagerView } from './components/ArticleManagerView';
 import { FindReplaceBar } from './components/FindReplaceBar';
 import { PublishModal } from './components/PublishModal';
@@ -42,6 +49,10 @@ export default function App() {
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<string>('已同步');
+  const [startupConfig, setStartupConfig] = useState<StartupConfig>({ mode: 'last_opened' });
+  const [tableModalOpen, setTableModalOpen] = useState<boolean>(false);
+  const [tableCols, setTableCols] = useState<number>(3);
+  const [tableRows, setTableRows] = useState<number>(4);
   const [imageBed, setImageBed] = useState<ImageBedConfig>({
     strategy: 'platform_private',
     provider: 'picgo_core',
@@ -106,12 +117,13 @@ export default function App() {
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, recent, list, folderList, imgCfg, auths, git] = await Promise.all([
+    const [wsPath, recent, list, folderList, imgCfg, startupCfg, auths, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.getRecentWorkspaces(),
       window.electronAPI.listArticles(),
       window.electronAPI.listFolders(),
       window.electronAPI.getImageBedConfig(),
+      window.electronAPI.getStartupConfig(),
       window.electronAPI.getPlatformAuthStates(),
       window.electronAPI.getGitStatus(),
     ]);
@@ -120,10 +132,21 @@ export default function App() {
     setArticles(list);
     setFolders(folderList);
     setImageBed(imgCfg);
+    setStartupConfig(startupCfg);
     setAuthStates(auths);
     setGitStatus(git);
-    if (!activeArticle && list.length > 0) {
-      await openArticle(list[0]);
+    if (!activeArticle) {
+      if (startupCfg.mode === 'new_file' && wsPath) {
+        const created = await window.electronAPI.createArticle();
+        setArticles(await window.electronAPI.listArticles());
+        await openArticle(created, startupCfg);
+      } else if (list.length > 0) {
+        const target =
+          startupCfg.mode === 'last_opened' && startupCfg.lastArticlePath
+            ? list.find((a) => a.relativePath === startupCfg.lastArticlePath) ?? list[0]
+            : list[0];
+        await openArticle(target, startupCfg);
+      }
     }
   }
 
@@ -179,7 +202,11 @@ export default function App() {
         setTheme(payload as ThemeId);
       } else if (action === 'editor:format' && payload) {
         setActiveView('editor');
-        editorRef.current?.applyFormat(payload);
+        if (payload === 'table') {
+          setTableModalOpen(true);
+        } else {
+          editorRef.current?.applyFormat(payload);
+        }
       } else if (action === 'editor:table' && payload) {
         setActiveView('editor');
         editorRef.current?.applyTableAction(payload);
@@ -190,7 +217,7 @@ export default function App() {
     });
   }, [activeArticle, markdown]);
 
-  async function openArticle(meta: ArticleMeta) {
+  async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig) {
     if (activeArticle && activeArticle.relativePath !== meta.relativePath && saveState === '未保存') {
       const unsaved = editorRef.current?.getValue() ?? markdown;
       await handleSaveArticle(unsaved);
@@ -199,6 +226,9 @@ export default function App() {
     setActiveArticle(meta);
     setMarkdown(content);
     setSaveState('已保存');
+    const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
+    setStartupConfig(nextStartup);
+    void window.electronAPI.saveStartupConfig(nextStartup);
   }
 
   useEffect(() => {
@@ -522,6 +552,11 @@ export default function App() {
             <SettingsView
               settingCategory={settingCategory}
               onSelectCategory={setSettingCategory}
+              startupConfig={startupConfig}
+              onSaveStartupConfig={(next) => {
+                setStartupConfig(next);
+                void window.electronAPI.saveStartupConfig(next);
+              }}
               imageBed={imageBed}
               imageBedTestMsg={imageBedTestMsg}
               onUpdateImageBed={(next, persist) => {
@@ -578,6 +613,57 @@ export default function App() {
           }}
           onSaveArticle={(content) => void handleSaveArticle(content)}
         />
+      )}
+
+      {tableModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-xs">
+          <div className="w-[320px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] p-4 text-[var(--text-main)] shadow-2xl">
+            <div className="mb-3 text-center text-sm font-semibold">插入表格</div>
+            <div className="mb-4 flex items-center justify-center gap-3 text-xs">
+              <label className="flex items-center gap-1.5">
+                <span className="text-[var(--control-text-color)]">列</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={tableCols}
+                  onChange={(e) => setTableCols(Number(e.target.value) || 1)}
+                  className="w-16 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2 py-1 text-center outline-none focus:border-[var(--accent)]"
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                <span className="text-[var(--control-text-color)]">行</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={tableRows}
+                  onChange={(e) => setTableRows(Number(e.target.value) || 1)}
+                  className="w-16 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2 py-1 text-center outline-none focus:border-[var(--accent)]"
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-[var(--border-color)] pt-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setTableModalOpen(false)}
+                className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 hover:bg-[var(--bg-hover)]"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTableModalOpen(false);
+                  editorRef.current?.insertTableWithSize(tableCols, tableRows);
+                }}
+                className="rounded bg-[var(--accent)] px-3 py-1 font-medium text-white hover:opacity-90"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

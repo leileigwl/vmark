@@ -87,8 +87,12 @@
   --side-bar-bg-color: #201d18; --control-text-color: #b3aa9c; --bg-main: #171511; --text-main: #ebe6dc; --accent: #ba9f6a; --border-color: rgba(235,230,220,0.12);
 }
 
+[data-theme^='bloom-']:not([data-theme*='-dark']) {
+  --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 70%, var(--bg-main));
+  --bg-hover: color-mix(in srgb, var(--text-main) 7%, transparent);
+}
 [data-theme*='-dark'] {
-  --bg-elevated: #1c222b;
+  --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 75%, #ffffff 5%);
   --bg-hover: rgba(255, 255, 255, 0.08);
 }
 [data-theme*='-dark'] .vditor-reset pre > code,
@@ -316,8 +320,14 @@ body {
 .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand pre {
   background-color: #f4f6f9 !important;
   border-color: #e2e8f0 !important;
+  color: var(--text-main) !important;
   box-shadow: none !important;
   outline: none !important;
+}
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand code,
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre > pre {
+  color: var(--text-main) !important;
+  background: transparent !important;
 }
 [data-theme*='-dark'] .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand,
 [data-theme*='-dark'] .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre,

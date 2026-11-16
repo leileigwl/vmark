@@ -1,8 +1,8 @@
-import { GitBranch, Globe, Image as ImageIcon, Palette } from 'lucide-react';
+import { FileText, GitBranch, Globe, Image as ImageIcon, Palette } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
-import type { GitStatusInfo, ImageBedConfig, PlatformId, ThemeId } from '@vcat/shared';
+import type { GitStatusInfo, ImageBedConfig, PlatformId, StartupConfig, StartupMode, ThemeId } from '@vcat/shared';
 
-export type SettingCategory = 'image' | 'theme' | 'platforms' | 'github';
+export type SettingCategory = 'startup' | 'image' | 'theme' | 'platforms' | 'github';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -36,6 +36,8 @@ const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
 interface SettingsViewProps {
   settingCategory: SettingCategory;
   onSelectCategory: (cat: SettingCategory) => void;
+  startupConfig: StartupConfig;
+  onSaveStartupConfig: (cfg: StartupConfig) => void;
   imageBed: ImageBedConfig;
   imageBedTestMsg: string;
   onUpdateImageBed: (next: ImageBedConfig, persist?: boolean) => void;
@@ -56,6 +58,8 @@ interface SettingsViewProps {
 export function SettingsView({
   settingCategory,
   onSelectCategory,
+  startupConfig,
+  onSaveStartupConfig,
   imageBed,
   imageBedTestMsg,
   onUpdateImageBed,
@@ -79,6 +83,7 @@ export function SettingsView({
         </div>
         {(
           [
+            ['startup', '文件与启动', FileText],
             ['image', '图像与图床', ImageIcon],
             ['theme', '外观主题', Palette],
             ['platforms', '平台授权托管', Globe],
@@ -102,6 +107,52 @@ export function SettingsView({
       </aside>
 
       <section className="min-w-0 flex-1 overflow-y-auto bg-[var(--bg-main)] p-6 text-[var(--text-main)] md:p-8">
+        {settingCategory === 'startup' && (
+          <div className="max-w-2xl space-y-5">
+            <div>
+              <h2 className="text-base font-semibold">启动选项与默认打开方式</h2>
+              <p className="mt-1 text-xs text-[var(--control-text-color)]">
+                控制每次打开 VCat Publisher 时默认加载的内容。
+              </p>
+            </div>
+            <div className="space-y-3 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] p-4 text-[13px]">
+              {(
+                [
+                  ['last_opened', '恢复上一次打开的文章（推荐）', '自动打开上次关闭前正在编辑的文件，若不存在则打开目录第一篇'],
+                  ['new_file', '打开新文件', '每次启动自动新建一篇顺序命名的 Untitled.md 空白文章'],
+                  ['specific_dir', '打开指定目录第一篇', '每次启动打开当前工作目录或指定目录下的第一篇 Markdown 文档'],
+                ] as Array<[StartupMode, string, string]>
+              ).map(([mode, title, desc]) => (
+                <label key={mode} className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="radio"
+                    className="mt-1"
+                    checked={startupConfig.mode === mode}
+                    onChange={() => onSaveStartupConfig({ ...startupConfig, mode })}
+                  />
+                  <div>
+                    <div className="font-medium">{title}</div>
+                    <div className="text-xs text-[var(--control-text-color)]">{desc}</div>
+                  </div>
+                </label>
+              ))}
+              {startupConfig.mode === 'specific_dir' && (
+                <div className="pt-2">
+                  <input
+                    type="text"
+                    placeholder="指定默认目录路径（留空则使用当前工作区）"
+                    value={startupConfig.defaultDir ?? ''}
+                    onChange={(e) =>
+                      onSaveStartupConfig({ ...startupConfig, defaultDir: e.target.value })
+                    }
+                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {settingCategory === 'image' && (
           <div className="max-w-2xl space-y-5">
             <div>

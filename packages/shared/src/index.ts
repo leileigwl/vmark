@@ -72,6 +72,14 @@ export interface ImageBedConfig {
   token?: string;
 }
 
+export type StartupMode = 'last_opened' | 'new_file' | 'specific_dir';
+
+export interface StartupConfig {
+  mode: StartupMode;
+  lastArticlePath?: string;
+  defaultDir?: string;
+}
+
 export type PipelineStepId =
   | 'PRECHECK'
   | 'IMAGE_TRANSFER'
@@ -158,6 +166,8 @@ export interface ElectronAPI {
   getImageBedConfig: () => Promise<ImageBedConfig>;
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
   testImageBedUpload: (config: ImageBedConfig) => Promise<{ ok: boolean; url?: string; message: string }>;
+  getStartupConfig: () => Promise<StartupConfig>;
+  saveStartupConfig: (config: StartupConfig) => Promise<void>;
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
   getGitStatus: () => Promise<GitStatusInfo>;

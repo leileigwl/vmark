@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
 import { saveImageToAssets } from '@vcat/image-pipeline';
-import type { ContextMenuOptions, ImageBedConfig, PlatformId } from '@vcat/shared';
+import type { ContextMenuOptions, ImageBedConfig, PlatformId, StartupConfig } from '@vcat/shared';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,12 +23,14 @@ interface AppConfig {
   workspacePath: string | null;
   recentWorkspaces: string[];
   imageBed: ImageBedConfig;
+  startup?: StartupConfig;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
   workspacePath: null,
   recentWorkspaces: [],
   imageBed: { strategy: 'platform_private' },
+  startup: { mode: 'last_opened' },
 };
 
 function recordRecentWorkspace(cfg: AppConfig, dirPath: string): void {
@@ -530,6 +532,17 @@ function registerIpcHandlers(): void {
   ipcMain.handle('config:saveImageBed', async (_event, imageBed: ImageBedConfig) => {
     const cfg = await readAppConfig();
     cfg.imageBed = imageBed;
+    await writeAppConfig(cfg);
+  });
+
+  ipcMain.handle('config:getStartup', async () => {
+    const cfg = await readAppConfig();
+    return cfg.startup ?? { mode: 'last_opened' };
+  });
+
+  ipcMain.handle('config:saveStartup', async (_event, startup: StartupConfig) => {
+    const cfg = await readAppConfig();
+    cfg.startup = startup;
     await writeAppConfig(cfg);
   });
 
