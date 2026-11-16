@@ -69,7 +69,23 @@ export function VditorEditor({ value, articleKey, onChange, onSave }: VditorEdit
     });
 
     vditorRef.current = instance;
+
+    // Resolve relative local ./assets/* images in DOM via vcat-asset:// without altering Markdown source
+    const resolveLocalImages = () => {
+      const imgs = el.querySelectorAll('img');
+      imgs.forEach((img) => {
+        const rawSrc = img.getAttribute('src');
+        if (!rawSrc || /^(https?:|data:|vcat-asset:|blob:)/i.test(rawSrc)) return;
+        const cleanRel = rawSrc.replace(/^\.\//, '');
+        img.src = `vcat-asset://local/${cleanRel}`;
+      });
+    };
+
+    const observer = new MutationObserver(resolveLocalImages);
+    observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
     return () => {
+      observer.disconnect();
       isReadyRef.current = false;
       try {
         vditorRef.current?.destroy();

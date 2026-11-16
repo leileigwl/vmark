@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
@@ -9,6 +10,13 @@ import { saveImageToAssets } from '@vcat/image-pipeline';
 import type { ImageBedConfig, PlatformId } from '@vcat/shared';
 
 const execFileAsync = promisify(execFile);
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'vcat-asset',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true },
+  },
+]);
 
 interface AppConfig {
   workspacePath: string | null;
@@ -244,6 +252,19 @@ function registerIpcHandlers(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vcat.publisher');
+
+  protocol.handle('vcat-asset', async (request) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return new Response('Workspace not configured', { status: 404 });
+    const url = new URL(request.url);
+    const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+    try {
+      const target = resolveSafePath(cfg.workspacePath, relPath);
+      return net.fetch(pathToFileURL(target).toString());
+    } catch {
+      return new Response('Forbidden', { status: 403 });
+    }
+  });
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window);
   });
