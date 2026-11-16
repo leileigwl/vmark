@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R28_1",
+            title: "R28-1. 「快速打开... (⇧⌘O)」弹窗与「打开最近的文件（最多 5 篇）」可用",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794857012414_674acf26.png",
+            desc: "新增 QuickOpenModal（支持 Cmd/Ctrl+Shift+O、顶部栏时钟按钮、菜单「快速打开...」），并在 macOS 菜单「文件 → 打开最近的文件」及弹窗顶部保留最近打开的 5 篇文档。",
+            plan: "请点击菜单「快速打开...」或顶部栏时钟图标，确认弹窗正常打开且展示最近 5 篇文件。"
+          },
+          {
+            id: "R28_2",
+            title: "R28-2. LaTeX / Mermaid 双击进入源码编辑彻底零闪烁",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794855867399_b3d86851.png",
+            desc: "修复双击 mousedown 隐藏预览层后，紧随的 click/dblclick 落到源码区触发 Vditor 重绘导致的闪烁（增加 suppressPreviewClickUntil 拦截）。",
+            plan: "请再次双击 LaTeX 与 Mermaid 卡片，确认进入源码瞬间不再闪一下。"
+          },
+          {
+            id: "R28_3",
+            title: "R28-3. Sidebar / VditorEditor 组件解耦拆分与 IDE TS 报错清零",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794857012414_674acf26.png",
+            desc: "拆出 sidebarTreeUtils.ts、SidebarTreeNodes.tsx、SidebarPopoverMenu.tsx、vditorDomEnhancer.ts、languageHint.ts，并补充 apps/desktop/tsconfig.json 修复 IDE 误报。",
+            plan: "可在编辑器中确认 App.tsx 不再报 electronAPI / 隐式 any 错误。"
+          },
+          {
             id: "R27_1",
             title: "R27-1. LaTeX / Mermaid 双击进入源码编辑零闪烁",
             status: "done",

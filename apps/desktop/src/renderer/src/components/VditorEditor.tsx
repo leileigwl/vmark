@@ -3,7 +3,18 @@ import type { EditorPreferences } from '@vcat/shared';
 import Vditor from 'vditor';
 import { applyCodeSyntaxHighlights } from '../editor/codeHighlight';
 import { toggleInlineWrapInEditor, type InlineWrapCommand } from '../editor/inlineFormat';
+import { positionAndSortLanguageHint, safeDecode } from '../editor/languageHint';
 import { executeTableAction } from '../editor/tableActions';
+import {
+  cleanEmptyInlineNodes,
+  cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
+  cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
+  ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
+  getCodeBlockLang,
+  normalizeEmojiAndCalloutIcons,
+  renderLatexBlocks as renderLatexBlocksInEl,
+  rerenderBrokenMermaid as rerenderBrokenMermaidInEl,
+} from '../editor/vditorDomEnhancer';
 import { MediaLightbox, type LightboxPayload } from './MediaLightbox';
 
 export interface FindOptions {
@@ -542,186 +553,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
-      const safeDecode = (raw: string): string => {
-        try {
-          return decodeURIComponent(raw);
-        } catch {
-          return raw;
-        }
-      };
-
-      const getCodeBlockLang = (codeBlock: Element): string => {
-        const infoEl = codeBlock.querySelector('.vditor-ir__marker--info');
-        const infoLang = (infoEl?.textContent || '').replace(/\u200b/g, '').trim().toLowerCase();
-        if (infoLang) return infoLang;
-        const codeEl = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
-        const match = codeEl?.className.match(/language-([^\s]+)/);
-        return match ? match[1].toLowerCase() : '';
-      };
-
-      const ensurePreviewPre = (codeBlock: Element): HTMLElement => {
-        let previewPre = codeBlock.querySelector('pre.vditor-ir__preview') as HTMLElement | null;
-        if (!previewPre) {
-          previewPre = document.createElement('pre');
-          previewPre.className = 'vditor-ir__preview';
-          previewPre.setAttribute('contenteditable', 'false');
-          const markerPre = codeBlock.querySelector('pre.vditor-ir__marker--pre');
-          if (markerPre) {
-            markerPre.insertAdjacentElement('afterend', previewPre);
-          } else {
-            codeBlock.appendChild(previewPre);
-          }
-        }
-        return previewPre;
-      };
-
-      const ensureCodeBlockInfoMarkers = () => {
-        const blocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
-        const sel = window.getSelection();
-        blocks.forEach((codeBlock) => {
-          const existingInfo = codeBlock.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
-          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
-          const match = editCode?.className.match(/language-([^\s]+)/);
-          const attrLang = codeBlock.getAttribute('data-CodeLang');
-          const fallbackLang =
-            match?.[1] || (attrLang && attrLang !== 'text' ? attrLang : '');
-          if (existingInfo) {
-            const existingLang = (existingInfo.textContent || '').replace(/\u200b/g, '').trim();
-            if (existingLang) {
-              codeBlock.setAttribute('data-CodeLang', existingLang);
-              return;
-            }
-            const cursorInInfo = Boolean(sel?.anchorNode && existingInfo.contains(sel.anchorNode));
-            if (!cursorInInfo && fallbackLang) {
-              existingInfo.textContent = `\u200b${fallbackLang}`;
-            }
-            return;
-          }
-          const infoSpan = document.createElement('span');
-          infoSpan.className = 'vditor-ir__marker vditor-ir__marker--info';
-          infoSpan.setAttribute('data-type', 'code-block-info');
-          infoSpan.textContent = fallbackLang ? `\u200b${fallbackLang}` : '\u200b';
-          const markerPre = codeBlock.querySelector('pre.vditor-ir__marker--pre');
-          if (markerPre) {
-            codeBlock.insertBefore(infoSpan, markerPre);
-          } else {
-            codeBlock.prepend(infoSpan);
-          }
-        });
-      };
-
-      const cleanStrayCodeBlockFences = () => {
-        const editCodes = el.querySelectorAll('.vditor-ir__node[data-type="code-block"] pre.vditor-ir__marker--pre > code');
-        editCodes.forEach((node) => {
-          const text = node.textContent || '';
-          if (/^[\u200b\s]*`{3,}[\u200b\s]*$/.test(text)) {
-            node.textContent = '\u200b';
-          }
-        });
-      };
-
-      const rerenderBrokenMermaid = () => {
-        const vditorStatic = Vditor as unknown as {
-          mermaidRender?: (el: HTMLElement, cdn?: string) => void;
-        };
-        const codeBlocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
-        codeBlocks.forEach((codeBlock) => {
-          if (codeBlock.classList.contains('vditor-ir__node--expand')) return;
-          if (getCodeBlockLang(codeBlock) !== 'mermaid') return;
-          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
-          const previewPre = ensurePreviewPre(codeBlock);
-          const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
-          if (!srcText.trim()) return;
-
-          let mermaidDiv = previewPre.querySelector('div.language-mermaid') as HTMLElement | null;
-          if (!mermaidDiv) {
-            previewPre.innerHTML = '';
-            mermaidDiv = document.createElement('div');
-            mermaidDiv.className = 'language-mermaid';
-            previewPre.appendChild(mermaidDiv);
-          }
-          if (!mermaidDiv.querySelector('svg') || previewPre.dataset.vcatMermaidSrc !== srcText) {
-            previewPre.dataset.vcatMermaidSrc = srcText;
-            if (!mermaidDiv.querySelector('svg') || mermaidDiv.textContent !== srcText) {
-              mermaidDiv.textContent = srcText;
-              mermaidDiv.removeAttribute('data-processed');
-            }
-            previewPre.setAttribute('data-render', '2');
-            vditorStatic.mermaidRender?.(previewPre, cdnBase);
-          }
-        });
-      };
-
-      const renderLatexBlocks = () => {
-        const vditorStatic = Vditor as unknown as {
-          mathRender?: (
-            element: HTMLElement,
-            options?: { cdn?: string; math?: { engine?: string; inlineDigit?: boolean } }
-          ) => void;
-        };
-        const katexGlobal = (window as unknown as {
-          katex?: { renderToString?: (tex: string, opts: Record<string, unknown>) => string };
-        }).katex;
-
-        const codeBlocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
-        codeBlocks.forEach((codeBlock) => {
-          if (codeBlock.classList.contains('vditor-ir__node--expand')) return;
-          const lang = getCodeBlockLang(codeBlock);
-          if (lang !== 'latex' && lang !== 'tex' && lang !== 'math') return;
-          const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
-          const previewPre = ensurePreviewPre(codeBlock);
-          const srcText = (editCode?.textContent || previewPre.textContent || '').replace(/\u200b/g, '');
-          if (!srcText.trim()) {
-            previewPre.dataset.vcatMathSrc = '';
-            return;
-          }
-          if (!previewPre.querySelector('.katex') || previewPre.dataset.vcatMathSrc !== srcText) {
-            previewPre.setAttribute('data-render', '2');
-            if (katexGlobal?.renderToString) {
-              previewPre.dataset.vcatMathSrc = srcText;
-              previewPre.innerHTML = '';
-              const mathDiv = document.createElement('div');
-              mathDiv.className = 'language-math';
-              mathDiv.setAttribute('data-math', srcText);
-              mathDiv.innerHTML = katexGlobal.renderToString(srcText, {
-                displayMode: true,
-                output: 'html',
-                throwOnError: false,
-              });
-              previewPre.appendChild(mathDiv);
-            } else {
-              previewPre.innerHTML = '';
-              const previewCode = document.createElement('code');
-              previewCode.className = 'language-math';
-              previewCode.textContent = srcText;
-              previewPre.appendChild(previewCode);
-              vditorStatic.mathRender?.(previewPre, {
-                cdn: cdnBase,
-                math: { engine: 'KaTeX', inlineDigit: true },
-              });
-            }
-          }
-        });
-
-        const standaloneMath = el.querySelectorAll(
-          '.vditor-ir__preview code.language-latex, .vditor-ir__preview code.language-tex, .vditor-ir__preview code.language-math'
-        );
-        standaloneMath.forEach((codeEl) => {
-          if (codeEl.closest('.vditor-ir__node[data-type="code-block"]')) return;
-          if (codeEl.closest('.vditor-ir__node--expand')) return;
-          const previewPre = codeEl.closest('pre.vditor-ir__preview') as HTMLElement | null;
-          if (!previewPre) return;
-          if (!codeEl.classList.contains('language-math')) {
-            codeEl.classList.add('language-math');
-          }
-          if (!previewPre.querySelector('.katex')) {
-            vditorStatic.mathRender?.(previewPre, {
-              cdn: cdnBase,
-              math: { engine: 'KaTeX', inlineDigit: true },
-            });
-          }
-        });
-      };
+      const ensureCodeBlockInfoMarkers = () => ensureCodeBlockInfoMarkersInEl(el);
+      const cleanStrayCodeBlockFences = () => cleanStrayCodeBlockFencesInEl(el);
+      const rerenderBrokenMermaid = () => rerenderBrokenMermaidInEl(el, cdnBase);
+      const renderLatexBlocks = () => renderLatexBlocksInEl(el, cdnBase);
+      const cleanupUnusedTempGapParagraphs = (activeNode?: Node | null) =>
+        cleanupUnusedTempGapParagraphsInEl(el, activeNode);
 
       const commitCodeBlockLanguage = (infoMarker: HTMLElement, rawLang: string) => {
         const cleanLang = safeDecode(rawLang).replace(/\u200b/g, '').trim();
@@ -788,178 +625,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
-      const COMMON_CODE_LANGUAGES = [
-        'c', 'cpp', 'csharp', 'css', 'csv', 'cmake', 'clojure', 'coffeescript',
-        'python', 'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx',
-        'json', 'latex', 'tex', 'math', 'mermaid', 'echarts', 'mindmap', 'flowchart', 'plantuml', 'graphviz',
-        'yaml', 'yml', 'toml', 'ini', 'sql', 'bash', 'sh', 'shell', 'zsh', 'powershell',
-        'html', 'xml', 'markdown', 'md', 'go', 'rust', 'java', 'kotlin', 'swift', 'ruby', 'php',
-        'dockerfile', 'makefile', 'nginx', 'graphql', 'diff', 'text', 'plaintext', 'txt',
-      ];
-
       let isRepositioningHint = false;
       const positionLanguageHint = () => {
         if (isRepositioningHint) return;
-        const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
-        if (!hintEl || hintEl.style.display === 'none' || hintEl.childElementCount === 0) return;
-        const selNow = window.getSelection();
-        const anchorEl =
-          selNow?.anchorNode instanceof Element ? selNow.anchorNode : selNow?.anchorNode?.parentElement;
-        const infoMarker =
-          (anchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
-          (document.activeElement?.closest?.('.vditor-ir__marker--info') as HTMLElement | null) ??
-          (lastActiveInfoMarker && el.contains(lastActiveInfoMarker) ? lastActiveInfoMarker : null);
-        if (!infoMarker || !el.contains(infoMarker)) return;
-        lastActiveInfoMarker = infoMarker;
-
-        const curKey = (infoMarker.textContent || '').replace(/\u200b/g, '').trim().toLowerCase();
-        if (curKey && (hintEl.dataset.vcatSortedFor !== curKey || !hintEl.querySelector('button[data-vcat-sorted]'))) {
-          hintEl.dataset.vcatSortedFor = curKey;
-          const existingVals = Array.from(hintEl.querySelectorAll('button')).map((b) =>
-            safeDecode(b.getAttribute('data-value') || b.textContent || '').replace(/\u200b/g, '').trim()
-          );
-          const hljsLangs =
-            (window as unknown as { hljs?: { listLanguages?: () => string[] } }).hljs?.listLanguages?.() ?? [];
-          const seen = new Set<string>();
-          const pool: string[] = [];
-          for (const raw of [...COMMON_CODE_LANGUAGES, ...hljsLangs, ...existingVals]) {
-            const v = raw.trim();
-            if (!v) continue;
-            const low = v.toLowerCase();
-            if (!seen.has(low) && low.includes(curKey)) {
-              seen.add(low);
-              pool.push(v);
-            }
-          }
-          pool.sort((a, b) => {
-            const al = a.toLowerCase();
-            const bl = b.toLowerCase();
-            const aRank = al === curKey ? 0 : al.startsWith(curKey) ? 1 : 2;
-            const bRank = bl === curKey ? 0 : bl.startsWith(curKey) ? 1 : 2;
-            if (aRank !== bRank) return aRank - bRank;
-            if (al.length !== bl.length) return al.length - bl.length;
-            return al.localeCompare(bl);
-          });
-          const topLangs = pool.slice(0, 8);
-          if (topLangs.length > 0) {
-            isRepositioningHint = true;
-            hintEl.innerHTML = '';
-            topLangs.forEach((lang, idx) => {
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.setAttribute('data-vcat-sorted', '1');
-              btn.setAttribute('data-value', `${encodeURIComponent(lang)} `);
-              if (idx === 0) btn.className = 'vditor-hint--current';
-              const low = lang.toLowerCase();
-              const matchPos = low.indexOf(curKey);
-              btn.appendChild(document.createTextNode(' '));
-              if (matchPos >= 0) {
-                if (matchPos > 0) btn.appendChild(document.createTextNode(lang.slice(0, matchPos)));
-                const bEl = document.createElement('b');
-                bEl.textContent = lang.slice(matchPos, matchPos + curKey.length);
-                btn.appendChild(bEl);
-                if (matchPos + curKey.length < lang.length) {
-                  btn.appendChild(document.createTextNode(lang.slice(matchPos + curKey.length)));
-                }
-              } else {
-                btn.appendChild(document.createTextNode(lang));
-              }
-              hintEl.appendChild(btn);
-            });
-          }
-        } else if (!curKey) {
-          delete hintEl.dataset.vcatSortedFor;
-        }
-
-        const infoRect = infoMarker.getBoundingClientRect();
-        if (infoRect.width === 0 && infoRect.height === 0) {
-          isRepositioningHint = false;
-          return;
-        }
-        const hintH = hintEl.offsetHeight || 220;
-        const spaceBelow = window.innerHeight - infoRect.bottom - 12;
-        const topPx =
-          spaceBelow >= Math.min(hintH, 140)
-            ? Math.round(infoRect.bottom + 4)
-            : Math.max(8, Math.round(infoRect.top - hintH - 4));
-        const leftPx = Math.max(8, Math.round(infoRect.left));
         isRepositioningHint = true;
-        hintEl.style.position = 'fixed';
-        hintEl.style.top = `${topPx}px`;
-        hintEl.style.left = `${leftPx}px`;
-        hintEl.style.marginTop = '0px';
+        lastActiveInfoMarker = positionAndSortLanguageHint(el, lastActiveInfoMarker);
         queueMicrotask(() => {
           isRepositioningHint = false;
         });
-      };
-
-      const normalizeEmojiAndCalloutIcons = () => {
-        const resetEl = el.querySelector('.vditor-ir .vditor-reset');
-        if (!resetEl) return;
-        const activeNode = window.getSelection()?.anchorNode ?? null;
-        // Monochrome text-presentation icons lacking \uFE0F variant selector -> upgrade to Apple Color Emoji
-        const MONO_TO_COLOR_RE =
-          /([\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u203C\u2049\u{1F5C2}\u{1F3D7}\u{1F6E0}\u{1F5BC}\u{1F441}\u{1F3F7}\u{1F5DD}\u{1F5C3}\u{1F5C4}\u{1F5D1}\u{1F5D3}\u{1F5D2}])(?!\uFE0F)/gu;
-        const TIGHT_INLINE_ICON_RE =
-          /((?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?)(?=[\p{Script=Han}A-Za-z0-9])/gu;
-        const ENDS_WITH_ICON_RE =
-          /(?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?$/u;
-
-        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-        let tNode = walker.nextNode() as Text | null;
-        while (tNode) {
-          if (
-            tNode !== activeNode &&
-            !tNode.parentElement?.closest('pre:not(.vditor-reset), code, .katex, .vditor-ir__marker')
-          ) {
-            const orig = tNode.nodeValue || '';
-            let nextVal = orig.replace(MONO_TO_COLOR_RE, '$1\uFE0F');
-            nextVal = nextVal.replace(TIGHT_INLINE_ICON_RE, '$1 ');
-            // Also add a space when an emoji/icon ends a text node immediately before an inline element (e.g. ⚠️**学习者**)
-            if (
-              ENDS_WITH_ICON_RE.test(nextVal) &&
-              tNode.nextSibling instanceof Element &&
-              tNode.nextSibling.tagName !== 'BR' &&
-              !(tNode.nextSibling.textContent || '').startsWith(' ')
-            ) {
-              nextVal = `${nextVal} `;
-            }
-            if (nextVal !== orig) {
-              tNode.nodeValue = nextVal;
-            }
-          }
-          tNode = walker.nextNode() as Text | null;
-        }
-      };
-
-      const cleanEmptyInlineNodes = () => {
-        const inlineNodes = el.querySelectorAll(
-          'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
-        );
-        inlineNodes.forEach((node) => {
-          const inner = node.querySelector('strong, b, em, i, s, del, code');
-          const innerText = (inner?.textContent || '').replace(/\u200b/g, '');
-          if (innerText.length === 0) {
-            const parent = node.parentNode;
-            node.remove();
-            if (parent instanceof HTMLElement && parent.childNodes.length === 0) {
-              parent.innerHTML = '<br>';
-            }
-          }
-        });
-        // Strip literal orphaned **** markers left when bold text inside was deleted
-        const resetEl = el.querySelector('.vditor-ir .vditor-reset');
-        if (resetEl) {
-          const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-          let tNode = walker.nextNode() as Text | null;
-          while (tNode) {
-            const val = tNode.nodeValue || '';
-            if (val.includes('****') && !tNode.parentElement?.closest('pre:not(.vditor-reset), code')) {
-              tNode.nodeValue = val.replace(/\*{4,}/g, '');
-            }
-            tNode = walker.nextNode() as Text | null;
-          }
-        }
       };
 
       const enhanceDom = () => {
@@ -971,8 +644,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           positionLanguageHint();
           ensureCodeBlockInfoMarkers();
           cleanStrayCodeBlockFences();
-          cleanEmptyInlineNodes();
-          normalizeEmojiAndCalloutIcons();
+          cleanEmptyInlineNodes(el);
+          normalizeEmojiAndCalloutIcons(el);
           applyCodeSyntaxHighlights(el);
           renderLatexBlocks();
           rerenderBrokenMermaid();
@@ -1372,22 +1045,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         return null;
       };
 
-      const cleanupUnusedTempGapParagraphs = (activeNode?: Node | null) => {
-        const tempParas = el.querySelectorAll('p[data-vcat-temp-gap="1"]');
-        tempParas.forEach((p) => {
-          const text = (p.textContent || '').replace(/\u200b/g, '').trim();
-          const hasMedia = Boolean(p.querySelector('img, svg, code, strong, em'));
-          if (text || hasMedia) {
-            p.removeAttribute('data-vcat-temp-gap');
-            return;
-          }
-          if (!activeNode || !p.contains(activeNode)) {
-            p.remove();
-          }
-        });
-      };
-
       let handledGapClick = false;
+      let suppressPreviewClickUntil = 0;
 
       const handleMouseDownCapture = (e: MouseEvent) => {
         handledGapClick = false;
@@ -1462,6 +1121,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
           // Double-click any rendered LaTeX / Mermaid card to expand source editor intentionally
           if (e.detail >= 2) {
+            suppressPreviewClickUntil = Date.now() + 350;
             clearActiveZoomTarget();
             setLightboxItem(null);
             previewTarget.previewPre.style.display = 'none';
@@ -1599,6 +1259,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.stopImmediatePropagation();
           return;
         }
+        if (Date.now() < suppressPreviewClickUntil) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return;
+        }
         const imgEl = target?.closest('img');
         const previewTarget = imgEl ? null : getPreviewBlockTarget(target);
         if (imgEl || previewTarget) {
@@ -1672,7 +1338,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       const handleDblClickCapture = (e: MouseEvent) => {
         const target = e.target as HTMLElement | null;
-        if (getPreviewBlockTarget(target)) {
+        if (Date.now() < suppressPreviewClickUntil || getPreviewBlockTarget(target)) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();

@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ChevronDown,
-  ChevronRight,
   FileText,
   Folder,
   ListTree,
   MoreVertical,
-  Pin,
-  PinOff,
   Plus,
   Redo2,
   Search,
@@ -19,60 +15,9 @@ import {
   type EmptyContextMenuState,
   type FileContextMenuState,
 } from './sidebar/SidebarContextMenus';
-
-export interface TreeNode {
-  name: string;
-  path: string;
-  isDir: boolean;
-  article?: ArticleMeta;
-  children: TreeNode[];
-}
-
-function buildFileTree(articles: ArticleMeta[], folders: string[] = []): TreeNode[] {
-  const root: TreeNode[] = [];
-  const ensureDirPath = (dirPath: string) => {
-    const parts = dirPath.split('/').filter(Boolean);
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const nodePath = parts.slice(0, i + 1).join('/');
-      let existing = current.find((n) => n.name === part && n.isDir);
-      if (!existing) {
-        existing = { name: part, path: nodePath, isDir: true, children: [] };
-        current.push(existing);
-      }
-      current = existing.children;
-    }
-  };
-  for (const dir of folders) ensureDirPath(dir);
-
-  for (const art of articles) {
-    const parts = art.relativePath.split('/');
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      const nodePath = parts.slice(0, i + 1).join('/');
-      let existing = current.find((n) => n.name === part && n.isDir === !isLast);
-      if (!existing) {
-        existing = {
-          name: part,
-          path: nodePath,
-          isDir: !isLast,
-          article: isLast ? art : undefined,
-          children: [],
-        };
-        current.push(existing);
-      }
-      current = existing.children;
-    }
-  }
-  const sortNodes = (nodes: TreeNode[]): TreeNode[] =>
-    nodes
-      .map((n) => (n.isDir ? { ...n, children: sortNodes(n.children) } : n))
-      .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
-  return sortNodes(root);
-}
+import { SidebarPopoverMenu } from './sidebar/SidebarPopoverMenu';
+import { SidebarTreeNodes } from './sidebar/SidebarTreeNodes';
+import { buildFileTree, type TreeNode } from './sidebar/sidebarTreeUtils';
 
 interface SidebarProps {
   open: boolean;
@@ -324,134 +269,6 @@ export function Sidebar({
     setRenamingPath(null);
     if (!nextName) return;
     await onRenameArticle(oldRelativePath, nextName);
-  }
-
-  function renderTreeNodes(nodes: TreeNode[], depth = 0) {
-    return nodes.map((node) => {
-      if (node.isDir) {
-        const isOpen = expandedDirs[node.path] ?? true;
-        const isDragOver = dragOverFolder === node.path;
-        return (
-          <div key={node.path}>
-            <button
-              type="button"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('application/x-vcat-folder', node.path);
-              }}
-              onClick={() => setExpandedDirs((prev) => ({ ...prev, [node.path]: !isOpen }))}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragOverFolder(node.path);
-              }}
-              onDragLeave={() => setDragOverFolder((prev) => (prev === node.path ? null : prev))}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDragOverFolder(null);
-                const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
-                if (folderPath) {
-                  void onMoveFolder(folderPath, node.path);
-                  return;
-                }
-                const sourcePath = e.dataTransfer.getData('text/plain');
-                if (sourcePath) {
-                  void onMoveArticle(sourcePath, node.path).then(() => {
-                    setExpandedDirs((prev) => ({ ...prev, [node.path]: true }));
-                  });
-                }
-              }}
-              style={{ paddingLeft: `${8 + depth * 12}px` }}
-              className={`flex w-full items-center gap-1.5 rounded py-1 pr-2 text-left text-[12.5px] text-[var(--text-main)] ${
-                isDragOver ? 'bg-[var(--accent)]/15 ring-1 ring-[var(--accent)]' : 'hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              {isOpen ? (
-                <ChevronDown className="h-3 w-3 shrink-0 text-[var(--control-text-color)]" />
-              ) : (
-                <ChevronRight className="h-3 w-3 shrink-0 text-[var(--control-text-color)]" />
-              )}
-              <Folder className="h-3.5 w-3.5 shrink-0 text-[var(--control-text-color)]" />
-              <span className="truncate">{node.name}</span>
-            </button>
-            {isOpen && renderTreeNodes(node.children, depth + 1)}
-          </div>
-        );
-      }
-
-      const article = node.article;
-      const isMultiSelected = Boolean(
-        article && selectedPaths.length > 1 && selectedPaths.includes(article.relativePath)
-      );
-      const isSelected = isMultiSelected || activeArticle?.relativePath === article?.relativePath;
-      const isRenaming = renamingPath === article?.relativePath;
-      return (
-        <div
-          key={node.path}
-          onContextMenu={(e) => {
-            if (!article) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (!selectedPaths.includes(article.relativePath)) {
-              setSelectedPaths([article.relativePath]);
-              setLastClickedPath(article.relativePath);
-            }
-            setFileContextMenu({ x: e.clientX, y: e.clientY, article });
-          }}
-        >
-          {isRenaming && article ? (
-            <div style={{ paddingLeft: `${22 + depth * 12}px` }} className="pr-2 py-[2px]">
-              <input
-                type="text"
-                autoFocus
-                onFocus={(e) => {
-                  const dotIdx = e.currentTarget.value.lastIndexOf('.');
-                  if (dotIdx > 0) e.currentTarget.setSelectionRange(0, dotIdx);
-                  else e.currentTarget.select();
-                }}
-                value={renameDraft}
-                onChange={(e) => setRenameDraft(e.target.value)}
-                onBlur={() => void handleRenameSubmit(article.relativePath)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleRenameSubmit(article.relativePath);
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setRenamingPath(null);
-                  }
-                }}
-                className="w-full rounded border border-[var(--accent)] bg-[var(--bg-main)] px-1.5 py-0.5 text-[12.5px] text-[var(--text-main)] outline-none"
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              draggable={Boolean(article)}
-              onDragStart={(e) => {
-                if (article) e.dataTransfer.setData('text/plain', article.relativePath);
-              }}
-              onClick={(e) => {
-                if (article) handleArticleItemClick(e, article);
-              }}
-              onDoubleClick={() => {
-                if (article) handleRenameStart(article);
-              }}
-              style={{ paddingLeft: `${22 + depth * 12}px` }}
-              className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
-                isSelected
-                  ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
-                  : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />
-              <span className="truncate">{node.name}</span>
-            </button>
-          )}
-        </div>
-      );
-    });
   }
 
   return (
@@ -729,7 +546,36 @@ export function Sidebar({
                 );
               })
             ) : (
-              renderTreeNodes(fileTree)
+              <SidebarTreeNodes
+                nodes={fileTree}
+                expandedDirs={expandedDirs}
+                dragOverFolder={dragOverFolder}
+                selectedPaths={selectedPaths}
+                activeArticlePath={activeArticle?.relativePath ?? null}
+                renamingPath={renamingPath}
+                renameDraft={renameDraft}
+                onToggleDir={(dirPath) =>
+                  setExpandedDirs((prev) => ({ ...prev, [dirPath]: !(prev[dirPath] ?? true) }))
+                }
+                onExpandDir={(dirPath) =>
+                  setExpandedDirs((prev) => ({ ...prev, [dirPath]: true }))
+                }
+                onSetDragOverFolder={setDragOverFolder}
+                onMoveFolder={onMoveFolder}
+                onMoveArticle={onMoveArticle}
+                onArticleClick={handleArticleItemClick}
+                onRenameStart={handleRenameStart}
+                onRenameDraftChange={setRenameDraft}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameCancel={() => setRenamingPath(null)}
+                onOpenFileContextMenu={(x, y, art) => {
+                  if (!selectedPaths.includes(art.relativePath)) {
+                    setSelectedPaths([art.relativePath]);
+                    setLastClickedPath(art.relativePath);
+                  }
+                  setFileContextMenu({ x, y, article: art });
+                }}
+              />
             )
           ) : outlineNodes.length === 0 ? (
             <div className="px-3 py-4 text-xs text-[var(--control-text-color)]">暂无标题大纲</div>
@@ -762,149 +608,28 @@ export function Sidebar({
         {/* 底部工作区栏与可锁定操作面板 */}
         <div ref={sidebarPopoverRef} className="relative shrink-0">
           {sidebarMenuOpen && (
-            <div className="absolute bottom-8 left-2 right-2 z-40 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1.5 text-[12px] text-[var(--text-main)] shadow-xl backdrop-blur-md">
-              <div className="flex items-center justify-between px-3 pb-1 text-[11px] font-semibold text-[var(--control-text-color)]">
-                <span>操作</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSidebarMenuPinned(false);
-                    setSidebarMenuOpen(false);
-                  }}
-                  className="rounded p-0.5 hover:bg-[var(--bg-hover)]"
-                >
-                  ✕
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  startCreateItem('file');
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                新建文件
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  startCreateItem('folder');
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                新建文件夹
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  onChangeSideTab('files');
-                  setFileSearchOpen(true);
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                搜索（文件名 / 正文）
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  void window.electronAPI.showInFinder(activeArticle?.relativePath);
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                在 Finder 中显示
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  void onSelectWorkspace();
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                打开文件夹...
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                  void onRefreshWorkspace();
-                }}
-                className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
-              >
-                刷新
-              </button>
-
-              <div className="my-1 flex items-center justify-between border-t border-[var(--border-color)] px-3 pt-1 text-[11px] text-[var(--control-text-color)]">
-                <span>排序</span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setSortBy('name')}
-                    className={`rounded px-1.5 py-0.5 ${
-                      sortBy === 'name' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'hover:bg-[var(--bg-hover)]'
-                    }`}
-                  >
-                    A-Z
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortBy('time')}
-                    className={`rounded px-1.5 py-0.5 ${
-                      sortBy === 'time' ? 'bg-[var(--accent)]/15 text-[var(--accent)]' : 'hover:bg-[var(--bg-hover)]'
-                    }`}
-                  >
-                    最近
-                  </button>
-                </div>
-              </div>
-
-              {recentWorkspaces.length > 0 && (
-                <div className="border-t border-[var(--border-color)] pt-1">
-                  <div className="px-3 pb-0.5 text-[11px] font-semibold text-[var(--control-text-color)]">
-                    最近使用的目录
-                  </div>
-                  {recentWorkspaces.map((dir) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      onClick={() => {
-                        if (!sidebarMenuPinned) setSidebarMenuOpen(false);
-                        void onSwitchRecentWorkspace(dir);
-                      }}
-                      className="flex w-full items-center justify-between px-3 py-1 text-left hover:bg-[var(--bg-hover)]"
-                    >
-                      <span className="flex items-center gap-1.5 truncate">
-                        <Folder className="h-3 w-3 shrink-0 text-[var(--control-text-color)]" />
-                        <span className="truncate">{dir.split('/').pop() || dir}</span>
-                      </span>
-                      {dir === workspacePath && (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-1 flex items-center justify-end border-t border-[var(--border-color)] px-2.5 pt-1">
-                <button
-                  type="button"
-                  title={sidebarMenuPinned ? '取消锁定面板' : '锁定面板（不自动关闭）'}
-                  onClick={() => setSidebarMenuPinned((p) => !p)}
-                  className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
-                    sidebarMenuPinned
-                      ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
-                      : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
-                  }`}
-                >
-                  {sidebarMenuPinned ? <Pin className="h-3 w-3" /> : <PinOff className="h-3 w-3" />}
-                  <span>{sidebarMenuPinned ? '已锁定' : '锁定面板'}</span>
-                </button>
-              </div>
-            </div>
+            <SidebarPopoverMenu
+              pinned={sidebarMenuPinned}
+              sortBy={sortBy}
+              workspacePath={workspacePath}
+              recentWorkspaces={recentWorkspaces}
+              activeArticlePath={activeArticle?.relativePath ?? null}
+              onClose={() => {
+                setSidebarMenuPinned(false);
+                setSidebarMenuOpen(false);
+              }}
+              onTogglePinned={() => setSidebarMenuPinned((p) => !p)}
+              onCreateFile={() => startCreateItem('file')}
+              onCreateFolder={() => startCreateItem('folder')}
+              onOpenSearch={() => {
+                onChangeSideTab('files');
+                setFileSearchOpen(true);
+              }}
+              onSelectWorkspace={onSelectWorkspace}
+              onRefreshWorkspace={onRefreshWorkspace}
+              onSwitchRecentWorkspace={onSwitchRecentWorkspace}
+              onSortChange={setSortBy}
+            />
           )}
 
           <div className="flex h-[30px] shrink-0 items-center justify-between border-t border-[var(--border-color)] px-2 text-[11.5px] text-[var(--control-text-color)]">

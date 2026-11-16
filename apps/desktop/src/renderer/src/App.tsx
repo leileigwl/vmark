@@ -12,6 +12,7 @@ import type {
 import { ArticleManagerView } from './components/ArticleManagerView';
 import { FindReplaceBar } from './components/FindReplaceBar';
 import { PublishModal } from './components/PublishModal';
+import { QuickOpenModal } from './components/QuickOpenModal';
 import { SettingsView, type SettingCategory } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -83,6 +84,16 @@ export default function App() {
   const [gitStatus, setGitStatus] = useState<GitStatusInfo>({ isGitRepo: false, changedFiles: 0 });
   const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
+  const [quickOpenModalOpen, setQuickOpenModalOpen] = useState<boolean>(false);
+  const [recentArticlePaths, setRecentArticlePaths] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('vcat_recent_articles');
+      if (saved) return (JSON.parse(saved) as string[]).slice(0, 5);
+    } catch {
+      // ignore
+    }
+    return [];
+  });
 
   const [findBarOpen, setFindBarOpen] = useState<boolean>(false);
   const [findQuery, setFindQuery] = useState<string>('');
@@ -202,7 +213,22 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeArticle, markdown]);
+  }, [activeArticle, markdown, articles]);
+
+  useEffect(() => {
+    window.electronAPI.setRecentFiles?.(recentArticlePaths);
+  }, [recentArticlePaths]);
+
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setQuickOpenModalOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown, true);
+  }, []);
 
   useEffect(() => {
     if (!window.electronAPI?.onMenuAction) return;
@@ -213,8 +239,21 @@ export default function App() {
         const latest = editorRef.current?.getValue() ?? markdown;
         void handleSaveArticle(latest);
       } else if (action === 'file:quickOpen') {
-        setSidebarOpen(true);
-        setSideTab('files');
+        setQuickOpenModalOpen(true);
+      } else if (action === 'file:openRecent' && payload) {
+        const target = articles.find((a) => a.relativePath === payload);
+        if (target) {
+          void openArticle(target);
+          setActiveView('editor');
+        }
+      } else if (action === 'file:clearRecent') {
+        setRecentArticlePaths([]);
+        try {
+          localStorage.removeItem('vcat_recent_articles');
+        } catch {
+          // ignore
+        }
+        window.electronAPI.setRecentFiles?.([]);
       } else if (action === 'file:reveal') {
         void window.electronAPI.showInFinder(activeArticle?.relativePath);
       } else if (action === 'file:export') {
@@ -255,7 +294,22 @@ export default function App() {
         setIsFullscreen(false);
       }
     });
-  }, [activeArticle, markdown]);
+  }, [activeArticle, markdown, articles]);
+
+  useEffect(() => {
+    window.electronAPI.setRecentFiles?.(recentArticlePaths);
+  }, [recentArticlePaths]);
+
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setQuickOpenModalOpen((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onGlobalKeyDown, true);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown, true);
+  }, []);
 
   async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig) {
     if (activeArticle?.relativePath === meta.relativePath) {
@@ -280,6 +334,16 @@ export default function App() {
     const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
     setStartupConfig(nextStartup);
     void window.electronAPI.saveStartupConfig(nextStartup);
+    setRecentArticlePaths((prev) => {
+      const next = [meta.relativePath, ...prev.filter((p) => p !== meta.relativePath)].slice(0, 5);
+      try {
+        localStorage.setItem('vcat_recent_articles', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      window.electronAPI.setRecentFiles?.(next);
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -597,7 +661,7 @@ export default function App() {
             setArticles(list);
             setFolders(folderList);
             if (activeArticle?.relativePath.startsWith(`${oldFolder}/`)) {
-              const match = list.find((a) => a.relativePath === activeArticle.relativePath.replace(oldFolder, newRel));
+              const match = list.find((a: ArticleMeta) => a.relativePath === activeArticle.relativePath.replace(oldFolder, newRel));
               if (match) setActiveArticle(match);
             }
           } catch (err) {
@@ -651,6 +715,7 @@ export default function App() {
           liveWordCount={liveWordCount}
           saveState={saveState}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          onOpenQuickOpen={() => setQuickOpenModalOpen(true)}
           onSetActiveView={setActiveView}
           onOpenPublishModal={() => setPublishModalOpen(true)}
         />
@@ -885,6 +950,27 @@ export default function App() {
           </div>
         </div>
       )}
+      <QuickOpenModal
+        open={quickOpenModalOpen}
+        articles={articles}
+        recentArticlePaths={recentArticlePaths}
+        activeArticlePath={activeArticle?.relativePath ?? null}
+        onClose={() => setQuickOpenModalOpen(false)}
+        onSelectArticle={(art) => {
+          void openArticle(art);
+          setActiveView('editor');
+        }}
+        onSelectWorkspace={() => void handleSelectWorkspace()}
+        onClearRecent={() => {
+          setRecentArticlePaths([]);
+          try {
+            localStorage.removeItem('vcat_recent_articles');
+          } catch {
+            // ignore
+          }
+          window.electronAPI.setRecentFiles?.([]);
+        }}
+      />
     </div>
   );
 }

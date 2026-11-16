@@ -1,4 +1,4 @@
-import { PanelLeft, Send, Settings, Table2 } from 'lucide-react';
+import { Clock, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
 import type { ArticleMeta } from '@vcat/shared';
 
 interface TopBarProps {
@@ -9,6 +9,7 @@ interface TopBarProps {
   liveWordCount: number;
   saveState: string;
   onToggleSidebar: () => void;
+  onOpenQuickOpen: () => void;
   onSetActiveView: (view: 'editor' | 'manager' | 'settings') => void;
   onOpenPublishModal: () => void;
 }
@@ -22,6 +23,7 @@ export function TopBar({
   liveWordCount,
   saveState,
   onToggleSidebar,
+  onOpenQuickOpen,
   onSetActiveView,
   onOpenPublishModal,
 }: TopBarProps) {
@@ -42,6 +44,14 @@ export function TopBar({
           className="rounded p-1 text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
         >
           <PanelLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          title="打开最近的文件 / 快速打开 (⇧⌘O)"
+          onClick={onOpenQuickOpen}
+          className="rounded p-1 text-[var(--control-text-color)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-main)]"
+        >
+          <Clock className="h-3.5 w-3.5" />
         </button>
         {activeView !== 'editor' && (
           <button

@@ -132,8 +132,22 @@ function sendMenuAction(action: string, payload?: string): void {
   win?.webContents.send('menu:action', action, payload);
 }
 
-function buildApplicationMenu(): void {
+let currentRecentFiles: string[] = [];
+
+function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void {
+  currentRecentFiles = recentFiles.slice(0, 5);
   const isMac = process.platform === 'darwin';
+  const recentSubmenu: Electron.MenuItemConstructorOptions[] =
+    currentRecentFiles.length > 0
+      ? [
+          ...currentRecentFiles.map((relPath) => ({
+            label: relPath,
+            click: () => sendMenuAction('file:openRecent', relPath),
+          })),
+          { type: 'separator' as const },
+          { label: '清除最近记录', click: () => sendMenuAction('file:clearRecent') },
+        ]
+      : [{ label: '暂无最近文件', enabled: false }];
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
       ? [
@@ -162,6 +176,7 @@ function buildApplicationMenu(): void {
         { type: 'separator' },
         { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
         { label: '快速打开...', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendMenuAction('file:quickOpen') },
+        { label: '打开最近的文件', submenu: recentSubmenu },
         { type: 'separator' },
         { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', role: 'close' },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
@@ -317,6 +332,12 @@ function registerIpcHandlers(): void {
       shell.showItemInFolder(target);
     } else {
       await shell.openPath(cfg.workspacePath);
+    }
+  });
+
+  ipcMain.on('menu:setRecentFiles', (_event, paths: string[]) => {
+    if (Array.isArray(paths)) {
+      buildApplicationMenu(paths);
     }
   });
 

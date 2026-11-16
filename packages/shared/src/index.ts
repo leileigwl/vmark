@@ -191,4 +191,5 @@ export interface ElectronAPI {
   showEditorContextMenu: (options: ContextMenuOptions) => Promise<void>;
   importTyporaThemeCss: () => Promise<{ name: string; css: string } | null>;
   exportArticle: (options: ExportArticleOptions) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
+  setRecentFiles?: (paths: string[]) => void;
 }

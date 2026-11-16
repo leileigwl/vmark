@@ -74,6 +74,16 @@
 6. **macOS（带图标拖拽安装 DMG）+ Windows（NSIS 安装包）打包规划**：
    - **待你确认上述体验全部满意后再统一执行双端打包**（生成 `icon.icns` + DMG `Applications` 拖拽布局与 `icon.ico` + Windows NSIS）。
 
+### Round 28（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **「快速打开... (`Cmd+Shift+O`)」与「打开最近的文件（最多 5 篇）」**：
+   - 新增 [QuickOpenModal.tsx](file:///Users/leileigwl/Desktop/aa/vcat-publisher-desktop/apps/desktop/src/renderer/src/components/QuickOpenModal.tsx)，支持快捷键 `Cmd/Ctrl+Shift+O`、顶部栏时钟按钮与系统菜单「快速打开...」唤起，顶部展示最近打开的 5 篇文章。
+   - `main/index.ts` 动态同步「文件 → 打开最近的文件」子菜单（最多保留 5 篇 + 清除最近记录）。
+2. **LaTeX / Mermaid 双击防闪彻底根治**：
+   - `VditorEditor.tsx` 新增 `suppressPreviewClickUntil` 窗口期，解决 `mousedown (detail=2)` 隐藏预览层后紧随的 `click`/`dblclick` 落到源码层被 Vditor 再次重绘的问题。
+3. **组件与工程解耦 + IDE TS 报错修复**：
+   - `Sidebar.tsx` 拆出 `sidebar/sidebarTreeUtils.ts`、`sidebar/SidebarTreeNodes.tsx`、`sidebar/SidebarPopoverMenu.tsx`；`VditorEditor.tsx` 拆出 `editor/vditorDomEnhancer.ts`、`editor/languageHint.ts`。
+   - 新增 `apps/desktop/tsconfig.json` 并显式标注回调类型，消除 IDE 中 `Window.electronAPI` 与隐式 `any` 报错。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）

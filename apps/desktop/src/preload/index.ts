@@ -56,6 +56,8 @@ const api: ElectronAPI = {
   importTyporaThemeCss: () => ipcRenderer.invoke('theme:importTyporaCss'),
   exportArticle: (options: ExportArticleOptions) =>
     ipcRenderer.invoke('file:export', options),
+  setRecentFiles: (paths: string[]) =>
+    ipcRenderer.send('menu:setRecentFiles', paths),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
