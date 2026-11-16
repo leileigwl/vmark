@@ -89,36 +89,40 @@
 
 [data-theme^='bloom-']:not([data-theme*='-dark']) {
   --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 70%, var(--bg-main));
-  --bg-hover: color-mix(in srgb, var(--text-main) 7%, transparent);
+  --bg-hover: color-mix(in srgb, var(--text-main) 9%, transparent);
 }
 [data-theme*='-dark'] {
-  --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 75%, #ffffff 5%);
-  --bg-hover: rgba(255, 255, 255, 0.08);
-}
-[data-theme*='-dark'] .vditor-reset pre > code,
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre {
-  background-color: #1f242c !important;
-  border-color: rgba(255,255,255,0.12) !important;
-  color: #e6edf3 !important;
-}
-[data-theme*='-dark'] .vditor-reset table tr:nth-child(2n),
-[data-theme*='-dark'] .vditor-reset table thead {
-  background-color: rgba(255,255,255,0.04) !important;
-}
-[data-theme*='-dark'] .vditor-reset table th,
-[data-theme*='-dark'] .vditor-reset table td,
-[data-theme*='-dark'] .vditor-reset table tr {
-  border-color: rgba(255,255,255,0.12) !important;
+  color-scheme: dark;
+  --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 75%, #ffffff 6%);
+  --bg-hover: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme='typora-white'] {
   --side-bar-bg-color: #fafafa;
   --control-text-color: #777777;
   --bg-main: #ffffff;
+  --bg-elevated: #f8f9fa;
+  --bg-hover: #eaecef;
   --text-main: #333333;
   --accent: #4183c4;
   --border-color: #e5e7eb;
   --font-editorial: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
+}
+
+/* Custom sleek scrollbars so dark themes never show a bright white scrollbar track */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--control-text-color) 28%, transparent);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--control-text-color) 48%, transparent);
 }
 
 body {
@@ -212,13 +216,13 @@ body {
 .vditor-reset h1 {
   font-size: 2.25em !important;
   line-height: 1.2 !important;
-  border-bottom: 1px solid #eeeeee !important;
+  border-bottom: 1px solid var(--border-color) !important;
   padding-bottom: 0.3em !important;
 }
 .vditor-reset h2 {
   font-size: 1.75em !important;
   line-height: 1.225 !important;
-  border-bottom: 1px solid #eeeeee !important;
+  border-bottom: 1px solid var(--border-color) !important;
   padding-bottom: 0.3em !important;
 }
 .vditor-reset h3 {
@@ -247,17 +251,17 @@ body {
   padding: 0 !important;
 }
 .vditor-reset a {
-  color: #4183c4 !important;
+  color: var(--accent) !important;
 }
 .vditor-reset blockquote {
-  border-left: 4px solid #dfe2e5 !important;
-  padding: 0 15px !important;
-  color: #777777 !important;
+  border-left: 4px solid var(--accent) !important;
+  padding: 2px 15px !important;
+  color: var(--control-text-color) !important;
   background: transparent !important;
 }
-.vditor-reset code:not(.hljs) {
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent) !important;
-  background-color: color-mix(in srgb, var(--accent) 8%, transparent) !important;
+.vditor-reset code:not(.hljs):not([class*='language-']) {
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;
   color: var(--accent) !important;
   border-radius: 5px !important;
   padding: 1px 6px !important;
@@ -267,15 +271,34 @@ body {
 .vditor-reset ul > li::marker {
   color: var(--accent) !important;
 }
-/* macOS 3-dot windowed code block styling (single clean card, language tag top-right) */
+
+/* macOS 3-dot windowed code block styling (single clean card in both preview and in-place edit) */
 .vditor-ir__node[data-type="code-block"] {
   position: relative !important;
+  display: block !important;
   margin: 1.1em 0 !important;
   background: transparent !important;
   border: none !important;
 }
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--bracket {
   display: none !important;
+}
+/* Remove Vditor's trailing ``` pseudo-element when expanded */
+.vditor-ir__node--expand[data-type="code-block"]::after {
+  content: none !important;
+  display: none !important;
+}
+/* Keep hidden pre marker completely zero-sized when not expanded so it never renders an empty box */
+.vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__marker--pre {
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  pointer-events: none !important;
 }
 /* Single in-place edit for both regular code blocks and double-clicked Mermaid blocks */
 .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > .vditor-ir__preview {
@@ -295,8 +318,12 @@ body {
   z-index: 4 !important;
   pointer-events: none !important;
 }
-/* Language label cleanly aligned at top-right */
+/* Language label cleanly aligned at top-right in both preview and edit states */
 .vditor-ir__node[data-type="code-block"] .vditor-ir__marker--info {
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
   position: absolute !important;
   top: 9px !important;
   right: 16px !important;
@@ -308,9 +335,13 @@ body {
   border: none !important;
   z-index: 4 !important;
 }
-.vditor-reset pre > code,
-.vditor-ir__node[data-type="code-block"] pre,
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre {
+.vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
   border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border-color)) !important;
   background-color: color-mix(in srgb, var(--accent) 4%, var(--bg-elevated)) !important;
   color: var(--text-main) !important;
@@ -322,27 +353,70 @@ body {
   line-height: 1.55 !important;
   box-shadow: none !important;
 }
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre > pre {
+.vditor-ir__node[data-type="code-block"] pre > code {
+  display: block !important;
   border: none !important;
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
-}
-.vditor-ir__node[data-type="code-block"] pre > code {
-  border: none !important;
-  background: transparent !important;
-  padding: 0 !important;
   color: var(--text-main) !important;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 13.5px !important;
+  line-height: 1.55 !important;
 }
-[data-theme*='-dark'] .vditor-reset pre > code,
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre,
-[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre {
-  background-color: #1f242c !important;
+
+/* Dark theme high-contrast overrides for code blocks, syntax tokens, and Mermaid */
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand) > pre.vditor-ir__preview,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > pre.vditor-ir__marker--pre {
+  background-color: #1b2028 !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
   color: #e6edf3 !important;
 }
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre > code {
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-comment,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-quote {
+  color: #9198a1 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-keyword,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-selector-tag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-type {
+  color: #ff7b72 !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-string,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-doctag,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-regexp {
+  color: #a5d6ff !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-title,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-section,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-built_in {
+  color: #d2a8ff !important;
+}
+[data-theme*='-dark'] .vditor-reset pre code .hljs-number,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-literal,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-variable,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-template-variable,
+[data-theme*='-dark'] .vditor-reset pre code .hljs-attr {
+  color: #79c0ff !important;
+}
+[data-theme*='-dark'] .vditor-reset .language-mermaid {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #1d1d1f !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
 .vditor-reset .language-mermaid {
-  cursor: text !important;
+  cursor: pointer !important;
+  border-radius: 8px;
+  padding: 6px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.vditor-reset .language-mermaid:hover {
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .vditor-reset img {
   display: block;
@@ -376,17 +450,21 @@ body {
   table-layout: auto !important;
   overflow: visible !important;
   border-collapse: collapse !important;
+  color: var(--text-main) !important;
 }
 .vditor-reset table tr {
-  border: 1px solid #dfe2e5 !important;
+  background-color: var(--bg-main) !important;
+  border: 1px solid var(--border-color) !important;
 }
 .vditor-reset table tr:nth-child(2n),
-.vditor-reset table thead {
-  background-color: #f8f8f8 !important;
+.vditor-reset table thead,
+.vditor-reset table thead tr {
+  background-color: color-mix(in srgb, var(--text-main) 5%, var(--bg-main)) !important;
 }
 .vditor-reset table th,
 .vditor-reset table td {
-  border: 1px solid #dfe2e5 !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
   padding: 6px 13px !important;
   white-space: normal !important;
   word-break: break-word !important;
@@ -394,6 +472,6 @@ body {
 .vditor-reset hr {
   height: 2px !important;
   margin: 16px 0 !important;
-  background-color: #e7e7e7 !important;
+  background-color: var(--border-color) !important;
   border: 0 !important;
 }

@@ -514,21 +514,30 @@
           },
           {
             id: "C4",
-            title: "C4. 普通代码块点击后原位单框卡片编辑（修复红黄绿三点与代码重叠）",
+            title: "C4. 代码块/Mermaid 原位单框 macOS 卡片编辑（消除左侧窄蓝条与尾部 ```）",
             status: "done",
             statusText: "本轮已改待打勾",
-            img: "media_1794831378268_bf63e65e.png",
-            desc: "修复 .vditor-ir__marker--pre 展开态丢失圆角边框与顶部 38px 留白导致红黄绿三点遮挡代码第 2 行的问题，保持单一 macOS 卡片原位编辑，无多余嵌套蓝框。",
-            plan: "请在文章中点击 Python 代码块，确认只保留原位单一 macOS 卡片编辑框且红黄绿三点不遮挡代码。"
+            img: "media_1794840051189_741ba058.png",
+            desc: "修复 Vditor 默认 .vditor-ir__node--expand .vditor-ir__marker { display: inline } 导致 pre.vditor-ir__marker--pre 被拆成左侧两段竖直窄蓝条（[）及尾部多余 ``` 的问题；非展开态完全隐藏 pre.vditor-ir__marker--pre，展开态保持 display: block 100% 宽度单一 macOS 卡片。",
+            plan: "请单击 Python 代码块或双击 Mermaid 图表，确认编辑框为完整圆角 macOS 卡片，左侧无竖条、底部无多余 ```。"
           },
           {
             id: "C5",
-            title: "C5. Mermaid 单击激活滚轮缩放（不跳源码），快速双击原位改代码",
+            title: "C5. Mermaid 悬停轻高亮 + 单击滚轮缩放（不跳源码）+ 快速双击原位改代码",
             status: "done",
             statusText: "本轮已改待打勾",
-            img: "media_1794831351615_e42da0b4.jpg",
-            desc: "已在 capture 阶段拦截单击 mousedown/click：单击 Mermaid 仅选中并支持滚轮缩放（50%–150%，与图片一致），不跳源码；快速双击才原位展开 macOS 代码卡片编辑。",
-            plan: "请单击 Mermaid 测试滚轮放大/缩小（不跳源码），再快速双击测试原位代码编辑。"
+            img: "media_1794840041808_270d89d6.png",
+            desc: "Mermaid 流程图支持鼠标悬停柔和边框高亮；单击仅选中并支持滚轮缩放（50%–150%），快速双击原位展开完整 macOS 代码卡片修改。",
+            plan: "请将鼠标移至 Mermaid 决策树/流程图查看悬停高亮，单击测试滚轮缩放，快速双击测试原位改代码。"
+          },
+          {
+            id: "C12",
+            title: "C12. 大纲悬停高亮与点击跳转 & 暗色主题滚动条/表格/代码看清 & 表格连续 Ctrl+B",
+            status: "done",
+            statusText: "本轮已改待打勾",
+            img: "media_1794839854299_05a93399.jpg",
+            desc: "1) 大纲项增加悬停主题色高亮与选中态，点击时剥离 Vditor 隐藏 # 标记精准跳转并闪烁提示；2) 暗色模式定制透明轨道细滚动条，修复表格白色背景反差与代码暗色高亮；3) 表格与正文内重构 Lute IR 节点级 Ctrl+B/Ctrl+I 包装与解包并保持选区，支持连续无限次切换。",
+            plan: "请在大纲点击「2.8 选型决策树」验证跳转，切换 Bloom Lapis Dark 查看左侧滚动条与表格/代码清晰度，并在表格内连续按 Ctrl+B 测试。"
           },
           {
             id: "C6",

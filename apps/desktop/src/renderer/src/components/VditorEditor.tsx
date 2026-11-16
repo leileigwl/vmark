@@ -71,61 +71,121 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       if (!instance || !el || !isReadyRef.current) return;
 
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-      const selectedText = sel.toString();
-      if (!selectedText.trim()) return;
+      if (!sel || sel.rangeCount === 0) return;
 
-      const markerMap = {
-        bold: { tag: 'STRONG', altTag: 'B', marker: '**' },
-        italic: { tag: 'EM', altTag: 'I', marker: '*' },
-        strike: { tag: 'DEL', altTag: 'S', marker: '~~' },
-        'inline-code': { tag: 'CODE', altTag: 'CODE', marker: '`' },
+      const spec = {
+        bold: {
+          dataType: 'strong',
+          tag: 'strong',
+          altTag: 'b',
+          marker: '**',
+          markerClass: 'vditor-ir__marker vditor-ir__marker--bi',
+        },
+        italic: {
+          dataType: 'em',
+          tag: 'em',
+          altTag: 'i',
+          marker: '*',
+          markerClass: 'vditor-ir__marker vditor-ir__marker--bi',
+        },
+        strike: {
+          dataType: 's',
+          tag: 's',
+          altTag: 'del',
+          marker: '~~',
+          markerClass: 'vditor-ir__marker',
+        },
+        'inline-code': {
+          dataType: 'code',
+          tag: 'code',
+          altTag: 'code',
+          marker: '`',
+          markerClass: 'vditor-ir__marker',
+        },
       }[cmd];
 
-      const selector = `${markerMap.tag.toLowerCase()}, ${markerMap.altTag.toLowerCase()}, span[data-type="${cmd}"]`;
+      const selector = `span.vditor-ir__node[data-type="${spec.dataType}"], ${spec.tag}, ${spec.altTag}`;
+      const range = sel.getRangeAt(0);
       const anchorEl =
         sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
       const focusEl =
         sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode?.parentElement;
-      const commonNode = sel.getRangeAt(0).commonAncestorContainer;
-      const commonEl = commonNode instanceof Element ? commonNode : commonNode.parentElement;
+      const commonEl =
+        range.commonAncestorContainer instanceof Element
+          ? range.commonAncestorContainer
+          : range.commonAncestorContainer.parentElement;
 
-      const existingNode =
+      const matchedEl =
         anchorEl?.closest(selector) ||
         focusEl?.closest(selector) ||
-        commonEl?.closest(selector);
+        commonEl?.closest(selector) ||
+        (range.commonAncestorContainer instanceof Element
+          ? range.commonAncestorContainer.querySelector(selector)
+          : null);
 
-      if (existingNode && el.contains(existingNode)) {
-        const plainText = (existingNode.textContent || '')
+      if (matchedEl && el.contains(matchedEl) && !matchedEl.closest('pre')) {
+        const wrapperNode =
+          matchedEl.closest(`span.vditor-ir__node[data-type="${spec.dataType}"]`) ?? matchedEl;
+        const innerTag = wrapperNode.querySelector(`${spec.tag}, ${spec.altTag}`);
+        const rawText = innerTag ? innerTag.textContent || '' : wrapperNode.textContent || '';
+        const cleanText = rawText
           .replace(/^\*\*|\*\*$/g, '')
           .replace(/^\*|\*$/g, '')
           .replace(/^~~|~~$/g, '')
           .replace(/^`|`$/g, '');
-        const range = document.createRange();
-        range.selectNode(existingNode);
+        const textNode = document.createTextNode(cleanText);
+        wrapperNode.replaceWith(textNode);
+
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(textNode);
         sel.removeAllRanges();
-        sel.addRange(range);
-        document.execCommand('insertText', false, plainText);
+        sel.addRange(nextRange);
+        onChangeRef.current(instance.getValue());
         return;
       }
 
-      // Inside table cells (<th>/<td>), use native bold/italic so Vditor doesn't leave literal **...**
-      const inTableCell = Boolean(anchorEl?.closest('td, th'));
-      if (inTableCell && (cmd === 'bold' || cmd === 'italic')) {
-        document.execCommand(cmd);
-        return;
-      }
+      if (sel.isCollapsed) return;
+      const selectedText = sel.toString();
+      if (!selectedText.trim()) return;
 
-      // Preserve leading/trailing spaces outside markers so "*3 *" never breaks CommonMark italic/bold
       const leading = selectedText.match(/^\s*/)?.[0] ?? '';
       const trailing = selectedText.match(/\s*$/)?.[0] ?? '';
-      const core = selectedText.trim();
+      const core = selectedText
+        .trim()
+        .replace(/^\*\*|\*\*$/g, '')
+        .replace(/^\*|\*$/g, '');
       if (!core) return;
-      document.execCommand(
-        'insertText',
-        false,
-        `${leading}${markerMap.marker}${core}${markerMap.marker}${trailing}`
-      );
+
+      const irSpan = document.createElement('span');
+      irSpan.setAttribute('data-type', spec.dataType);
+      irSpan.className = 'vditor-ir__node';
+
+      const openMarker = document.createElement('span');
+      openMarker.className = spec.markerClass;
+      openMarker.textContent = spec.marker;
+
+      const contentEl = document.createElement(spec.tag);
+      contentEl.setAttribute('data-newline', '1');
+      contentEl.textContent = core;
+
+      const closeMarker = document.createElement('span');
+      closeMarker.className = spec.markerClass;
+      closeMarker.textContent = spec.marker;
+
+      irSpan.append(openMarker, contentEl, closeMarker);
+
+      range.deleteContents();
+      const frag = document.createDocumentFragment();
+      if (leading) frag.appendChild(document.createTextNode(leading));
+      frag.appendChild(irSpan);
+      if (trailing) frag.appendChild(document.createTextNode(trailing));
+      range.insertNode(frag);
+
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(contentEl);
+      sel.removeAllRanges();
+      sel.addRange(nextRange);
+      onChangeRef.current(instance.getValue());
     };
 
     useImperativeHandle(ref, () => ({

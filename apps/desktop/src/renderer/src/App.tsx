@@ -441,11 +441,32 @@ export default function App() {
           }
         }}
         onRefreshWorkspace={refreshWorkspace}
-        onJumpOutline={(headingText) => {
+        onJumpOutline={(headingText, idx) => {
           setActiveView('editor');
-          const headings = document.querySelectorAll('.vditor-ir h1, .vditor-ir h2, .vditor-ir h3, .vditor-ir h4');
-          const target = Array.from(headings).find((h) => h.textContent?.trim() === headingText);
-          target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const normalizeHeading = (s: string) =>
+            s
+              .replace(/^[\u200b\s]*#{1,6}\s*/, '')
+              .replace(/[`*_~]/g, '')
+              .trim();
+          const want = normalizeHeading(headingText);
+          const headings = Array.from(
+            document.querySelectorAll(
+              '.vditor-ir h1, .vditor-ir h2, .vditor-ir h3, .vditor-ir h4, .vditor-ir h5, .vditor-ir h6'
+            )
+          ) as HTMLElement[];
+          const target =
+            headings.find((h) => normalizeHeading(h.textContent || '') === want) ??
+            headings.find((h) => normalizeHeading(h.textContent || '').includes(want)) ??
+            headings[idx];
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            target.style.transition = 'background-color 0.35s ease';
+            target.style.backgroundColor = 'color-mix(in srgb, var(--accent) 16%, transparent)';
+            target.style.borderRadius = '6px';
+            setTimeout(() => {
+              target.style.backgroundColor = '';
+            }, 900);
+          }
         }}
       />
 

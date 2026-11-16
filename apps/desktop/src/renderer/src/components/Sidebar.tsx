@@ -92,7 +92,7 @@ interface SidebarProps {
   onSelectWorkspace: () => Promise<void>;
   onSwitchRecentWorkspace: (dir: string) => Promise<void>;
   onRefreshWorkspace: () => Promise<void>;
-  onJumpOutline: (headingText: string) => void;
+  onJumpOutline: (headingText: string, index: number) => void;
 }
 
 /** Left macOS full-height sidebar with File Tree, Outline, Content Search, Drag-Move & Popover Menu. */
@@ -139,6 +139,7 @@ export function Sidebar({
     draft: string;
   } | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [activeOutlineIdx, setActiveOutlineIdx] = useState<number | null>(null);
   const [fileContextMenu, setFileContextMenu] = useState<{
     x: number;
     y: number;
@@ -608,17 +609,28 @@ export function Sidebar({
           ) : outlineNodes.length === 0 ? (
             <div className="px-3 py-4 text-xs text-[var(--control-text-color)]">暂无标题大纲</div>
           ) : (
-            outlineNodes.map((node, idx) => (
-              <button
-                type="button"
-                key={`${node.line}-${idx}`}
-                onClick={() => onJumpOutline(node.text)}
-                style={{ paddingLeft: `${8 + (node.level - 1) * 12}px` }}
-                className="block w-full truncate rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
-              >
-                {node.text}
-              </button>
-            ))
+            outlineNodes.map((node, idx) => {
+              const isActive = activeOutlineIdx === idx;
+              return (
+                <button
+                  type="button"
+                  key={`${node.line}-${idx}`}
+                  title={node.text}
+                  onClick={() => {
+                    setActiveOutlineIdx(idx);
+                    onJumpOutline(node.text, idx);
+                  }}
+                  style={{ paddingLeft: `${8 + (node.level - 1) * 12}px` }}
+                  className={`block w-full cursor-pointer truncate rounded-md py-1 pr-2 text-left text-[12.5px] leading-5 transition-colors duration-100 ${
+                    isActive
+                      ? 'bg-[var(--accent)]/16 font-medium text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--accent)]/12 hover:text-[var(--accent)]'
+                  }`}
+                >
+                  {node.text}
+                </button>
+              );
+            })
           )}
         </div>
 
