@@ -1297,6 +1297,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
         });
         if (changed) {
+          renderLatexBlocks();
+          rerenderBrokenMermaid();
           requestAnimationFrame(() => {
             renderLatexBlocks();
             rerenderBrokenMermaid();
@@ -1308,10 +1310,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         target: HTMLElement | null
       ): { kind: 'mermaid' | 'math'; previewPre: HTMLElement; irNode: HTMLElement } | null => {
         if (!target || target.closest('.vditor-copy')) return null;
-        const previewPre = target.closest('pre.vditor-ir__preview') as HTMLElement | null;
-        if (!previewPre) return null;
-        const irNode = previewPre.closest('.vditor-ir__node') as HTMLElement | null;
+        const irNode = target.closest('.vditor-ir__node') as HTMLElement | null;
         if (!irNode || irNode.classList.contains('vditor-ir__node--expand')) return null;
+        const previewPre =
+          (target.closest('pre.vditor-ir__preview') as HTMLElement | null) ??
+          (irNode.querySelector('pre.vditor-ir__preview') as HTMLElement | null);
+        if (!previewPre) return null;
         const nodeType = irNode.getAttribute('data-type');
         if (nodeType === 'math-block') {
           return { kind: 'math', previewPre, irNode };
@@ -1328,7 +1332,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         return null;
       };
 
+      let handledGapClick = false;
+
       const handleMouseDownCapture = (e: MouseEvent) => {
+        handledGapClick = false;
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
 
@@ -1402,6 +1409,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             clearActiveZoomTarget();
             setLightboxItem(null);
             previewTarget.irNode.classList.add('vditor-ir__node--expand');
+            (el.querySelector('.vditor-ir .vditor-reset') as HTMLElement | null)?.focus({ preventScroll: true });
             const editEl =
               (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null) ??
               (previewTarget.irNode.querySelector('pre.vditor-ir__marker--pre') as HTMLElement | null);
@@ -1438,6 +1446,61 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
 
+        // Clicking a vertical gap between blocks or blank space below/above blocks inserts/focuses an editable paragraph
+        // Measure child rects BEFORE collapsing any expanded code blocks so click Y matches what the user saw
+        if (target && target.classList.contains('vditor-reset')) {
+          const children = Array.from(target.children) as HTMLElement[];
+          const hitInsideChild = children.some((c) => {
+            const r = c.getBoundingClientRect();
+            return e.clientY >= r.top && e.clientY <= r.bottom;
+          });
+          if (!hitInsideChild) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            handledGapClick = true;
+            clearActiveZoomTarget();
+            const nextChild = children.find((c) => c.getBoundingClientRect().top > e.clientY) ?? null;
+            const prevChild = nextChild ? (nextChild.previousElementSibling as HTMLElement | null) : children[children.length - 1] ?? null;
+            collapseExpandedCodeBlocks(null);
+            const isEmptyPara = (node: HTMLElement | null) =>
+              Boolean(node && node.tagName === 'P' && (node.textContent || '').replace(/\u200b/g, '').trim() === '');
+
+            let targetPara: HTMLElement | null = null;
+            if (isEmptyPara(prevChild)) {
+              targetPara = prevChild;
+            } else if (isEmptyPara(nextChild)) {
+              targetPara = nextChild;
+            } else {
+              targetPara = document.createElement('p');
+              targetPara.setAttribute('data-block', '0');
+              targetPara.textContent = '\u200b';
+              if (nextChild) {
+                target.insertBefore(targetPara, nextChild);
+              } else {
+                target.appendChild(targetPara);
+              }
+            }
+
+            target.focus({ preventScroll: true });
+            if (targetPara) {
+              if (!targetPara.firstChild) {
+                targetPara.textContent = '\u200b';
+              }
+              const sel = window.getSelection();
+              if (sel) {
+                const range = document.createRange();
+                range.selectNodeContents(targetPara);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            }
+            onChangeRef.current(instance.getValue());
+            return;
+          }
+        }
+
         collapseExpandedCodeBlocks(codeBlockNode ?? target?.closest('.vditor-ir__node[data-type="math-block"]'));
 
         if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
@@ -1465,6 +1528,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (e.button !== 0) return;
         const target = e.target as HTMLElement | null;
         if (target?.closest('.vditor-hint button')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return;
+        }
+        if (handledGapClick) {
+          handledGapClick = false;
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();

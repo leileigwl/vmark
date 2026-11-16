@@ -22,13 +22,19 @@
   width: 100% !important;
   min-width: 0 !important;
 }
+@font-face {
+  font-family: "VCatEmoji";
+  src: local("Apple Color Emoji"), local("Segoe UI Emoji"), local("Noto Color Emoji");
+  unicode-range: U+2139, U+23F0-23FF, U+2600-27BF, U+1F300-1FAFF;
+}
+
 /* Full-width scroll container: right margin & scrollbar keep default arrow cursor, content blocks use text cursor */
 .vditor-ir pre.vditor-reset {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
   padding: 32px max(48px, calc((100% - 1100px) / 2)) 110px !important;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Apple Color Emoji", var(--font-editorial), sans-serif !important;
+  font-family: "VCatEmoji", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Apple Color Emoji", var(--font-editorial), sans-serif !important;
   font-size: 16px;
   line-height: 1.78 !important;
   letter-spacing: 0.012em;
@@ -348,6 +354,7 @@
   position: relative !important;
   width: 100% !important;
   height: auto !important;
+  min-height: 78px !important;
   overflow-x: auto !important;
   overflow-y: hidden !important;
   box-sizing: border-box !important;
