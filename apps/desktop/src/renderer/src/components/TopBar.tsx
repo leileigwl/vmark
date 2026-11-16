@@ -4,6 +4,7 @@ import type { ArticleMeta } from '@vcat/shared';
 interface TopBarProps {
   activeView: 'editor' | 'manager' | 'settings';
   sidebarOpen: boolean;
+  isFullscreen: boolean;
   activeArticle: ArticleMeta | null;
   liveWordCount: number;
   saveState: string;
@@ -16,6 +17,7 @@ interface TopBarProps {
 export function TopBar({
   activeView,
   sidebarOpen,
+  isFullscreen,
   activeArticle,
   liveWordCount,
   saveState,
@@ -23,11 +25,14 @@ export function TopBar({
   onSetActiveView,
   onOpenPublishModal,
 }: TopBarProps) {
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
+  const reserveTrafficLights = !sidebarOpen && isMac && !isFullscreen;
+
   return (
     <header
       className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-[var(--bg-main)] pr-5 select-none ${
         activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[var(--border-color)]'
-      } ${sidebarOpen ? 'pl-3' : 'pl-20'}`}
+      } ${reserveTrafficLights ? 'pl-[76px]' : 'pl-3'}`}
     >
       <div className="app-no-drag flex items-center gap-2">
         <button

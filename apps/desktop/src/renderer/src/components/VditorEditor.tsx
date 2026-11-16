@@ -665,6 +665,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
         const codeBlocks = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
         codeBlocks.forEach((codeBlock) => {
+          if (codeBlock.classList.contains('vditor-ir__node--expand')) return;
           const lang = getCodeBlockLang(codeBlock);
           if (lang !== 'latex' && lang !== 'tex' && lang !== 'math') return;
           const editCode = codeBlock.querySelector('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code');
@@ -707,6 +708,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         );
         standaloneMath.forEach((codeEl) => {
           if (codeEl.closest('.vditor-ir__node[data-type="code-block"]')) return;
+          if (codeEl.closest('.vditor-ir__node--expand')) return;
           const previewPre = codeEl.closest('pre.vditor-ir__preview') as HTMLElement | null;
           if (!previewPre) return;
           if (!codeEl.classList.contains('language-math')) {
@@ -1329,6 +1331,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         expanded.forEach((node) => {
           if (node !== exceptBlock) {
             node.classList.remove('vditor-ir__node--expand');
+            const previewPre = node.querySelector('pre.vditor-ir__preview') as HTMLElement | null;
+            if (previewPre) previewPre.style.display = '';
             changed = true;
           }
         });
@@ -1366,6 +1370,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
         }
         return null;
+      };
+
+      const cleanupUnusedTempGapParagraphs = (activeNode?: Node | null) => {
+        const tempParas = el.querySelectorAll('p[data-vcat-temp-gap="1"]');
+        tempParas.forEach((p) => {
+          const text = (p.textContent || '').replace(/\u200b/g, '').trim();
+          const hasMedia = Boolean(p.querySelector('img, svg, code, strong, em'));
+          if (text || hasMedia) {
+            p.removeAttribute('data-vcat-temp-gap');
+            return;
+          }
+          if (!activeNode || !p.contains(activeNode)) {
+            p.remove();
+          }
+        });
       };
 
       let handledGapClick = false;
@@ -1434,6 +1453,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
+          cleanupUnusedTempGapParagraphs(target);
           if (mermaidClickTimerRef.current) {
             clearTimeout(mermaidClickTimerRef.current);
             mermaidClickTimerRef.current = null;
@@ -1444,6 +1464,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           if (e.detail >= 2) {
             clearActiveZoomTarget();
             setLightboxItem(null);
+            previewTarget.previewPre.style.display = 'none';
             previewTarget.irNode.classList.add('vditor-ir__node--expand');
             (el.querySelector('.vditor-ir .vditor-reset') as HTMLElement | null)?.focus({ preventScroll: true });
             const editEl =
@@ -1510,6 +1531,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             } else {
               targetPara = document.createElement('p');
               targetPara.setAttribute('data-block', '0');
+              targetPara.setAttribute('data-vcat-temp-gap', '1');
               targetPara.textContent = '\u200b';
               if (nextChild) {
                 target.insertBefore(targetPara, nextChild);
@@ -1518,6 +1540,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
               }
             }
 
+            cleanupUnusedTempGapParagraphs(targetPara);
             target.focus({ preventScroll: true });
             if (targetPara) {
               if (!targetPara.firstChild) {
@@ -1532,11 +1555,11 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
                 sel.addRange(range);
               }
             }
-            onChangeRef.current(instance.getValue());
             return;
           }
         }
 
+        cleanupUnusedTempGapParagraphs(target);
         collapseExpandedCodeBlocks(codeBlockNode ?? target?.closest('.vditor-ir__node[data-type="math-block"]'));
 
         if (activeZoomImgRef.current && activeZoomImgRef.current !== imgEl) {
@@ -1647,9 +1670,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
+      const handleDblClickCapture = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
+        if (getPreviewBlockTarget(target)) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      };
+
       const handleSelectionChange = () => {
         const sel = window.getSelection();
         if (!sel || !sel.anchorNode || !el.contains(sel.anchorNode)) return;
+        cleanupUnusedTempGapParagraphs(sel.anchorNode);
         const anchorEl =
           sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode.parentElement;
         const curInfo = anchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null;
@@ -1677,6 +1710,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('paste', handlePasteCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
+      el.addEventListener('dblclick', handleDblClickCapture, true);
       el.addEventListener('click', handleClickCapture, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
@@ -1688,6 +1722,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('paste', handlePasteCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
+        el.removeEventListener('dblclick', handleDblClickCapture, true);
         el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();

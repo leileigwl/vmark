@@ -107,6 +107,14 @@ function createWindow(): void {
     mainWindow.show();
   });
 
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('menu:action', 'window:fullscreen');
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow.webContents.send('menu:action', 'window:unfullscreen');
+  });
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return { action: 'deny' };

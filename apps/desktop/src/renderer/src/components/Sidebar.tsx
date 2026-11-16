@@ -457,6 +457,30 @@ export function Sidebar({
   return (
     <>
       <aside
+        onKeyDown={(e) => {
+          const target = e.target as HTMLElement | null;
+          if (target?.closest('input, textarea')) return;
+          if (sideTab !== 'files' || renamingPath || creatingItem) return;
+          if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+            if (e.repeat) {
+              e.preventDefault();
+              return;
+            }
+            const k = e.key.toLowerCase();
+            if (k === 'z' && !e.shiftKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              void onUndoFileOp?.();
+              return;
+            }
+            if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
+              e.preventDefault();
+              e.stopPropagation();
+              void onRedoFileOp?.();
+              return;
+            }
+          }
+        }}
         style={{
           width: open ? `${width}px` : '0px',
           opacity: open ? 1 : 0,
@@ -531,21 +555,6 @@ export function Sidebar({
           tabIndex={0}
           onKeyDown={(e) => {
             if (sideTab !== 'files' || renamingPath || creatingItem) return;
-            if ((e.metaKey || e.ctrlKey) && !e.altKey) {
-              const k = e.key.toLowerCase();
-              if (k === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                void onUndoFileOp?.();
-                return;
-              }
-              if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
-                e.preventDefault();
-                e.stopPropagation();
-                void onRedoFileOp?.();
-                return;
-              }
-            }
             if (filteredArticles.length === 0) return;
             const idx = filteredArticles.findIndex((a) => a.relativePath === activeArticle?.relativePath);
             if (e.key === 'ArrowDown') {

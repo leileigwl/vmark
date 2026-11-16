@@ -313,48 +313,57 @@
         items: [
           {
             id: "R27_1",
-            title: "R27-1. [构思待确认] LaTeX / Mermaid 双击进入源码编辑零闪烁",
-            status: "discuss",
-            statusText: "构思待确认",
+            title: "R27-1. LaTeX / Mermaid 双击进入源码编辑零闪烁",
+            status: "done",
+            statusText: "本轮新改待打勾",
             img: "media_1794855867399_b3d86851.png",
-            desc: "根因：双击时未拦截原生 dblclick 且 selectionchange 触发了预览重绘，导致展开瞬间闪刷。方案：捕获阶段拦截 dblclick + renderLatexBlocks/rerenderBrokenMermaid 跳过展开态节点 + 同步隐藏 previewPre。",
-            plan: "确认构思后编码修改，再双击 LaTeX 与 Mermaid 卡片验证进入源码无闪烁。"
+            desc: "捕获阶段拦截 dblclick 阻止 Vditor 二次重绘；renderLatexBlocks/rerenderBrokenMermaid 跳过展开态节点；双击切入时同步隐藏 previewPre。",
+            plan: "请双击 LaTeX 与 Mermaid 卡片确认进入源码编辑无闪烁。"
           },
           {
             id: "R27_2",
-            title: "R27-2. [构思待确认] 块间缝隙插入空行后未输入即移走光标时自动收起",
-            status: "discuss",
-            statusText: "构思待确认",
+            title: "R27-2. 块间缝隙插入空行后未输入即移走光标时自动收起",
+            status: "done",
+            statusText: "本轮新改待打勾",
             img: "media_1794856333859_3ebd1e1e.png",
-            desc: "根因：点击块间缝隙会插入临时空段落 <p>，光标跳走后未清理导致残留空行。方案：打标 data-vcat-temp-gap=\"1\"，有输入转正，未输入且光标离开时自动 remove()。",
-            plan: "确认构思后编码修改，测试点击缝隙→不输入→点去别处，确认空行自动收回。"
+            desc: "为缝隙点击新建的临时空段落打标 data-vcat-temp-gap=\"1\"，有输入转正，未输入且光标离开时自动 remove() 恢复紧凑。",
+            plan: "请点击两个块之间的缝隙后不输入任何字，再点击别处，确认临时空行自动消失。"
           },
           {
             id: "R27_3",
-            title: "R27-3. [构思待确认] 隐藏左侧边栏时顶部左上角开关按钮靠最左边",
-            status: "discuss",
-            statusText: "构思待确认",
+            title: "R27-3. 隐藏左侧边栏时顶部左上角开关按钮在全屏/非 macOS 下靠最左边",
+            status: "done",
+            statusText: "本轮新改待打勾",
             img: "media_1794856474830_0b53ece7.png",
-            desc: "根因：TopBar 在 !sidebarOpen 时固定 pl-20，全屏（无红绿灯）或非 macOS 下左侧留出过大空白。方案：主进程同步全屏状态，仅 macOS 非全屏留红绿灯位，全屏/非 macOS 统一 pl-3 贴左。",
-            plan: "确认构思后编码修改，验证隐藏侧边栏后左上角按钮贴左显示。"
+            desc: "主进程同步窗口全屏状态至 TopBar，仅 macOS 非全屏收起侧边栏时保留红绿灯位，全屏或非 macOS 下统一贴左 pl-3。",
+            plan: "请全屏后隐藏左侧边栏，确认左上角侧边栏开关按钮贴左显示。"
           },
           {
             id: "R27_4",
-            title: "R27-4. [构思待确认] 选中整行按 Ctrl+B 加粗不产生额外空行",
-            status: "discuss",
-            statusText: "构思待确认",
+            title: "R27-4. 选中整行按 Ctrl+B 加粗不产生额外空行",
+            status: "done",
+            statusText: "本轮新改待打勾",
             img: "media_1794856552539_f84c39eb.png",
-            desc: "根因：整行选中常带入尾随 <br>/\\n 进入 <strong>（且含 data-newline），序列化后多出一行空行。方案：在包裹前修剪尾随 <br> 与纯换行节点，只包裹文本本身。",
-            plan: "确认构思后编码修改，测试整行选中按 Ctrl+B 确认不新增空行。"
+            desc: "inlineFormat.ts 在包裹前剥离尾随 <br> 与纯换行节点，并移除内联 data-newline=\"1\"，只包裹文字本身。",
+            plan: "请选中整行文字按 Ctrl+B / Cmd+B 加粗，确认不会多出空白行。"
+          },
+          {
+            id: "R27_6",
+            title: "R27-6. 侧边栏撤销/重做提速、防连续卡顿及回到最后点击的文件（含 Ctrl/Cmd+Z）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794856891766_868c5b63.png",
+            desc: "App.tsx 记录 previousArticlePath 并加入 fileOpBusyRef 并发锁与乐观列表更新，撤销新建后优先切回最后浏览的文件而非跳到第一篇；Sidebar.tsx 在 <aside> 层统一绑定 Cmd/Ctrl+Z 与 Cmd/Ctrl+Shift+Z / Ctrl+Y。",
+            plan: "请先点开任意一篇非第一篇的文章，再新建文件后反复点击撤销/恢复或按 Ctrl+Z，确认丝滑不卡顿且能准确回到之前点击的文章。"
           },
           {
             id: "R27_5",
-            title: "R27-5. [规划待确认] macOS（带图标+拖入 Applications DMG）与 Windows（NSIS+ico）双端打包",
+            title: "R27-5. [待确认后打包] macOS（带图标+拖入 Applications DMG）与 Windows（NSIS+ico）双端打包",
             status: "discuss",
-            statusText: "构思待确认",
+            statusText: "待你确认后打包",
             img: "media_1794856474830_0b53ece7.png",
-            desc: "方案：用 iconutil 生成标准 icon.icns 并配置 DMG 拖拽布局（Vmark.app + /Applications），同步生成 icon.ico 与 package:win 脚本。本轮先记录方案，待所有交互改完确认后再执行打包。",
-            plan: "待前面所有编辑器交互问题验收通过后，再统一执行 macOS + Windows 打包。"
+            desc: "方案：用 iconutil 生成标准 icon.icns 并配置 DMG 拖拽布局（Vmark.app + /Applications），同步生成 icon.ico 与 package:win 脚本。",
+            plan: "等你确认上面所有编辑器与侧边栏细节全部满意后，再统一执行 macOS + Windows 打包。"
           },
           {
             id: "R26_1",

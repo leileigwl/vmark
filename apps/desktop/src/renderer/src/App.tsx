@@ -22,6 +22,7 @@ type SideTab = 'files' | 'outline';
 interface FileHistoryOp {
   kind: 'create';
   relativePath: string;
+  previousArticlePath?: string | null;
   content?: string;
 }
 
@@ -51,6 +52,7 @@ export default function App() {
   const [activeArticle, setActiveArticle] = useState<ArticleMeta | null>(null);
   const [markdown, setMarkdown] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(248);
   const [dragGhostX, setDragGhostX] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -70,6 +72,7 @@ export default function App() {
   const [tableRows, setTableRows] = useState<number>(4);
   const [fileUndoStack, setFileUndoStack] = useState<FileHistoryOp[]>([]);
   const [fileRedoStack, setFileRedoStack] = useState<FileHistoryOp[]>([]);
+  const fileOpBusyRef = useRef(false);
   const [imageBed, setImageBed] = useState<ImageBedConfig>({
     strategy: 'platform_private',
     provider: 'picgo_core',
@@ -246,6 +249,10 @@ export default function App() {
       } else if (action === 'editor:find') {
         setActiveView('editor');
         setFindBarOpen(true);
+      } else if (action === 'window:fullscreen') {
+        setIsFullscreen(true);
+      } else if (action === 'window:unfullscreen') {
+        setIsFullscreen(false);
       }
     });
   }, [activeArticle, markdown]);
@@ -320,45 +327,74 @@ export default function App() {
   }
 
   async function handleCreateBlankArticle() {
+    const prevPath = activeArticle?.relativePath ?? null;
     const created = await window.electronAPI.createArticle();
     const list = await window.electronAPI.listArticles();
     setArticles(list);
-    setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+    setFileUndoStack((prev) => [
+      ...prev,
+      { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
+    ]);
     setFileRedoStack([]);
     await openArticle(created);
     setActiveView('editor');
   }
 
   async function handleUndoFileOp() {
-    if (fileUndoStack.length === 0) return;
+    if (fileOpBusyRef.current || fileUndoStack.length === 0) return;
+    fileOpBusyRef.current = true;
     const op = fileUndoStack[fileUndoStack.length - 1];
     setFileUndoStack((prev) => prev.slice(0, -1));
-    let snapshot = '';
+
+    // Optimistically remove from sidebar and switch back to the previously active file immediately
+    const remaining = articles.filter((a) => a.relativePath !== op.relativePath);
+    setArticles(remaining);
+    const restoreTarget =
+      (op.previousArticlePath && remaining.find((a) => a.relativePath === op.previousArticlePath)) ||
+      remaining[0] ||
+      null;
+
     try {
-      snapshot = await window.electronAPI.readArticle(op.relativePath);
-    } catch {
-      // ignore if file was already removed externally
-    }
-    try {
-      await window.electronAPI.deleteArticle(op.relativePath);
-      const list = await window.electronAPI.listArticles();
-      setArticles(list);
+      let snapshot = '';
+      try {
+        snapshot = await window.electronAPI.readArticle(op.relativePath);
+      } catch {
+        // ignore if file was already removed externally
+      }
+
       if (activeArticle?.relativePath === op.relativePath) {
-        if (list.length > 0) await openArticle(list[0]);
-        else {
+        if (restoreTarget) {
+          await openArticle(restoreTarget);
+        } else {
           setActiveArticle(null);
           setMarkdown('');
         }
       }
-      setFileRedoStack((prev) => [...prev, { kind: 'create', relativePath: op.relativePath, content: snapshot }]);
+
+      await window.electronAPI.deleteArticle(op.relativePath);
+      const list = await window.electronAPI.listArticles();
+      setArticles(list);
+      setFileRedoStack((prev) => [
+        ...prev,
+        {
+          kind: 'create',
+          relativePath: op.relativePath,
+          previousArticlePath: op.previousArticlePath,
+          content: snapshot,
+        },
+      ]);
     } catch (err) {
       showToast(err);
+    } finally {
+      fileOpBusyRef.current = false;
     }
   }
 
   async function handleRedoFileOp() {
-    if (fileRedoStack.length === 0) return;
+    if (fileOpBusyRef.current || fileRedoStack.length === 0) return;
+    fileOpBusyRef.current = true;
     const op = fileRedoStack[fileRedoStack.length - 1];
+    const prevPath = activeArticle?.relativePath ?? op.previousArticlePath ?? null;
     setFileRedoStack((prev) => prev.slice(0, -1));
     try {
       const created = await window.electronAPI.createArticle(op.relativePath);
@@ -369,9 +405,14 @@ export default function App() {
       setArticles(list);
       await openArticle(created);
       setActiveView('editor');
-      setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+      setFileUndoStack((prev) => [
+        ...prev,
+        { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
+      ]);
     } catch (err) {
       showToast(err);
+    } finally {
+      fileOpBusyRef.current = false;
     }
   }
 
@@ -467,10 +508,14 @@ export default function App() {
         onCreateFile={async (raw, parentDir) => {
           const fileName = raw.includes('.') ? raw : `${raw}.md`;
           const relPath = parentDir ? `${parentDir}/${fileName}` : fileName;
+          const prevPath = activeArticle?.relativePath ?? null;
           const created = await window.electronAPI.createArticle(relPath);
           const list = await window.electronAPI.listArticles();
           setArticles(list);
-          setFileUndoStack((prev) => [...prev, { kind: 'create', relativePath: created.relativePath }]);
+          setFileUndoStack((prev) => [
+            ...prev,
+            { kind: 'create', relativePath: created.relativePath, previousArticlePath: prevPath },
+          ]);
           setFileRedoStack([]);
           await openArticle(created);
           setActiveView('editor');
@@ -601,6 +646,7 @@ export default function App() {
         <TopBar
           activeView={activeView}
           sidebarOpen={sidebarOpen}
+          isFullscreen={isFullscreen}
           activeArticle={activeArticle}
           liveWordCount={liveWordCount}
           saveState={saveState}

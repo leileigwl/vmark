@@ -198,6 +198,31 @@ function isRangeFullyWrapped(
   return wrapperNodes.length > 0 && !hasUnformattedTextOutsideWrappers(frag, selector, spec);
 }
 
+function extractTrailingLineBreaks(frag: DocumentFragment): Node[] {
+  const trailing: Node[] = [];
+  while (frag.lastChild) {
+    const last = frag.lastChild;
+    if (last.nodeType === Node.ELEMENT_NODE && (last as Element).tagName === 'BR') {
+      trailing.unshift(frag.removeChild(last));
+      continue;
+    }
+    if (last.nodeType === Node.TEXT_NODE) {
+      const val = last.nodeValue || '';
+      if (/^[\r\n]+$/.test(val)) {
+        trailing.unshift(frag.removeChild(last));
+        continue;
+      }
+      const m = val.match(/([\r\n]+)$/);
+      if (m) {
+        last.nodeValue = val.slice(0, -m[1].length);
+        trailing.unshift(document.createTextNode(m[1]));
+      }
+    }
+    break;
+  }
+  return trailing;
+}
+
 function toggleSingleRange(
   containerEl: HTMLElement,
   range: Range,
@@ -242,14 +267,19 @@ function toggleSingleRange(
   stripAdjacentMarkerBoundary(range, spec);
   const extracted = range.extractContents();
   stripTargetWrappersInFragment(extracted, selector, spec);
+  const trailingBreaks = extractTrailingLineBreaks(extracted);
 
-  if (!(extracted.textContent || '').trim()) return null;
+  if (!(extracted.textContent || '').trim()) {
+    for (const br of trailingBreaks) range.insertNode(br);
+    return null;
+  }
 
   if (shouldUnwrap) {
     const nodes = Array.from(extracted.childNodes);
     const parent = range.startContainer.nodeType === Node.TEXT_NODE
       ? range.startContainer.parentNode
       : range.startContainer;
+    for (const br of trailingBreaks) extracted.appendChild(br);
     range.insertNode(extracted);
     if (nodes.length === 1) return nodes[0];
     if (parent && nodes.length > 1) return nodes[0];
@@ -265,7 +295,6 @@ function toggleSingleRange(
   openMarker.textContent = spec.marker;
 
   const contentEl = document.createElement(spec.tag);
-  contentEl.setAttribute('data-newline', '1');
   contentEl.appendChild(extracted);
 
   const closeMarker = document.createElement('span');
@@ -273,7 +302,12 @@ function toggleSingleRange(
   closeMarker.textContent = spec.marker;
 
   irSpan.append(openMarker, contentEl, closeMarker);
-  range.insertNode(irSpan);
+  const fragOut = document.createDocumentFragment();
+  fragOut.appendChild(irSpan);
+  for (const br of trailingBreaks) {
+    fragOut.appendChild(br);
+  }
+  range.insertNode(fragOut);
 
   return contentEl;
 }
