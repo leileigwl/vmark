@@ -67,13 +67,6 @@ export const SLASH_COMMANDS: SlashCommandItem[] = [
     insertText: '```mermaid\ngraph TD\n  A[开始] --> B[结束]\n```',
   },
   {
-    id: 'callout-warn',
-    label: '警告框',
-    keywords: ['callout', 'warn', 'warning', 'jinggaokuang', 'jgk', 'jinggao', 'jg', 'tishi'],
-    description: '插入 ⚠️ 注意/警告提示引用块',
-    insertText: '> ⚠️ **注意**：',
-  },
-  {
     id: 'callout-tip',
     label: '提示框',
     keywords: ['tip', 'info', 'tishikuang', 'tsk', 'tishi', 'ts', 'callout'],

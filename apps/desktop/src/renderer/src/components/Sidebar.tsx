@@ -112,9 +112,22 @@ export function Sidebar({
   const [emptyContextMenu, setEmptyContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const sidebarPopoverRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
   const fileListRef = useRef<HTMLDivElement>(null);
   const suppressNextClickRef = useRef(false);
   const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (selectedPaths.length <= 1) return;
+    const handleOutsideMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (asideRef.current && target && !asideRef.current.contains(target)) {
+        setSelectedPaths([]);
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideMouseDown);
+    return () => window.removeEventListener('mousedown', handleOutsideMouseDown);
+  }, [selectedPaths.length]);
   const isConfirmingCreateRef = useRef(false);
 
   // Keep single selection synced with activeArticle so switching via ArticleManagerView or shortcuts never leaves two highlighted items
@@ -278,6 +291,7 @@ export function Sidebar({
   return (
     <>
       <aside
+        ref={asideRef}
         onKeyDown={(e) => {
           const target = e.target as HTMLElement | null;
           if (target?.closest('input, textarea')) return;
@@ -478,6 +492,8 @@ export function Sidebar({
                 setTimeout(() => {
                   suppressNextClickRef.current = false;
                 }, 0);
+              } else if (!t?.closest('[data-article-path]')) {
+                setSelectedPaths([]);
               }
               setMarqueeRect(null);
             };
@@ -568,9 +584,8 @@ export function Sidebar({
               <div className="px-3 py-4 text-xs text-[var(--control-text-color)]">暂无 Markdown 文件</div>
             ) : fileViewMode === 'list' ? (
               filteredArticles.map((art) => {
-                const isSelected =
-                  (selectedPaths.length > 1 && selectedPaths.includes(art.relativePath)) ||
-                  activeArticle?.relativePath === art.relativePath;
+                const isMultiSelected = selectedPaths.length > 1 && selectedPaths.includes(art.relativePath);
+                const isSelected = isMultiSelected || activeArticle?.relativePath === art.relativePath;
                 return (
                   <button
                     key={art.relativePath}
@@ -587,9 +602,11 @@ export function Sidebar({
                       setFileContextMenu({ x: e.clientX, y: e.clientY, article: art });
                     }}
                     className={`flex w-full items-center gap-1.5 rounded px-2.5 py-[4px] text-left text-[12.5px] leading-5 ${
-                      isSelected
-                        ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
-                        : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                      isMultiSelected
+                        ? 'bg-[var(--accent)]/30 font-medium text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/55'
+                        : isSelected
+                          ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
+                          : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" />

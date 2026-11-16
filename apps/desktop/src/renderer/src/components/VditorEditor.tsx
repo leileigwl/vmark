@@ -159,20 +159,33 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       },
       undo() {
         const instance = vditorRef.current as unknown as {
-          vditor?: { undo?: { undo?: (v: unknown) => void } };
+          getValue?: () => string;
+          vditor?: { undo?: { undo?: (v: unknown) => void; addToUndoStack?: (v: unknown) => void } };
         } | null;
-        if (instance?.vditor?.undo?.undo) {
+        if (instance?.vditor?.undo?.undo && instance.getValue) {
+          const before = instance.getValue();
+          instance.vditor.undo.addToUndoStack?.(instance.vditor);
           instance.vditor.undo.undo(instance.vditor);
+          if (instance.getValue() === before) {
+            instance.vditor.undo.undo(instance.vditor);
+          }
+          onChangeRef.current(instance.getValue());
         } else {
           document.execCommand('undo');
         }
       },
       redo() {
         const instance = vditorRef.current as unknown as {
+          getValue?: () => string;
           vditor?: { undo?: { redo?: (v: unknown) => void } };
         } | null;
-        if (instance?.vditor?.undo?.redo) {
+        if (instance?.vditor?.undo?.redo && instance.getValue) {
+          const before = instance.getValue();
           instance.vditor.undo.redo(instance.vditor);
+          if (instance.getValue() === before) {
+            instance.vditor.undo.redo(instance.vditor);
+          }
+          onChangeRef.current(instance.getValue());
         } else {
           document.execCommand('redo');
         }
@@ -606,6 +619,35 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           onChangeValue: (md) => onChangeRef.current(md),
           toggleLightboxFromActive,
           closeLightbox: () => setLightboxItem(null),
+          undo: () => {
+            const v = instance as unknown as {
+              getValue?: () => string;
+              vditor?: { undo?: { undo?: (vd: unknown) => void; addToUndoStack?: (vd: unknown) => void } };
+            };
+            if (v.vditor?.undo?.undo && v.getValue) {
+              const before = v.getValue();
+              v.vditor.undo.addToUndoStack?.(v.vditor);
+              v.vditor.undo.undo(v.vditor);
+              if (v.getValue() === before) v.vditor.undo.undo(v.vditor);
+              onChangeRef.current(v.getValue());
+            } else {
+              document.execCommand('undo');
+            }
+          },
+          redo: () => {
+            const v = instance as unknown as {
+              getValue?: () => string;
+              vditor?: { undo?: { redo?: (vd: unknown) => void } };
+            };
+            if (v.vditor?.undo?.redo && v.getValue) {
+              const before = v.getValue();
+              v.vditor.undo.redo(v.vditor);
+              if (v.getValue() === before) v.vditor.undo.redo(v.vditor);
+              onChangeRef.current(v.getValue());
+            } else {
+              document.execCommand('redo');
+            }
+          },
           onSlashKeyDown: (ev) => {
             const items = filterSlashCommands(slashStateRef.current.query);
             if (ev.key === 'Escape') {

@@ -180,9 +180,11 @@ export function SidebarTreeNodes({
                 }}
                 style={{ paddingLeft: `${22 + depth * 12}px` }}
                 className={`flex w-full items-center gap-1.5 rounded py-[3px] pr-2 text-left text-[12.5px] leading-5 ${
-                  isSelected
-                    ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
-                    : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                  isMultiSelected
+                    ? 'bg-[var(--accent)]/30 font-medium text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/55'
+                    : isSelected
+                      ? 'bg-[var(--accent)]/15 font-medium text-[var(--accent)]'
+                      : 'text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
                 }`}
               >
                 <span

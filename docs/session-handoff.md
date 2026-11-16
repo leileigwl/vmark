@@ -112,6 +112,16 @@
 5. **只读模式保持原色无滤镜，支持正常下滑**：
    - 移除任何额外色彩滤镜，仅设置 `.vcat-readonly .vditor-reset { cursor: default !important; }`，正常滚轮滑动、不可鼠标编辑。
 
+### Round 31（已完成，真机 Playwright + typecheck + 单测全通过）
+1. **只读模式恢复正常滚动与 100% 原色**：
+   - `editor.css` 为 `.vditor-content` / `.vditor-ir` / `pre.vditor-reset` 补齐 `height: 100%` 与 `overflow-y: auto`，同时显式覆盖 Vditor 内置 `[contenteditable="false"]` 的 `opacity: 0.3` 暗淡滤镜，只读状态下原色展示、顺畅滚轮下滑、非编辑指针。
+2. **侧边栏批量框选加深高亮 + 点击别处自动取消**：
+   - 多选态（`selectedPaths.length > 1`）改用更深的 `bg-[var(--accent)]/30` + `ring-1` 边框以区别于当前打开文档的浅底；点击侧边栏空白处或点击编辑器/顶部栏等 `<aside>` 外部区域时自动清空批量选区。
+3. **移除 `/` 斜杠命令中的「警告框」条目**：
+   - 从 `slashCommands.ts` 删除 `callout-warn`（警告框）。
+4. **正文编辑区 `Ctrl+Z` / `Cmd+Z` 单次按键立即撤销**：
+   - `VditorEditor.tsx` 的 `undo()` 在执行 `vditor.undo.undo()` 前先同步 `addToUndoStack()` 并跳过重复栈顶快照，确保在文本区输入后按一次 `Ctrl+Z` / `Cmd+Z` 立即撤销。
+
 ---
 
 ## 三、后续规划（Phase 2 / Phase 3）

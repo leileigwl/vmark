@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R31_1",
+            title: "R31-1. 只读模式恢复顺畅滚轮下滑且完全保留原色（无 opacity 滤镜）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859182613_cff0d2ee.png",
+            desc: "editor.css 补齐 .vditor-ir / pre.vditor-reset 高度约束与 overflow-y: auto，并覆盖 Vditor [contenteditable=\"false\"] 默认 opacity: 0.3，实现原色、可下滑、不可编辑。",
+            plan: "请切换「只读」模式打开长文章，确认颜色不变且滚轮可正常上下滑动。"
+          },
+          {
+            id: "R31_2",
+            title: "R31-2. 侧边栏批量框选加深高亮 + 点击其他区域自动取消多选",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794859182613_cff0d2ee.png",
+            desc: "批量选中项使用加深底色 + 内边框（ring-1）区分于当前激活文件；点击空白处或点击编辑器区域自动清除批量选区。",
+            plan: "请拖拽选中多篇文件，确认颜色明显加深；再点击正文或侧边栏空白处，确认多选自动取消。"
+          },
+          {
+            id: "R31_3",
+            title: "R31-3. 移除 / 斜杠命令中的「警告框」+ 正文按一次 Ctrl+Z 立即撤销",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794858817121_8fd935d8.png",
+            desc: "slashCommands.ts 已删除警告框条目；VditorEditor undo() 先同步最新快照并跳过重复栈顶，正文输入后按一次 Ctrl+Z / Cmd+Z 即可撤销。",
+            plan: "请在正文输入文字后按一次 Ctrl+Z，确认立刻撤销无需按两下。"
+          },
+          {
             id: "R30_1",
             title: "R30-1. 左侧 Ctrl+Z / Cmd+Z 撤销与重做全场景打通",
             status: "done",

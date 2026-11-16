@@ -21,6 +21,8 @@ export interface KeyboardCaptureContext {
   toggleLightboxFromActive: () => void;
   closeLightbox: () => void;
   onSlashKeyDown: (e: KeyboardEvent) => boolean;
+  undo: () => void;
+  redo: () => void;
 }
 
 /** Handles capture-phase keyboard shortcuts, code-block indentation, table guards, and bracket pairing. */
@@ -244,9 +246,19 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       ctx.toggleInlineWrap(k === 'b' ? 'bold' : 'italic');
       return;
     } else if (k === 'z' || k === 'y') {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (k === 'y') ctx.redo();
+      else ctx.undo();
       setTimeout(ctx.rerenderBrokenMermaid, 50);
+      return;
     }
   } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    ctx.redo();
     setTimeout(ctx.rerenderBrokenMermaid, 50);
     return;
   }
