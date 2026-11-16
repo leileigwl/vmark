@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ElectronAPI, ImageBedConfig, PlatformId } from '@vcat/shared';
+import type { ContextMenuOptions, ElectronAPI, ImageBedConfig, PlatformId } from '@vcat/shared';
 
 const api: ElectronAPI = {
   selectWorkspace: () => ipcRenderer.invoke('workspace:select'),
@@ -26,6 +26,9 @@ const api: ElectronAPI = {
     ipcRenderer.on('menu:action', handler);
     return () => ipcRenderer.removeListener('menu:action', handler);
   },
+  showEditorContextMenu: (options: ContextMenuOptions) =>
+    ipcRenderer.invoke('editor:contextMenu', options),
+  importTyporaThemeCss: () => ipcRenderer.invoke('theme:importTyporaCss'),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

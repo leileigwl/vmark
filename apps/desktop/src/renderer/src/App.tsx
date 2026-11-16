@@ -91,7 +91,26 @@ export default function App() {
   const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
   const [theme, setTheme] = useState<ThemeId>('apple-light');
+  const [customThemeName, setCustomThemeName] = useState<string>('');
   const editorRef = useRef<VditorEditorHandle>(null);
+
+  async function handleImportTyporaTheme() {
+    const res = await window.electronAPI.importTyporaThemeCss();
+    if (!res) return;
+    // Scope Typora #write selector to Vditor .vditor-reset and preserve :root CSS variables
+    const scopedCss = res.css
+      .replace(/#write\b/g, '.vditor-ir pre.vditor-reset')
+      .replace(/body\b/g, '.vcat-custom-theme-active');
+    let styleEl = document.getElementById('vcat-custom-typora-theme') as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'vcat-custom-typora-theme';
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = scopedCss;
+    setCustomThemeName(res.name);
+    setTheme('custom-typora');
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -165,6 +184,9 @@ export default function App() {
       } else if (action === 'editor:format' && payload) {
         setActiveView('editor');
         editorRef.current?.applyFormat(payload);
+      } else if (action === 'editor:table' && payload) {
+        setActiveView('editor');
+        editorRef.current?.applyTableAction(payload);
       }
     });
   }, [activeArticle, markdown]);
@@ -732,6 +754,20 @@ export default function App() {
                           <div className="mt-1 text-xs text-[#6e6e73]">{t.desc}</div>
                         </button>
                       ))}
+                    </div>
+                    <div className="mt-4 border-t border-[#eeeeee] pt-4">
+                      <button
+                        type="button"
+                        onClick={() => void handleImportTyporaTheme()}
+                        className="rounded border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium hover:border-[#007aff] hover:text-[#007aff]"
+                      >
+                        导入本地 Typora 主题 CSS 文件（如 bloom-lapis.css）...
+                      </button>
+                      {customThemeName && (
+                        <span className="ml-3 text-xs text-[#007aff]">
+                          当前已加载：{customThemeName}.css
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}

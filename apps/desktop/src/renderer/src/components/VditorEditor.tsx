@@ -3,6 +3,7 @@ import Vditor from 'vditor';
 
 export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
+  applyTableAction: (action: string) => void;
 }
 
 interface VditorEditorProps {
@@ -28,6 +29,7 @@ const FORMAT_SNIPPETS: Record<string, string> = {
   list: '- ',
   'ordered-list': '1. ',
   check: '- [ ] ',
+  table: '\n| 列 1 | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |\n',
   'code-block': '\n```python\n\n```\n',
   line: '\n---\n',
 };
@@ -39,6 +41,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     const vditorRef = useRef<Vditor | null>(null);
     const isReadyRef = useRef(false);
     const pendingValueRef = useRef<string | null>(null);
+    const lastSelectionElRef = useRef<HTMLElement | null>(null);
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
 
@@ -55,6 +58,54 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           instance.focus();
           instance.insertValue(snippet);
         }
+      },
+      applyTableAction(action: string) {
+        const el = containerRef.current;
+        const target = lastSelectionElRef.current;
+        if (!el || !target) return;
+        const cell = target.closest('td, th') as HTMLTableCellElement | null;
+        const row = target.closest('tr') as HTMLTableRowElement | null;
+        const table = target.closest('table') as HTMLTableElement | null;
+        if (!cell || !row || !table) return;
+
+        const colIndex = cell.cellIndex;
+        const colCount = row.cells.length;
+
+        if (action === 'row-above' || action === 'row-below') {
+          const newRow = document.createElement('tr');
+          for (let i = 0; i < colCount; i++) {
+            const td = document.createElement('td');
+            td.innerHTML = ' ';
+            newRow.appendChild(td);
+          }
+          if (action === 'row-above') {
+            row.parentNode?.insertBefore(newRow, row);
+          } else {
+            row.parentNode?.insertBefore(newRow, row.nextSibling);
+          }
+        } else if (action === 'row-delete') {
+          if (table.rows.length > 1) row.remove();
+        } else if (action === 'col-left' || action === 'col-right') {
+          Array.from(table.rows).forEach((r, idx) => {
+            const newCell = document.createElement(idx === 0 ? 'th' : 'td');
+            newCell.innerHTML = idx === 0 ? '列' : ' ';
+            const refCell = r.cells[colIndex];
+            if (action === 'col-left') {
+              r.insertBefore(newCell, refCell ?? null);
+            } else {
+              r.insertBefore(newCell, refCell?.nextSibling ?? null);
+            }
+          });
+        } else if (action === 'col-delete') {
+          if (colCount > 1) {
+            Array.from(table.rows).forEach((r) => {
+              r.cells[colIndex]?.remove();
+            });
+          }
+        }
+
+        const resetEl = el.querySelector('.vditor-reset');
+        resetEl?.dispatchEvent(new Event('input', { bubbles: true }));
       },
     }));
 
@@ -119,8 +170,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       vditorRef.current = instance;
 
-      // Resolve relative local ./assets/* images in DOM via vcat-asset:// without altering Markdown source
-      const resolveLocalImages = () => {
+      // Resolve relative local ./assets/* images & polish <details>/<summary> HTML blocks
+      const enhanceDom = () => {
         const imgs = el.querySelectorAll('img');
         imgs.forEach((img) => {
           const rawSrc = img.getAttribute('src');
@@ -128,12 +179,34 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           const cleanRel = rawSrc.replace(/^\.\//, '');
           img.src = `vcat-asset://local/${cleanRel}`;
         });
+
+        const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
+        htmlNodes.forEach((node) => {
+          const rawText = (node.textContent || '').trim();
+          if (rawText === '</details>' || rawText === '<details>') {
+            node.classList.add('vcat-details-boundary');
+          } else {
+            node.classList.remove('vcat-details-boundary');
+          }
+        });
       };
 
-      const observer = new MutationObserver(resolveLocalImages);
+      const observer = new MutationObserver(enhanceDom);
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
+      const handleContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+        const target = e.target as HTMLElement | null;
+        lastSelectionElRef.current = target;
+        const inTable = Boolean(target?.closest('table'));
+        const sel = window.getSelection();
+        const hasSelection = Boolean(sel && !sel.isCollapsed);
+        void window.electronAPI?.showEditorContextMenu?.({ inTable, hasSelection });
+      };
+      el.addEventListener('contextmenu', handleContextMenu);
+
       return () => {
+        el.removeEventListener('contextmenu', handleContextMenu);
         observer.disconnect();
         isReadyRef.current = false;
         try {

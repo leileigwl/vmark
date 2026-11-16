@@ -92,8 +92,23 @@ body {
   padding: 2px 0 !important;
   margin: 0 !important;
 }
-.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview:empty {
-  display: none !important;
+.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand).vcat-details-boundary {
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.vditor-ir__node[data-type="html-block"] summary {
+  padding: 8px 12px;
+  background: var(--side-bar-bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
 }
 /* Hide permanent H1-H6 gutter labels to match clean Typora look */
 .vditor-ir .vditor-reset > h1:before,

@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
 import { saveImageToAssets } from '@vcat/image-pipeline';
-import type { ImageBedConfig, PlatformId } from '@vcat/shared';
+import type { ContextMenuOptions, ImageBedConfig, PlatformId } from '@vcat/shared';
 
 const execFileAsync = promisify(execFile);
 
@@ -369,6 +369,77 @@ function registerIpcHandlers(): void {
       const msg = err instanceof Error ? err.message : String(err);
       return { ok: false, message: `Git 推送失败：${msg}` };
     }
+  });
+
+  ipcMain.handle('editor:contextMenu', async (event, options: ContextMenuOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+
+    const tableItems: Electron.MenuItemConstructorOptions[] = options.inTable
+      ? [
+          { type: 'separator' },
+          {
+            label: '表格操作',
+            submenu: [
+              { label: '在上方插入行', click: () => sendMenuAction('editor:table', 'row-above') },
+              { label: '在下方插入行', click: () => sendMenuAction('editor:table', 'row-below') },
+              { type: 'separator' },
+              { label: '在左侧插入列', click: () => sendMenuAction('editor:table', 'col-left') },
+              { label: '在右侧插入列', click: () => sendMenuAction('editor:table', 'col-right') },
+              { type: 'separator' },
+              { label: '删除当前行', click: () => sendMenuAction('editor:table', 'row-delete') },
+              { label: '删除当前列', click: () => sendMenuAction('editor:table', 'col-delete') },
+            ],
+          },
+        ]
+      : [];
+
+    const menu = Menu.buildFromTemplate([
+      { label: '剪切', role: 'cut', enabled: options.hasSelection },
+      { label: '拷贝', role: 'copy', enabled: options.hasSelection },
+      { label: '粘贴', role: 'paste' },
+      { type: 'separator' },
+      {
+        label: '格式',
+        submenu: [
+          { label: '加粗', accelerator: 'CmdOrCtrl+B', click: () => sendMenuAction('editor:format', 'bold') },
+          { label: '斜体', accelerator: 'CmdOrCtrl+I', click: () => sendMenuAction('editor:format', 'italic') },
+          { label: '删除线', click: () => sendMenuAction('editor:format', 'strike') },
+          { label: '行内代码', click: () => sendMenuAction('editor:format', 'inline-code') },
+          { label: '超链接', accelerator: 'CmdOrCtrl+K', click: () => sendMenuAction('editor:format', 'link') },
+        ],
+      },
+      {
+        label: '插入段落',
+        submenu: [
+          { label: '插入表格', click: () => sendMenuAction('editor:format', 'table') },
+          { label: '插入代码块', click: () => sendMenuAction('editor:format', 'code-block') },
+          { label: '插入引用', click: () => sendMenuAction('editor:format', 'quote') },
+          { label: '插入任务列表', click: () => sendMenuAction('editor:format', 'check') },
+          { label: '插入水平分割线', click: () => sendMenuAction('editor:format', 'line') },
+        ],
+      },
+      ...tableItems,
+    ]);
+    menu.popup({ window: win });
+  });
+
+  ipcMain.handle('theme:importTyporaCss', async () => {
+    const typoraThemesDir = path.join(
+      app.getPath('appData'),
+      'abnerworks.Typora/themes'
+    );
+    const defaultPath = existsSync(typoraThemesDir) ? typoraThemesDir : app.getPath('documents');
+    const result = await dialog.showOpenDialog({
+      title: '选择 Typora 主题 CSS 文件（如 bloom-lapis.css）',
+      defaultPath,
+      filters: [{ name: 'CSS Stylesheet', extensions: ['css'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const filePath = result.filePaths[0];
+    const css = await fs.readFile(filePath, 'utf-8');
+    return { name: path.basename(filePath, '.css'), css };
   });
 }
 

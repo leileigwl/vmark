@@ -71,7 +71,12 @@ export interface GitStatusInfo {
   changedFiles: number;
 }
 
-export type ThemeId = 'apple-light' | 'bloom-lapis' | 'bloom-wheat' | 'typora-white';
+export type ThemeId = 'apple-light' | 'bloom-lapis' | 'bloom-wheat' | 'typora-white' | 'custom-typora';
+
+export interface ContextMenuOptions {
+  inTable: boolean;
+  hasSelection: boolean;
+}
 
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
@@ -91,4 +96,6 @@ export interface ElectronAPI {
   getGitStatus: () => Promise<GitStatusInfo>;
   pushGitWorkspace: (commitMessage: string) => Promise<{ ok: boolean; message: string }>;
   onMenuAction: (callback: (action: string, payload?: string) => void) => () => void;
+  showEditorContextMenu: (options: ContextMenuOptions) => Promise<void>;
+  importTyporaThemeCss: () => Promise<{ name: string; css: string } | null>;
 }
