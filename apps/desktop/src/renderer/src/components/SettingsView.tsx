@@ -1,8 +1,16 @@
-import { FileText, GitBranch, Globe, Image as ImageIcon, Palette } from 'lucide-react';
+import { FileText, GitBranch, Globe, Image as ImageIcon, Palette, SlidersHorizontal } from 'lucide-react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
-import type { GitStatusInfo, ImageBedConfig, PlatformId, StartupConfig, StartupMode, ThemeId } from '@vcat/shared';
+import type {
+  EditorPreferences,
+  GitStatusInfo,
+  ImageBedConfig,
+  PlatformId,
+  StartupConfig,
+  StartupMode,
+  ThemeId,
+} from '@vcat/shared';
 
-export type SettingCategory = 'startup' | 'image' | 'theme' | 'platforms' | 'github';
+export type SettingCategory = 'startup' | 'editor' | 'image' | 'theme' | 'platforms' | 'github';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -39,6 +47,9 @@ interface SettingsViewProps {
   startupConfig: StartupConfig;
   onSaveStartupConfig: (cfg: StartupConfig) => void;
   onPickSpecificDir?: () => void;
+  editorPrefs: EditorPreferences;
+  onUpdateEditorPrefs: (next: EditorPreferences) => void;
+  onExportArticle: (format: 'md' | 'html' | 'pdf') => void;
   imageBed: ImageBedConfig;
   imageBedTestMsg: string;
   onUpdateImageBed: (next: ImageBedConfig, persist?: boolean) => void;
@@ -62,6 +73,9 @@ export function SettingsView({
   startupConfig,
   onSaveStartupConfig,
   onPickSpecificDir,
+  editorPrefs,
+  onUpdateEditorPrefs,
+  onExportArticle,
   imageBed,
   imageBedTestMsg,
   onUpdateImageBed,
@@ -86,6 +100,7 @@ export function SettingsView({
         {(
           [
             ['startup', '文件与启动', FileText],
+            ['editor', '编辑与导出', SlidersHorizontal],
             ['image', '图像与图床', ImageIcon],
             ['theme', '外观主题', Palette],
             ['platforms', '平台授权托管', Globe],
@@ -161,6 +176,111 @@ export function SettingsView({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {settingCategory === 'editor' && (
+          <div className="max-w-2xl space-y-5">
+            <div>
+              <h2 className="text-base font-semibold">编辑习惯与导出偏好</h2>
+              <p className="mt-1 text-xs text-[var(--control-text-color)]">
+                配置符号自动配对、默认复制内容格式以及文件导出习惯。
+              </p>
+            </div>
+
+            <div className="space-y-4 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] p-4 text-[13px]">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">自动匹配符号</div>
+                  <div className="text-xs text-[var(--control-text-color)]">
+                    输入 <code>( [ {`{`} &quot; &apos; ` （ 【 「</code> 时自动补全右半符号，选中文字时直接包裹
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={editorPrefs.autoPairSymbols}
+                  onChange={(e) =>
+                    onUpdateEditorPrefs({ ...editorPrefs, autoPairSymbols: e.target.checked })
+                  }
+                  className="h-4 w-4 accent-[var(--accent)]"
+                />
+              </label>
+
+              <div className="border-t border-[var(--border-color)] pt-3">
+                <div className="mb-2 font-medium">默认复制行为（Cmd+C）</div>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['markdown', 'Markdown 源码（推荐）'],
+                      ['plain', '纯文本'],
+                      ['html', '带格式富文本 (HTML)'],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => onUpdateEditorPrefs({ ...editorPrefs, copyFormat: val })}
+                      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+                        editorPrefs.copyFormat === val
+                          ? 'border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]'
+                          : 'border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-[var(--border-color)] pt-3">
+                <div className="mb-2 font-medium">默认导出格式（Cmd+Shift+E 快速导出）</div>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ['md', 'Markdown (.md)'],
+                      ['html', '独立网页 (.html)'],
+                      ['pdf', 'PDF 文档 (.pdf)'],
+                    ] as const
+                  ).map(([fmt, label]) => (
+                    <button
+                      key={fmt}
+                      type="button"
+                      onClick={() => onUpdateEditorPrefs({ ...editorPrefs, defaultExportFormat: fmt })}
+                      className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+                        editorPrefs.defaultExportFormat === fmt
+                          ? 'border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]'
+                          : 'border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] hover:bg-[var(--bg-hover)]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onExportArticle(editorPrefs.defaultExportFormat)}
+                    className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                  >
+                    立即导出当前文章为 .{editorPrefs.defaultExportFormat}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onExportArticle('pdf')}
+                    className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-3 py-1.5 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  >
+                    导出 PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onExportArticle('html')}
+                    className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-3 py-1.5 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  >
+                    导出 HTML
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

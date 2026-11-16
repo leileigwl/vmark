@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import type { EditorPreferences } from '@vcat/shared';
 import Vditor from 'vditor';
 import { applyCodeSyntaxHighlights } from '../editor/codeHighlight';
 import { toggleInlineWrapInEditor, type InlineWrapCommand } from '../editor/inlineFormat';
@@ -17,6 +18,7 @@ export interface VditorEditorHandle {
   applyImageAction: (action: string) => void;
   insertTableWithSize: (cols: number, rows: number) => void;
   getValue: () => string;
+  getHTML: () => string;
   findMatches: (findStr: string, opts?: FindOptions) => number;
   jumpToMatch: (findStr: string, index: number, opts?: FindOptions) => number;
   clearFindHighlights: () => void;
@@ -26,6 +28,7 @@ export interface VditorEditorHandle {
 interface VditorEditorProps {
   value: string;
   articleKey: string;
+  preferences?: EditorPreferences;
   onChange: (markdown: string) => void;
   onSave?: (markdown: string) => void;
 }
@@ -53,7 +56,7 @@ const FORMAT_SNIPPETS: Record<string, string> = {
 
 /** Typora-style Instant Rendering (IR) Markdown editor powered by local Vditor assets. */
 export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
-  function VditorEditor({ value, articleKey, onChange, onSave }, ref) {
+  function VditorEditor({ value, articleKey, preferences, onChange, onSave }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const vditorRef = useRef<Vditor | null>(null);
     const isReadyRef = useRef(false);
@@ -66,9 +69,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
+    const prefsRef = useRef<EditorPreferences>({
+      autoPairSymbols: preferences?.autoPairSymbols ?? true,
+      copyFormat: preferences?.copyFormat ?? 'markdown',
+      defaultExportFormat: preferences?.defaultExportFormat ?? 'md',
+    });
 
     onChangeRef.current = onChange;
     onSaveRef.current = onSave;
+    prefsRef.current = {
+      autoPairSymbols: preferences?.autoPairSymbols ?? true,
+      copyFormat: preferences?.copyFormat ?? 'markdown',
+      defaultExportFormat: preferences?.defaultExportFormat ?? 'md',
+    };
     pendingValueRef.current = value;
 
     const pushVditorUndo = () => {
@@ -104,17 +117,22 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           const sel = window.getSelection();
           const anchorEl =
             sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-          const existingTable = anchorEl?.closest('table');
-          if (existingTable && el.contains(existingTable)) {
+          const blockWrapper = anchorEl?.closest('table, ul, ol, blockquote');
+          if (blockWrapper && el.contains(blockWrapper)) {
             const p = document.createElement('p');
             p.innerHTML = '<br>';
-            existingTable.parentNode?.insertBefore(p, existingTable.nextSibling);
+            blockWrapper.parentNode?.insertBefore(p, blockWrapper.nextSibling);
             const range = document.createRange();
             range.selectNodeContents(p);
             range.collapse(true);
             sel?.removeAllRanges();
             sel?.addRange(range);
           }
+        }
+        if (cmd === 'line') {
+          instance.focus();
+          instance.insertValue('\n\n---\n\n');
+          return;
         }
         const snippet = FORMAT_SNIPPETS[cmd];
         if (snippet) {
@@ -125,6 +143,10 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       getValue() {
         const instance = vditorRef.current;
         return instance && isReadyRef.current ? instance.getValue() : value;
+      },
+      getHTML() {
+        const instance = vditorRef.current;
+        return instance && isReadyRef.current ? instance.getHTML() : '';
       },
       insertTableWithSize(cols: number, rows: number) {
         const instance = vditorRef.current;
@@ -465,7 +487,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       const renderLatexBlocks = () => {
         const latexCodes = el.querySelectorAll(
-          '.vditor-ir__preview code.language-latex, .vditor-ir__preview code.language-math'
+          '.vditor-ir__preview code.language-latex, .vditor-ir__preview code.language-tex, .vditor-ir__preview code.language-math'
         );
         latexCodes.forEach((codeEl) => {
           const previewPre = codeEl.closest('pre.vditor-ir__preview') as HTMLElement | null;
@@ -473,8 +495,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           if (!codeEl.classList.contains('language-math')) {
             codeEl.classList.add('language-math');
           }
-          if (!previewPre.querySelector('.katex') && !previewPre.dataset.vcatMathRendered) {
-            previewPre.dataset.vcatMathRendered = '1';
+          if (!previewPre.querySelector('.katex')) {
             const vditorStatic = Vditor as unknown as {
               mathRender?: (
                 element: HTMLElement,
@@ -642,6 +663,59 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
         } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
           setTimeout(rerenderBrokenMermaid, 50);
+          return;
+        }
+
+        // Auto-pair matching brackets/quotes when enabled in EditorPreferences
+        const PAIR_MAP: Record<string, string> = {
+          '(': ')',
+          '[': ']',
+          '{': '}',
+          '"': '"',
+          "'": "'",
+          '`': '`',
+          '（': '）',
+          '【': '】',
+          '「': '」',
+        };
+        if (
+          prefsRef.current.autoPairSymbols &&
+          !e.metaKey &&
+          !e.ctrlKey &&
+          !e.altKey &&
+          PAIR_MAP[e.key] &&
+          targetNode &&
+          el.contains(targetNode)
+        ) {
+          const selNow = window.getSelection();
+          if (selNow && selNow.rangeCount > 0) {
+            const range = selNow.getRangeAt(0);
+            const selectedText = range.toString();
+            const closeChar = PAIR_MAP[e.key];
+            e.preventDefault();
+            e.stopPropagation();
+            if (selectedText) {
+              const wrapped = `${e.key}${selectedText}${closeChar}`;
+              const textNode = document.createTextNode(wrapped);
+              range.deleteContents();
+              range.insertNode(textNode);
+              const nextRange = document.createRange();
+              nextRange.setStart(textNode, 1);
+              nextRange.setEnd(textNode, 1 + selectedText.length);
+              selNow.removeAllRanges();
+              selNow.addRange(nextRange);
+            } else {
+              const textNode = document.createTextNode(`${e.key}${closeChar}`);
+              range.deleteContents();
+              range.insertNode(textNode);
+              const nextRange = document.createRange();
+              nextRange.setStart(textNode, 1);
+              nextRange.collapse(true);
+              selNow.removeAllRanges();
+              selNow.addRange(nextRange);
+            }
+            onChangeRef.current(instance.getValue());
+          }
         }
       };
 
@@ -801,6 +875,31 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
       };
 
+      const handleCopyCapture = (e: ClipboardEvent) => {
+        const mode = prefsRef.current.copyFormat;
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !el.contains(sel.anchorNode)) return;
+        const plain = sel.toString();
+        if (!plain) return;
+
+        if (mode === 'plain') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.clipboardData?.setData('text/plain', plain);
+          return;
+        }
+        if (mode === 'markdown') {
+          const frag = sel.getRangeAt(0).cloneContents();
+          const tmp = document.createElement('div');
+          tmp.appendChild(frag);
+          const md = instance.html2md(tmp.innerHTML).trim() || plain;
+          e.preventDefault();
+          e.stopPropagation();
+          e.clipboardData?.setData('text/plain', md);
+        }
+      };
+
+      el.addEventListener('copy', handleCopyCapture, true);
       el.addEventListener('paste', handlePasteCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
@@ -809,6 +908,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
+        el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);

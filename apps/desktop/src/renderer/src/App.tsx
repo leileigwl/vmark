@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { countWords, extractOutline } from '@vcat/core';
 import type {
   ArticleMeta,
+  EditorPreferences,
   GitStatusInfo,
   ImageBedConfig,
   PlatformId,
@@ -50,6 +51,15 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<string>('已同步');
   const [startupConfig, setStartupConfig] = useState<StartupConfig>({ mode: 'last_opened' });
+  const [editorPrefs, setEditorPrefs] = useState<EditorPreferences>(() => {
+    try {
+      const saved = localStorage.getItem('vcat_editor_prefs');
+      if (saved) return JSON.parse(saved) as EditorPreferences;
+    } catch {
+      // ignore
+    }
+    return { autoPairSymbols: true, copyFormat: 'markdown', defaultExportFormat: 'md' };
+  });
   const [tableModalOpen, setTableModalOpen] = useState<boolean>(false);
   const [tableCols, setTableCols] = useState<number>(3);
   const [tableRows, setTableRows] = useState<number>(4);
@@ -190,6 +200,12 @@ export default function App() {
       else if (action === 'file:save') {
         const latest = editorRef.current?.getValue() ?? markdown;
         void handleSaveArticle(latest);
+      } else if (action === 'file:export') {
+        const targetFmt =
+          payload === 'md' || payload === 'html' || payload === 'pdf'
+            ? payload
+            : editorPrefs.defaultExportFormat;
+        void handleExportArticle(targetFmt);
       } else if (action === 'publish:open') setPublishModalOpen(true);
       else if (action === 'view:settings') setActiveView('settings');
       else if (action === 'view:manager') setActiveView('manager');
@@ -290,6 +306,18 @@ export default function App() {
     setArticles(list);
     await openArticle(created);
     setActiveView('editor');
+  }
+
+  async function handleExportArticle(format: 'md' | 'html' | 'pdf') {
+    if (!activeArticle) return;
+    const latestMd = editorRef.current?.getValue() ?? markdown;
+    const htmlContent = editorRef.current?.getHTML() ?? '';
+    await window.electronAPI.exportArticle({
+      format,
+      title: activeArticle.title || activeArticle.relativePath.replace(/\.md$/i, ''),
+      markdown: latestMd,
+      htmlContent,
+    });
   }
 
   async function handleImportTyporaTheme() {
@@ -560,6 +588,7 @@ export default function App() {
                 ref={editorRef}
                 articleKey={activeArticle.relativePath}
                 value={markdown}
+                preferences={editorPrefs}
                 onChange={(md) => {
                   setMarkdown(md);
                   setSaveState('未保存');
@@ -608,6 +637,16 @@ export default function App() {
                 setStartupConfig(next);
                 void window.electronAPI.saveStartupConfig(next);
               }}
+              editorPrefs={editorPrefs}
+              onUpdateEditorPrefs={(next) => {
+                setEditorPrefs(next);
+                try {
+                  localStorage.setItem('vcat_editor_prefs', JSON.stringify(next));
+                } catch {
+                  // ignore
+                }
+              }}
+              onExportArticle={(fmt) => void handleExportArticle(fmt)}
               onPickSpecificDir={async () => {
                 const selected = await window.electronAPI.selectWorkspace();
                 if (selected) {

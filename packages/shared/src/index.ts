@@ -136,6 +136,19 @@ export interface ContextMenuOptions {
   hasSelection: boolean;
 }
 
+export interface EditorPreferences {
+  autoPairSymbols: boolean;
+  copyFormat: 'markdown' | 'plain' | 'html';
+  defaultExportFormat: 'md' | 'html' | 'pdf';
+}
+
+export interface ExportArticleOptions {
+  format: 'md' | 'html' | 'pdf';
+  title: string;
+  markdown: string;
+  htmlContent?: string;
+}
+
 export interface ArticleSearchResult {
   relativePath: string;
   title: string;
@@ -177,4 +190,5 @@ export interface ElectronAPI {
   onMenuAction: (callback: (action: string, payload?: string) => void) => () => void;
   showEditorContextMenu: (options: ContextMenuOptions) => Promise<void>;
   importTyporaThemeCss: () => Promise<{ name: string; css: string } | null>;
+  exportArticle: (options: ExportArticleOptions) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
 }

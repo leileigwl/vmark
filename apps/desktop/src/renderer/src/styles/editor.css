@@ -534,9 +534,12 @@
 .vditor-reset table tbody tr:last-child td {
   border-bottom: none !important;
 }
+.vditor-ir__node[data-type="hr"]:not(.vditor-ir__node--expand) .vditor-ir__marker {
+  display: none !important;
+}
 .vditor-reset hr {
   height: 1.5px !important;
-  margin: 2em 0 !important;
+  margin: 1.8em 0 !important;
   background: linear-gradient(
     90deg,
     transparent,

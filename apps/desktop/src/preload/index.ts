@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   ContextMenuOptions,
   ElectronAPI,
+  ExportArticleOptions,
   ImageBedConfig,
   PlatformId,
   StartupConfig,
@@ -53,6 +54,8 @@ const api: ElectronAPI = {
   showEditorContextMenu: (options: ContextMenuOptions) =>
     ipcRenderer.invoke('editor:contextMenu', options),
   importTyporaThemeCss: () => ipcRenderer.invoke('theme:importTyporaCss'),
+  exportArticle: (options: ExportArticleOptions) =>
+    ipcRenderer.invoke('file:export', options),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

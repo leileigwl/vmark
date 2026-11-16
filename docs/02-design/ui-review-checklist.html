@@ -312,6 +312,42 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R12_1",
+            title: "R12-1. 任务列表内插入水平分割线（---）自动跳出列表且不残留 --- 字符",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849292481_3efc70d0.png",
+            desc: "插入水平分割线时自动跳出当前任务列表/无序列表/引用块并插入独立分割线，同时隐藏非展开态下 <hr> 上下多余的 --- 标记文本，消除文字与灰条重叠。",
+            plan: "请在任务列表中点击右键「插入段落 → 插入水平分割线」，确认干净跳出列表并渲染单条美观分割线。"
+          },
+          {
+            id: "R12_2",
+            title: "R12-2. LaTeX 公式渲染修复（支持 $$...$$ 与 ```latex / ```math 代码块）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849377012_d468e784.png",
+            desc: "移除阻塞二次渲染的 dataset.vcatMathRendered 标记并支持 language-latex / language-tex / language-math，失焦后自动调用 KaTeX mathRender 渲染出完整数学公式。",
+            plan: "请新建或粘贴 ```latex（如高斯积分）或 $$...$$ 公式块，点击空白处失焦后确认正常渲染为 KaTeX 公式。"
+          },
+          {
+            id: "R12_3",
+            title: "R12-3. 文件导出（.md / .html / .pdf）+ 偏好设置「编辑与导出」习惯（自动配对符号 & 默认复制行为）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849399726_94f27a08.png",
+            desc: "1) 顶部「文件 → 导出文件」及设置页支持导出 Markdown (.md)、独立网页 (.html) 与 PDF (.pdf)，快捷键 Cmd+Shift+E 按默认导出习惯快速导出；2) 偏好设置新增「编辑与导出」页，支持开关自动匹配符号 ()[]{}""''` 与默认复制行为（Markdown 源码 / 纯文本 / 富文本 HTML）。",
+            plan: "请打开顶部「文件 → 导出文件」及「偏好设置 → 编辑与导出」测试导出 PDF/HTML/MD 与自动括号配对、默认复制格式。"
+          },
+          {
+            id: "R12_4",
+            title: "R12-4. Review 清单新改项独立编号防历史缓存自动隐藏",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794849399726_94f27a08.png",
+            desc: "本轮新增条目全部启用全新唯一 ID（R12_1 ~ R12_4），不再复用历史 T1/T2/T3 编号，打开 HTML 页面即可直接看到所有最新待核验条目，不被旧 localStorage 打勾状态隐藏。",
+            plan: "请刷新本 HTML 页面确认置顶直接显示 R12-1 ~ R12-4 最新待核验项。"
+          },
+          {
             id: "T1",
             title: "T1. 侧边栏单选/新建空白文档唯一高亮 + 切换文章零阻塞秒开",
             status: "done",
