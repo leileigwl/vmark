@@ -337,6 +337,28 @@ function registerIpcHandlers(): void {
     return cleanName;
   });
 
+  ipcMain.handle('folders:move', async (_event, oldFolderPath: string, targetParentFolder: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const cleanOld = oldFolderPath.trim().replace(/^[\\/]+|[\\/]+$/g, '');
+    const cleanParent = targetParentFolder.trim().replace(/^[\\/]+|[\\/]+$/g, '');
+    if (!cleanOld) throw new Error('源文件夹路径无效');
+    if (cleanParent === cleanOld || cleanParent.startsWith(`${cleanOld}/`)) {
+      throw new Error('不能将文件夹移动到自身或子文件夹内');
+    }
+    const baseName = path.basename(cleanOld);
+    const newRel = cleanParent ? path.join(cleanParent, baseName) : baseName;
+    const oldTarget = resolveSafePath(cfg.workspacePath, cleanOld);
+    const newTarget = resolveSafePath(cfg.workspacePath, newRel);
+    if (oldTarget === newTarget) return newRel;
+    if (existsSync(newTarget)) {
+      throw new Error(`目标目录已存在同名文件夹：${baseName}`);
+    }
+    await fs.mkdir(path.dirname(newTarget), { recursive: true });
+    await fs.rename(oldTarget, newTarget);
+    return newRel;
+  });
+
   ipcMain.handle('articles:read', async (_event, relativePath: string) => {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
@@ -384,7 +406,7 @@ function registerIpcHandlers(): void {
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
     const cleanNew = newFileName.trim().replace(/[\\/]/g, '');
     if (!cleanNew) throw new Error('文件名不能为空');
-    const finalName = cleanNew.endsWith('.md') ? cleanNew : `${cleanNew}.md`;
+    const finalName = cleanNew.includes('.') ? cleanNew : `${cleanNew}.md`;
     const dir = path.dirname(oldRelativePath);
     const newRelativePath = dir === '.' ? finalName : path.join(dir, finalName);
 

@@ -124,6 +124,14 @@ export default function App() {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState<string>('');
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  function showToast(errOrMsg: unknown) {
+    const raw = errOrMsg instanceof Error ? errOrMsg.message : String(errOrMsg);
+    const clean = raw.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i, '');
+    setToastMsg(clean);
+    setTimeout(() => setToastMsg((prev) => (prev === clean ? null : prev)), 3200);
+  }
   const [creatingItem, setCreatingItem] = useState<{
     type: 'file' | 'folder';
     parentDir?: string;
@@ -423,7 +431,27 @@ export default function App() {
         setActiveArticle(moved);
       }
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : '移动文件失败');
+      showToast(err);
+    }
+  }
+
+  async function handleMoveFolder(oldFolderPath: string, targetParentFolder: string) {
+    try {
+      const newRel = await window.electronAPI.moveFolder(oldFolderPath, targetParentFolder);
+      const [list, folderList] = await Promise.all([
+        window.electronAPI.listArticles(),
+        window.electronAPI.listFolders(),
+      ]);
+      setArticles(list);
+      setFolders(folderList);
+      setExpandedDirs((prev) => ({ ...prev, [newRel]: true }));
+      if (activeArticle?.relativePath.startsWith(`${oldFolderPath}/`)) {
+        const updatedRel = activeArticle.relativePath.replace(oldFolderPath, newRel);
+        const match = list.find((a) => a.relativePath === updatedRel);
+        if (match) setActiveArticle(match);
+      }
+    } catch (err) {
+      showToast(err);
     }
   }
 
@@ -496,8 +524,8 @@ export default function App() {
 
   function handleRenameStart(article: ArticleMeta) {
     setRenamingPath(article.relativePath);
-    const baseName = article.relativePath.split('/').pop()?.replace(/\.md$/i, '') ?? '';
-    setRenameDraft(baseName);
+    const fullName = article.relativePath.split('/').pop() ?? '';
+    setRenameDraft(fullName);
   }
 
   async function handleRenameSubmit(oldRelativePath: string) {
@@ -512,7 +540,7 @@ export default function App() {
         setActiveArticle(updated);
       }
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : '重命名失败');
+      showToast(err);
     }
   }
 
@@ -574,6 +602,10 @@ export default function App() {
           <div key={node.path}>
             <button
               type="button"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('application/x-vcat-folder', node.path);
+              }}
               onClick={() => setExpandedDirs((prev) => ({ ...prev, [node.path]: !isOpen }))}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -585,6 +617,11 @@ export default function App() {
                 e.preventDefault();
                 e.stopPropagation();
                 setDragOverFolder(null);
+                const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
+                if (folderPath) {
+                  void handleMoveFolder(folderPath, node.path);
+                  return;
+                }
                 const sourcePath = e.dataTransfer.getData('text/plain');
                 if (sourcePath) void handleMoveArticle(sourcePath, node.path);
               }}
@@ -624,6 +661,11 @@ export default function App() {
               <input
                 type="text"
                 autoFocus
+                onFocus={(e) => {
+                  const dotIdx = e.currentTarget.value.lastIndexOf('.');
+                  if (dotIdx > 0) e.currentTarget.setSelectionRange(0, dotIdx);
+                  else e.currentTarget.select();
+                }}
                 value={renameDraft}
                 onChange={(e) => setRenameDraft(e.target.value)}
                 onBlur={() => void handleRenameSubmit(article.relativePath)}
@@ -679,6 +721,13 @@ export default function App() {
           style={{ left: `${dragGhostX}px` }}
           className="pointer-events-none fixed top-0 bottom-0 z-50 w-[2px] border-r border-dashed border-[#007aff] bg-[#007aff]/35 shadow-[0_0_8px_rgba(0,122,255,0.45)]"
         />
+      )}
+
+      {/* 轻量化顶部错误/操作提示（替代原生阻塞弹窗） */}
+      {toastMsg && (
+        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--border-color)] bg-[#1d1d1f]/90 px-4 py-1.5 text-xs text-white shadow-lg backdrop-blur-md">
+          {toastMsg}
+        </div>
       )}
 
       {/* Typora 原生通顶左侧栏（含 macOS 红绿灯区 + 文件/大纲 + 全文搜索 + 底部动作菜单 + 拖拽调宽） */}
@@ -802,6 +851,11 @@ export default function App() {
               if (sideTab !== 'files') return;
               e.preventDefault();
               setDragOverFolder(null);
+              const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
+              if (folderPath && folderPath.includes('/')) {
+                void handleMoveFolder(folderPath, '');
+                return;
+              }
               const sourcePath = e.dataTransfer.getData('text/plain');
               if (sourcePath && sourcePath.includes('/')) {
                 void handleMoveArticle(sourcePath, '');

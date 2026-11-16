@@ -147,12 +147,12 @@ body {
   width: 100% !important;
   min-width: 0 !important;
 }
-/* Full-width scroll container so scrollbar sits flush at far-right edge like Typora */
+/* Full-width scroll container so scrollbar sits flush at far-right edge & adapts to wide windows */
 .vditor-ir pre.vditor-reset {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
-  padding: 28px max(56px, calc((100% - 860px) / 2)) 100px !important;
+  padding: 28px max(48px, calc((100% - 1100px) / 2)) 100px !important;
   font-family: var(--font-editorial) !important;
   font-size: 16px;
   line-height: 1.65;

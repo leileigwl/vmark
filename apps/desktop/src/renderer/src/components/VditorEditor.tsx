@@ -75,11 +75,18 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         'inline-code': { tag: 'CODE', altTag: 'CODE', marker: '`' },
       }[cmd];
 
+      const selector = `${markerMap.tag.toLowerCase()}, ${markerMap.altTag.toLowerCase()}, span[data-type="${cmd}"]`;
       const anchorEl =
         sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
-      const existingNode = anchorEl?.closest(
-        `${markerMap.tag.toLowerCase()}, ${markerMap.altTag.toLowerCase()}, span[data-type="${cmd}"]`
-      );
+      const focusEl =
+        sel.focusNode instanceof Element ? sel.focusNode : sel.focusNode?.parentElement;
+      const commonNode = sel.getRangeAt(0).commonAncestorContainer;
+      const commonEl = commonNode instanceof Element ? commonNode : commonNode.parentElement;
+
+      const existingNode =
+        anchorEl?.closest(selector) ||
+        focusEl?.closest(selector) ||
+        commonEl?.closest(selector);
 
       if (existingNode && el.contains(existingNode)) {
         const plainText = (existingNode.textContent || '')
@@ -92,6 +99,13 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         sel.removeAllRanges();
         sel.addRange(range);
         document.execCommand('insertText', false, plainText);
+        return;
+      }
+
+      // Inside table cells (<th>/<td>), use native bold/italic so Vditor doesn't leave literal **...**
+      const inTableCell = Boolean(anchorEl?.closest('td, th'));
+      if (inTableCell && (cmd === 'bold' || cmd === 'italic')) {
+        document.execCommand(cmd);
         return;
       }
 
@@ -449,6 +463,19 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         void window.electronAPI?.showEditorContextMenu?.({ inTable, hasSelection });
       };
 
+      const handlePasteCapture = (e: ClipboardEvent) => {
+        const html = e.clipboardData?.getData('text/html') ?? '';
+        const plain = e.clipboardData?.getData('text/plain') ?? '';
+        // Strip external editor internal HTML/SVG wrappers (e.g. .md-fences, .md-diagram, <svg)
+        // so pasting produces clean Markdown/code instead of raw HTML or black SVG boxes
+        if (plain && /(md-fences|md-diagram|mdtype=|<svg\b)/i.test(html)) {
+          e.preventDefault();
+          e.stopPropagation();
+          instance.insertValue(plain);
+        }
+      };
+
+      el.addEventListener('paste', handlePasteCapture, true);
       el.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
       el.addEventListener('click', handleClickCapture, true);
@@ -456,6 +483,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       return () => {
         if (rafId) cancelAnimationFrame(rafId);
+        el.removeEventListener('paste', handlePasteCapture, true);
         el.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
         el.removeEventListener('click', handleClickCapture, true);

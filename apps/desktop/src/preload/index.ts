@@ -10,6 +10,8 @@ const api: ElectronAPI = {
   listArticles: () => ipcRenderer.invoke('articles:list'),
   listFolders: () => ipcRenderer.invoke('folders:list'),
   createFolder: (folderName: string) => ipcRenderer.invoke('folders:create', folderName),
+  moveFolder: (oldFolderPath: string, targetParentFolder: string) =>
+    ipcRenderer.invoke('folders:move', oldFolderPath, targetParentFolder),
   readArticle: (relativePath: string) => ipcRenderer.invoke('articles:read', relativePath),
   saveArticle: (relativePath: string, content: string) =>
     ipcRenderer.invoke('articles:save', relativePath, content),
