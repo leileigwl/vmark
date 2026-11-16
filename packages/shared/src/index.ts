@@ -46,9 +46,30 @@ export interface ArticleMeta {
   syncRecords: Partial<Record<PlatformId, SyncRecord>>;
 }
 
+export type ImageBedProvider =
+  | 'picgo_core'
+  | 'aliyun_oss'
+  | 'tencent_cos'
+  | 's3'
+  | 'github'
+  | 'qiniu'
+  | 'smms'
+  | 'imgur';
+
 export interface ImageBedConfig {
   strategy: 'platform_private' | 'custom_oss';
-  provider?: 'aliyun_oss' | 'tencent_cos' | 's3' | 'github';
+  provider?: ImageBedProvider;
+  defaultImageScale?: 50 | 75 | 100;
+  picgoPath?: string;
+  endpoint?: string;
+  bucket?: string;
+  region?: string;
+  accessKey?: string;
+  secretKey?: string;
+  customDomain?: string;
+  repo?: string;
+  branch?: string;
+  token?: string;
 }
 
 export type PipelineStepId =
@@ -71,7 +92,34 @@ export interface GitStatusInfo {
   changedFiles: number;
 }
 
-export type ThemeId = 'apple-light' | 'bloom-lapis' | 'bloom-wheat' | 'typora-white' | 'custom-typora';
+export type ThemeId =
+  | 'apple-light'
+  | 'typora-white'
+  | 'custom-typora'
+  | 'bloom-amber'
+  | 'bloom-amber-dark'
+  | 'bloom-cinnabar'
+  | 'bloom-cinnabar-dark'
+  | 'bloom-ink'
+  | 'bloom-ink-dark'
+  | 'bloom-lapis'
+  | 'bloom-lapis-dark'
+  | 'bloom-mist'
+  | 'bloom-mist-dark'
+  | 'bloom-petal'
+  | 'bloom-petal-dark'
+  | 'bloom-ripple'
+  | 'bloom-ripple-dark'
+  | 'bloom-sage'
+  | 'bloom-sage-dark'
+  | 'bloom-spring'
+  | 'bloom-spring-dark'
+  | 'bloom-stone'
+  | 'bloom-stone-dark'
+  | 'bloom-verdant'
+  | 'bloom-verdant-dark'
+  | 'bloom-wheat'
+  | 'bloom-wheat-dark';
 
 export interface ContextMenuOptions {
   inTable: boolean;
@@ -105,6 +153,7 @@ export interface ElectronAPI {
   ) => Promise<{ relativeMarkdownPath: string; fullPath: string }>;
   getImageBedConfig: () => Promise<ImageBedConfig>;
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
+  testImageBedUpload: (config: ImageBedConfig) => Promise<{ ok: boolean; url?: string; message: string }>;
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
   getGitStatus: () => Promise<GitStatusInfo>;

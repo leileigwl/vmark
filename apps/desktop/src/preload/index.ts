@@ -22,6 +22,8 @@ const api: ElectronAPI = {
   getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),
   saveImageBedConfig: (config: ImageBedConfig) =>
     ipcRenderer.invoke('config:saveImageBed', config),
+  testImageBedUpload: (config: ImageBedConfig) =>
+    ipcRenderer.invoke('config:testImageBed', config),
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
     ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
   getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),

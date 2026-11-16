@@ -5,6 +5,8 @@ export interface VditorEditorHandle {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
   getValue: () => string;
+  findMatches: (findStr: string) => number;
+  jumpToMatch: (findStr: string, index: number) => number;
   replaceAllText: (findStr: string, replaceStr: string) => number;
 }
 
@@ -56,10 +58,62 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     onSaveRef.current = onSave;
     pendingValueRef.current = value;
 
+    const toggleInlineWrap = (cmd: 'bold' | 'italic' | 'strike' | 'inline-code') => {
+      const instance = vditorRef.current;
+      const el = containerRef.current;
+      if (!instance || !el || !isReadyRef.current) return;
+
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+
+      const markerMap = {
+        bold: { tag: 'STRONG', altTag: 'B', marker: '**' },
+        italic: { tag: 'EM', altTag: 'I', marker: '*' },
+        strike: { tag: 'DEL', altTag: 'S', marker: '~~' },
+        'inline-code': { tag: 'CODE', altTag: 'CODE', marker: '`' },
+      }[cmd];
+
+      const anchorEl =
+        sel.anchorNode instanceof Element ? sel.anchorNode : sel.anchorNode?.parentElement;
+      const existingNode = anchorEl?.closest(
+        `${markerMap.tag.toLowerCase()}, ${markerMap.altTag.toLowerCase()}, span[data-type="${cmd}"]`
+      );
+
+      if (existingNode && el.contains(existingNode)) {
+        // Cleanly unwrap bold/italic/strike without leaving stray * or converting bold to italic
+        const plainText = (existingNode.textContent || '')
+          .replace(/^\*\*|\*\*$/g, '')
+          .replace(/^\*|\*$/g, '')
+          .replace(/^~~|~~$/g, '')
+          .replace(/^`|`$/g, '');
+        const textNode = document.createTextNode(plainText);
+        existingNode.parentNode?.replaceChild(textNode, existingNode);
+        const range = document.createRange();
+        range.selectNodeContents(textNode);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        el.querySelector('.vditor-reset')?.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+
+      const selectedText = sel.toString();
+      if (selectedText) {
+        instance.focus();
+        instance.insertValue(`${markerMap.marker}${selectedText}${markerMap.marker}`);
+      } else {
+        instance.focus();
+        instance.insertValue(FORMAT_SNIPPETS[cmd] ?? '');
+      }
+    };
+
     useImperativeHandle(ref, () => ({
       applyFormat(cmd: string) {
         const instance = vditorRef.current;
         if (!instance || !isReadyRef.current) return;
+        if (cmd === 'bold' || cmd === 'italic' || cmd === 'strike' || cmd === 'inline-code') {
+          toggleInlineWrap(cmd);
+          return;
+        }
         const snippet = FORMAT_SNIPPETS[cmd];
         if (snippet) {
           instance.focus();
@@ -69,6 +123,55 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       getValue() {
         const instance = vditorRef.current;
         return instance && isReadyRef.current ? instance.getValue() : value;
+      },
+      findMatches(findStr: string) {
+        const el = containerRef.current;
+        if (!el || !findStr) return 0;
+        const resetEl = el.querySelector('.vditor-reset');
+        if (!resetEl) return 0;
+        const text = resetEl.textContent || '';
+        const lowerText = text.toLowerCase();
+        const lowerQuery = findStr.toLowerCase();
+        let count = 0;
+        let idx = lowerText.indexOf(lowerQuery);
+        while (idx !== -1) {
+          count++;
+          idx = lowerText.indexOf(lowerQuery, idx + lowerQuery.length);
+        }
+        return count;
+      },
+      jumpToMatch(findStr: string, targetIndex: number) {
+        const el = containerRef.current;
+        if (!el || !findStr) return 0;
+        const resetEl = el.querySelector('.vditor-reset');
+        if (!resetEl) return 0;
+
+        const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
+        const lowerQuery = findStr.toLowerCase();
+        const hits: Array<{ node: Text; start: number; end: number }> = [];
+        let curr = walker.nextNode() as Text | null;
+        while (curr) {
+          const val = curr.nodeValue || '';
+          const lowerVal = val.toLowerCase();
+          let pos = lowerVal.indexOf(lowerQuery);
+          while (pos !== -1) {
+            hits.push({ node: curr, start: pos, end: pos + findStr.length });
+            pos = lowerVal.indexOf(lowerQuery, pos + lowerQuery.length);
+          }
+          curr = walker.nextNode() as Text | null;
+        }
+        if (hits.length === 0) return 0;
+        const safeIdx = ((targetIndex % hits.length) + hits.length) % hits.length;
+        const hit = hits[safeIdx];
+        const range = document.createRange();
+        range.setStart(hit.node, hit.start);
+        range.setEnd(hit.node, hit.end);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        const parentEl = hit.node.parentElement;
+        parentEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return hits.length;
       },
       replaceAllText(findStr: string, replaceStr: string) {
         const instance = vditorRef.current;
@@ -95,7 +198,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         const colIndex = cell.cellIndex;
         const colCount = row.cells.length;
 
-        if (action === 'row-above' || action === 'row-below') {
+        if (action === 'table-copy') {
+          const mdRows = Array.from(table.rows).map((r) =>
+            `| ${Array.from(r.cells).map((c) => (c.textContent || '').trim()).join(' | ')} |`
+          );
+          if (mdRows.length > 0) {
+            const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
+            mdRows.splice(1, 0, sep);
+            void navigator.clipboard.writeText(mdRows.join('\n'));
+          }
+          return;
+        }
+
+        if (action === 'table-delete') {
+          table.remove();
+        } else if (action === 'row-above' || action === 'row-below') {
           const newRow = document.createElement('tr');
           for (let i = 0; i < colCount; i++) {
             const td = document.createElement('td');
@@ -166,12 +283,12 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             instance.setValue(pendingValueRef.current);
           }
         },
-        // Debounce React state sync so typing & Cmd+Z undo remain 0ms lag on 68KB+ docs
+        // Debounce React state sync so typing & Cmd+Z undo remain instant on 68KB+ docs
         input: (md) => {
           if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
           debounceTimerRef.current = setTimeout(() => {
             onChangeRef.current(md);
-          }, 220);
+          }, 320);
         },
         ctrlEnter: (md) => {
           onSaveRef.current?.(md);
@@ -198,28 +315,47 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       vditorRef.current = instance;
 
+      let rafId = 0;
       const enhanceDom = () => {
-        const imgs = el.querySelectorAll('img');
-        imgs.forEach((img) => {
-          const rawSrc = img.getAttribute('src');
-          if (!rawSrc || /^(https?:|data:|vcat-asset:|blob:)/i.test(rawSrc)) return;
-          const cleanRel = rawSrc.replace(/^\.\//, '');
-          img.src = `vcat-asset://local/${cleanRel}`;
-        });
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          const imgs = el.querySelectorAll('img');
+          imgs.forEach((img) => {
+            const rawSrc = img.getAttribute('src');
+            if (!rawSrc || /^(https?:|data:|vcat-asset:|blob:)/i.test(rawSrc)) return;
+            const cleanRel = rawSrc.replace(/^\.\//, '');
+            img.src = `vcat-asset://local/${cleanRel}`;
+          });
 
-        const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
-        htmlNodes.forEach((node) => {
-          const rawText = (node.textContent || '').trim();
-          if (rawText === '</details>' || rawText === '<details>') {
-            node.classList.add('vcat-details-boundary');
-          } else {
-            node.classList.remove('vcat-details-boundary');
-          }
+          const htmlNodes = el.querySelectorAll('.vditor-ir__node[data-type="html-block"]');
+          htmlNodes.forEach((node) => {
+            const rawText = (node.textContent || '').trim();
+            if (rawText === '</details>' || rawText === '<details>') {
+              node.classList.add('vcat-details-boundary');
+            } else {
+              node.classList.remove('vcat-details-boundary');
+            }
+          });
         });
       };
 
       const observer = new MutationObserver(enhanceDom);
       observer.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
+      const handleKeyDownCapture = (e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+          const k = e.key.toLowerCase();
+          if (k === 'b') {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleInlineWrap('bold');
+          } else if (k === 'i') {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleInlineWrap('italic');
+          }
+        }
+      };
 
       // Single-click Mermaid/Image -> Lightbox zoom (without expanding raw source); Double-click -> edit source
       const handleMouseDownCapture = (e: MouseEvent) => {
@@ -264,11 +400,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         void window.electronAPI?.showEditorContextMenu?.({ inTable, hasSelection });
       };
 
+      el.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
       el.addEventListener('click', handleClickCapture, true);
       el.addEventListener('contextmenu', handleContextMenu);
 
       return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        el.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
         el.removeEventListener('click', handleClickCapture, true);
         el.removeEventListener('contextmenu', handleContextMenu);

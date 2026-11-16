@@ -210,9 +210,40 @@ function buildApplicationMenu(): void {
       label: '主题',
       submenu: [
         { label: 'Apple Light（默认苹果白）', type: 'radio', checked: true, click: () => sendMenuAction('theme:set', 'apple-light') },
-        { label: 'Bloom Lapis（文档蓝）', type: 'radio', click: () => sendMenuAction('theme:set', 'bloom-lapis') },
-        { label: 'Bloom Wheat（象牙白）', type: 'radio', click: () => sendMenuAction('theme:set', 'bloom-wheat') },
         { label: 'Typora White（原版 GitHub）', type: 'radio', click: () => sendMenuAction('theme:set', 'typora-white') },
+        { type: 'separator' },
+        ...(
+          [
+            ['bloom-amber-dark', 'Bloom Amber Dark'],
+            ['bloom-amber', 'Bloom Amber'],
+            ['bloom-cinnabar-dark', 'Bloom Cinnabar Dark'],
+            ['bloom-cinnabar', 'Bloom Cinnabar'],
+            ['bloom-ink-dark', 'Bloom Ink Dark'],
+            ['bloom-ink', 'Bloom Ink'],
+            ['bloom-lapis-dark', 'Bloom Lapis Dark'],
+            ['bloom-lapis', 'Bloom Lapis'],
+            ['bloom-mist-dark', 'Bloom Mist Dark'],
+            ['bloom-mist', 'Bloom Mist'],
+            ['bloom-petal-dark', 'Bloom Petal Dark'],
+            ['bloom-petal', 'Bloom Petal'],
+            ['bloom-ripple-dark', 'Bloom Ripple Dark'],
+            ['bloom-ripple', 'Bloom Ripple'],
+            ['bloom-sage-dark', 'Bloom Sage Dark'],
+            ['bloom-sage', 'Bloom Sage'],
+            ['bloom-spring-dark', 'Bloom Spring Dark'],
+            ['bloom-spring', 'Bloom Spring'],
+            ['bloom-stone-dark', 'Bloom Stone Dark'],
+            ['bloom-stone', 'Bloom Stone'],
+            ['bloom-verdant-dark', 'Bloom Verdant Dark'],
+            ['bloom-verdant', 'Bloom Verdant'],
+            ['bloom-wheat-dark', 'Bloom Wheat Dark'],
+            ['bloom-wheat', 'Bloom Wheat'],
+          ] as const
+        ).map(([id, label]) => ({
+          label,
+          type: 'radio' as const,
+          click: () => sendMenuAction('theme:set', id),
+        })),
       ],
     },
     {
@@ -426,6 +457,38 @@ function registerIpcHandlers(): void {
     await writeAppConfig(cfg);
   });
 
+  ipcMain.handle('config:testImageBed', async (_event, imageBed: ImageBedConfig) => {
+    const provider = imageBed.provider ?? 'picgo_core';
+    if (provider === 'picgo_core') {
+      const bin = imageBed.picgoPath?.trim() || 'picgo';
+      try {
+        const { stdout } = await execFileAsync(bin, ['--version'], { timeout: 4000 });
+        return { ok: true, message: `PicGo-Core 就绪 (${stdout.trim()})` };
+      } catch {
+        return {
+          ok: false,
+          message: `未检测到 PicGo-Core (${bin})，请先安装 npm i -g picgo 或切换为内置云存储直传`,
+        };
+      }
+    }
+    if (provider === 'github') {
+      if (!imageBed.repo?.trim() || !imageBed.token?.trim()) {
+        return { ok: false, message: '请填写 GitHub 仓库 (owner/repo) 与 Personal Access Token' };
+      }
+      return { ok: true, message: `GitHub 图床配置校验通过（${imageBed.repo}）` };
+    }
+    if (provider === 'smms' || provider === 'imgur') {
+      if (!imageBed.token?.trim()) {
+        return { ok: false, message: `请填写 ${provider.toUpperCase()} API Token` };
+      }
+      return { ok: true, message: `${provider.toUpperCase()} 图床凭证已就绪` };
+    }
+    if (!imageBed.bucket?.trim() || !imageBed.accessKey?.trim() || !imageBed.secretKey?.trim()) {
+      return { ok: false, message: '请填写完整的 Bucket / AccessKey / SecretKey' };
+    }
+    return { ok: true, message: `${provider} 对象存储参数校验通过（${imageBed.bucket}）` };
+  });
+
   ipcMain.handle(
     'platform:openLogin',
     async (_event, platformId: PlatformId, loginUrl: string) => {
@@ -529,6 +592,9 @@ function registerIpcHandlers(): void {
               { type: 'separator' },
               { label: '删除当前行', click: () => sendMenuAction('editor:table', 'row-delete') },
               { label: '删除当前列', click: () => sendMenuAction('editor:table', 'col-delete') },
+              { type: 'separator' },
+              { label: '复制表格', click: () => sendMenuAction('editor:table', 'table-copy') },
+              { label: '删除表格', click: () => sendMenuAction('editor:table', 'table-delete') },
             ],
           },
         ]

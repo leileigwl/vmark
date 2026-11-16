@@ -12,24 +12,93 @@
   --font-editorial: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
 }
 
+[data-theme='bloom-amber'] {
+  --side-bar-bg-color: #f4efe8; --control-text-color: #635543; --bg-main: #faf6f0; --text-main: #2a2117; --accent: #c47c2b; --border-color: rgba(42,33,23,0.1);
+}
+[data-theme='bloom-amber-dark'] {
+  --side-bar-bg-color: #1f1b17; --control-text-color: #b5a795; --bg-main: #181512; --text-main: #e8dfd3; --accent: #e09c4a; --border-color: rgba(232,223,211,0.12);
+}
+[data-theme='bloom-cinnabar'] {
+  --side-bar-bg-color: #f4eceb; --control-text-color: #624b49; --bg-main: #fbf5f4; --text-main: #2a1817; --accent: #b8423a; --border-color: rgba(42,24,23,0.1);
+}
+[data-theme='bloom-cinnabar-dark'] {
+  --side-bar-bg-color: #1f1818; --control-text-color: #b59e9c; --bg-main: #181212; --text-main: #eadbd9; --accent: #de6b62; --border-color: rgba(234,219,217,0.12);
+}
+[data-theme='bloom-ink'] {
+  --side-bar-bg-color: #f0f1f3; --control-text-color: #50555c; --bg-main: #f8f9fa; --text-main: #1c2024; --accent: #3d4856; --border-color: rgba(28,32,36,0.1);
+}
+[data-theme='bloom-ink-dark'] {
+  --side-bar-bg-color: #1a1c1f; --control-text-color: #a0a6ad; --bg-main: #131517; --text-main: #dde1e6; --accent: #7f91a8; --border-color: rgba(221,225,230,0.12);
+}
 [data-theme='bloom-lapis'] {
-  --side-bar-bg-color: #ecf1f5;
-  --control-text-color: #48515b;
-  --bg-main: #f3f7fa;
-  --text-main: #161e26;
-  --accent: #2f62ac;
-  --border-color: rgba(22, 30, 38, 0.1);
-  --font-editorial: "MiSans", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  --side-bar-bg-color: #ecf1f5; --control-text-color: #48515b; --bg-main: #f3f7fa; --text-main: #161e26; --accent: #2f62ac; --border-color: rgba(22,30,38,0.1);
+}
+[data-theme='bloom-lapis-dark'] {
+  --side-bar-bg-color: #171d24; --control-text-color: #9ba8b5; --bg-main: #11161b; --text-main: #dce4ec; --accent: #5d94e2; --border-color: rgba(220,228,236,0.12);
+}
+[data-theme='bloom-mist'] {
+  --side-bar-bg-color: #edf1f4; --control-text-color: #525d66; --bg-main: #f5f8fa; --text-main: #1e252b; --accent: #4c7794; --border-color: rgba(30,37,43,0.1);
+}
+[data-theme='bloom-mist-dark'] {
+  --side-bar-bg-color: #181d21; --control-text-color: #9da8b0; --bg-main: #121619; --text-main: #dde3e8; --accent: #75a3c2; --border-color: rgba(221,227,232,0.12);
+}
+[data-theme='bloom-petal'] {
+  --side-bar-bg-color: #f4edf0; --control-text-color: #634d56; --bg-main: #fbf6f8; --text-main: #291a20; --accent: #b84d78; --border-color: rgba(41,26,32,0.1);
+}
+[data-theme='bloom-petal-dark'] {
+  --side-bar-bg-color: #20181c; --control-text-color: #b59da6; --bg-main: #181215; --text-main: #ebd9e0; --accent: #de76a0; --border-color: rgba(235,217,224,0.12);
+}
+[data-theme='bloom-ripple'] {
+  --side-bar-bg-color: #eaf2f3; --control-text-color: #465b5e; --bg-main: #f3f9fa; --text-main: #162426; --accent: #2d8794; --border-color: rgba(22,36,38,0.1);
+}
+[data-theme='bloom-ripple-dark'] {
+  --side-bar-bg-color: #161f21; --control-text-color: #97acb0; --bg-main: #101718; --text-main: #d9e6e8; --accent: #52b0bd; --border-color: rgba(217,230,232,0.12);
+}
+[data-theme='bloom-sage'] {
+  --side-bar-bg-color: #edf2ee; --control-text-color: #4c5b4f; --bg-main: #f5f9f6; --text-main: #19241b; --accent: #448556; --border-color: rgba(25,36,27,0.1);
+}
+[data-theme='bloom-sage-dark'] {
+  --side-bar-bg-color: #181f1a; --control-text-color: #9cb0a0; --bg-main: #121713; --text-main: #dce8de; --accent: #68ab7a; --border-color: rgba(220,232,222,0.12);
+}
+[data-theme='bloom-spring'] {
+  --side-bar-bg-color: #eef3ec; --control-text-color: #4d5e49; --bg-main: #f6faf4; --text-main: #1a2618; --accent: #4f8f3b; --border-color: rgba(26,38,24,0.1);
+}
+[data-theme='bloom-spring-dark'] {
+  --side-bar-bg-color: #182017; --control-text-color: #9eb29a; --bg-main: #121811; --text-main: #dde9da; --accent: #74b560; --border-color: rgba(221,233,218,0.12);
+}
+[data-theme='bloom-stone'] {
+  --side-bar-bg-color: #efeeec; --control-text-color: #575450; --bg-main: #f7f6f4; --text-main: #24221f; --accent: #736b5e; --border-color: rgba(36,34,31,0.1);
+}
+[data-theme='bloom-stone-dark'] {
+  --side-bar-bg-color: #1d1c1a; --control-text-color: #a8a49e; --bg-main: #151413; --text-main: #e3e0dc; --accent: #a19788; --border-color: rgba(227,224,220,0.12);
+}
+[data-theme='bloom-verdant'] {
+  --side-bar-bg-color: #eaf2ee; --control-text-color: #435c50; --bg-main: #f2f9f5; --text-main: #14261d; --accent: #278056; --border-color: rgba(20,38,29,0.1);
+}
+[data-theme='bloom-verdant-dark'] {
+  --side-bar-bg-color: #151f1a; --control-text-color: #94b0a2; --bg-main: #0f1713; --text-main: #d7e8df; --accent: #4da67c; --border-color: rgba(215,232,223,0.12);
+}
+[data-theme='bloom-wheat'] {
+  --side-bar-bg-color: #f1eee9; --control-text-color: #5a544a; --bg-main: #f7f5f1; --text-main: #262118; --accent: #836d43; --border-color: rgba(38,33,24,0.1);
+}
+[data-theme='bloom-wheat-dark'] {
+  --side-bar-bg-color: #201d18; --control-text-color: #b3aa9c; --bg-main: #171511; --text-main: #ebe6dc; --accent: #ba9f6a; --border-color: rgba(235,230,220,0.12);
 }
 
-[data-theme='bloom-wheat'] {
-  --side-bar-bg-color: #f1eee9;
-  --control-text-color: #5a544a;
-  --bg-main: #f7f5f1;
-  --text-main: #262118;
-  --accent: #836d43;
-  --border-color: rgba(38, 33, 24, 0.1);
-  --font-editorial: "MiSans", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+[data-theme*='-dark'] .vditor-reset pre > code,
+[data-theme*='-dark'] .vditor-ir__node[data-type="code-block"] pre {
+  background-color: #1f242c !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  color: #e6edf3 !important;
+}
+[data-theme*='-dark'] .vditor-reset table tr:nth-child(2n),
+[data-theme*='-dark'] .vditor-reset table thead {
+  background-color: rgba(255,255,255,0.04) !important;
+}
+[data-theme*='-dark'] .vditor-reset table th,
+[data-theme*='-dark'] .vditor-reset table td,
+[data-theme*='-dark'] .vditor-reset table tr {
+  border-color: rgba(255,255,255,0.12) !important;
 }
 
 [data-theme='typora-white'] {
@@ -197,13 +266,13 @@ body {
   background: transparent !important;
   border: none !important;
 }
-/* Single in-place edit for regular code blocks: hide duplicate preview when expanded */
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid)) > .vditor-ir__preview {
+/* Single in-place edit for both regular code blocks and double-clicked Mermaid blocks */
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand > .vditor-ir__preview {
   display: none !important;
 }
 /* Clean macOS 3-dot header only on preview or expanded code block without overlapping markers */
 .vditor-ir__node[data-type="code-block"]:not(.vditor-ir__node--expand)::before,
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid))::before {
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand::before {
   content: "" !important;
   position: absolute !important;
   top: 14px !important;
@@ -236,12 +305,33 @@ body {
   font-size: 13.5px !important;
   line-height: 1.55 !important;
 }
-.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand:not(:has(.language-mermaid)) .vditor-ir__marker--pre > pre {
+.vditor-ir__node[data-type="code-block"].vditor-ir__node--expand .vditor-ir__marker--pre > pre {
   padding-top: 14px !important;
   margin-top: 4px !important;
 }
 .vditor-reset .language-mermaid {
   cursor: zoom-in !important;
+}
+.vditor-reset img {
+  display: block;
+  margin: 0.75em auto;
+  border-radius: 8px;
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+[data-img-scale='50'] .vditor-reset img {
+  max-width: 50% !important;
+}
+[data-img-scale='75'] .vditor-reset img {
+  max-width: 75% !important;
+}
+[data-img-scale='100'] .vditor-reset img {
+  max-width: 100% !important;
+}
+.vcat-find-active {
+  background: #ff9500 !important;
+  color: #ffffff !important;
+  border-radius: 3px;
 }
 .vditor-reset table {
   display: table !important;

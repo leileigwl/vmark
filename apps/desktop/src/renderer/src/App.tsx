@@ -113,18 +113,49 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>({});
   const [saveState, setSaveState] = useState<string>('已同步');
-  const [imageBed, setImageBed] = useState<ImageBedConfig>({ strategy: 'platform_private' });
+  const [imageBed, setImageBed] = useState<ImageBedConfig>({
+    strategy: 'platform_private',
+    provider: 'picgo_core',
+    defaultImageScale: 50,
+  });
+  const [imageBedTestMsg, setImageBedTestMsg] = useState<string>('');
   const [authStates, setAuthStates] = useState<Partial<Record<PlatformId, boolean>>>({});
   const [gitStatus, setGitStatus] = useState<GitStatusInfo>({ isGitRepo: false, changedFiles: 0 });
   const [gitPushLog, setGitPushLog] = useState<string>('');
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
   const [findBarOpen, setFindBarOpen] = useState<boolean>(false);
+  const [findReplaceExpanded, setFindReplaceExpanded] = useState<boolean>(false);
   const [findQuery, setFindQuery] = useState<string>('');
+  const [findMatchIndex, setFindMatchIndex] = useState<number>(0);
+  const [findMatchTotal, setFindMatchTotal] = useState<number>(0);
   const [replaceQuery, setReplaceQuery] = useState<string>('');
   const [replaceNotice, setReplaceNotice] = useState<string>('');
   const [theme, setTheme] = useState<ThemeId>('apple-light');
   const [customThemeName, setCustomThemeName] = useState<string>('');
   const editorRef = useRef<VditorEditorHandle>(null);
+  const sidebarPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      'data-img-scale',
+      String(imageBed.defaultImageScale ?? 50)
+    );
+  }, [imageBed.defaultImageScale]);
+
+  useEffect(() => {
+    if (!sidebarMenuOpen || sidebarMenuPinned) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (sidebarPopoverRef.current && !sidebarPopoverRef.current.contains(e.target as Node)) {
+        setSidebarMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [sidebarMenuOpen, sidebarMenuPinned]);
 
   async function handleImportTyporaTheme() {
     const res = await window.electronAPI.importTyporaThemeCss();
@@ -725,7 +756,8 @@ export default function App() {
             )}
           </div>
 
-          {/* Typora 底部工作区动作条与弹出菜单（支持右下角图钉锁定） */}
+          {/* Typora 底部工作区动作条与弹出菜单（支持右下角图钉锁定，未锁定时点击空白处关闭） */}
+          <div ref={sidebarPopoverRef} className="relative shrink-0">
           {sidebarMenuOpen && (
             <div className="absolute bottom-8 left-2 right-2 z-40 rounded-lg border border-[#e5e7eb] bg-white/95 py-1.5 text-[12px] shadow-xl backdrop-blur-xs">
               <div className="flex items-center justify-between px-3 pb-1 text-[11px] font-semibold text-[#777777]">
@@ -890,6 +922,7 @@ export default function App() {
                 <ListTree className="h-3.5 w-3.5" />
               </button>
             </div>
+          </div>
           </div>
 
           {/* 右边缘拖拽调宽热区 */}
@@ -1105,39 +1138,110 @@ export default function App() {
           {activeView === 'editor' && (
             <section className="relative flex-1 overflow-hidden bg-[var(--bg-main)]">
               {findBarOpen && (
-                <div className="absolute top-2 right-6 z-40 flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xs">
-                  <input
-                    type="text"
-                    placeholder="查找..."
-                    value={findQuery}
-                    onChange={(e) => setFindQuery(e.target.value)}
-                    className="w-36 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
-                  />
-                  <input
-                    type="text"
-                    placeholder="替换为..."
-                    value={replaceQuery}
-                    onChange={(e) => setReplaceQuery(e.target.value)}
-                    className="w-36 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const count = editorRef.current?.replaceAllText(findQuery, replaceQuery) ?? 0;
-                      setReplaceNotice(`已替换 ${count} 处`);
-                    }}
-                    className="rounded bg-[#007aff] px-2.5 py-1 text-white hover:bg-[#0062cc]"
-                  >
-                    全部替换
-                  </button>
-                  {replaceNotice && <span className="text-[11px] text-[#007aff]">{replaceNotice}</span>}
-                  <button
-                    type="button"
-                    onClick={() => setFindBarOpen(false)}
-                    className="px-1 text-[#777777] hover:text-[#333333]"
-                  >
-                    ✕
-                  </button>
+                <div className="absolute top-2 right-6 z-40 flex flex-col gap-1.5 rounded-lg border border-[#e5e7eb] bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur-xs">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      title={findReplaceExpanded ? '收起替换栏' : '展开替换栏'}
+                      onClick={() => setFindReplaceExpanded((v) => !v)}
+                      className="flex h-6 w-5 items-center justify-center rounded text-[#6e6e73] hover:bg-[#f2f2f7]"
+                    >
+                      {findReplaceExpanded ? '▾' : '▸'}
+                    </button>
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="查找正文..."
+                      value={findQuery}
+                      onChange={(e) => {
+                        const q = e.target.value;
+                        setFindQuery(q);
+                        setReplaceNotice('');
+                        const total = editorRef.current?.findMatches(q) ?? 0;
+                        setFindMatchTotal(total);
+                        setFindMatchIndex(0);
+                        if (total > 0) editorRef.current?.jumpToMatch(q, 0);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && findQuery) {
+                          e.preventDefault();
+                          const total = editorRef.current?.findMatches(findQuery) ?? 0;
+                          if (total > 0) {
+                            const nextIdx = e.shiftKey
+                              ? (findMatchIndex - 1 + total) % total
+                              : (findMatchIndex + 1) % total;
+                            setFindMatchTotal(total);
+                            setFindMatchIndex(nextIdx);
+                            editorRef.current?.jumpToMatch(findQuery, nextIdx);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setFindBarOpen(false);
+                        }
+                      }}
+                      className="w-44 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
+                    />
+                    <span className="min-w-[44px] text-center text-[11px] tabular-nums text-[#8e8e93]">
+                      {findQuery ? `${findMatchTotal > 0 ? findMatchIndex + 1 : 0} / ${findMatchTotal}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      title="上一个 (Shift+Enter)"
+                      onClick={() => {
+                        if (!findQuery || findMatchTotal === 0) return;
+                        const prevIdx = (findMatchIndex - 1 + findMatchTotal) % findMatchTotal;
+                        setFindMatchIndex(prevIdx);
+                        editorRef.current?.jumpToMatch(findQuery, prevIdx);
+                      }}
+                      className="rounded px-1.5 py-0.5 text-[#6e6e73] hover:bg-[#f2f2f7]"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      title="下一个 (Enter)"
+                      onClick={() => {
+                        if (!findQuery || findMatchTotal === 0) return;
+                        const nextIdx = (findMatchIndex + 1) % findMatchTotal;
+                        setFindMatchIndex(nextIdx);
+                        editorRef.current?.jumpToMatch(findQuery, nextIdx);
+                      }}
+                      className="rounded px-1.5 py-0.5 text-[#6e6e73] hover:bg-[#f2f2f7]"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFindBarOpen(false)}
+                      className="px-1 text-[#777777] hover:text-[#333333]"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {findReplaceExpanded && (
+                    <div className="flex items-center gap-1.5 pl-6">
+                      <input
+                        type="text"
+                        placeholder="替换为..."
+                        value={replaceQuery}
+                        onChange={(e) => setReplaceQuery(e.target.value)}
+                        className="w-44 rounded border border-[#e5e7eb] px-2 py-1 text-xs outline-none focus:border-[#007aff]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const count = editorRef.current?.replaceAllText(findQuery, replaceQuery) ?? 0;
+                          setReplaceNotice(`已替换 ${count} 处`);
+                          setFindMatchTotal(0);
+                          setFindMatchIndex(0);
+                        }}
+                        className="rounded bg-[#007aff] px-2.5 py-1 text-white hover:bg-[#0062cc]"
+                      >
+                        全部替换
+                      </button>
+                      {replaceNotice && <span className="text-[11px] text-[#007aff]">{replaceNotice}</span>}
+                    </div>
+                  )}
                 </div>
               )}
               {activeArticle ? (
@@ -1337,11 +1441,41 @@ export default function App() {
 
               <section className="min-w-0 flex-1 overflow-y-auto bg-white p-6 md:p-8">
                 {settingCategory === 'image' && (
-                  <div className="max-w-2xl space-y-4">
-                    <h2 className="text-base font-semibold">插入图片时</h2>
-                    <p className="text-xs text-[#777777]">
-                      本地写作始终保存至 <code>./assets/</code>，离线完全可用。
-                    </p>
+                  <div className="max-w-2xl space-y-5">
+                    <div>
+                      <h2 className="text-base font-semibold">插入图片时</h2>
+                      <p className="mt-1 text-xs text-[#777777]">
+                        本地写作始终保存至 <code>./assets/</code>，离线完全可用。
+                      </p>
+                    </div>
+
+                    <div className="rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-[13px]">
+                      <div className="mb-2 font-medium">默认图片显示比例</div>
+                      <div className="flex flex-wrap gap-2">
+                        {([50, 75, 100] as const).map((scale) => (
+                          <button
+                            key={scale}
+                            type="button"
+                            onClick={() => {
+                              const next: ImageBedConfig = { ...imageBed, defaultImageScale: scale };
+                              setImageBed(next);
+                              void window.electronAPI.saveImageBedConfig(next);
+                            }}
+                            className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+                              (imageBed.defaultImageScale ?? 50) === scale
+                                ? 'border-[#007aff] bg-[#e6eff8] text-[#007aff]'
+                                : 'border-[#e5e7eb] bg-white text-[#333333] hover:bg-[#f3f4f6]'
+                            }`}
+                          >
+                            {scale}%{scale === 50 ? '（默认推荐）' : scale === 100 ? '（原宽）' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-1.5 text-[11px] text-[#777777]">
+                        插入图片后默认按所选比例居中展示，单击任意图片可随时放大至原图浏览。
+                      </div>
+                    </div>
+
                     <div className="space-y-3 rounded border border-[#e5e7eb] bg-[#fafafa] p-4 text-[13px]">
                       <label className="flex cursor-pointer items-start gap-2.5">
                         <input
@@ -1365,43 +1499,215 @@ export default function App() {
                           onChange={() => void handleChangeImageStrategy('custom_oss')}
                         />
                         <div>
-                          <div className="font-medium">上传至通用云图床（PicGo-Core / OSS / COS / S3）</div>
+                          <div className="font-medium">上传至通用云图床（PicGo-Core / 全平台对象存储）</div>
                           <div className="text-xs text-[#777777]">
-                            适用于 GitHub 静态博客、Hexo / VitePress 等自建站
+                            支持 PicGo-Core、阿里云 OSS、腾讯云 COS、AWS S3 / R2、GitHub、七牛云、SM.MS、Imgur
                           </div>
                         </div>
                       </label>
+
+                      {imageBed.strategy === 'custom_oss' && (
+                        <div className="mt-3 space-y-3 border-t border-[#e5e7eb] pt-3 text-xs">
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {(
+                              [
+                                ['picgo_core', 'PicGo-Core'],
+                                ['aliyun_oss', '阿里云 OSS'],
+                                ['tencent_cos', '腾讯云 COS'],
+                                ['s3', 'AWS S3 / R2'],
+                                ['github', 'GitHub'],
+                                ['qiniu', '七牛云'],
+                                ['smms', 'SM.MS'],
+                                ['imgur', 'Imgur'],
+                              ] as const
+                            ).map(([id, label]) => (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setImageBed({ ...imageBed, provider: id })}
+                                className={`rounded border px-2 py-1.5 text-center font-medium ${
+                                  (imageBed.provider ?? 'picgo_core') === id
+                                    ? 'border-[#007aff] bg-[#e6eff8] text-[#007aff]'
+                                    : 'border-[#e5e7eb] bg-white hover:bg-[#f3f4f6]'
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {(imageBed.provider ?? 'picgo_core') === 'picgo_core' && (
+                            <input
+                              type="text"
+                              placeholder="PicGo-Core 可执行路径（默认 picgo）"
+                              value={imageBed.picgoPath ?? ''}
+                              onChange={(e) => setImageBed({ ...imageBed, picgoPath: e.target.value })}
+                              className="w-full rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                            />
+                          )}
+
+                          {imageBed.provider === 'github' && (
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <input
+                                type="text"
+                                placeholder="GitHub 仓库 (如 user/images)"
+                                value={imageBed.repo ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, repo: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="分支 (默认 main)"
+                                value={imageBed.branch ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, branch: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="password"
+                                placeholder="Personal Access Token"
+                                value={imageBed.token ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, token: e.target.value })}
+                                className="sm:col-span-2 rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                            </div>
+                          )}
+
+                          {(imageBed.provider === 'smms' || imageBed.provider === 'imgur') && (
+                            <input
+                              type="password"
+                              placeholder="API Token / Client ID"
+                              value={imageBed.token ?? ''}
+                              onChange={(e) => setImageBed({ ...imageBed, token: e.target.value })}
+                              className="w-full rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                            />
+                          )}
+
+                          {(imageBed.provider === 'aliyun_oss' ||
+                            imageBed.provider === 'tencent_cos' ||
+                            imageBed.provider === 's3' ||
+                            imageBed.provider === 'qiniu') && (
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <input
+                                type="text"
+                                placeholder="Bucket 名称"
+                                value={imageBed.bucket ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, bucket: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Region / Endpoint"
+                                value={imageBed.region ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, region: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="AccessKey"
+                                value={imageBed.accessKey ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, accessKey: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="password"
+                                placeholder="SecretKey"
+                                value={imageBed.secretKey ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, secretKey: e.target.value })}
+                                className="rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="自定义加速域名 (可选)"
+                                value={imageBed.customDomain ?? ''}
+                                onChange={(e) => setImageBed({ ...imageBed, customDomain: e.target.value })}
+                                className="sm:col-span-2 rounded border border-[#e5e7eb] bg-white px-2.5 py-1.5 outline-none focus:border-[#007aff]"
+                              />
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await window.electronAPI.saveImageBedConfig(imageBed);
+                                setImageBedTestMsg('图床配置已保存');
+                              }}
+                              className="rounded bg-[#007aff] px-3 py-1 text-white hover:bg-[#0066d6]"
+                            >
+                              保存配置
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await window.electronAPI.saveImageBedConfig(imageBed);
+                                const res = await window.electronAPI.testImageBedUpload(imageBed);
+                                setImageBedTestMsg(res.message);
+                              }}
+                              className="rounded border border-[#e5e7eb] bg-white px-3 py-1 hover:border-[#007aff] hover:text-[#007aff]"
+                            >
+                              测试图床连通性
+                            </button>
+                            {imageBedTestMsg && (
+                              <span className="text-[11px] text-[#007aff]">{imageBedTestMsg}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
                 {settingCategory === 'theme' && (
-                  <div className="max-w-2xl space-y-4">
-                    <h2 className="text-base font-semibold">外观主题（默认苹果风格）</h2>
-                    <p className="text-xs text-[#777777]">
-                      也可随时通过 macOS 顶部菜单栏「主题」快速切换。
-                    </p>
-                    <div className="grid grid-cols-1 gap-3 text-[13px] sm:grid-cols-2">
+                  <div className="max-w-3xl space-y-4">
+                    <div>
+                      <h2 className="text-base font-semibold">外观主题（默认 Apple Light · 完整收录 Bloom 24 套）</h2>
+                      <p className="mt-1 text-xs text-[#777777]">
+                        也可随时通过 macOS 顶部菜单栏「主题」快速切换；基础色彩方案参考开源社区 Bloom / GitHub 主题规范。
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2.5 text-[13px] sm:grid-cols-2 lg:grid-cols-3">
                       {(
                         [
-                          { id: 'apple-light', name: 'Apple Light（默认苹果白）', desc: 'SF Pro 字体 · #f5f5f7 侧栏 · #007aff 系统蓝' },
-                          { id: 'bloom-lapis', name: 'Bloom Lapis（文档蓝）', desc: '清新冷调浅蓝底色 · 护眼氛围' },
-                          { id: 'bloom-wheat', name: 'Bloom Wheat（象牙白）', desc: '温润象牙纸张底色 · 久写不累' },
-                          { id: 'typora-white', name: 'Typora White（原版 GitHub）', desc: '经典 GitHub 纯白样式' },
+                          { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
+                          { id: 'typora-white', name: 'Typora White', desc: '经典 GitHub 纯白' },
+                          { id: 'bloom-lapis', name: 'Bloom Lapis', desc: '文档蓝 · 护眼浅蓝' },
+                          { id: 'bloom-lapis-dark', name: 'Bloom Lapis Dark', desc: '文档蓝 · 深邃夜蓝' },
+                          { id: 'bloom-wheat', name: 'Bloom Wheat', desc: '象牙纸张 · 暖白' },
+                          { id: 'bloom-wheat-dark', name: 'Bloom Wheat Dark', desc: '象牙暖棕 · 暗色' },
+                          { id: 'bloom-amber', name: 'Bloom Amber', desc: '琥珀暖光' },
+                          { id: 'bloom-amber-dark', name: 'Bloom Amber Dark', desc: '琥珀暗夜' },
+                          { id: 'bloom-cinnabar', name: 'Bloom Cinnabar', desc: '朱砂红韵' },
+                          { id: 'bloom-cinnabar-dark', name: 'Bloom Cinnabar Dark', desc: '朱砂暗夜' },
+                          { id: 'bloom-ink', name: 'Bloom Ink', desc: '水墨清灰' },
+                          { id: 'bloom-ink-dark', name: 'Bloom Ink Dark', desc: '水墨玄黑' },
+                          { id: 'bloom-mist', name: 'Bloom Mist', desc: '薄雾青蓝' },
+                          { id: 'bloom-mist-dark', name: 'Bloom Mist Dark', desc: '薄雾暗夜' },
+                          { id: 'bloom-petal', name: 'Bloom Petal', desc: '花瓣樱粉' },
+                          { id: 'bloom-petal-dark', name: 'Bloom Petal Dark', desc: '花瓣暗夜' },
+                          { id: 'bloom-ripple', name: 'Bloom Ripple', desc: '涟漪湖青' },
+                          { id: 'bloom-ripple-dark', name: 'Bloom Ripple Dark', desc: '涟漪暗夜' },
+                          { id: 'bloom-sage', name: 'Bloom Sage', desc: '鼠尾草绿' },
+                          { id: 'bloom-sage-dark', name: 'Bloom Sage Dark', desc: '鼠尾暗夜' },
+                          { id: 'bloom-spring', name: 'Bloom Spring', desc: '春芽嫩绿' },
+                          { id: 'bloom-spring-dark', name: 'Bloom Spring Dark', desc: '春芽暗夜' },
+                          { id: 'bloom-stone', name: 'Bloom Stone', desc: '岩石暖灰' },
+                          { id: 'bloom-stone-dark', name: 'Bloom Stone Dark', desc: '岩石暗夜' },
+                          { id: 'bloom-verdant', name: 'Bloom Verdant', desc: '苍翠深绿' },
+                          { id: 'bloom-verdant-dark', name: 'Bloom Verdant Dark', desc: '苍翠暗夜' },
                         ] as const
                       ).map((t) => (
                         <button
                           key={t.id}
                           type="button"
                           onClick={() => setTheme(t.id)}
-                          className={`rounded-lg border p-3.5 text-left transition ${
+                          className={`rounded-lg border p-3 text-left transition ${
                             theme === t.id
                               ? 'border-[#007aff] bg-[#f0f7ff]'
                               : 'border-[#e5e7eb] bg-[#fafafa] hover:bg-[#f3f4f6]'
                           }`}
                         >
                           <div className="font-semibold text-[#1d1d1f]">{t.name}</div>
-                          <div className="mt-1 text-xs text-[#6e6e73]">{t.desc}</div>
+                          <div className="mt-0.5 text-[11px] text-[#6e6e73]">{t.desc}</div>
                         </button>
                       ))}
                     </div>
