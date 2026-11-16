@@ -1,6 +1,7 @@
 import {
   BorderStyle,
   Document,
+  ExternalHyperlink,
   HeadingLevel,
   Packer,
   Paragraph,
@@ -12,17 +13,40 @@ import {
   WidthType,
 } from 'docx';
 
-function parseInlineRuns(text: string): TextRun[] {
-  const runs: TextRun[] = [];
-  const tokenRe = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
+type InlineChild = TextRun | ExternalHyperlink;
+
+function parseInlineRuns(text: string): InlineChild[] {
+  const cleaned = text.replace(/<\/?(details|summary)[^>]*>/gi, '').trim();
+  const runs: InlineChild[] = [];
+  const tokenRe = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
   let lastIdx = 0;
   let match: RegExpExecArray | null;
-  while ((match = tokenRe.exec(text)) !== null) {
+  while ((match = tokenRe.exec(cleaned)) !== null) {
     if (match.index > lastIdx) {
-      runs.push(new TextRun(text.slice(lastIdx, match.index)));
+      runs.push(new TextRun(cleaned.slice(lastIdx, match.index)));
     }
     const token = match[0];
-    if (token.startsWith('**') && token.endsWith('**')) {
+    if (token.startsWith('[') && token.includes('](') && token.endsWith(')')) {
+      const splitIdx = token.indexOf('](');
+      const label = token.slice(1, splitIdx);
+      const url = token.slice(splitIdx + 2, -1);
+      if (/^https?:\/\//i.test(url)) {
+        runs.push(
+          new ExternalHyperlink({
+            link: url,
+            children: [
+              new TextRun({
+                text: label,
+                color: '0969DA',
+                underline: {},
+              }),
+            ],
+          })
+        );
+      } else {
+        runs.push(new TextRun({ text: label, color: '0969DA' }));
+      }
+    } else if (token.startsWith('**') && token.endsWith('**')) {
       runs.push(new TextRun({ text: token.slice(2, -2), bold: true }));
     } else if (token.startsWith('*') && token.endsWith('*')) {
       runs.push(new TextRun({ text: token.slice(1, -1), italics: true }));
@@ -31,10 +55,10 @@ function parseInlineRuns(text: string): TextRun[] {
     }
     lastIdx = match.index + token.length;
   }
-  if (lastIdx < text.length) {
-    runs.push(new TextRun(text.slice(lastIdx)));
+  if (lastIdx < cleaned.length) {
+    runs.push(new TextRun(cleaned.slice(lastIdx)));
   }
-  return runs.length > 0 ? runs : [new TextRun(text)];
+  return runs.length > 0 ? runs : [new TextRun(cleaned)];
 }
 
 const HEADING_MAP: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
@@ -47,7 +71,7 @@ const HEADING_MAP: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLeve
 };
 
 /**
- * Converts Markdown content into a valid OOXML `.docx` binary buffer using `docx`.
+ * Converts Markdown content into a clean, valid OOXML `.docx` binary buffer using `docx`.
  */
 export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
@@ -56,9 +80,15 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
+    const trimmed = line.trim();
+
+    if (/^<\/?(details|summary)[^>]*>$/i.test(trimmed)) {
+      i++;
+      continue;
+    }
 
     // Fenced code block
-    if (/^```/.test(line.trim())) {
+    if (/^```/.test(trimmed)) {
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !/^```/.test(lines[i].trim())) {
@@ -84,7 +114,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     }
 
     // Markdown table
-    if (line.trim().startsWith('|') && i + 1 < lines.length && /^\|?[\s:|-]+\|/.test(lines[i + 1].trim())) {
+    if (trimmed.startsWith('|') && i + 1 < lines.length && /^\|?[\s:|-]+\|/.test(lines[i + 1].trim())) {
       const tableLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith('|')) {
         tableLines.push(lines[i]);
@@ -127,11 +157,11 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     }
 
     // Horizontal rule
-    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
       children.push(
         new Paragraph({
           border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'D0D7DE' } },
-          spacing: { before: 160, after: 160 },
+          spacing: { before: 140, after: 140 },
         })
       );
       i++;
@@ -145,7 +175,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
       children.push(
         new Paragraph({
           heading: HEADING_MAP[level] ?? HeadingLevel.HEADING_1,
-          spacing: { before: 200, after: 100 },
+          spacing: { before: 180, after: 90 },
           children: parseInlineRuns(headingMatch[2]),
         })
       );
@@ -153,17 +183,30 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
       continue;
     }
 
-    // Blockquote
-    if (line.trimStart().startsWith('> ')) {
-      children.push(
-        new Paragraph({
-          indent: { left: 360 },
-          border: { left: { style: BorderStyle.SINGLE, size: 12, color: '007AFF' } },
-          spacing: { before: 80, after: 80 },
-          children: parseInlineRuns(line.trimStart().slice(2)),
-        })
-      );
-      i++;
+    // Group contiguous blockquote lines into a single clean callout block
+    if (/^\s*>/.test(line)) {
+      const quoteRuns: InlineChild[] = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
+        const qText = lines[i].replace(/^\s*>\s?/, '').trim();
+        if (qText) {
+          if (quoteRuns.length > 0) {
+            quoteRuns.push(new TextRun({ text: '', break: 1 }));
+          }
+          quoteRuns.push(...parseInlineRuns(qText));
+        }
+        i++;
+      }
+      if (quoteRuns.length > 0) {
+        children.push(
+          new Paragraph({
+            indent: { left: 280 },
+            shading: { type: ShadingType.CLEAR, fill: 'F6F9FC' },
+            border: { left: { style: BorderStyle.SINGLE, size: 14, color: '0969DA' } },
+            spacing: { before: 100, after: 100 },
+            children: quoteRuns,
+          })
+        );
+      }
       continue;
     }
 
@@ -184,7 +227,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     }
 
     // Empty line
-    if (!line.trim()) {
+    if (!trimmed) {
       children.push(new Paragraph({ text: '' }));
       i++;
       continue;
@@ -193,7 +236,7 @@ export async function markdownToDocxBuffer(markdown: string): Promise<Buffer> {
     // Normal paragraph
     children.push(
       new Paragraph({
-        spacing: { after: 100 },
+        spacing: { after: 90 },
         children: parseInlineRuns(line),
       })
     );

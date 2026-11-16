@@ -161,11 +161,11 @@ function buildApplicationMenu(): void {
         {
           label: '导出',
           submenu: [
-            { label: '按默认格式导出...', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuAction('file:export', 'default') },
+            { label: 'PDF', click: () => sendMenuAction('file:export', 'pdf') },
+            { label: 'HTML', click: () => sendMenuAction('file:export', 'html') },
+            { label: 'Word (.docx)', click: () => sendMenuAction('file:export', 'docx') },
             { type: 'separator' },
-            { label: '导出为 Word 文档 (.docx)...', click: () => sendMenuAction('file:export', 'docx') },
-            { label: '导出为独立网页 (.html)...', click: () => sendMenuAction('file:export', 'html') },
-            { label: '导出为 PDF (.pdf)...', click: () => sendMenuAction('file:export', 'pdf') },
+            { label: '使用上一次设置导出', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuAction('file:export', 'default') },
           ],
         },
         { type: 'separator' },

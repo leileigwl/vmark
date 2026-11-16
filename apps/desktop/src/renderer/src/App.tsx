@@ -88,6 +88,8 @@ export default function App() {
 
   const [theme, setTheme] = useState<ThemeId>('apple-light');
   const [customThemeName, setCustomThemeName] = useState<string>('');
+  const [loadSeq, setLoadSeq] = useState<number>(0);
+  const openRequestIdRef = useRef<number>(0);
   const editorRef = useRef<VditorEditorHandle>(null);
 
   function showToast(errOrMsg: unknown) {
@@ -245,6 +247,7 @@ export default function App() {
     if (activeArticle?.relativePath === meta.relativePath) {
       return;
     }
+    const reqId = ++openRequestIdRef.current;
     if (activeArticle && saveState === '未保存') {
       const unsaved = editorRef.current?.getValue() ?? markdown;
       if (!(activeArticle.wordCount > 20 && unsaved.trim().length === 0)) {
@@ -254,7 +257,11 @@ export default function App() {
     }
     setActiveArticle(meta);
     const content = await window.electronAPI.readArticle(meta.relativePath);
+    if (reqId !== openRequestIdRef.current) {
+      return;
+    }
     setMarkdown(content);
+    setLoadSeq((s) => s + 1);
     setSaveState('已保存');
     const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
     setStartupConfig(nextStartup);
@@ -592,6 +599,7 @@ export default function App() {
               <VditorEditor
                 ref={editorRef}
                 articleKey={activeArticle.relativePath}
+                loadSeq={loadSeq}
                 value={markdown}
                 preferences={editorPrefs}
                 onChange={(md) => {

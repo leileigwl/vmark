@@ -30,18 +30,14 @@
 
 ## 二、本轮待完成改造项（立即执行）
 
-1. **修复任务列表/段落中插入水平分割线（`---`）异常**：
-   - 排查 `FORMAT_SNIPPETS.line` 与 `applyFormat('line')`，确保插入水平分割线时跳出当前列表/任务列表块并渲染标准干净的 `<hr>`，不残留前后 `---` 文本与灰条重叠。
-2. **彻底修复 LaTeX / 数学公式渲染**：
-   - 修复 `$$...$$` 块级公式、`$` 行内公式与 ```` ```latex ```` / ```` ```math ```` 代码块的 KaTeX 渲染链路（确保 `katex.min.js` + `katex.min.css` 正确加载并触发渲染）。
-3. **新增文件导出功能（Markdown / HTML / PDF）与「编辑与导出」偏好设置**：
-   - 在顶部原生「文件」菜单及快捷入口增加 **导出文件（`.md` / `.html` / `.pdf`）**。
-   - 在「偏好设置」新增 **编辑与导出习惯** 配置项：
-     - 编辑器自动匹配符号（`() [] {} "" '' **`）；
-     - 默认复制行为（Markdown 源码 / 纯文本 / 富文本 HTML）；
-     - 默认导出格式偏好（`.md` / `.html` / `.pdf`）。
-4. **更新 Review 清单 HTML**：
-   - 为本轮新增项分配全新唯一 ID（避免被历史 `localStorage` 勾选记录自动隐藏），确保打开页面即可直接看到最新待核验条目。
+1. **修复快速连续切换文章导致内容错乱（竞态条件）**：
+   - 在 `App.tsx` 的 `openArticle` 中引入递增 `openRequestIdRef` 与 `loadSeq`，在 `setActiveArticle` 先行高亮后异步 `readArticle`，仅当请求 ID 未过期时才更新 `markdown` 与 `loadSeq`，并在 `VditorEditor` 中监听 `[articleKey, loadSeq]` 同步更新，彻底杜绝快速连点 A→B→C 时出现「标题是 B、正文是 A」的错乱。
+2. **修复 Word (`.docx`) 导出渲染与链接格式**：
+   - 升级 `main/exportDocx.ts`：将 `[文字](链接)` 解析为干净的蓝色可点击超链接文本（不暴露原始 `(url)`），过滤空 `>` 引用行与 `<details>`/`<summary>` 标签，对齐清晰简洁的 Word 排版风格。
+3. **精简「导出」子菜单文案**：
+   - 将 `导出` 子菜单精简为 `PDF`、`HTML`、`Word (.docx)`、`按默认格式导出 (Cmd+Shift+E)`。
+4. **优化代码语言标签回车直入代码框**：
+   - 在 `.vditor-ir__marker--info`（如输入 `lat` 选 `latex`）按 `Enter` 后自动将光标落入下方代码编辑区 `pre.vditor-ir__marker--pre > code`，可直接粘贴或输入公式。
 
 ---
 

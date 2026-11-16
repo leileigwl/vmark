@@ -28,6 +28,7 @@ export interface VditorEditorHandle {
 interface VditorEditorProps {
   value: string;
   articleKey: string;
+  loadSeq?: number;
   preferences?: EditorPreferences;
   onChange: (markdown: string) => void;
   onSave?: (markdown: string) => void;
@@ -56,7 +57,7 @@ const FORMAT_SNIPPETS: Record<string, string> = {
 
 /** Typora-style Instant Rendering (IR) Markdown editor powered by local Vditor assets. */
 export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
-  function VditorEditor({ value, articleKey, preferences, onChange, onSave }, ref) {
+  function VditorEditor({ value, articleKey, loadSeq, preferences, onChange, onSave }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const vditorRef = useRef<Vditor | null>(null);
     const isReadyRef = useRef(false);
@@ -597,6 +598,35 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           return;
         }
 
+        // Pressing Enter inside the code block language tag (.vditor-ir__marker--info)
+        // accepts autocomplete (if open) and moves the caret directly into the code/LaTeX box
+        const infoMarker = targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null;
+        if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && infoMarker && el.contains(infoMarker)) {
+          const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
+          const hintVisible = Boolean(hintEl && hintEl.style.display !== 'none' && hintEl.childElementCount > 0);
+          const codeBlockNode = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
+          const codeEl = codeBlockNode?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
+          if (codeEl) {
+            const moveIntoCode = () => {
+              const selNow = window.getSelection();
+              if (!selNow) return;
+              const range = document.createRange();
+              range.selectNodeContents(codeEl);
+              range.collapse(true);
+              selNow.removeAllRanges();
+              selNow.addRange(range);
+            };
+            if (hintVisible) {
+              setTimeout(moveIntoCode, 20);
+            } else {
+              e.preventDefault();
+              e.stopPropagation();
+              moveIntoCode();
+            }
+            return;
+          }
+        }
+
         // Space key toggles Lightbox when an image or Mermaid diagram is currently selected
         // (and prevents page-down scrolling when pressing Space repeatedly!)
         if (
@@ -990,7 +1020,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       } catch {
         // Fallback handled by pendingValueRef in after()
       }
-    }, [articleKey]);
+    }, [articleKey, loadSeq]);
 
     return (
       <>
