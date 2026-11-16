@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R14_1",
+            title: "R14-1. KaTeX 公式渲染排版恢复正常（彻底修复单字符竖排问题 + 居中显示）",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850151623_24c4f7c0.png",
+            desc: "预加载本地 katex.min.css，并在 editor.css 中把 .katex / .katex * 从代码块等宽 white-space: pre-wrap 规则中排除，确保积分、根号、上下标等 LaTeX 公式完整居中排版。",
+            plan: "请新建或粘贴 ```latex 公式块（如高斯积分），失焦后确认公式水平居中完整渲染，不再竖向拆行。"
+          },
+          {
+            id: "R14_2",
+            title: "R14-2. 代码块输入 ``` 与语言标签（latex）时不再触发反引号吞字",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850105823_f9823c8f.png",
+            desc: "在自动匹配符号逻辑中跳过代码语言标签输入框，并在连续输入反引号（```）时不触发单反引号自动配对，避免创建代码块时吞字或卡在反引号中间。",
+            plan: "请在正文中输入 ```latex 并回车，确认顺畅进入代码块且不吞空格/反引号。"
+          },
+          {
+            id: "R14_3",
+            title: "R14-3. 使用标准 OOXML（docx 库）导出真正可用的 Word .docx 文档",
+            status: "done",
+            statusText: "本轮新改待打勾",
+            img: "media_1794850165612_d1a2b437.png",
+            desc: "新增 main/exportDocx.ts，基于 docx 库生成标准 ZIP OOXML .docx 文件，支持标题、加粗/斜体、行内代码、代码块、引用、列表与表格，Microsoft Word / Pages / WPS 均可直接打开。",
+            plan: "请通过「文件 → 导出文件 → 导出为 Word 文档 (.docx)...」导出并用 Word 或 Pages 打开验证。"
+          },
+          {
             id: "R13_1",
             title: "R13-1. 四级标题（H4）加粗后再取消加粗，完整保留四级标题结构（不破坏 #### 标记）",
             status: "done",

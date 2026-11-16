@@ -14,6 +14,7 @@
     "@vcat/core": "workspace:*",
     "@vcat/image-pipeline": "workspace:*",
     "@vcat/shared": "workspace:*",
+    "docx": "^9.15.4",
     "lucide-react": "^0.468.0",
     "vditor": "^3.10.9"
   },

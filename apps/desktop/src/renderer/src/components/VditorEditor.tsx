@@ -381,6 +381,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
       const cdnBase = window.location.protocol === 'file:' ? './vditor' : '/vditor';
 
+      // Ensure local KaTeX stylesheet is loaded upfront so math formulas never render unstyled
+      if (!document.getElementById('vcat-katex-css')) {
+        const link = document.createElement('link');
+        link.id = 'vcat-katex-css';
+        link.rel = 'stylesheet';
+        link.href = `${cdnBase}/dist/js/katex/katex.min.css`;
+        document.head.appendChild(link);
+      }
+
       const instance = new Vditor(el, {
         mode: 'ir',
         cdn: cdnBase,
@@ -711,12 +720,21 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           !e.altKey &&
           PAIR_MAP[e.key] &&
           targetNode &&
-          el.contains(targetNode)
+          el.contains(targetNode) &&
+          !targetNode.closest('.vditor-ir__marker--info')
         ) {
           const selNow = window.getSelection();
           if (selNow && selNow.rangeCount > 0) {
             const range = selNow.getRangeAt(0);
             const selectedText = range.toString();
+            // Do not auto-pair backtick when typing ``` for fenced code blocks
+            const prevChar =
+              range.collapsed && range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0
+                ? (range.startContainer.textContent || '')[range.startOffset - 1]
+                : '';
+            if (e.key === '`' && prevChar === '`') {
+              return;
+            }
             const closeChar = PAIR_MAP[e.key];
             e.preventDefault();
             e.stopPropagation();

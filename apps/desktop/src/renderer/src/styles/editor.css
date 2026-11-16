@@ -313,10 +313,10 @@
   box-shadow: none !important;
 }
 
-/* Shared typography for all code blocks */
+/* Shared typography for all code blocks (exclude .katex math formulas so KaTeX layout is never broken!) */
 .vditor-ir__node[data-type="code-block"] pre,
-.vditor-ir__node[data-type="code-block"] pre > code,
-.vditor-ir__node[data-type="code-block"] pre > code * {
+.vditor-ir__node[data-type="code-block"] pre > code:not(.language-math):not(.language-latex):not(.language-tex),
+.vditor-ir__node[data-type="code-block"] pre > code:not(.language-math):not(.language-latex):not(.language-tex) *:not(.katex):not(.katex *) {
   font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 13.5px !important;
   line-height: 1.55 !important;
@@ -549,9 +549,23 @@
   border: 0 !important;
 }
 
-/* KaTeX & Math (\lambda, equations) styling */
+/* KaTeX & Math (\lambda, equations) styling — preserve KaTeX inline-block/vlist layout */
 .vditor-reset .katex,
-.vditor-reset .language-math {
+.vditor-reset .katex * {
+  white-space: normal !important;
+  word-break: normal !important;
+  letter-spacing: normal !important;
   color: var(--text-main) !important;
-  font-size: 1.04em !important;
+}
+.vditor-reset .katex {
+  font-size: 1.08em !important;
+  line-height: 1.2 !important;
+}
+.vditor-ir__preview code.language-math,
+.vditor-ir__preview code.language-latex,
+.vditor-ir__preview code.language-tex {
+  display: block !important;
+  text-align: center !important;
+  padding: 12px 0 !important;
+  white-space: normal !important;
 }
