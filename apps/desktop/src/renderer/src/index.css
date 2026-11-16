@@ -45,13 +45,23 @@ body {
   width: 100% !important;
   max-width: none !important;
   margin: 0 !important;
-  padding: 28px max(48px, calc((100% - 920px) / 2)) 100px !important;
+  padding: 28px max(56px, calc((100% - 860px) / 2)) 100px !important;
   font-family: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
   font-size: 16px;
   line-height: 1.6;
   color: rgb(51, 51, 51);
   background: #ffffff !important;
   box-sizing: border-box !important;
+}
+/* Cleanly style raw HTML blocks (<details>/<summary>) without empty gray boxes */
+.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview {
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 0 !important;
+  margin: 0 !important;
+}
+.vditor-ir__node[data-type="html-block"]:not(.vditor-ir__node--expand) > .vditor-ir__preview:empty {
+  display: none !important;
 }
 /* Hide permanent H1-H6 gutter labels to match clean Typora look */
 .vditor-ir .vditor-reset > h1:before,
@@ -133,6 +143,13 @@ body {
   border-radius: 3px !important;
   padding: 10px 14px !important;
 }
+.vditor-reset table {
+  display: table !important;
+  width: 100% !important;
+  table-layout: auto !important;
+  overflow: visible !important;
+  border-collapse: collapse !important;
+}
 .vditor-reset table tr {
   border: 1px solid #dfe2e5 !important;
 }
@@ -144,6 +161,8 @@ body {
 .vditor-reset table td {
   border: 1px solid #dfe2e5 !important;
   padding: 6px 13px !important;
+  white-space: normal !important;
+  word-break: break-word !important;
 }
 .vditor-reset hr {
   height: 2px !important;

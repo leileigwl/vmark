@@ -366,7 +366,7 @@ export default function App() {
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-white">
         {/* Typora 式 36px 极简统一顶栏（去掉生硬分割线，更贴近原版无界纸张感） */}
         <header
-          className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-white pr-4 select-none ${
+          className={`app-drag flex h-[36px] shrink-0 items-center justify-between bg-white pr-5 select-none ${
             activeView === 'editor' ? 'border-b border-transparent' : 'border-b border-[#eeeeee]'
           } ${sidebarOpen ? 'pl-3' : 'pl-20'}`}
         >
@@ -400,13 +400,13 @@ export default function App() {
           </div>
 
           {/* 右侧极简指标与核心动作 */}
-          <div className="app-no-drag flex items-center gap-2 text-xs text-[#777777]">
-            <span className="mr-1 text-[11.5px]">{liveWordCount} 词 · {saveState}</span>
+          <div className="app-no-drag flex items-center gap-1.5 text-xs text-[#777777]">
+            <span className="mr-1.5 text-[11px] text-[#888888]">{liveWordCount} 词 · {saveState}</span>
             <button
               type="button"
               title="文章管理台"
               onClick={() => setActiveView((v) => (v === 'manager' ? 'editor' : 'manager'))}
-              className={`rounded p-1.5 hover:bg-[#f3f4f6] ${
+              className={`rounded p-1 hover:bg-[#f3f4f6] ${
                 activeView === 'manager' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
               }`}
             >
@@ -416,7 +416,7 @@ export default function App() {
               type="button"
               title="偏好设置 (图床 / 平台 / GitHub)"
               onClick={() => setActiveView((v) => (v === 'settings' ? 'editor' : 'settings'))}
-              className={`rounded p-1.5 hover:bg-[#f3f4f6] ${
+              className={`rounded p-1 hover:bg-[#f3f4f6] ${
                 activeView === 'settings' ? 'bg-[#e6eff8] text-[#4183c4]' : 'text-[#666666]'
               }`}
             >
@@ -425,7 +425,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setPublishModalOpen(true)}
-              className="ml-1 flex items-center gap-1 rounded bg-[#4183c4] px-2.5 py-1 text-[11.5px] font-medium text-white hover:bg-[#3572b0]"
+              className="ml-1 flex items-center gap-1 rounded bg-[#4183c4] px-2.5 py-0.5 text-[11.5px] font-medium text-white hover:bg-[#3572b0]"
             >
               <Send className="h-3 w-3" />
               分发
