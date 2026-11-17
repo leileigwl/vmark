@@ -107,18 +107,6 @@
   --ir-heading-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
 }
 
-[data-theme='typora-white'] {
-  --side-bar-bg-color: #fafafa;
-  --control-text-color: #777777;
-  --bg-main: #ffffff;
-  --bg-elevated: #f8f9fa;
-  --bg-hover: #eaecef;
-  --text-main: #333333;
-  --accent: #4183c4;
-  --border-color: #e5e7eb;
-  --font-editorial: "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
-}
-
 /* Custom capsule scrollbars */
 ::-webkit-scrollbar {
   width: 11px;

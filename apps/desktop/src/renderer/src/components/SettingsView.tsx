@@ -14,7 +14,6 @@ export type SettingCategory = 'startup' | 'editor' | 'image' | 'theme' | 'platfo
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
-  { id: 'typora-white', name: 'Typora White', desc: '经典 GitHub 纯白' },
   { id: 'bloom-lapis', name: 'Bloom Lapis', desc: '文档蓝 · 护眼浅蓝' },
   { id: 'bloom-lapis-dark', name: 'Bloom Lapis Dark', desc: '文档蓝 · 深邃夜蓝' },
   { id: 'bloom-wheat', name: 'Bloom Wheat', desc: '象牙纸张 · 暖白' },

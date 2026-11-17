@@ -7,7 +7,12 @@ import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
-import { saveImageToAssets } from '@vcat/image-pipeline';
+import {
+  buildPicgoEnv,
+  createImageBedUploader,
+  resolvePicgoBinary,
+  saveImageToAssets,
+} from '@vcat/image-pipeline';
 import type {
   ContextMenuOptions,
   ExportArticleOptions,
@@ -258,7 +263,6 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
       label: '主题',
       submenu: [
         { label: 'Apple Light（默认苹果白）', type: 'radio', checked: true, click: () => sendMenuAction('theme:set', 'apple-light') },
-        { label: 'Typora White（原版 GitHub）', type: 'radio', click: () => sendMenuAction('theme:set', 'typora-white') },
         { type: 'separator' },
         ...(
           [
@@ -598,6 +602,15 @@ function registerIpcHandlers(): void {
     return saveImageToAssets(cfg.workspacePath, buffer, ext);
   });
 
+  ipcMain.handle('image:uploadRemote', async (_event, base64Data: string, fileName: string) => {
+    const cfg = await readAppConfig();
+    const cleanBase64 = base64Data.replace(/^data:image\/[\w+.-]+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const uploader = createImageBedUploader();
+    const url = await uploader(buffer, fileName || 'image.png', cfg.imageBed);
+    return { url };
+  });
+
   ipcMain.handle('config:getImageBed', async () => {
     const cfg = await readAppConfig();
     return cfg.imageBed;
@@ -621,16 +634,43 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle('config:testImageBed', async (_event, imageBed: ImageBedConfig) => {
+    const TINY_1X1_PNG = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
     const provider = imageBed.provider ?? 'picgo_core';
+    const uploader = createImageBedUploader();
+
     if (provider === 'picgo_core') {
-      const bin = imageBed.picgoPath?.trim() || 'picgo';
+      const bin = await resolvePicgoBinary(imageBed.picgoPath);
+      let version = '';
       try {
-        const { stdout } = await execFileAsync(bin, ['--version'], { timeout: 4000 });
-        return { ok: true, message: `PicGo-Core 就绪 (${stdout.trim()})` };
+        const { stdout } = await execFileAsync(bin, ['--version'], {
+          env: buildPicgoEnv(),
+          timeout: 5000,
+        });
+        version = stdout.trim();
       } catch {
         return {
           ok: false,
-          message: `未检测到 PicGo-Core (${bin})，请先安装 pnpm add -g picgo 或切换为内置云存储直传`,
+          message: `未检测到 PicGo-Core (${bin})，请先安装 pnpm add -g picgo 或填写正确路径`,
+        };
+      }
+      try {
+        const url = await uploader(TINY_1X1_PNG, 'vmark-connectivity-test.png', {
+          ...imageBed,
+          provider: 'picgo_core',
+          picgoPath: bin,
+        });
+        return {
+          ok: true,
+          url,
+          message: `PicGo-Core (${version}) 真实上传测试成功：${url}`,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          message: err instanceof Error ? err.message : String(err),
         };
       }
     }
@@ -638,18 +678,37 @@ function registerIpcHandlers(): void {
       if (!imageBed.repo?.trim() || !imageBed.token?.trim()) {
         return { ok: false, message: '请填写 GitHub 仓库 (owner/repo) 与 Personal Access Token' };
       }
-      return { ok: true, message: `GitHub 图床配置校验通过（${imageBed.repo}）` };
-    }
-    if (provider === 'smms' || provider === 'imgur') {
-      if (!imageBed.token?.trim()) {
-        return { ok: false, message: `请填写 ${provider.toUpperCase()} API Token` };
+      try {
+        const url = await uploader(TINY_1X1_PNG, 'vmark-connectivity-test.png', imageBed);
+        return { ok: true, url, message: `GitHub 图床真实上传测试成功：${url}` };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
       }
-      return { ok: true, message: `${provider.toUpperCase()} 图床凭证已就绪` };
+    }
+    if (provider === 'smms') {
+      if (!imageBed.token?.trim()) {
+        return { ok: false, message: '请填写 SM.MS API Token' };
+      }
+      try {
+        const url = await uploader(TINY_1X1_PNG, 'vmark-connectivity-test.png', imageBed);
+        return { ok: true, url, message: `SM.MS 图床真实上传测试成功：${url}` };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    if (provider === 'imgur') {
+      if (!imageBed.token?.trim()) {
+        return { ok: false, message: '请填写 IMGUR API Token / Client ID' };
+      }
+      return { ok: true, message: 'IMGUR 图床凭证已就绪（建议通过 PicGo-Core 插件上传）' };
     }
     if (!imageBed.bucket?.trim() || !imageBed.accessKey?.trim() || !imageBed.secretKey?.trim()) {
       return { ok: false, message: '请填写完整的 Bucket / AccessKey / SecretKey' };
     }
-    return { ok: true, message: `${provider} 对象存储参数校验通过（${imageBed.bucket}）` };
+    return {
+      ok: true,
+      message: `${provider} 对象存储参数校验通过（${imageBed.bucket}，建议配合 PicGo-Core 使用）`,
+    };
   });
 
   ipcMain.handle(

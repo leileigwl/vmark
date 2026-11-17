@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createImageBedUploader, type FetchFn } from './index.ts';
+import {
+  buildPicgoEnv,
+  createImageBedUploader,
+  type ExecFileFn,
+  type FetchFn,
+} from './index.ts';
 
 test('github uploader sends PUT request with Authorization and base64 body and returns jsDelivr CDN URL', async () => {
   let capturedUrl = '';
@@ -178,5 +183,49 @@ test('HTTP failure throws clear Chinese error', async () => {
         token: 'bad-token',
       }),
     /GitHub 图床上传失败 \(HTTP 401\)/
+  );
+});
+
+test('picgo_core uploader extracts uploaded URL from PicGo stdout and passes augmented PATH', async () => {
+  let capturedArgs: string[] = [];
+  let capturedPath = '';
+  const mockExecFile: ExecFileFn = async (_bin, args, opts) => {
+    capturedArgs = args;
+    capturedPath = opts?.env?.PATH ?? '';
+    return {
+      stdout:
+        '[PicGo INFO]: Before transform\n[PicGo INFO]: Uploading... Current uploader is [cloudflare-imgbed]\n[PicGo SUCCESS]: \nhttps://img.example.com/file/blog/test.png\n',
+      stderr: '',
+    };
+  };
+
+  const uploader = createImageBedUploader(fetch, mockExecFile);
+  const url = await uploader(Buffer.from('png'), 'demo.png', {
+    strategy: 'custom_oss',
+    provider: 'picgo_core',
+    picgoPath: '/custom/bin/picgo',
+  });
+
+  assert.equal(url, 'https://img.example.com/file/blog/test.png');
+  assert.equal(capturedArgs[0], 'upload');
+  assert.match(capturedArgs[1], /demo\.png$/);
+  assert.ok(capturedPath.includes('/usr/local/bin'));
+  assert.ok(buildPicgoEnv({ PATH: '/usr/bin' }).PATH?.includes('.local/share/pnpm'));
+});
+
+test('picgo_core uploader surfaces [PicGo ERROR] detail when no URL is returned', async () => {
+  const mockExecFile: ExecFileFn = async () => ({
+    stdout: '[PicGo ERROR]: upload failed due to invalid authCode',
+    stderr: '',
+  });
+  const uploader = createImageBedUploader(fetch, mockExecFile);
+
+  await assert.rejects(
+    () =>
+      uploader(Buffer.from('png'), 'bad.png', {
+        strategy: 'custom_oss',
+        provider: 'picgo_core',
+      }),
+    /PicGo 上传未返回有效 URL: upload failed due to invalid authCode/
   );
 });

@@ -59,17 +59,23 @@ test.describe('SettingsView Theme & ImageBed E2E', () => {
     await page.getByTitle('偏好设置 (图床 / 平台 / GitHub)').click();
     await expect(page.getByRole('button', { name: '外观主题' })).toBeVisible();
 
-    // Switch to 外观主题 and test Bloom themes
+    // Switch to 外观主题 and test Bloom themes (and verify typora-white is removed)
     await page.getByRole('button', { name: '外观主题' }).click();
+    await expect(page.getByRole('button', { name: /Typora White/ })).toHaveCount(0);
     await page.getByRole('button', { name: 'Bloom Amber 琥珀暖光', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'bloom-amber');
 
     await page.getByRole('button', { name: 'Bloom Amber Dark 琥珀暗夜', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'bloom-amber-dark');
 
-    // Switch to 图像与图床 and configure GitHub ImageBed
+    // Switch to 图像与图床 and test PicGo-Core + GitHub ImageBed
     await page.getByRole('button', { name: '图像与图床' }).click();
     await page.getByText('上传至通用云图床（PicGo-Core / 全平台对象存储）').click();
+
+    await page.getByRole('button', { name: 'PicGo-Core', exact: true }).click();
+    await page.getByPlaceholder('PicGo-Core 可执行路径（默认 picgo）').fill('/Users/leileigwl/.local/share/pnpm/picgo');
+    await page.getByRole('button', { name: '测试图床连通性' }).click();
+
     await page.getByRole('button', { name: 'GitHub', exact: true }).click();
 
     await page.getByPlaceholder('GitHub 仓库 (如 user/images)').fill('vmark-org/blog-assets');
@@ -81,8 +87,13 @@ test.describe('SettingsView Theme & ImageBed E2E', () => {
     const testedConfigs = await page.evaluate(
       () => (window as unknown as { __testedImageBedConfigs: Array<Record<string, unknown>> }).__testedImageBedConfigs
     );
-    expect(testedConfigs).toHaveLength(1);
+    expect(testedConfigs).toHaveLength(2);
     expect(testedConfigs[0]).toMatchObject({
+      strategy: 'custom_oss',
+      provider: 'picgo_core',
+      picgoPath: '/Users/leileigwl/.local/share/pnpm/picgo',
+    });
+    expect(testedConfigs[1]).toMatchObject({
       strategy: 'custom_oss',
       provider: 'github',
       repo: 'vmark-org/blog-assets',

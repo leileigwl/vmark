@@ -33,6 +33,8 @@ const api: ElectronAPI = {
   searchArticlesContent: (query: string) => ipcRenderer.invoke('articles:search', query),
   saveLocalImage: (base64Data: string, ext: string) =>
     ipcRenderer.invoke('image:saveLocal', base64Data, ext),
+  uploadRemoteImage: (base64Data: string, fileName: string) =>
+    ipcRenderer.invoke('image:uploadRemote', base64Data, fileName),
   getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),
   saveImageBedConfig: (config: ImageBedConfig) =>
     ipcRenderer.invoke('config:saveImageBed', config),
