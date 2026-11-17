@@ -148,6 +148,21 @@ export interface PlatformIngestionSupport {
 - **再发布闭环**：
   当用户在本地彻底修改完文章后，若想再次发布，依然走标准的「分发」弹窗，经过**前置强校验 $\rightarrow$ 防盗链图片重新转存 $\rightarrow$ 推送到草稿箱/直接发布**，保持完全单向、明确、可控的流转模型。
 
+### 3. 三大核心平台字段映射与排版适配矩阵（博客园 / 知乎 / 微信公众号）
+
+| 平台 | 认证方式 | 图片上传方式 | 代码块排版策略 | 字段映射规范 |
+| :--- | :--- | :--- | :--- | :--- |
+| **微信公众号** | 独立沙箱 Session (`persist:platform_weixin`) 扫码 | 传至微信永久素材库 (`filetransfer?action=upload_material`) 返回 `mmbiz.qpic.cn` | Mac 圆点顶栏、浅底色圆角渐变卡片、纯内联 `style` 属性 | 标题 `title`、作者 `author`、摘要 `digest`（自动/手动）、封面 `thumb_media_id`、阅读原文 `sourceUrl` |
+| **知乎专栏** | 独立沙箱 Session (`persist:platform_zhihu`) 扫码 | 传至知乎图片服务器 (`api/v4/upload_image`) 返回 `picx.zhimg.com` | 知乎专栏原生 `<pre><code class="language-*">`，保留语法高亮 | 标题 `title`、内容 `content`（富文本 HTML）、题图 `titleImage`、话题标签 `topics` |
+| **博客园** | MetaWeblog XML-RPC（博客地址 + 用户名 + 访问令牌 Token） | 经 XML-RPC `metaWeblog.newMediaObject` 上传返回 `img2026.cnblogs.com` | 标准 GitHub Flavored Markdown (```lang) | 标题 `title`、正文 `description` (Markdown)、分类 `categories`、直接发布或草稿 (`publish: false/true`) |
+
+### 4. 小红书 3:4 优雅图文卡片自动分页渲染方案
+- **比例与规格**：按小红书爆款排版标准（3:4 比例，1080×1440 高清分辨率）自动分页渲染为 1~9 张卡片图。
+- **页面角色**：
+  - **第 1 张（封面卡）**：大字醒目标题 + 简明痛点副标题 + 优雅背景渐变 + 装饰标签。
+  - **第 2~N 张（内页卡）**：正文排版段落、重点引用卡片、带行号的高亮代码块（自动换行防截断）、对比表格。
+- **调用发布**：生成图片存入临时目录后，通过小红书创作者接口上传多图，并附带 1000 字以内的正文总结与话题标签。
+
 ---
 
 ## 四、实施计划与分步里程碑（Roadmap）
