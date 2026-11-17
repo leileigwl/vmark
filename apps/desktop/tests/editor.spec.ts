@@ -304,8 +304,26 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     await expect(page.locator('.vditor-ir .vditor-reset blockquote blockquote')).toHaveCount(0);
   });
 
-  test('10. Ctrl/Cmd+X 剪切引用内容时绝不把下方代码块 text 拉上来', async ({ page }) => {
-    await setupApp(page, '> sfsafsafas\n\n```text\nconst a = 1;\n```\n');
+  test('10. Ctrl/Cmd+X 正常剪切文本生效 + 跨块剪切绝不把下方代码块 text 拉上来', async ({ page }) => {
+    await setupApp(page, 'hello world\n\n> sfsafsafas\n\n```text\nconst a = 1;\n```\n');
+    // 10a: Normal same-paragraph Ctrl/Cmd+X actually removes the selected text
+    const firstP = page.locator('.vditor-ir .vditor-reset > p').first();
+    await firstP.click();
+    await page.evaluate(() => {
+      const p = document.querySelector('.vditor-ir .vditor-reset > p')!;
+      const t = p.firstChild!;
+      const r = document.createRange();
+      r.setStart(t, 0);
+      r.setEnd(t, 5);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+    });
+    await page.keyboard.press('Meta+x');
+    await page.waitForTimeout(100);
+    expect((await firstP.textContent())?.trim()).toBe('world');
+
+    // 10b: Cross-block cut from quote to code block keeps code block intact
     const quoteP = page.locator('.vditor-ir .vditor-reset blockquote p').first();
     await quoteP.click();
     // Select across quote paragraph boundary (simulating triple-click / line cut)

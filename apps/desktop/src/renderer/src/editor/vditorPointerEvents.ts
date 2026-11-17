@@ -398,15 +398,15 @@ export function handleEditorCutCapture(
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
 
-  // 先执行与 Copy 相同的剪贴板写入
-  handleEditorCopyCapture(e, el, instance, prefsRef);
-
   const range = sel.getRangeAt(0);
   const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
   if (!resetEl) return;
 
   const startTop = getTopBlockForCut(range.startContainer, resetEl);
   const endTop = getTopBlockForCut(range.endContainer, resetEl);
+
+  // 先执行与 Copy 相同的剪贴板写入（注意：Copy 内部会调用 e.preventDefault()，因此后续必须显式执行删除）
+  handleEditorCopyCapture(e, el, instance, prefsRef);
 
   // 若选区跨越受保护块边界（如引用末尾拖选到下方代码块），阻断原生剪切合并，仅安全删除起点块内选中内容
   if (startTop && endTop && startTop !== endTop && (isProtectedBlockForCut(startTop) || isProtectedBlockForCut(endTop))) {
@@ -435,5 +435,11 @@ export function handleEditorCutCapture(
     } catch {
       // ignore range error
     }
+    return;
+  }
+
+  // 普通同块内剪切：因 handleEditorCopyCapture 阻止了默认行为以写入 Markdown，需显式删除选中内容
+  if (e.defaultPrevented) {
+    document.execCommand('delete', false);
   }
 }
