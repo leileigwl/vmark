@@ -115,10 +115,10 @@ export function insertTableWithSizeAction(
   // Total rows includes 1 header row + (rows - 1) body rows
   const safeBodyRows = Math.max(0, Math.min(50, rows - 1));
 
-  const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
+  const header = `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`;
   const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
-  const bodyRows = Array.from({ length: safeBodyRows }, (_, rIdx) =>
-    `| ${Array.from({ length: safeCols }, (_, cIdx) => `内容 ${rIdx + 1}-${cIdx + 1}`).join(' | ')} |`
+  const bodyRows = Array.from({ length: safeBodyRows }, () =>
+    `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
   );
   const tableMd = [header, sep, ...bodyRows].join('\n');
 
@@ -145,11 +145,9 @@ export function insertTableWithSizeAction(
         placeholder.replaceWith(...newNodes);
       }
 
-      if (!el.contains(document.activeElement)) {
-        instance.focus();
-      }
       const firstCell = firstTable?.querySelector('th, td') as HTMLElement | null;
       if (firstCell) {
+        firstCell.scrollIntoView({ block: 'nearest' });
         const range = document.createRange();
         range.selectNodeContents(firstCell);
         range.collapse(true);
@@ -157,8 +155,6 @@ export function insertTableWithSizeAction(
         selNow?.removeAllRanges();
         selNow?.addRange(range);
       }
-      const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
-      resetEl?.dispatchEvent(new InputEvent('input', { bubbles: true }));
       return;
     }
   }

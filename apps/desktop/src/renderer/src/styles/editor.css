@@ -240,6 +240,16 @@
 .vditor-reset blockquote > :last-child {
   margin-bottom: 0.2em !important;
 }
+/* 限制嵌套引用不要渲染出双层嵌套卡片，避免视觉错乱 */
+.vditor-reset blockquote blockquote {
+  border: none !important;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 2px 0 2px 12px !important;
+  margin: 0.4em 0 !important;
+}
 .vditor-reset :not(pre) > code:not(.hljs):not([class*='language-']) {
   border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent) !important;
   background-color: color-mix(in srgb, var(--accent) 10%, transparent) !important;

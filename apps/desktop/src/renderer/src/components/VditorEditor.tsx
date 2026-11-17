@@ -978,7 +978,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (sel && sel.isCollapsed && sel.rangeCount > 0) {
           const sc = sel.getRangeAt(0).startContainer;
           const anchorEl = sc instanceof Element ? sc : sc.parentElement;
-          if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre:not(.vditor-reset), code, blockquote, table')) {
+          if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre:not(.vditor-reset), code, table')) {
             const curBlock = anchorEl.closest('p, li') as HTMLElement | null;
             const clean = (curBlock?.textContent || '').replace(/[\u200b\ufeff]/g, '');
             if (clean === '>') {
@@ -1127,6 +1127,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
               setTablePicker({ open: false, x: 0, y: 0 });
               if (inst && el) {
                 insertTableWithSizeAction(cols, rows, inst, el);
+                onChangeRef.current(inst.getValue());
               }
             }}
             onClose={() => {

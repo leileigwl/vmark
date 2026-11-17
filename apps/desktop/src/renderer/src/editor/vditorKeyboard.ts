@@ -105,6 +105,10 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       hintButtons.length > 0
     );
 
+    if (e.key.length === 1 && (infoMarker.textContent || '').replace(/\u200b/g, '').trim() === 'text') {
+      infoMarker.textContent = '';
+    }
+
     if (e.key === 'Backspace' || e.key === 'Delete') {
       ctx.hintNavigatedByArrowRef.current = false;
       ctx.setVditorRecentLang('');
@@ -464,7 +468,10 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                   ctx.pushVditorUndo();
                   topBlock.remove();
                   const newRange = document.createRange();
-                  newRange.selectNodeContents(prevSib);
+                  const leafTarget =
+                    (prevSib.querySelector('p:last-of-type, li:last-of-type, code, td, th') as HTMLElement | null) ??
+                    prevSib;
+                  newRange.selectNodeContents(leafTarget);
                   newRange.collapse(false);
                   sel.removeAllRanges();
                   sel.addRange(newRange);
@@ -494,7 +501,9 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                     ctx.pushVditorUndo();
                     topBlock.remove();
                     const newRange = document.createRange();
-                    newRange.selectNodeContents(nextSib);
+                    const leafTarget =
+                      (nextSib.querySelector('p, li, code, td, th') as HTMLElement | null) ?? nextSib;
+                    newRange.selectNodeContents(leafTarget);
                     newRange.collapse(true);
                     sel.removeAllRanges();
                     sel.addRange(newRange);
@@ -546,7 +555,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
             const matchOl = preText.match(/^(\d+)\.$/);
             const matchUl = preText.match(/^[-*]$/);
-            const matchQuote = preText === '>';
+            const matchQuote = !inQuote && preText === '>';
             const matchTask = preText === '[]' || preText === '[ ]' || preText === '- []' || preText === '- [ ]';
             const matchHeading = preText.match(/^(#{1,6})$/);
 
@@ -758,10 +767,9 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     return;
   }
 
-  // ─── Backtick auto-pair (`) ────────────────────────────────────────────────
-  // 1. 空白处敲第 1 个成对产生 `` 且光标居中
-  // 2. 光标紧邻已有反引号时，只打单个反引号字符（不重复成对）
-  // 3. 累计输入到第 3 个反引号时，瞬间整体删除前导并展开为代码块
+  // ─── Backtick (`) 1:1 输入与三反引号展开代码块 ─────────────────────────────
+  // 1. 第 1 下、第 2 下正常输入单个 `（不提前成对插入右侧 ` 导致多余光标）
+  // 2. 累计输入到第 3 个反引号时，清除左侧 2 个反引号并直接展开为代码块
   if (
     ctx.autoPairBrackets &&
     e.key === '`' &&
@@ -799,15 +807,13 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
         const preClean = preRange.toString().replace(/[\u200b\ufeff]/g, '');
 
         const sc = range.startContainer;
-        const afterText =
-          sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
 
-        // 场景 1: 前面已有两个连续反引号（preClean 以 `` 结尾），敲击第 3 个反引号 -> 清除左侧2个与右侧配对1个，展开代码块！
+        // 累计已有两个连续反引号（preClean 以 `` 结尾），敲击第 3 个反引号 -> 清除左侧 2 个并展开代码块！
         if (preClean.endsWith('``')) {
           if (sc.nodeType === Node.TEXT_NODE && range.startOffset >= 2) {
             const delRange = document.createRange();
             delRange.setStart(sc, range.startOffset - 2);
-            delRange.setEnd(sc, afterText.startsWith('`') ? range.startOffset + 1 : range.startOffset);
+            delRange.setEnd(sc, range.startOffset);
             selNow.removeAllRanges();
             selNow.addRange(delRange);
             document.execCommand('delete', false);
@@ -840,35 +846,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           return;
         }
 
-        // 场景 2: 如果光标紧邻反引号（前面以 ` 结尾，或后面以 ` 开头），只打单个反引号，不重复成对
-        if (preClean.endsWith('`') || afterText.startsWith('`')) {
-          if (afterText.startsWith('`') && !preClean.endsWith('`')) {
-            const nextRange = document.createRange();
-            nextRange.setStart(sc, range.startOffset + 1);
-            nextRange.collapse(true);
-            selNow.removeAllRanges();
-            selNow.addRange(nextRange);
-            return;
-          }
-          document.execCommand('insertText', false, '`');
-          ctx.onChangeValue(instance.getValue());
-          return;
-        }
-
-        // 场景 3: 独立空白处输入第 1 个反引号 -> 成对出现 `` 且光标居中
-        document.execCommand('insertText', false, '``');
-        const selAfter = window.getSelection();
-        if (selAfter && selAfter.rangeCount > 0) {
-          const r = selAfter.getRangeAt(0);
-          const sc2 = r.startContainer;
-          if (sc2.nodeType === Node.TEXT_NODE && r.startOffset > 0) {
-            const nr = document.createRange();
-            nr.setStart(sc2, r.startOffset - 1);
-            nr.collapse(true);
-            selAfter.removeAllRanges();
-            selAfter.addRange(nr);
-          }
-        }
+        // 第 1 下、第 2 下：按几下出几个反引号，绝不擅自成对插入右侧反引号
+        document.execCommand('insertText', false, '`');
         ctx.onChangeValue(instance.getValue());
         return;
       }

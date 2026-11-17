@@ -1,8 +1,8 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 41 已接入 Playwright 真实 Chromium E2E 测试套件（8/8 通过）并根治 `pre.vditor-reset` 误判与 `/table` 容器选择器 Bug**
-- **上一提交**：`954c783`（Round 40）
+- **当前阶段**：**Round 42 已完成反引号 1:1 输入、/table 空表不跳顶、引用嵌套限制、空行 Delete 光标落叶与语言框替换，并扩展 9 项 Playwright E2E 回归**
+- **上一提交**：`93c1234`（Round 41）
 
 ### Round 41 E2E 实测暴露并根治的隐藏真因
 1. **列表/引用按空格不渲染的隐藏真因**：Vditor IR 的编辑区根节点本身是 `<pre class="vditor-reset">`，导致 `anchorEl.closest('pre, ...')` 对所有普通段落全部返回 `PRE`，彻底屏蔽了空格即刻渲染与 `>` 延迟编译；已全面替换为 `pre:not(.vditor-reset)`。
