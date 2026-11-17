@@ -21,7 +21,12 @@ import type {
   StartupConfig,
 } from '@vcat/shared';
 import { markdownToDocxBuffer } from './exportDocx';
-import { checkPlatformAuthStates, registerPublishHandlers } from './publishHandlers';
+import {
+  checkPlatformAuthStates,
+  hasSessionAuthCookies,
+  PLATFORM_AUTH_COOKIE_RULES,
+  registerPublishHandlers,
+} from './publishHandlers';
 
 const execFileAsync = promisify(execFile);
 
@@ -89,6 +94,8 @@ function getAppIconPath(): string | undefined {
   return candidates.find((p) => existsSync(p));
 }
 
+let activeMainWindow: BrowserWindow | null = null;
+
 function createWindow(): void {
   const iconPath = getAppIconPath();
   const mainWindow = new BrowserWindow({
@@ -107,6 +114,11 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  activeMainWindow = mainWindow;
+  mainWindow.on('closed', () => {
+    if (activeMainWindow === mainWindow) activeMainWindow = null;
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -711,25 +723,75 @@ function registerIpcHandlers(): void {
     };
   });
 
+  const CHROME_DESKTOP_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
   ipcMain.handle(
     'platform:openLogin',
     async (_event, platformId: PlatformId, loginUrl: string) => {
       const partition = `persist:platform_${platformId}`;
+      const targetSession = session.fromPartition(partition);
+      targetSession.setUserAgent(CHROME_DESKTOP_UA);
+
       const loginWin = new BrowserWindow({
-        width: 980,
-        height: 700,
-        title: `平台沙箱授权 - ${platformId}`,
+        width: 1040,
+        height: 740,
+        title: `平台授权登录 - ${platformId}`,
         webPreferences: {
           partition,
           contextIsolation: true,
           nodeIntegration: false,
         },
       });
-      await loginWin.loadURL(loginUrl);
+
+      loginWin.webContents.setUserAgent(CHROME_DESKTOP_UA);
+
+      loginWin.webContents.on('did-fail-load', (_ev, errorCode, errorDescription, validatedURL) => {
+        if (errorCode === -3) return; // aborted / redirect
+        const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+            <head><meta charset="utf-8"><title>网络连接失败</title></head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #1e293b;">
+              <div style="background: white; padding: 36px 32px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: center; max-width: 440px; border: 1px solid #e2e8f0;">
+                <div style="font-size: 42px; margin-bottom: 12px;">⚠️</div>
+                <h2 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">无法连接授权页面</h2>
+                <p style="margin: 0 0 18px 0; font-size: 13px; color: #64748b; line-height: 1.6;">
+                  连接至平台登录服务超时或受阻（错误码: <code>${errorCode}</code> ${errorDescription}）<br/>
+                  <span style="font-size: 11px; color: #94a3b8; word-break: break-all;">${validatedURL}</span>
+                </p>
+                <button onclick="window.location.href='${validatedURL}'" style="background: #007aff; color: white; border: none; padding: 9px 24px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 6px rgba(0,122,255,0.25);">
+                  重新尝试连接
+                </button>
+              </div>
+            </body>
+          </html>
+        `;
+        void loginWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`);
+      });
+
+      let detectedAuth = false;
+      const cookieListener = (_ev: Electron.Event, cookie: Electron.Cookie) => {
+        const rules = PLATFORM_AUTH_COOKIE_RULES[platformId] ?? [];
+        if (rules.some((rule) => cookie.name.includes(rule))) {
+          detectedAuth = true;
+          activeMainWindow?.webContents.send('platform:authStateChanged', { platformId, authorized: true });
+        }
+      };
+
+      targetSession.cookies.on('changed', cookieListener);
+
+      try {
+        await loginWin.loadURL(loginUrl);
+      } catch {
+        // Handled by did-fail-load
+      }
+
       return new Promise<boolean>((resolve) => {
         loginWin.on('closed', async () => {
-          const cookies = await session.fromPartition(partition).cookies.get({});
-          resolve(cookies.length > 0);
+          targetSession.cookies.removeListener('changed', cookieListener);
+          const isAuthorized = await hasSessionAuthCookies(session, platformId);
+          resolve(isAuthorized || detectedAuth);
         });
       });
     }

@@ -4,6 +4,10 @@ import {
   CnblogsAdapter,
   GitHubStaticAdapter,
   PLATFORM_CATALOG,
+  ZhihuAdapter,
+  JuejinAdapter,
+  CsdnAdapter,
+  BaijiahaoAdapter,
   type FetchLike,
 } from './index.ts';
 
@@ -249,4 +253,234 @@ test('CnblogsAdapter handles XML-RPC fault gracefully in checkAuth and verifyDel
 
   assert.equal(await adapter.checkAuth(), false);
   assert.equal(await adapter.verifyDelivery('18001234'), false);
+});
+
+test('ZhihuAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const calls: string[] = [];
+  const mockFetch: FetchLike = async (url, init) => {
+    const method = init?.method || 'GET';
+    calls.push(`${method} ${url}`);
+
+    if (url === 'https://www.zhihu.com/api/v4/me') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ id: 'zh_user_123' }),
+      };
+    }
+    if (url === 'https://zhuanlan.zhihu.com/api/uploaded_images') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ src: 'https://picx.zhimg.com/v2-uploaded.png' }),
+      };
+    }
+    if (url === 'https://zhuanlan.zhihu.com/api/articles/drafts') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ id: 9876543, url: 'https://zhuanlan.zhihu.com/p/9876543/edit' }),
+      };
+    }
+    if (url === 'https://zhuanlan.zhihu.com/api/articles/9876543/draft') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ id: 9876543 }),
+      };
+    }
+    throw new Error(`Unexpected url: ${url}`);
+  };
+
+  const adapter = new ZhihuAdapter({ fetchFn: mockFetch });
+  assert.equal(adapter.descriptor.id, 'zhihu');
+  assert.equal(adapter.descriptor.defaultMode, 'draft');
+
+  assert.equal(await adapter.checkAuth(), true);
+  const img = await adapter.uploadImage(Buffer.from('img'), 'pic.png');
+  assert.equal(img, 'https://picx.zhimg.com/v2-uploaded.png');
+
+  const result = await adapter.push({
+    title: '知乎标题',
+    markdown: '# 正文',
+    html: '<h2>正文</h2>',
+    tags: ['技术'],
+    mode: 'draft',
+  });
+  assert.equal(result.postId, '9876543');
+  assert.equal(result.url, 'https://zhuanlan.zhihu.com/p/9876543/edit');
+  assert.equal(result.mode, 'draft');
+  assert.equal(await adapter.verifyDelivery('9876543'), true);
+});
+
+test('JuejinAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const mockFetch: FetchLike = async (url) => {
+    if (url === 'https://api.juejin.cn/user_api/v1/user/get') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 0, data: { user_id: 'jj_999' } }),
+      };
+    }
+    if (url === 'https://api.juejin.cn/web/upload_image') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 0, data: 'https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/sample.png' }),
+      };
+    }
+    if (url === 'https://api.juejin.cn/content_api/v1/article_draft/create') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 0, data: { id: 'draft_jj_888' } }),
+      };
+    }
+    if (url === 'https://api.juejin.cn/content_api/v1/article_draft/detail') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 0 }),
+      };
+    }
+    throw new Error(`Unexpected url: ${url}`);
+  };
+
+  const adapter = new JuejinAdapter({ fetchFn: mockFetch });
+  assert.equal(adapter.descriptor.id, 'juejin');
+  assert.equal(await adapter.checkAuth(), true);
+
+  const img = await adapter.uploadImage(Buffer.from('img'), 'pic.png');
+  assert.equal(img, 'https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/sample.png');
+
+  const pushRes = await adapter.push({
+    title: '掘金文章',
+    markdown: '# 正文',
+    html: '<h1>正文</h1>',
+    tags: ['前端'],
+    mode: 'draft',
+  });
+  assert.equal(pushRes.postId, 'draft_jj_888');
+  assert.equal(pushRes.url, 'https://juejin.cn/editor/drafts/draft_jj_888');
+  assert.equal(await adapter.verifyDelivery('draft_jj_888'), true);
+});
+
+test('CsdnAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const mockFetch: FetchLike = async (url) => {
+    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/article/status/count') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ code: 200 }),
+      };
+    }
+    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/picture/upload') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ code: 200, data: { url: 'https://img-blog.csdnimg.cn/csdn_img.png' } }),
+      };
+    }
+    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/mdeditor/saveArticle') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ code: 200, data: { article_id: 'csdn_112233' } }),
+      };
+    }
+    if (url.startsWith('https://bizapi.csdn.net/blog-console-api/v3/mdeditor/getArticle')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ code: 200 }),
+      };
+    }
+    throw new Error(`Unexpected url: ${url}`);
+  };
+
+  const adapter = new CsdnAdapter({ fetchFn: mockFetch });
+  assert.equal(adapter.descriptor.id, 'csdn');
+  assert.equal(await adapter.checkAuth(), true);
+
+  const img = await adapter.uploadImage(Buffer.from('img'), 'pic.png');
+  assert.equal(img, 'https://img-blog.csdnimg.cn/csdn_img.png');
+
+  const pushRes = await adapter.push({
+    title: 'CSDN文章',
+    markdown: '# 正文',
+    html: '<h1>正文</h1>',
+    tags: ['架构'],
+    mode: 'draft',
+  });
+  assert.equal(pushRes.postId, 'csdn_112233');
+  assert.equal(pushRes.url, 'https://mp.csdn.net/mp_blog/creation/editor/csdn_112233');
+  assert.equal(await adapter.verifyDelivery('csdn_112233'), true);
+});
+
+test('BaijiahaoAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const mockFetch: FetchLike = async (url) => {
+    if (url === 'https://baijiahao.baidu.com/builder/author/register/get_user_info') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ errno: 0, data: { app_id: 'bjh_app_123' } }),
+      };
+    }
+    if (url === 'https://baijiahao.baidu.com/builderinner/open/resource/query/upload') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ errno: 0, data: { url: 'https://bjh-pic.baidu.com/pic_1.jpg' } }),
+      };
+    }
+    if (url === 'https://baijiahao.baidu.com/builderinner/open/resource/article/save') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ errno: 0, data: { article_id: 'bjh_art_777' } }),
+      };
+    }
+    if (url.startsWith('https://baijiahao.baidu.com/builderinner/open/resource/article/detail')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ errno: 0 }),
+      };
+    }
+    throw new Error(`Unexpected url: ${url}`);
+  };
+
+  const adapter = new BaijiahaoAdapter({ fetchFn: mockFetch });
+  assert.equal(adapter.descriptor.id, 'baijiahao');
+  assert.equal(await adapter.checkAuth(), true);
+
+  const img = await adapter.uploadImage(Buffer.from('img'), 'pic.png');
+  assert.equal(img, 'https://bjh-pic.baidu.com/pic_1.jpg');
+
+  const pushRes = await adapter.push({
+    title: '百家号文章',
+    markdown: '# 正文',
+    html: '<h2>正文</h2>',
+    tags: ['科技'],
+    mode: 'draft',
+  });
+  assert.equal(pushRes.postId, 'bjh_art_777');
+  assert.equal(pushRes.url, 'https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=bjh_art_777');
+  assert.equal(await adapter.verifyDelivery('bjh_art_777'), true);
 });

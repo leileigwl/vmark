@@ -1,8 +1,22 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type Electron from 'electron';
-import { GitHubStaticAdapter, WeixinAdapter, type FetchLike } from '@vcat/adapters';
-import { renderWeixinHtml } from '@vcat/core/weixin';
+import {
+  BaijiahaoAdapter,
+  CnblogsAdapter,
+  CsdnAdapter,
+  GitHubStaticAdapter,
+  JuejinAdapter,
+  WeixinAdapter,
+  ZhihuAdapter,
+  type FetchLike,
+} from '@vcat/adapters';
+import {
+  parseCsdnMarkdown,
+  renderBaijiahaoHtml,
+  renderWeixinHtml,
+  renderZhihuHtml,
+} from '@vcat/core';
 import {
   createImageBedUploader,
   resolveRefererForUrl,
@@ -38,19 +52,21 @@ export interface PublishAppConfig {
 
 const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
 
-const PLATFORM_AUTH_COOKIE_RULES: Partial<Record<PlatformId, string[]>> = {
+export const PLATFORM_AUTH_COOKIE_RULES: Partial<Record<PlatformId, string[]>> = {
   zhihu: ['z_c0'],
-  cnblogs: ['.CNBlogsCookie', 'Cnblogs.AspNetCore.Cookies', '.Cnblogs.AspNetCore.Cookies'],
+  cnblogs: ['.CNBlogsCookie', '.Cnblogs.AspNetCore.Cookies', 'Cnblogs.AspNetCore.Cookies'],
   juejin: ['sessionid'],
   bilibili: ['SESSDATA'],
-  csdn: ['UserName', 'UserToken'],
+  csdn: ['UserName'],
+  baijiahao: ['BDUSS'],
+  linuxdo: ['_t', '_forum_session'],
   xiaohongshu: ['web_session'],
   weibo: ['SUB', 'SUBP'],
   douyin: ['sessionid'],
 };
 
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
-function createSessionFetch(targetSession: Electron.Session): FetchLike {
+export function createSessionFetch(targetSession: Electron.Session): FetchLike {
   return async (input, init) => {
     const res = await targetSession.fetch(input, init as Parameters<typeof targetSession.fetch>[1]);
     return {
@@ -63,7 +79,7 @@ function createSessionFetch(targetSession: Electron.Session): FetchLike {
 }
 
 /** Filters out analytics-only cookies and verifies exact platform auth tickets when available. */
-async function hasSessionAuthCookies(
+export async function hasSessionAuthCookies(
   session: typeof Electron.session,
   platformId: PlatformId
 ): Promise<boolean> {
@@ -321,6 +337,173 @@ async function publishToSingleTarget(params: {
         verified: pushed.verified,
         uploadedImagesCount: uploadResult.uploadedCount,
         message: `已推送至 GitHub 仓库（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'zhihu') {
+      const targetSession = session.fromPartition('persist:platform_zhihu');
+      const adapter = new ZhihuAdapter({ fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录知乎，请先在「偏好设置 → 平台授权托管」完成扫码授权',
+        };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const rendered = renderZhihuHtml(uploadResult.markdown);
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: uploadResult.markdown,
+        html: rendered.html,
+        tags: payload.tags ?? [],
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到知乎专栏草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'juejin') {
+      const targetSession = session.fromPartition('persist:platform_juejin');
+      const adapter = new JuejinAdapter({ fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录稀土掘金，请先在「偏好设置 → 平台授权托管」完成登录授权',
+        };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: uploadResult.markdown,
+        html: '',
+        tags: payload.tags ?? [],
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到稀土掘金草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'csdn') {
+      const targetSession = session.fromPartition('persist:platform_csdn');
+      const adapter = new CsdnAdapter({ fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录 CSDN，请先在「偏好设置 → 平台授权托管」完成扫码授权',
+        };
+      }
+      const parsed = parseCsdnMarkdown(payload.markdown, payload.title);
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: parsed.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const pushed = await adapter.push({
+        title: payload.title || parsed.title,
+        markdown: uploadResult.markdown,
+        html: '',
+        tags: payload.tags && payload.tags.length > 0 ? payload.tags : parsed.tags,
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到 CSDN 草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'baijiahao') {
+      const targetSession = session.fromPartition('persist:platform_baijiahao');
+      const adapter = new BaijiahaoAdapter({ fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录百家号，请先在「偏好设置 → 平台授权托管」完成登录授权',
+        };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const rendered = renderBaijiahaoHtml(uploadResult.markdown);
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: uploadResult.markdown,
+        html: rendered.html,
+        tags: payload.tags ?? [],
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到百家号草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
       };
     }
 
