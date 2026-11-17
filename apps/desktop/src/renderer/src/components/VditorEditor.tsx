@@ -971,6 +971,25 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         });
       };
 
+      const handleInputCapture = (e: Event) => {
+        const sel = window.getSelection();
+        if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+          const sc = sel.getRangeAt(0).startContainer;
+          const anchorEl = sc instanceof Element ? sc : sc.parentElement;
+          if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, blockquote, table')) {
+            const curBlock = anchorEl.closest('p, li') as HTMLElement | null;
+            const clean = (curBlock?.textContent || '').replace(/[\u200b\ufeff]/g, '');
+            if (clean === '>') {
+              // 阻止 Vditor 原生对无空格 '>' 的即时编译，必须等待敲击空格再渲染为引用块
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              return;
+            }
+          }
+        }
+        detectSlashCommand();
+      };
+
       document.addEventListener('selectionchange', handleSelectionChange);
       el.addEventListener('compositionend', handleCompositionEnd, true);
       el.addEventListener('copy', handleCopyCapture, true);
@@ -980,7 +999,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('mouseup', handleMouseUpCapture, true);
       el.addEventListener('dblclick', handleDblClickCapture, true);
       el.addEventListener('click', handleClickCapture, true);
-      el.addEventListener('input', detectSlashCommand, true);
+      el.addEventListener('input', handleInputCapture, true);
       el.addEventListener('keyup', detectSlashCommand, true);
       el.addEventListener('contextmenu', handleContextMenu);
       el.addEventListener('scroll', syncCodeCopyOverlays, { capture: true, passive: true });
@@ -991,7 +1010,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (heavyEnhanceTimer) clearTimeout(heavyEnhanceTimer);
         if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
         document.removeEventListener('selectionchange', handleSelectionChange);
-        el.removeEventListener('input', detectSlashCommand, true);
+        el.removeEventListener('input', handleInputCapture, true);
         el.removeEventListener('keyup', detectSlashCommand, true);
         el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);

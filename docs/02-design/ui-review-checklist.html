@@ -312,6 +312,33 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R39_1",
+            title: "R39-1. 引用 `>` 严格等空格才渲染 + 整段引用复制粘贴保留 `>` 前缀",
+            status: "done",
+            statusText: "Round 39 已修复待核验",
+            img: "media_1794898290392_05313f53.png",
+            desc: "1. 在 capture 阶段拦截单独 '>' 的原生 input 编译，必须等到敲击空格才渲染为引用块；2. 修复 Cmd+C 复制 blockquote/list/table 内部选区时 Range.cloneContents() 丢失外层容器标签的问题，自动补齐外层包裹，确保粘贴后完整还原引用与嵌套格式。",
+            plan: "输入 '>' 确认保持纯文本，敲空格后立即变为引用卡片；全选引用内多行内容 Cmd+C 后到下方 Cmd+V，确认粘贴后仍是完整引用块（含嵌套列表）。"
+          },
+          {
+            id: "R39_2",
+            title: "R39-2. 代码块非折叠选区删除 & Delete 键全场景物理隔离",
+            status: "done",
+            statusText: "Round 39 已修复待核验",
+            img: "media_1794900067617_17bbcd2a.png",
+            desc: "新增非折叠选区（拖选/Cmd+A）在代码块内部按 Backspace/Delete 时的保护，仅安全清空代码正文而不摧毁语言标签与 mac 圆点；新增 Delete 键在语言框末尾与代码正文末尾的阻断，彻底杜绝代码块内删除误伤。",
+            plan: "在代码块内按 Cmd+A 后按 Backspace，确认仅清空代码文本而保留完整代码块外壳；在代码最后一行按 Delete 确认不吞并下方内容。"
+          },
+          {
+            id: "R39_3",
+            title: "R39-3. 全格式标准参考文章基准沉淀（full-format-reference-article.md）",
+            status: "done",
+            statusText: "Round 39 已沉淀待核验",
+            img: "media_1794899096919_b457394a.png",
+            desc: "在 docs/02-design/full-format-reference-article.md 建立覆盖标题、加粗/斜体/删除线/行内代码、引用嵌套列表、任务列表、代码块与表格的全格式标准参考文章，用于端到端写作与快捷键复制粘贴验收。",
+            plan: "打开参考文章或照其结构完整写一遍并测试各小块 Ctrl/Cmd+C 与 Ctrl/Cmd+V 粘贴效果。"
+          },
+          {
             id: "R38_1",
             title: "R38-1. 代码块正文精确判空删除 + 行首防撕裂",
             status: "done",

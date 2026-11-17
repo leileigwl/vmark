@@ -1,8 +1,8 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 38 已完成全部 7 项物理根治与全量构建验证**
-- **上一提交**：`96adcb0`（Round 37）
+- **当前阶段**：**Round 39 已完成引用空格延迟渲染、整块复制保留与代码块全场景删除隔离，并补充全格式标准参考文章**
+- **上一提交**：`234d86c`（Round 38）
 - **本轮验证**：`pnpm typecheck`（5/5 packages）、`pnpm test`（8/8 tests）、`pnpm --filter @vcat/desktop build` 全部通过。
 
 ---

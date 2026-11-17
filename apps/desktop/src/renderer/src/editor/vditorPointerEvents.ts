@@ -270,9 +270,40 @@ export function handleEditorCopyCapture(
     return;
   }
   if (mode === 'markdown') {
-    const frag = sel.getRangeAt(0).cloneContents();
+    const range = sel.getRangeAt(0);
+    const frag = range.cloneContents();
     const tmp = document.createElement('div');
     tmp.appendChild(frag);
+
+    // 若选区完全落在某个 blockquote / list / table 内部，cloneContents() 会丢失外层容器标签，需还原包裹以保留完整 Markdown 语义
+    const commonEl =
+      range.commonAncestorContainer instanceof Element
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer.parentElement;
+
+    if (commonEl) {
+      const listAncestor = commonEl.closest('ul, ol');
+      if (listAncestor && !tmp.querySelector('ul, ol') && tmp.querySelector('li')) {
+        const listWrap = document.createElement(listAncestor.tagName.toLowerCase());
+        while (tmp.firstChild) listWrap.appendChild(tmp.firstChild);
+        tmp.appendChild(listWrap);
+      }
+
+      const tableAncestor = commonEl.closest('table');
+      if (tableAncestor && !tmp.querySelector('table') && tmp.querySelector('tr, th, td')) {
+        const tableWrap = document.createElement('table');
+        while (tmp.firstChild) tableWrap.appendChild(tmp.firstChild);
+        tmp.appendChild(tableWrap);
+      }
+
+      const quoteAncestor = commonEl.closest('blockquote');
+      if (quoteAncestor && !tmp.querySelector('blockquote')) {
+        const quoteWrap = document.createElement('blockquote');
+        while (tmp.firstChild) quoteWrap.appendChild(tmp.firstChild);
+        tmp.appendChild(quoteWrap);
+      }
+    }
+
     const md = instance.html2md(tmp.innerHTML).trim() || plain;
     e.preventDefault();
     e.stopPropagation();

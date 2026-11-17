@@ -247,15 +247,59 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
   // ─── Block Deletion Isolation & Free Internal Deletion ─────────────────────
   // 严格隔离：
-  // 1. 如果光标在受保护块（Callout/引用/代码块/表格）内部，放行退格编辑；若内部已完全删空，按退格安全清理该空块为普通段落；
-  // 2. 如果光标在受保护块下方的普通段落/标题行首且有文本，坚决禁止向上吞并破坏上方容器；若该行为纯空行则安全删除该空行。
-  if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
+  // 1. 代码块内部：选区删除/Delete/Backspace 仅清除代码正文内容（绝不连带删掉语言标签、mac圆点或整块）；
+  //    仅当代码正文原本就已为空且光标在空代码块内再按 Backspace 时才移除整个代码块；
+  // 2. Callout / 引用内部：若内部已完全删空，按退格安全清理该空块为普通段落；
+  // 3. 光标在受保护块下方的普通段落/标题行首且有文本，坚决禁止向上吞并破坏上方容器；若该行为纯空行则安全删除该空行。
+  if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
     const sel = window.getSelection();
-    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+    if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
 
       if (resetEl) {
+        const startTop = getTopBlock(range.startContainer, resetEl);
+        const endTop = getTopBlock(range.endContainer, resetEl);
+
+        // 非折叠选区：如果选区起点/终点均在同一个代码块内部，安全清理选中代码文本，绝不摧毁代码块外壳
+        if (!sel.isCollapsed && startTop && startTop === endTop && isProtectedBlock(startTop)) {
+          const isCodeBlock =
+            startTop.getAttribute('data-type') === 'code-block' || startTop.tagName === 'PRE';
+          if (isCodeBlock) {
+            const codeEl = startTop.querySelector(
+              'pre.vditor-ir__marker--pre > code, pre:not(.vditor-ir__preview) code, code'
+            ) as HTMLElement | null;
+            if (codeEl && codeEl.contains(range.startContainer) && codeEl.contains(range.endContainer)) {
+              const selectedAll =
+                range.toString().replace(/[\u200b\ufeff\n]/g, '') ===
+                (codeEl.textContent || '').replace(/[\u200b\ufeff\n]/g, '');
+              if (selectedAll) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                ctx.pushVditorUndo();
+                codeEl.textContent = '\n';
+                const nr = document.createRange();
+                nr.setStart(codeEl, 0);
+                nr.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(nr);
+                ctx.pushVditorUndo();
+                ctx.onChangeValue(instance.getValue());
+                return;
+              }
+            } else {
+              // 跨语言标签与正文选区删除：阻断防止撕裂语言标签与 mac 圆点
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              return;
+            }
+          }
+        }
+      }
+
+      if (sel.isCollapsed && resetEl) {
         const topBlock = getTopBlock(range.startContainer, resetEl);
         if (topBlock) {
           // 场景 A：如果光标就在受保护块内部（例如在 Callout、代码块、引用内部）：
@@ -274,8 +318,44 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               ) as HTMLElement | null;
               const codeText = (codeEl?.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
 
-              if (!inInfoMarker && codeText.length === 0) {
-                // 代码块正文已空，按 Backspace 干净删除整个代码块转为普通空段落
+              if (e.key === 'Delete') {
+                // Delete 键在语言框末尾或代码正文末尾时阻止向下/跨节点吞并撕裂
+                if (inInfoMarker) {
+                  const infoMarker = anchorNodeEl?.closest('.vditor-ir__marker--info') as HTMLElement | null;
+                  if (infoMarker) {
+                    try {
+                      const postInfoRange = document.createRange();
+                      postInfoRange.setStart(range.startContainer, range.startOffset);
+                      postInfoRange.setEnd(infoMarker, infoMarker.childNodes.length);
+                      if (postInfoRange.toString().replace(/[\u200b\ufeff]/g, '').length === 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        return;
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }
+                } else if (codeEl && codeEl.contains(range.startContainer)) {
+                  try {
+                    const postCodeRange = document.createRange();
+                    postCodeRange.setStart(range.startContainer, range.startOffset);
+                    postCodeRange.setEnd(codeEl, codeEl.childNodes.length);
+                    if (postCodeRange.toString().replace(/[\u200b\ufeff\n]/g, '').length === 0) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.stopImmediatePropagation();
+                      return;
+                    }
+                  } catch {
+                    // ignore
+                  }
+                }
+              }
+
+              if (e.key === 'Backspace' && !inInfoMarker && codeText.length === 0) {
+                // 代码块正文原本就已为空，按 Backspace 干净删除整个代码块转为普通空段落
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
@@ -297,7 +377,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               }
 
               // 代码块正文尚有内容且光标在正文行首时，严禁 Backspace 向上合并撕裂语言标签与圆点
-              if (!inInfoMarker && codeEl && codeEl.contains(range.startContainer)) {
+              if (e.key === 'Backspace' && !inInfoMarker && codeEl && codeEl.contains(range.startContainer)) {
                 try {
                   const preCodeRange = document.createRange();
                   preCodeRange.setStart(codeEl, 0);
@@ -315,7 +395,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               }
 
               // 光标在语言标签行首时，也不允许 Backspace 向上吞并 ``` 标记
-              if (inInfoMarker) {
+              if (e.key === 'Backspace' && inInfoMarker) {
                 const infoMarker = anchorNodeEl?.closest('.vditor-ir__marker--info') as HTMLElement | null;
                 if (infoMarker) {
                   try {
@@ -333,7 +413,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                   }
                 }
               }
-            } else {
+            } else if (e.key === 'Backspace') {
               const rawText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
               // 如果 Callout / 引用内部文字已被删空，按 Backspace 干净将其转为普通空白段落
               if (rawText.length === 0) {
@@ -358,7 +438,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               }
             }
             // 内部尚有内容且非边界时，允许代码块/Callout 内自由删除，绝不阻断
-          } else {
+          } else if (e.key === 'Backspace') {
             // 场景 B：当前块是普通段落/标题等（!isProtectedBlock(topBlock)）
             try {
               const preRange = document.createRange();
