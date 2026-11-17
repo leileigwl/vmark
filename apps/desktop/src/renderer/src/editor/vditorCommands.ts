@@ -114,19 +114,16 @@ export function insertTableWithSizeAction(
   const safeCols = Math.max(1, Math.min(20, cols));
   // Total rows includes 1 header row + (rows - 1) body rows
   const safeBodyRows = Math.max(1, Math.min(50, rows - 1));
-  const sel = window.getSelection();
-  const anchorEl =
-    sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-  const existingTable = anchorEl?.closest('table');
-  if (existingTable && el.contains(existingTable)) {
-    const p = document.createElement('p');
-    p.innerHTML = '<br>';
-    existingTable.parentNode?.insertBefore(p, existingTable.nextSibling);
+
+  // 1. 如果有占位锚点，精准恢复光标至占位锚点并移除占位节点
+  const placeholder = el.querySelector('#vcat-table-placeholder');
+  if (placeholder) {
     const range = document.createRange();
-    range.selectNodeContents(p);
-    range.collapse(true);
+    range.selectNode(placeholder);
+    const sel = window.getSelection();
     sel?.removeAllRanges();
     sel?.addRange(range);
+    placeholder.remove();
   }
 
   const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
@@ -137,15 +134,7 @@ export function insertTableWithSizeAction(
   const tableMd = `\n\n${[header, sep, ...bodyRows].join('\n')}\n\n`;
 
   instance.focus();
-  const inst = instance as unknown as {
-    insertMD?: (md: string) => void;
-    insertValue: (v: string) => void;
-  };
-  if (typeof inst.insertMD === 'function') {
-    inst.insertMD(tableMd);
-  } else {
-    instance.insertValue(tableMd);
-  }
+  instance.insertValue(tableMd);
 
   // Focus the first table cell after render
   setTimeout(() => {
@@ -160,7 +149,7 @@ export function insertTableWithSizeAction(
       selNow?.removeAllRanges();
       selNow?.addRange(range);
     }
-  }, 60);
+  }, 80);
 }
 
 export function applyImageActionInEditor(

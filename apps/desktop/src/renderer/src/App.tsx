@@ -398,11 +398,20 @@ export default function App() {
   }, []);
 
   async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig, searchKeyword?: string) {
+    const tryJumpToSearch = (keyword: string) => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        const count = editorRef.current?.jumpToMatch(keyword, 0, { caseSensitive: false }) ?? 0;
+        if (count > 0 || attempts >= 15) {
+          clearInterval(timer);
+        }
+      }, 60);
+    };
+
     if (activeArticle?.relativePath === meta.relativePath) {
       if (searchKeyword) {
-        setTimeout(() => {
-          editorRef.current?.jumpToMatch(searchKeyword, 0, { caseSensitive: false });
-        }, 50);
+        tryJumpToSearch(searchKeyword);
       }
       return;
     }
@@ -423,9 +432,7 @@ export default function App() {
     setLoadSeq((s) => s + 1);
     setSaveState('已保存');
     if (searchKeyword) {
-      setTimeout(() => {
-        editorRef.current?.jumpToMatch(searchKeyword, 0, { caseSensitive: false });
-      }, 180);
+      tryJumpToSearch(searchKeyword);
     }
     const nextStartup = { ...(cfgOverride ?? startupConfig), lastArticlePath: meta.relativePath };
     setStartupConfig(nextStartup);

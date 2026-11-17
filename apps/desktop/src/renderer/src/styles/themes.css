@@ -94,8 +94,13 @@
 }
 [data-theme*='-dark'] {
   color-scheme: dark;
-  --bg-elevated: color-mix(in srgb, var(--side-bar-bg-color) 75%, #ffffff 6%);
-  --bg-hover: rgba(255, 255, 255, 0.1);
+  --bg-main: #18191c;
+  --bg-elevated: #232428;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.12);
+  --text-main: #e6e8eb;
+  --control-text-color: #9ba1a6;
+  --side-bar-bg-color: #1a1b1e;
   --ir-bracket-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
   --ir-link-color: color-mix(in srgb, var(--accent) 68%, #ffffff);
   --ir-bi-color: color-mix(in srgb, var(--accent) 68%, #ffffff);

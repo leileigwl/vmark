@@ -9,7 +9,7 @@ interface TableSizePickerProps {
 
 /**
  * 插入表格弹窗（居中浮层 Modal）
- * 全量使用 CSS 变量，完美自适应浅色与暗黑模式（消除白底白字）
+ * 全量使用 CSS 语义变量与深浅自适应样式，完美适配暗黑与浅色模式
  */
 export function TableSizePicker({ onConfirm, onClose }: TableSizePickerProps) {
   const [cols, setCols] = useState(3);
@@ -30,14 +30,18 @@ export function TableSizePicker({ onConfirm, onClose }: TableSizePickerProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="w-[300px] select-none rounded-2xl border border-[var(--border-color)] bg-[var(--bg-main)] p-5 shadow-2xl transition-all"
-        style={{ color: 'var(--text-main)' }}
+        className="w-[310px] select-none rounded-2xl border p-5 shadow-2xl transition-all"
+        style={{
+          backgroundColor: 'var(--bg-elevated, var(--bg-main, #1e1e22))',
+          borderColor: 'var(--border-color, rgba(255, 255, 255, 0.14))',
+          color: 'var(--text-main, #f0f0f2)',
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
@@ -48,13 +52,16 @@ export function TableSizePicker({ onConfirm, onClose }: TableSizePickerProps) {
           }
         }}
       >
-        <h3 className="mb-5 text-center text-[16px] font-semibold text-[var(--text-main)]">
+        <h3
+          className="mb-5 text-center text-[16px] font-semibold"
+          style={{ color: 'var(--text-main, #f0f0f2)' }}
+        >
           插入表格
         </h3>
 
-        <div className="mb-6 flex items-center justify-center gap-6 text-[14px] text-[var(--text-main)]">
+        <div className="mb-6 flex items-center justify-center gap-6 text-[14px]">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-[var(--text-main)]">列</span>
+            <span className="font-medium opacity-90">列</span>
             <input
               ref={colInputRef}
               type="number"
@@ -62,29 +69,47 @@ export function TableSizePicker({ onConfirm, onClose }: TableSizePickerProps) {
               max={30}
               value={cols}
               onChange={(e) => setCols(parseInt(e.target.value, 10) || 1)}
-              className="h-8 w-16 rounded-md border border-[var(--border-color)] bg-[var(--bg-hover)] text-center text-[14px] font-medium text-[var(--text-main)] shadow-2xs focus:border-[#007aff] focus:outline-none"
+              className="h-8 w-16 rounded-md border text-center text-[14px] font-medium shadow-2xs focus:border-[#007aff] focus:outline-none"
+              style={{
+                backgroundColor: 'var(--bg-hover, rgba(125, 125, 125, 0.15))',
+                borderColor: 'var(--border-color, rgba(255, 255, 255, 0.14))',
+                color: 'var(--text-main, inherit)',
+              }}
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-[var(--text-main)]">行</span>
+            <span className="font-medium opacity-90">行</span>
             <input
               type="number"
               min={1}
               max={100}
               value={rows}
               onChange={(e) => setRows(parseInt(e.target.value, 10) || 1)}
-              className="h-8 w-16 rounded-md border border-[var(--border-color)] bg-[var(--bg-hover)] text-center text-[14px] font-medium text-[var(--text-main)] shadow-2xs focus:border-[#007aff] focus:outline-none"
+              className="h-8 w-16 rounded-md border text-center text-[14px] font-medium shadow-2xs focus:border-[#007aff] focus:outline-none"
+              style={{
+                backgroundColor: 'var(--bg-hover, rgba(125, 125, 125, 0.15))',
+                borderColor: 'var(--border-color, rgba(255, 255, 255, 0.14))',
+                color: 'var(--text-main, inherit)',
+              }}
             />
           </div>
         </div>
 
-        <div className="mb-4 border-t border-[var(--border-color)]" />
+        <div
+          className="mb-4 border-t"
+          style={{ borderColor: 'var(--border-color, rgba(255, 255, 255, 0.1))' }}
+        />
 
         <div className="flex justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-hover)] px-4 py-1.5 text-[13px] font-normal text-[var(--text-main)] shadow-2xs hover:opacity-80 active:opacity-70"
+            className="rounded-lg border px-4 py-1.5 text-[13px] font-normal shadow-2xs hover:opacity-80 active:opacity-70"
+            style={{
+              backgroundColor: 'var(--bg-hover, rgba(125, 125, 125, 0.12))',
+              borderColor: 'var(--border-color, rgba(255, 255, 255, 0.15))',
+              color: 'var(--text-main, inherit)',
+            }}
           >
             取消
           </button>

@@ -719,3 +719,62 @@
   opacity: 0.85 !important;
 }
 
+/* Decoupled Empty Inline Nodes Guard (Bold, Italic, Strikethrough, Code) */
+.vditor-reset strong:empty,
+.vditor-reset b:empty,
+.vditor-reset em:empty,
+.vditor-reset i:empty,
+.vditor-reset s:empty,
+.vditor-reset del:empty,
+.vditor-reset code:empty,
+[data-theme*='-dark'] .vditor-reset strong:empty,
+[data-theme*='-dark'] .vditor-reset b:empty,
+[data-theme*='-dark'] .vditor-reset em:empty,
+[data-theme*='-dark'] .vditor-reset i:empty,
+[data-theme*='-dark'] .vditor-reset s:empty,
+[data-theme*='-dark'] .vditor-reset del:empty,
+[data-theme*='-dark'] .vditor-reset code:empty {
+  background-color: transparent !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.vditor-ir__node[data-type="em"]:has(em:empty) .vditor-ir__marker,
+.vditor-ir__node[data-type="s"]:has(s:empty) .vditor-ir__marker,
+.vditor-ir__node[data-type="inline-code"]:has(code:empty) .vditor-ir__marker {
+  display: inline !important;
+  visibility: visible !important;
+  color: var(--text-muted, #8e8e93) !important;
+  opacity: 0.85 !important;
+}
+
+/* Ordered, Unordered, Task Lists and Blockquote Nested Lists */
+.vditor-reset ol,
+.vditor-reset ul {
+  padding-left: 1.6em !important;
+  margin: 0.5em 0 !important;
+}
+.vditor-reset li {
+  margin: 0.25em 0 !important;
+  line-height: 1.75 !important;
+}
+.vditor-reset li > p {
+  margin: 0 !important;
+  display: inline;
+}
+.vditor-reset blockquote ol,
+.vditor-reset blockquote ul {
+  margin: 0.4em 0 !important;
+  padding-left: 1.4em !important;
+}
+.vditor-reset ol > li::marker {
+  color: var(--accent);
+  font-weight: 500;
+}
+.vditor-reset ul > li::marker {
+  color: var(--accent);
+}
+

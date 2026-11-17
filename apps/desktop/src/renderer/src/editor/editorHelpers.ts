@@ -4,7 +4,6 @@ export const PAIR_MAP: Record<string, string> = {
   '{': '}',
   '"': '"',
   "'": "'",
-  '`': '`',
   '（': '）',
   '【': '】',
   '「': '」',

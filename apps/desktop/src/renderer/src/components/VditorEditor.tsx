@@ -616,6 +616,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         // Table: show size picker instead of inserting fixed-size table
         if (item.id === 'table') {
           savedTableRangeRef.current = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+          // 埋设唯一占位锚点，防止弹窗失焦后光标丢失
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const placeholder = document.createElement('span');
+            placeholder.id = 'vcat-table-placeholder';
+            placeholder.style.display = 'none';
+            range.insertNode(placeholder);
+          }
           setTablePicker({ open: true, x: 0, y: 0 });
           return;
         }
@@ -1091,16 +1099,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
             onConfirm={(cols, rows) => {
               const inst = vditorRef.current;
               const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
-              if (savedTableRangeRef.current) {
-                const s = window.getSelection();
-                s?.removeAllRanges();
-                s?.addRange(savedTableRangeRef.current);
-              }
               if (inst && el) {
                 insertTableWithSizeAction(cols, rows, inst, el);
               }
             }}
-            onClose={() => setTablePicker({ open: false, x: 0, y: 0 })}
+            onClose={() => {
+              const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
+              el?.querySelector('#vcat-table-placeholder')?.remove();
+              setTablePicker({ open: false, x: 0, y: 0 });
+            }}
           />
         )}
         <MediaLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
