@@ -257,6 +257,53 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
   if (!el.contains(targetNode)) return;
 
+  // ─── Empty bracket pair Backspace (e.g. (|) -> delete both) ───────────────
+  if (ctx.autoPairBrackets && e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
+    const selBp = window.getSelection();
+    if (selBp && selBp.isCollapsed && selBp.rangeCount > 0) {
+      const rBp = selBp.getRangeAt(0);
+      const scBp = rBp.startContainer;
+      if (scBp.nodeType === Node.TEXT_NODE && rBp.startOffset >= 1) {
+        const val = scBp.nodeValue || '';
+        const prevCh = val.slice(rBp.startOffset - 1, rBp.startOffset);
+        const expectedClose = PAIR_MAP[prevCh];
+        if (expectedClose) {
+          const nextInSame = val.slice(rBp.startOffset, rBp.startOffset + 1);
+          if (nextInSame === expectedClose) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const delR = document.createRange();
+            delR.setStart(scBp, rBp.startOffset - 1);
+            delR.setEnd(scBp, rBp.startOffset + 1);
+            selBp.removeAllRanges();
+            selBp.addRange(delR);
+            document.execCommand('delete', false);
+            ctx.onChangeValue(instance.getValue());
+            return;
+          }
+          if (
+            rBp.startOffset === val.length &&
+            scBp.nextSibling?.nodeType === Node.TEXT_NODE &&
+            (scBp.nextSibling.nodeValue || '').startsWith(expectedClose)
+          ) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const delR = document.createRange();
+            delR.setStart(scBp, rBp.startOffset - 1);
+            delR.setEnd(scBp.nextSibling, 1);
+            selBp.removeAllRanges();
+            selBp.addRange(delR);
+            document.execCommand('delete', false);
+            ctx.onChangeValue(instance.getValue());
+            return;
+          }
+        }
+      }
+    }
+  }
+
   // ─── Block Deletion Isolation & Free Internal Deletion ─────────────────────
   // 严格隔离：
   // 1. 代码块内部：选区删除/Delete/Backspace 仅清除代码正文内容（绝不连带删掉语言标签、mac圆点或整块）；
@@ -878,16 +925,28 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       const range = selNow.getRangeAt(0);
       if (range.collapsed && Object.values(PAIR_MAP).includes(e.key)) {
         const sc = range.startContainer;
-        const nextChar =
-          sc.nodeType === Node.TEXT_NODE
-            ? (sc.nodeValue || '').slice(range.startOffset, range.startOffset + 1)
-            : '';
-        if (nextChar === e.key) {
+        let targetNode: Node | null = null;
+        let targetOffset = 0;
+        if (sc.nodeType === Node.TEXT_NODE) {
+          const val = sc.nodeValue || '';
+          if (val.slice(range.startOffset, range.startOffset + 1) === e.key) {
+            targetNode = sc;
+            targetOffset = range.startOffset + 1;
+          } else if (
+            range.startOffset === val.length &&
+            sc.nextSibling?.nodeType === Node.TEXT_NODE &&
+            (sc.nextSibling.nodeValue || '').startsWith(e.key)
+          ) {
+            targetNode = sc.nextSibling;
+            targetOffset = 1;
+          }
+        }
+        if (targetNode) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
           const nextRange = document.createRange();
-          nextRange.setStart(sc, range.startOffset + 1);
+          nextRange.setStart(targetNode, targetOffset);
           nextRange.collapse(true);
           selNow.removeAllRanges();
           selNow.addRange(nextRange);

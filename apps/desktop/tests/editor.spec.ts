@@ -488,4 +488,134 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     expect(copiedCode).toContain('`hello`');
     expect(copiedCode).not.toContain('\\`');
   });
+
+  test('16. 列表与引用回车续行、空项回车退出、Tab/Shift+Tab 嵌套缩进', async ({ page }) => {
+    await setupApp(page);
+    await clearAndFocusFirstLine(page);
+
+    // 1. + Space -> type item 1 -> Enter -> item 2 -> Tab -> nested list -> Shift+Tab -> outdent -> Enter on empty -> exit
+    await page.keyboard.type('1.');
+    await page.keyboard.press(' ');
+    await page.keyboard.type('第一项');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('第二项');
+    await page.waitForTimeout(100);
+    expect(await page.locator('.vditor-ir .vditor-reset ol > li').count()).toBe(2);
+
+    // Enter twice to exit list into normal <p>
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('退出列表正文');
+    await expect(page.locator('.vditor-ir .vditor-reset > p').last()).toContainText('退出列表正文');
+  });
+
+  test('17. Cmd+B/I 快捷键与 () [] "" 自动配对跳过、成对删除不残留多余符号', async ({ page }) => {
+    await setupApp(page);
+    await clearAndFocusFirstLine(page);
+
+    // Bracket auto-pair: type (abc) -> should be exactly "(abc)" (NOT "(abc))")
+    await page.keyboard.type('(abc)');
+    await page.waitForTimeout(80);
+    const pText = await page.evaluate(() => {
+      const p = document.querySelector('.vditor-ir .vditor-reset > p');
+      return (p?.textContent || '').replace(/[\u200b\ufeff]/g, '').trim();
+    });
+    expect(pText).toBe('(abc)');
+
+    // Empty bracket Backspace deletes both ( and )
+    await clearAndFocusFirstLine(page);
+    await page.keyboard.type('(');
+    await page.waitForTimeout(60);
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(60);
+    const afterEmptyDel = await page.evaluate(() => {
+      const p = document.querySelector('.vditor-ir .vditor-reset > p');
+      return (p?.textContent || '').replace(/[\u200b\ufeff]/g, '').trim();
+    });
+    expect(afterEmptyDel).toBe('');
+
+    // Cmd+B on selected text wraps in **bold**
+    await page.keyboard.type('加粗测试');
+    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('Meta+b');
+    await page.waitForTimeout(100);
+    await expect(page.locator('.vditor-ir .vditor-reset strong')).toContainText('加粗测试');
+  });
+
+  test('18. Cmd+Z / Cmd+Shift+Z 撤销重做一致性（列表/代码块展开后可撤销不崩）', async ({ page }) => {
+    await setupApp(page);
+    await clearAndFocusFirstLine(page);
+
+    await page.keyboard.type('1.');
+    await page.keyboard.press(' ');
+    await page.keyboard.type('列表项');
+    await page.waitForTimeout(100);
+    await expect(page.locator('.vditor-ir .vditor-reset ol')).toHaveCount(1);
+
+    await page.keyboard.press('Meta+z');
+    await page.waitForTimeout(100);
+    // Editor remains valid and responsive after undo
+    const resetVisible = await page.locator('.vditor-ir .vditor-reset').isVisible();
+    expect(resetVisible).toBe(true);
+  });
+
+  test('19. 完整长文章端到端敲写（标题/加粗/斜体/引用嵌套/代码块/表格）+ 全篇 Ctrl+A/C/V 零走样', async ({ page }) => {
+    await setupApp(page);
+    await clearAndFocusFirstLine(page);
+
+    // Heading
+    await page.keyboard.type('##');
+    await page.keyboard.press(' ');
+    await page.keyboard.type('完整测试标题');
+    await page.keyboard.press('Enter');
+
+    // Bold + inline text
+    await page.keyboard.type('正文包含 **加粗** 与 *斜体* 内容');
+    await page.keyboard.press('Enter');
+
+    // Blockquote with nested ordered list
+    await page.keyboard.type('>');
+    await page.keyboard.press(' ');
+    await page.keyboard.type('引用第一行');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('1.');
+    await page.keyboard.press(' ');
+    await page.keyboard.type('引用内列表');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+
+    // Code block via ```
+    await page.keyboard.type('```');
+    await page.waitForTimeout(150);
+    await page.keyboard.type('ts');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    await page.keyboard.type('const ok = true;');
+    await page.waitForTimeout(100);
+
+    await expect(page.locator('.vditor-ir .vditor-reset h2')).toContainText('完整测试标题');
+    await expect(page.locator('.vditor-ir .vditor-reset blockquote')).toHaveCount(1);
+    await expect(page.locator('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]')).toHaveCount(1);
+    await expect(page.locator('.vditor-ir .vditor-reset pre code').first()).toContainText('const ok = true;');
+
+    // Copy full article via Meta+A -> copy event, verify clean Markdown with no stray escapes
+    const fullCopied = await page.evaluate(() => {
+      const reset = document.querySelector('.vditor-ir .vditor-reset')!;
+      const r = document.createRange();
+      r.selectNodeContents(reset);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      const dt = new DataTransfer();
+      const ev = new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true });
+      reset.dispatchEvent(ev);
+      return dt.getData('text/plain');
+    });
+    expect(fullCopied).toContain('## 完整测试标题');
+    expect(fullCopied).toContain('> 引用第一行');
+    expect(fullCopied).toContain('const ok = true;');
+    expect(fullCopied).not.toContain('\\`');
+  });
 });

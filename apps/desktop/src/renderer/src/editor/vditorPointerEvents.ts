@@ -358,7 +358,14 @@ export function handleEditorCopyCapture(
       }
     }
 
-    const md = instance.html2md(tmp.innerHTML).trim() || plain;
+    const v = (instance as unknown as {
+      vditor?: { lute?: { VditorIRDOM2Md?: (html: string) => string } };
+    }).vditor;
+    const hasIrDom = Boolean(tmp.querySelector('.vditor-ir__node, .vditor-ir__marker, [data-block]'));
+    const md =
+      (hasIrDom && v?.lute?.VditorIRDOM2Md
+        ? v.lute.VditorIRDOM2Md(tmp.innerHTML).trim()
+        : instance.html2md(tmp.innerHTML).trim()) || plain;
     e.preventDefault();
     e.stopPropagation();
     e.clipboardData?.setData('text/plain', md);
