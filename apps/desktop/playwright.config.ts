@@ -1,4 +1,8 @@
+import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+
+const defaultMacChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const localChromium = process.env.PW_CHROMIUM_PATH || (existsSync(defaultMacChrome) ? defaultMacChrome : undefined);
 
 export default defineConfig({
   testDir: './tests',
@@ -7,11 +11,7 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1280, height: 860 },
-    // Use Playwright's own bundled Chromium by default (CI runs `playwright install chromium`).
-    // Set PW_CHROMIUM_PATH locally only if you need a specific browser binary.
-    launchOptions: process.env.PW_CHROMIUM_PATH
-      ? { executablePath: process.env.PW_CHROMIUM_PATH }
-      : {},
+    launchOptions: localChromium ? { executablePath: localChromium } : {},
   },
   webServer: {
     command: 'npx vite preview --outDir out/renderer --port 4173 --strictPort',

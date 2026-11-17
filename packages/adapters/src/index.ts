@@ -58,8 +58,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'cnblogs',
     name: '博客园 (Cnblogs)',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'metaweblog',
     riskLevel: 'low',
     referenceSource: 'references/siyuan-plugin-publisher/src/adaptors/api/cnblogs',
@@ -67,8 +67,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'linuxdo',
     name: 'Linux.do (Discourse)',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'discourse',
     riskLevel: 'low',
     referenceSource: 'Discourse REST API (/posts.json & /drafts.json)',
@@ -76,8 +76,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'juejin',
     name: '稀土掘金',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'low',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/juejin.ts',
@@ -85,8 +85,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'csdn',
     name: 'CSDN',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'low',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/csdn.ts',
@@ -94,8 +94,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'zhihu',
     name: '知乎',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'low',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/zhihu.ts',
@@ -103,8 +103,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'baijiahao',
     name: '百家号',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'medium',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/baijiahao.ts',
@@ -112,8 +112,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'weibo',
     name: '微博头条文章',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'medium',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/weibo.ts',
@@ -121,8 +121,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'bilibili',
     name: 'B 站专栏',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'medium',
     referenceSource: 'references/Wechatsync/packages/core/src/adapters/platforms/bilibili.ts',
@@ -130,8 +130,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'douyin',
     name: '抖音图文',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'isolated_profile',
     riskLevel: 'high',
     referenceSource: 'references/Wechatsync & 小V猫独立 Profile 规范',
@@ -139,8 +139,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'x',
     name: 'X (Twitter)',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'partition_cookie',
     riskLevel: 'medium',
     referenceSource: 'references/Wechatsync (X / Thread 拆分规范)',
@@ -148,8 +148,8 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
   {
     id: 'xiaohongshu',
     name: '小红书',
-    supportedModes: ['direct', 'draft'],
-    defaultMode: 'direct',
+    supportedModes: ['draft', 'direct'],
+    defaultMode: 'draft',
     authChannel: 'isolated_profile',
     riskLevel: 'high',
     referenceSource: 'references/siyuan-plugin-publisher/src/adaptors/web/xiaohongshu & 小V猫规范',
@@ -159,3 +159,7 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
 export { WeixinAdapter, type FetchLike, type WeixinAuthMeta, type WeixinDraftPayload } from './weixin.ts';
 export { GitHubStaticAdapter, type GitHubStaticOptions } from './githubStatic.ts';
 export { CnblogsAdapter, type CnblogsOptions } from './cnblogs.ts';
+export { ZhihuAdapter, type ZhihuOptions } from './zhihu.ts';
+export { JuejinAdapter, type JuejinOptions } from './juejin.ts';
+export { CsdnAdapter, type CsdnOptions } from './csdn.ts';
+export { BaijiahaoAdapter, type BaijiahaoOptions } from './baijiahao.ts';
