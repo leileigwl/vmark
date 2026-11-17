@@ -26,7 +26,7 @@ export interface KeyboardCaptureContext {
   redo: () => void;
 }
 
-/** Returns the direct child of resetEl that contains the given element, or null. */
+/** Returns the direct child of resetEl that contains the given target, or null. */
 function getTopBlock(target: Node, resetEl: Element): HTMLElement | null {
   let cur: Node | null = target;
   while (cur && cur.parentElement !== resetEl) {
@@ -36,7 +36,7 @@ function getTopBlock(target: Node, resetEl: Element): HTMLElement | null {
   return cur instanceof HTMLElement && resetEl.contains(cur) ? cur : null;
 }
 
-/** Tags that indicate a "protected" block that should not be merged into from below or above. */
+/** Protected blocks that should NEVER be merged into or accidentally deleted from below */
 const PROTECTED_TAGS = new Set(['blockquote', 'pre', 'table', 'hr']);
 function isProtectedBlock(el: Element): boolean {
   if (PROTECTED_TAGS.has(el.tagName.toLowerCase())) return true;
@@ -82,12 +82,20 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     (selAnchorEl?.closest('.vditor-ir__marker--info') as HTMLElement | null) ??
     (targetNode?.closest('.vditor-ir__marker--info') as HTMLElement | null);
 
+  // ─── Code Block Language Picker (ArrowUp/Down, Enter, Tab, Escape) ─────────
   if (infoMarker && el.contains(infoMarker) && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (isImeComposing) return;
-    if (ctx.lastActiveInfoMarkerRef.current !== infoMarker) {
-      ctx.hintNavigatedByArrowRef.current = false;
-    }
     ctx.lastActiveInfoMarkerRef.current = infoMarker;
+
+    // 优先尝试使用 Vditor 原生 hint.select 处理上下方向键与回车
+    const v = (instance as unknown as { vditor?: { hint?: { select?: (ev: KeyboardEvent, vd: unknown) => boolean; element?: HTMLElement } } }).vditor;
+    if (v?.hint?.select && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')) {
+      const handled = v.hint.select(e, v);
+      if (handled) {
+        return;
+      }
+    }
+
     const hintEl = el.querySelector('.vditor-hint') as HTMLElement | null;
     const hintButtons = hintEl ? Array.from(hintEl.querySelectorAll('button')) : [];
     const hintVisible = Boolean(
@@ -211,7 +219,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   if (!el.contains(targetNode)) return;
 
   // ─── Block Deletion Isolation ──────────────────────────────────────────────
-  // 彻底阻断从下方按 Backspace 时将正文/标题吞并进上方的 Callout / blockquote / code / table
+  // 严格隔离：光标在受保护块（Callout/引用/代码块/表格）下方的行首按 Backspace 时，
+  // 无论当前行有无文字，都坚决禁止浏览器合并向上删除，永不破坏上方的 Callout 容器！
   if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
     const sel = window.getSelection();
     if (sel && sel.isCollapsed && sel.rangeCount > 0) {
@@ -221,28 +230,21 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       if (resetEl) {
         const topBlock = getTopBlock(range.startContainer, resetEl);
         if (topBlock) {
-          // 计算当前光标在 topBlock 内的位置前是否有实际字符
           try {
             const preRange = document.createRange();
             preRange.setStart(topBlock, 0);
             preRange.setEnd(range.startContainer, range.startOffset);
             const preClean = preRange.toString().replace(/[\u200b\ufeff\s]/g, '');
-            // 如果光标在行首（前面只有零宽字符或仅有若干个#标题标记）
+            // 光标在当前顶层块的行首（前置仅有空白、零宽字符或#号标记）
             const isAtStart = preClean.length === 0 || /^#{1,6}$/.test(preClean);
             if (isAtStart) {
               const prevSib = topBlock.previousElementSibling;
               if (prevSib && isProtectedBlock(prevSib)) {
-                // 如果当前块有文字内容，坚决禁止 Backspace 合并进上一块
-                const curText = (topBlock.textContent || '')
-                  .replace(/^#{1,6}\s*/, '')
-                  .replace(/[\u200b\ufeff]/g, '')
-                  .trim();
-                if (curText.length > 0) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.stopImmediatePropagation();
-                  return;
-                }
+                // 阻断浏览器默认向上合并或连带删除 Callout 行为
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                return;
               }
             }
           } catch {
@@ -281,7 +283,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             preRange.setEnd(range.startContainer, range.startOffset);
             const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
 
-            // 模式匹配：敲击空格时即刻转换为 Markdown 语法
             const matchNestedQuoteOl = preText.match(/^>\s*(\d+)\.$/);
             const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
             const matchOl = preText.match(/^(\d+)\.$/);
@@ -296,7 +297,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               e.stopImmediatePropagation();
               ctx.pushVditorUndo();
 
-              // 删除敲入的前缀文字
               preRange.deleteContents();
 
               let mdToInsert = '';
@@ -448,9 +448,10 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     return;
   }
 
-  // ─── Backtick auto-pair ────────────────────────────────────────────────────
-  // ` → insert paired `` with cursor in middle
-  // `` + ` → expand to code block (delete the two backtick chars first, then insertMD)
+  // ─── Backtick auto-pair (`) ────────────────────────────────────────────────
+  // 1. 输入单个 ` 成对产生 `` 且光标置于中间
+  // 2. 光标在后引号前按 ` 跳过
+  // 3. 连续输入到第 3 个 ` 时，直接替换删除前两个反引号并展开为代码块
   if (
     ctx.autoPairBrackets &&
     e.key === '`' &&
@@ -465,48 +466,39 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       const anchorNode =
         range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
 
-      // Don't intercept inside infoMarker (language picker) or inside actual <code>/<pre> body
       const inCodeBody = Boolean(anchorNode?.closest('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code'));
       const inInfoMk = Boolean(anchorNode?.closest('.vditor-ir__marker--info'));
       if (!inCodeBody && !inInfoMk && anchorNode && el.contains(anchorNode)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
         if (!range.collapsed) {
-          // Wrap selection in backticks
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
           const selectedText = range.toString();
           document.execCommand('insertText', false, `\`${selectedText}\``);
           ctx.onChangeValue(instance.getValue());
           return;
         }
 
+        const curBlock =
+          (anchorNode.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li') as HTMLElement | null) ??
+          anchorNode;
+        const preRange = document.createRange();
+        preRange.setStart(curBlock, 0);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        const preClean = preRange.toString().replace(/[\u200b\ufeff]/g, '');
+
+        // 检查光标后一个字符是否正好是闭合反引号
         const sc = range.startContainer;
-        const beforeText =
-          sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(0, range.startOffset) : '';
         const afterText =
           sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
 
-        // If cursor is right before a closing backtick, step over it
-        if (afterText.startsWith('`') && !beforeText.endsWith('`')) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          const nextRange = document.createRange();
-          nextRange.setStart(sc, range.startOffset + 1);
-          nextRange.collapse(true);
-          selNow.removeAllRanges();
-          selNow.addRange(nextRange);
-          return;
-        }
+        // 模式 A: 前面已有两个连续反引号，敲击第 3 个反引号 -> 展开代码块！
+        if (preClean.endsWith('``')) {
+          // 删除光标前的那两个反引号
+          document.execCommand('delete', false);
+          document.execCommand('delete', false);
 
-        // If typing 3rd backtick (already has two backticks before cursor): expand to code block
-        if (beforeText.endsWith('``')) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          // Delete the two backtick chars before cursor using execCommand
-          document.execCommand('delete', false);
-          document.execCommand('delete', false);
           ctx.pushVditorUndo();
           const inst = instance as unknown as {
             insertMD?: (md: string) => void;
@@ -517,6 +509,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           } else {
             inst.insertValue('```ts\n\n```\n');
           }
+
           setTimeout(() => {
             ctx.ensureCodeBlockInfoMarkers?.();
             const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
@@ -536,12 +529,18 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           return;
         }
 
-        // Otherwise, insert paired `` with cursor in middle via execCommand
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
+        // 模式 B: 光标位于闭合反引号前，敲击 ` 跳过
+        if (afterText.startsWith('`') && !preClean.endsWith('`')) {
+          const nextRange = document.createRange();
+          nextRange.setStart(sc, range.startOffset + 1);
+          nextRange.collapse(true);
+          selNow.removeAllRanges();
+          selNow.addRange(nextRange);
+          return;
+        }
+
+        // 模式 C: 输入第 1 个反引号 -> 成对补齐为 `` 且光标居中
         document.execCommand('insertText', false, '``');
-        // Move cursor back one position (between the two backticks)
         const selAfter = window.getSelection();
         if (selAfter && selAfter.rangeCount > 0) {
           const r = selAfter.getRangeAt(0);

@@ -695,3 +695,18 @@
   opacity: 1;
   cursor: default !important;
 }
+
+/* Ensure empty bold **** markers remain clearly visible and never transparent or zero-sized */
+.vditor-ir__node[data-type="strong"] .vditor-ir__marker {
+  transition: opacity 0.1s ease;
+}
+.vditor-ir__node[data-type="strong"]:has(strong:empty) .vditor-ir__marker,
+.vditor-ir__node[data-type="strong"].vditor-ir__node--expand .vditor-ir__marker {
+  display: inline !important;
+  width: auto !important;
+  height: auto !important;
+  visibility: visible !important;
+  color: var(--text-muted, #8e8e93) !important;
+  opacity: 0.85 !important;
+}
+

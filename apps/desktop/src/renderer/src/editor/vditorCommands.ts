@@ -134,8 +134,33 @@ export function insertTableWithSizeAction(
   const bodyRows = Array.from({ length: safeBodyRows }, () =>
     `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
   );
+  const tableMd = `\n${[header, sep, ...bodyRows].join('\n')}\n`;
+
   instance.focus();
-  instance.insertValue(`\n${[header, sep, ...bodyRows].join('\n')}\n`);
+  const inst = instance as unknown as {
+    insertMD?: (md: string) => void;
+    insertValue: (v: string) => void;
+  };
+  if (typeof inst.insertMD === 'function') {
+    inst.insertMD(tableMd);
+  } else {
+    instance.insertValue(tableMd);
+  }
+
+  // Focus the first table cell after render
+  setTimeout(() => {
+    const allTables = el.querySelectorAll('.vditor-ir__node[data-type="table"] table, table');
+    const lastTable = allTables[allTables.length - 1];
+    const firstCell = lastTable?.querySelector('th, td') as HTMLElement | null;
+    if (firstCell) {
+      const range = document.createRange();
+      range.selectNodeContents(firstCell);
+      range.collapse(false);
+      const selNow = window.getSelection();
+      selNow?.removeAllRanges();
+      selNow?.addRange(range);
+    }
+  }, 60);
 }
 
 export function applyImageActionInEditor(
