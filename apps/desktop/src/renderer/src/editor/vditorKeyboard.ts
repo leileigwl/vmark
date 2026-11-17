@@ -87,9 +87,9 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     if (isImeComposing) return;
     ctx.lastActiveInfoMarkerRef.current = infoMarker;
 
-    // 优先尝试使用 Vditor 原生 hint.select 处理上下方向键与回车
+    // 优先尝试使用 Vditor 原生 hint.select 处理上下方向键
     const v = (instance as unknown as { vditor?: { hint?: { select?: (ev: KeyboardEvent, vd: unknown) => boolean; element?: HTMLElement } } }).vditor;
-    if (v?.hint?.select && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')) {
+    if (v?.hint?.select && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       const handled = v.hint.select(e, v);
       if (handled) {
         return;
@@ -143,6 +143,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       return;
     }
 
+    // 回车/Tab：提交语言，且立刻切入代码块正文第 1 行！
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       e.stopPropagation();
@@ -155,7 +156,21 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       const rawChoice = chosenBtn
         ? chosenBtn.getAttribute('data-value') || chosenBtn.textContent || ''
         : rawCurText;
-      ctx.commitCodeBlockLanguage(infoMarker, rawChoice);
+      ctx.commitCodeBlockLanguage(infoMarker, (rawChoice || 'text').trim());
+
+      // 选完语言后，立刻把光标移入代码正文第一行
+      const codeBlock = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
+      const codeBody = codeBlock?.querySelector('pre.vditor-ir__marker--pre > code') as HTMLElement | null;
+      if (codeBody) {
+        requestAnimationFrame(() => {
+          const range = document.createRange();
+          range.selectNodeContents(codeBody);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        });
+      }
       return;
     }
 
@@ -220,7 +235,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
   // ─── Block Deletion Isolation ──────────────────────────────────────────────
   // 严格隔离：光标在受保护块（Callout/引用/代码块/表格）下方的行首按 Backspace 时，
-  // 无论当前行有无文字，都坚决禁止浏览器合并向上删除，永不破坏上方的 Callout 容器！
+  // 无论当前行有无文字，都坚决禁止浏览器向上吞并删除，永不破坏上方的 Callout 容器！
   if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
     const sel = window.getSelection();
     if (sel && sel.isCollapsed && sel.rangeCount > 0) {
@@ -235,7 +250,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             preRange.setStart(topBlock, 0);
             preRange.setEnd(range.startContainer, range.startOffset);
             const preClean = preRange.toString().replace(/[\u200b\ufeff\s]/g, '');
-            // 光标在当前顶层块的行首（前置仅有空白、零宽字符或#号标记）
             const isAtStart = preClean.length === 0 || /^#{1,6}$/.test(preClean);
             if (isAtStart) {
               const prevSib = topBlock.previousElementSibling;
@@ -255,7 +269,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     }
   }
 
-  // ─── Space 即刻触发 Markdown 渲染（1.、-、>、[] 等及引用内嵌套）───────
+  // ─── Space 即刻触发 Markdown 渲染（1.、-、*、>、[] 等及引用内嵌套）───────
   if (
     e.key === ' ' &&
     !e.metaKey &&
@@ -273,7 +287,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       // 仅在非代码块、非表格、非语言提示框中处理
       if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, .vditor-ir__marker--info, table')) {
         const curBlock =
-          (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li, blockquote') as HTMLElement | null) ??
+          (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li') as HTMLElement | null) ??
           anchorEl;
 
         if (curBlock && el.contains(curBlock)) {
@@ -283,6 +297,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             preRange.setEnd(range.startContainer, range.startOffset);
             const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
 
+            const inQuote = Boolean(curBlock.closest('blockquote'));
             const matchNestedQuoteOl = preText.match(/^>\s*(\d+)\.$/);
             const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
             const matchOl = preText.match(/^(\d+)\.$/);
@@ -291,41 +306,69 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             const matchTask = preText === '[]' || preText === '[ ]' || preText === '- []' || preText === '- [ ]';
             const matchHeading = preText.match(/^(#{1,6})$/);
 
-            if (matchNestedQuoteOl || matchNestedQuoteUl || matchOl || matchUl || matchQuote || matchTask || matchHeading) {
+            const isHit =
+              matchNestedQuoteOl ||
+              matchNestedQuoteUl ||
+              matchOl ||
+              matchUl ||
+              matchQuote ||
+              matchTask ||
+              matchHeading;
+
+            if (isHit) {
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
               ctx.pushVditorUndo();
 
-              preRange.deleteContents();
+              const lute = (instance as unknown as { vditor?: { lute?: { Md2VditorIRDOM: (md: string) => string } } }).vditor?.lute;
 
-              let mdToInsert = '';
-              if (matchNestedQuoteOl) {
-                mdToInsert = `> ${matchNestedQuoteOl[1]}. \n`;
+              let mdToCompile = '';
+              if (inQuote && matchOl) {
+                // 在已有引用内部输入 1. -> 引用内嵌套有序列表
+                mdToCompile = `${matchOl[1]}. \n`;
+              } else if (inQuote && matchUl) {
+                // 在已有引用内部输入 - -> 引用内嵌套无序列表
+                mdToCompile = '- \n';
+              } else if (matchNestedQuoteOl) {
+                mdToCompile = `> ${matchNestedQuoteOl[1]}. \n`;
               } else if (matchNestedQuoteUl) {
-                mdToInsert = '> - \n';
+                mdToCompile = '> - \n';
               } else if (matchOl) {
-                mdToInsert = `${matchOl[1]}. \n`;
+                mdToCompile = `${matchOl[1]}. \n`;
               } else if (matchUl) {
-                mdToInsert = '- \n';
+                mdToCompile = '- \n';
               } else if (matchQuote) {
-                mdToInsert = '> \n';
+                mdToCompile = '> \n';
               } else if (matchTask) {
-                mdToInsert = '- [ ] \n';
+                mdToCompile = '- [ ] \n';
               } else if (matchHeading) {
-                mdToInsert = `${matchHeading[1]} \n`;
+                mdToCompile = `${matchHeading[1]} \n`;
               }
 
-              const inst = instance as unknown as {
-                insertMD?: (md: string) => void;
-                insertValue: (v: string) => void;
-              };
-              if (typeof inst.insertMD === 'function') {
-                inst.insertMD(mdToInsert);
-              } else {
-                inst.insertValue(mdToInsert);
+              if (lute && typeof lute.Md2VditorIRDOM === 'function') {
+                const html = lute.Md2VditorIRDOM(mdToCompile);
+                const tpl = document.createElement('template');
+                tpl.innerHTML = html;
+                const newBlock = tpl.content.firstElementChild;
+                if (newBlock) {
+                  curBlock.replaceWith(newBlock);
+                  const targetToFocus =
+                    newBlock.querySelector('p, li, h1, h2, h3, h4, h5, h6') ?? newBlock;
+                  const newRange = document.createRange();
+                  newRange.selectNodeContents(targetToFocus);
+                  newRange.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                  ctx.pushVditorUndo();
+                  ctx.onChangeValue(instance.getValue());
+                  return;
+                }
               }
 
+              // Fallback
+              preRange.deleteContents();
+              instance.insertValue(mdToCompile);
               ctx.pushVditorUndo();
               ctx.onChangeValue(instance.getValue());
               return;
@@ -449,9 +492,9 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   }
 
   // ─── Backtick auto-pair (`) ────────────────────────────────────────────────
-  // 1. 输入单个 ` 成对产生 `` 且光标置于中间
-  // 2. 光标在后引号前按 ` 跳过
-  // 3. 连续输入到第 3 个 ` 时，直接替换删除前两个反引号并展开为代码块
+  // 1. 空白处敲第 1 个成对产生 `` 且光标居中
+  // 2. 光标紧邻已有反引号时，只打单个反引号字符（不重复成对）
+  // 3. 累计输入到第 3 个反引号时，瞬间整体删除前导并展开为代码块
   if (
     ctx.autoPairBrackets &&
     e.key === '`' &&
@@ -488,58 +531,64 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
         preRange.setEnd(range.startContainer, range.startOffset);
         const preClean = preRange.toString().replace(/[\u200b\ufeff]/g, '');
 
-        // 检查光标后一个字符是否正好是闭合反引号
         const sc = range.startContainer;
         const afterText =
           sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
 
-        // 模式 A: 前面已有两个连续反引号，敲击第 3 个反引号 -> 展开代码块！
+        // 场景 1: 前面已有两个连续反引号（preClean 以 `` 结尾），敲击第 3 个反引号 -> 展开代码块！
         if (preClean.endsWith('``')) {
-          // 删除光标前的那两个反引号
           document.execCommand('delete', false);
           document.execCommand('delete', false);
 
           ctx.pushVditorUndo();
-          const inst = instance as unknown as {
-            insertMD?: (md: string) => void;
-            insertValue: (v: string) => void;
-          };
-          if (typeof inst.insertMD === 'function') {
-            inst.insertMD('```ts\n\n```\n');
-          } else {
-            inst.insertValue('```ts\n\n```\n');
+          const lute = (instance as unknown as { vditor?: { lute?: { Md2VditorIRDOM: (md: string) => string } } }).vditor?.lute;
+          if (lute && typeof lute.Md2VditorIRDOM === 'function') {
+            const html = lute.Md2VditorIRDOM('```ts\n\n```\n');
+            const tpl = document.createElement('template');
+            tpl.innerHTML = html;
+            const newCb = tpl.content.firstElementChild;
+            if (newCb) {
+              curBlock.replaceWith(newCb);
+              setTimeout(() => {
+                ctx.ensureCodeBlockInfoMarkers?.();
+                const infoSpan = newCb.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+                if (infoSpan) {
+                  newCb.classList.add('vditor-ir__node--expand');
+                  ctx.lastActiveInfoMarkerRef.current = infoSpan;
+                  const r = document.createRange();
+                  r.selectNodeContents(infoSpan);
+                  r.collapse(false);
+                  const s = window.getSelection();
+                  s?.removeAllRanges();
+                  s?.addRange(r);
+                }
+              }, 60);
+              ctx.pushVditorUndo();
+              ctx.onChangeValue(instance.getValue());
+              return;
+            }
           }
 
-          setTimeout(() => {
-            ctx.ensureCodeBlockInfoMarkers?.();
-            const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
-            const lastCb = codeBlocks.pop() as HTMLElement | undefined;
-            const infoSpan = lastCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
-            if (lastCb && infoSpan) {
-              lastCb.classList.add('vditor-ir__node--expand');
-              ctx.lastActiveInfoMarkerRef.current = infoSpan;
-              const r = document.createRange();
-              r.selectNodeContents(infoSpan);
-              r.collapse(false);
-              const s = window.getSelection();
-              s?.removeAllRanges();
-              s?.addRange(r);
-            }
-          }, 80);
+          instance.insertValue('```ts\n\n```\n');
           return;
         }
 
-        // 模式 B: 光标位于闭合反引号前，敲击 ` 跳过
-        if (afterText.startsWith('`') && !preClean.endsWith('`')) {
-          const nextRange = document.createRange();
-          nextRange.setStart(sc, range.startOffset + 1);
-          nextRange.collapse(true);
-          selNow.removeAllRanges();
-          selNow.addRange(nextRange);
+        // 场景 2: 如果光标紧邻反引号（前面以 ` 结尾，或后面以 ` 开头），只打单个反引号，不重复成对
+        if (preClean.endsWith('`') || afterText.startsWith('`')) {
+          if (afterText.startsWith('`') && !preClean.endsWith('`')) {
+            const nextRange = document.createRange();
+            nextRange.setStart(sc, range.startOffset + 1);
+            nextRange.collapse(true);
+            selNow.removeAllRanges();
+            selNow.addRange(nextRange);
+            return;
+          }
+          document.execCommand('insertText', false, '`');
+          ctx.onChangeValue(instance.getValue());
           return;
         }
 
-        // 模式 C: 输入第 1 个反引号 -> 成对补齐为 `` 且光标居中
+        // 场景 3: 独立空白处输入第 1 个反引号 -> 成对出现 `` 且光标居中
         document.execCommand('insertText', false, '``');
         const selAfter = window.getSelection();
         if (selAfter && selAfter.rangeCount > 0) {

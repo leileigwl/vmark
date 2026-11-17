@@ -131,10 +131,10 @@ export function insertTableWithSizeAction(
 
   const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
   const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
-  const bodyRows = Array.from({ length: safeBodyRows }, () =>
-    `| ${Array.from({ length: safeCols }, () => ' ').join(' | ')} |`
+  const bodyRows = Array.from({ length: safeBodyRows }, (_, rIdx) =>
+    `| ${Array.from({ length: safeCols }, (_, cIdx) => `内容 ${rIdx + 1}-${cIdx + 1}`).join(' | ')} |`
   );
-  const tableMd = `\n${[header, sep, ...bodyRows].join('\n')}\n`;
+  const tableMd = `\n\n${[header, sep, ...bodyRows].join('\n')}\n\n`;
 
   instance.focus();
   const inst = instance as unknown as {

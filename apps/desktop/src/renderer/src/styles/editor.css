@@ -161,6 +161,15 @@
   border-radius: 4px !important;
 }
 
+/* Empty bold/strong placeholder: never show colored background or padding */
+[data-theme*='-dark'] .vditor-reset strong:empty,
+[data-theme*='-dark'] .vditor-reset b:empty,
+.vditor-reset strong:empty,
+.vditor-reset b:empty {
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
 .vditor-reset a,
 .vditor-ir__link,
 .vditor-ir__node[data-type="a"],

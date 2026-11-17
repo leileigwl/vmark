@@ -107,6 +107,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     });
     const tablePickerRef = useRef(tablePicker);
     tablePickerRef.current = tablePicker;
+    const savedTableRangeRef = useRef<Range | null>(null);
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -614,14 +615,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
 
         // Table: show size picker instead of inserting fixed-size table
         if (item.id === 'table') {
-          const selNow = window.getSelection();
-          const anchorEl = selNow?.anchorNode instanceof Element
-            ? selNow.anchorNode as HTMLElement
-            : selNow?.anchorNode?.parentElement;
-          const rect = anchorEl
-            ? anchorEl.getBoundingClientRect()
-            : { left: 100, bottom: 120 };
-          setTablePicker({ open: true, x: rect.left, y: rect.bottom + 6 });
+          savedTableRangeRef.current = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+          setTablePicker({ open: true, x: 0, y: 0 });
           return;
         }
 
@@ -1093,11 +1088,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         />
         {tablePicker.open && (
           <TableSizePicker
-            x={tablePicker.x}
-            y={tablePicker.y}
             onConfirm={(cols, rows) => {
               const inst = vditorRef.current;
               const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
+              if (savedTableRangeRef.current) {
+                const s = window.getSelection();
+                s?.removeAllRanges();
+                s?.addRange(savedTableRangeRef.current);
+              }
               if (inst && el) {
                 insertTableWithSizeAction(cols, rows, inst, el);
               }
