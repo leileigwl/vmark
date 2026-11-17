@@ -243,6 +243,13 @@ export default function App() {
   }, [recentArticlePaths]);
 
   useEffect(() => {
+    const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
+      setAuthStates((prev) => ({ ...prev, ...states }));
+    });
+    return () => unsub?.();
+  }, []);
+
+  useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
@@ -364,6 +371,13 @@ export default function App() {
   useEffect(() => {
     window.electronAPI?.setRecentFiles?.(recentArticlePaths);
   }, [recentArticlePaths]);
+
+  useEffect(() => {
+    const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
+      setAuthStates((prev) => ({ ...prev, ...states }));
+    });
+    return () => unsub?.();
+  }, []);
 
   useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
@@ -1243,7 +1257,13 @@ export default function App() {
               onPlatformLogin={async (pid) => {
                 const url = PLATFORM_LOGIN_URLS[pid] ?? 'https://www.cnblogs.com';
                 const ok = await window.electronAPI.openPlatformLogin(pid, url);
-                setAuthStates((prev) => ({ ...prev, [pid]: ok }));
+                const refreshed = await window.electronAPI.getPlatformAuthStates();
+                setAuthStates(refreshed);
+                if (ok) {
+                  setToastMsg(`平台授权已完成并同步`);
+                } else {
+                  setToastMsg(`未检测到登录授权票据，已保持未授权状态`);
+                }
               }}
               workspacePath={workspacePath}
               gitStatus={gitStatus}

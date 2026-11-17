@@ -20,9 +20,16 @@ import type {
   PlatformId,
   StartupConfig,
 } from '@vcat/shared';
+import { WeixinAdapter } from '@vcat/adapters';
+import {
+  batchSyncHeartbeatResults,
+  readAccountDatabase,
+  upsertAccountRecord,
+} from './accountStore';
 import { markdownToDocxBuffer } from './exportDocx';
 import {
   checkPlatformAuthStates,
+  createSessionFetch,
   hasSessionAuthCookies,
   PLATFORM_AUTH_COOKIE_RULES,
   registerPublishHandlers,
@@ -790,16 +797,33 @@ function registerIpcHandlers(): void {
       return new Promise<boolean>((resolve) => {
         loginWin.on('closed', async () => {
           targetSession.cookies.removeListener('changed', cookieListener);
-          const isAuthorized = await hasSessionAuthCookies(session, platformId);
-          resolve(isAuthorized || detectedAuth);
+          let isAuthorized = await hasSessionAuthCookies(session, platformId);
+          if (isAuthorized && platformId === 'weixin') {
+            try {
+              const wxSession = session.fromPartition('persist:platform_weixin');
+              const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+              isAuthorized = await adapter.checkAuth();
+            } catch {
+              isAuthorized = false;
+            }
+          }
+          await upsertAccountRecord(platformId, {
+            authorized: isAuthorized,
+            statusMessage: isAuthorized ? '授权有效' : '未登录或已失效',
+          });
+          resolve(isAuthorized);
         });
       });
     }
   );
 
-  ipcMain.handle('platform:authStates', async () =>
-    checkPlatformAuthStates({ session, getAppConfig: readAppConfig })
-  );
+  ipcMain.handle('platform:authStates', async () => {
+    const states = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
+    await batchSyncHeartbeatResults(states);
+    return states;
+  });
+
+  ipcMain.handle('platform:getAccounts', async () => readAccountDatabase());
 
   ipcMain.handle('git:status', async () => {
     const cfg = await readAppConfig();
@@ -1136,6 +1160,26 @@ function registerIpcHandlers(): void {
   });
 }
 
+let heartbeatTimer: NodeJS.Timeout | null = null;
+
+function startHeartbeatEngine(): void {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  const runHeartbeat = async () => {
+    try {
+      const states = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
+      await batchSyncHeartbeatResults(states);
+      activeMainWindow?.webContents.send('platform:authStatesUpdated', states);
+    } catch {
+      // transient heartbeat error ignored
+    }
+  };
+
+  // Run initial heartbeat after 3 seconds
+  setTimeout(runHeartbeat, 3000);
+  // Recurring heartbeat every 30 seconds
+  heartbeatTimer = setInterval(runHeartbeat, 30_000);
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vcat.publisher');
 
@@ -1168,6 +1212,7 @@ app.whenReady().then(() => {
     getAppConfig: readAppConfig,
   });
   createWindow();
+  startHeartbeatEngine();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1175,5 +1220,9 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
   if (process.platform !== 'darwin') app.quit();
 });

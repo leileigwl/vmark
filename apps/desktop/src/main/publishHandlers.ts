@@ -52,17 +52,20 @@ export interface PublishAppConfig {
 
 const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
 
-export const PLATFORM_AUTH_COOKIE_RULES: Partial<Record<PlatformId, string[]>> = {
+export const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
+  weixin: ['slave_user', 'slave_sid', 'data_ticket', 'bizuin'],
   zhihu: ['z_c0'],
   cnblogs: ['.CNBlogsCookie', '.Cnblogs.AspNetCore.Cookies', 'Cnblogs.AspNetCore.Cookies'],
   juejin: ['sessionid'],
   bilibili: ['SESSDATA'],
-  csdn: ['UserName'],
+  csdn: ['UserName', 'UserToken'],
   baijiahao: ['BDUSS'],
   linuxdo: ['_t', '_forum_session'],
   xiaohongshu: ['web_session'],
   weibo: ['SUB', 'SUBP'],
   douyin: ['sessionid'],
+  x: ['auth_token'],
+  github_static: ['ghp_', 'github_pat_'],
 };
 
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
@@ -78,19 +81,17 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
   };
 }
 
-/** Filters out analytics-only cookies and verifies exact platform auth tickets when available. */
+/** Verifies exact platform auth tickets when available. Returns false if no ticket is found. */
 export async function hasSessionAuthCookies(
   session: typeof Electron.session,
   platformId: PlatformId
 ): Promise<boolean> {
   const cookies = await session.fromPartition(`persist:platform_${platformId}`).cookies.get({});
   const specificRules = PLATFORM_AUTH_COOKIE_RULES[platformId];
-  if (specificRules && specificRules.length > 0) {
-    return cookies.some((c) => specificRules.some((rule) => c.name.includes(rule)));
+  if (!specificRules || specificRules.length === 0) {
+    return false;
   }
-  return cookies.some(
-    (c) => !ANALYTICS_COOKIE_PREFIXES.some((prefix) => c.name.startsWith(prefix))
-  );
+  return cookies.some((c) => specificRules.some((rule) => c.name.includes(rule)));
 }
 
 /** Checks real authentication status across all supported platforms. */
@@ -337,6 +338,74 @@ async function publishToSingleTarget(params: {
         verified: pushed.verified,
         uploadedImagesCount: uploadResult.uploadedCount,
         message: `已推送至 GitHub 仓库（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'cnblogs') {
+      const cnblogsSession = session.fromPartition('persist:platform_cnblogs');
+      const hasCookies = await hasSessionAuthCookies(session, 'cnblogs');
+      if (!hasCookies) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录博客园，请先在「偏好设置 → 平台授权托管」完成登录授权',
+        };
+      }
+
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: createImageBedUploader(),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+
+      const sFetch = createSessionFetch(cnblogsSession);
+      const res = await sFetch('https://i.cnblogs.com/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+          'Referer': 'https://i.cnblogs.com/posts/edit',
+        },
+        body: JSON.stringify({
+          title: payload.title,
+          postType: 1,
+          postBody: uploadResult.markdown,
+          isDraft: true,
+          isMarkdown: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const json = JSON.parse(errText);
+          if (json.errors && json.errors.length > 0) errMsg = json.errors.join(', ');
+        } catch {}
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: `博客园发布接口返回失败: ${errMsg}`,
+        };
+      }
+
+      const postData = (await res.json()) as { id?: string | number };
+      const postId = postData.id ? String(postData.id) : 'draft';
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId,
+        url: `https://i.cnblogs.com/posts/edit;postId=${postId}`,
+        verified: true,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已成功保存至博客园草稿箱（文章 ID: ${postId}）`,
       };
     }
 
