@@ -466,4 +466,26 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     const infoText = (await infoMarker.textContent())?.replace(/\u200b/g, '').trim() || '';
     expect(infoText).not.toContain('\n');
   });
+
+  test('15. 代码块内包含反引号时复制不转义为 \\` 或 ``\\`', async ({ page }) => {
+    await setupApp(page, '```ts\nconst s = "`hello`";\n```\n');
+    const codeEl = page.locator('.vditor-ir .vditor-reset pre code').first();
+    await codeEl.click();
+    await page.waitForTimeout(80);
+
+    const copiedCode = await page.evaluate(() => {
+      const code = document.querySelector('.vditor-ir .vditor-reset pre code')!;
+      const r = document.createRange();
+      r.selectNodeContents(code);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      const dt = new DataTransfer();
+      const ev = new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true });
+      code.dispatchEvent(ev);
+      return dt.getData('text/plain');
+    });
+    expect(copiedCode).toContain('`hello`');
+    expect(copiedCode).not.toContain('\\`');
+  });
 });

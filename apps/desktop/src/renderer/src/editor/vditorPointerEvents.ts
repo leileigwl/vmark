@@ -320,6 +320,14 @@ export function handleEditorCopyCapture(
         ? range.commonAncestorContainer
         : range.commonAncestorContainer.parentElement;
 
+    // 选区完全落在代码块内部时，直接复制原始代码文本，避免 html2md 转义反引号产生 ``\`
+    if (commonEl?.closest('pre.vditor-ir__marker--pre, pre.vditor-ir__preview')) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.clipboardData?.setData('text/plain', plain);
+      return;
+    }
+
     if (commonEl) {
       const listAncestor = commonEl.closest('ul, ol');
       if (listAncestor && !tmp.querySelector('ul, ol') && tmp.querySelector('li')) {
