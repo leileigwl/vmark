@@ -327,6 +327,15 @@ test('JuejinAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verif
         json: async () => ({ err_no: 0, data: { user_id: 'jj_999' } }),
       };
     }
+    if (url === 'https://api.juejin.cn/user_api/v1/sys/token') {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: (name: string) => (name.toLowerCase() === 'x-ware-csrf-token' ? '0,test_csrf,123' : null) },
+        text: async () => '',
+        json: async () => ({}),
+      };
+    }
     if (url === 'https://api.juejin.cn/web/upload_image') {
       return {
         ok: true,
@@ -375,39 +384,61 @@ test('JuejinAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verif
 
 test('CsdnAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
   const mockFetch: FetchLike = async (url) => {
-    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/article/status/count') {
+    const urlStr = String(url);
+    if (urlStr === 'https://bizapi.csdn.net/blog-console-api/v3/editor/getBaseInfo') {
       return {
         ok: true,
         status: 200,
         text: async () => '',
-        json: async () => ({ code: 200 }),
+        json: async () => ({ code: 200, data: { name: 'vmark_author' } }),
       };
     }
-    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/picture/upload') {
+    if (urlStr === 'https://bizapi.csdn.net/resource-api/v1/image/direct/upload/signature') {
       return {
         ok: true,
         status: 200,
         text: async () => '',
-        json: async () => ({ code: 200, data: { url: 'https://img-blog.csdnimg.cn/csdn_img.png' } }),
+        json: async () => ({
+          code: 200,
+          data: {
+            filePath: '2026/test.png',
+            host: 'https://csdn-obs.myhuaweicloud.com',
+            accessId: 'test_ak',
+            policy: 'test_policy',
+            signature: 'test_sig',
+            callbackUrl: 'https://bizapi.csdn.net/callback',
+            callbackBody: '{}',
+            callbackBodyType: 'application/json',
+            customParam: {
+              rtype: 'obs',
+              filePath: '2026/test.png',
+              isAudit: 0,
+              'x-image-app': 'direct_blog_markdown',
+              type: 'image',
+              'x-image-suffix': 'png',
+              username: 'vmark_author',
+            },
+          },
+        }),
       };
     }
-    if (url === 'https://bizapi.csdn.net/blog-console-api/v3/mdeditor/saveArticle') {
+    if (urlStr === 'https://csdn-obs.myhuaweicloud.com') {
       return {
         ok: true,
         status: 200,
         text: async () => '',
-        json: async () => ({ code: 200, data: { article_id: 'csdn_112233' } }),
+        json: async () => ({ code: 200, data: { imageUrl: 'https://img-blog.csdnimg.cn/csdn_img.png' } }),
       };
     }
-    if (url.startsWith('https://bizapi.csdn.net/blog-console-api/v3/mdeditor/getArticle')) {
+    if (urlStr === 'https://bizapi.csdn.net/blog-console-api/v3/mdeditor/saveArticle') {
       return {
         ok: true,
         status: 200,
         text: async () => '',
-        json: async () => ({ code: 200 }),
+        json: async () => ({ code: 200, data: { id: 'csdn_112233' } }),
       };
     }
-    throw new Error(`Unexpected url: ${url}`);
+    throw new Error(`Unexpected url: ${urlStr}`);
   };
 
   const adapter = new CsdnAdapter({ fetchFn: mockFetch });
@@ -425,7 +456,7 @@ test('CsdnAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyD
     mode: 'draft',
   });
   assert.equal(pushRes.postId, 'csdn_112233');
-  assert.equal(pushRes.url, 'https://mp.csdn.net/mp_blog/creation/editor/csdn_112233');
+  assert.equal(pushRes.url, 'https://editor.csdn.net/md?articleId=csdn_112233');
   assert.equal(await adapter.verifyDelivery('csdn_112233'), true);
 });
 

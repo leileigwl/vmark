@@ -21,7 +21,7 @@ function escapeHtml(text: string): string {
 export function extractZhihuDigest(markdown: string, maxLength = 100): string {
   const withoutFrontmatter = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   const plain = withoutFrontmatter
-    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
@@ -86,6 +86,7 @@ export function renderZhihuHtml(
   const out: string[] = [];
   let inCodeBlock = false;
   let codeLang = '';
+  let codeFenceMarker = '';
   let codeLines: string[] = [];
   let inBlockquote = false;
   let quoteLines: string[] = [];
@@ -118,23 +119,32 @@ export function renderZhihuHtml(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Fenced code blocks
-    const codeMatch = line.match(/^```(\w*)/);
+    // Fenced code blocks (supports 3+ backticks/tildes, info strings, and c++/c#)
+    const trimmedLine = line.trim();
+    const codeMatch = trimmedLine.match(/^(`{3,}|~{3,})(.*)$/);
     if (codeMatch && !inCodeBlock) {
       flushBlockquote();
       flushTable();
       inCodeBlock = true;
-      codeLang = codeMatch[1]?.trim() || '';
+      codeFenceMarker = codeMatch[1];
+      const info = codeMatch[2].trim();
+      const rawLang = info.split(/\s+/)[0] || '';
+      codeLang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '');
       codeLines = [];
       continue;
     }
-    if (line.startsWith('```') && inCodeBlock) {
+    if (
+      codeFenceMarker &&
+      trimmedLine.startsWith(codeFenceMarker[0].repeat(codeFenceMarker.length)) &&
+      inCodeBlock
+    ) {
       inCodeBlock = false;
       const langClass = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
       const escapedCode = escapeHtml(codeLines.join('\n'));
       out.push(`<pre><code${langClass}>${escapedCode}</code></pre>`);
       codeLines = [];
       codeLang = '';
+      codeFenceMarker = '';
       continue;
     }
     if (inCodeBlock) {

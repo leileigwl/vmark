@@ -34,6 +34,25 @@ export class JuejinAdapter implements PlatformAdapter {
     }
   }
 
+  /** Obtains ByteDance SecSDK CSRF token if available to prevent 403 request rejections. */
+  async getCsrfToken(): Promise<string> {
+    try {
+      const res = await this.fetchFn('https://api.juejin.cn/user_api/v1/sys/token', {
+        method: 'HEAD',
+        headers: {
+          'x-secsdk-csrf-request': '1',
+          'x-secsdk-csrf-version': '1.2.10',
+        },
+      });
+      const wareToken = res.headers?.get('x-ware-csrf-token');
+      if (!wareToken) return '';
+      const parts = wareToken.split(',');
+      return parts[1] || '';
+    } catch {
+      return '';
+    }
+  }
+
   async uploadImage(buffer: Buffer, fileName: string): Promise<string> {
     const formData = new FormData();
     const blob = new Blob([new Uint8Array(buffer)]);
@@ -45,7 +64,7 @@ export class JuejinAdapter implements PlatformAdapter {
     });
 
     if (!res.ok) {
-      throw new Error(`掘金图片上传失败: HTTP ${res.status}`);
+      throw new Error(`掘金图片上传失败: HTTP ${res.status}（建议在「偏好设置 → 图像与图床」配置外部图床）`);
     }
     const data = (await res.json()) as { err_no?: number; data?: string; url?: string };
     const url = data.data || data.url;
@@ -56,15 +75,29 @@ export class JuejinAdapter implements PlatformAdapter {
   }
 
   async push(payload: AdapterPushPayload): Promise<AdapterPushResult> {
+    const csrfToken = await this.getCsrfToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Origin: 'https://juejin.cn',
+      Referer: 'https://juejin.cn/',
+    };
+    if (csrfToken) {
+      headers['x-secsdk-csrf-token'] = csrfToken;
+    }
+
     const res = await this.fetchFn('https://api.juejin.cn/content_api/v1/article_draft/create', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
-        title: payload.title,
+        brief_content: '',
+        category_id: payload.categoryId || '0',
+        cover_image: '',
+        edit_type: 10,
+        html_content: 'deprecated',
+        link_url: '',
         mark_content: payload.markdown,
-        category_id: payload.categoryId || '6809637767543259144',
+        tag_ids: [],
+        title: payload.title,
       }),
     });
 

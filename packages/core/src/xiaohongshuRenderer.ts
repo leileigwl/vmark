@@ -65,25 +65,32 @@ export function renderXiaohongshuCards(
 
   let inCode = false;
   let codeLang = '';
+  let codeMarker = '';
   let codeBuffer: string[] = [];
 
   for (const line of lines) {
-    if (line.startsWith('```')) {
-      if (inCode) {
-        inCode = false;
-        cards.push({
-          type: 'code',
-          title: `代码实现 (${codeLang || 'Snippet'})`,
-          bodyLines: codeBuffer.slice(0, 18), // keep within single 3:4 card height
-          codeLang: codeLang || 'typescript',
-        });
-        codeBuffer = [];
-        codeLang = '';
-      } else {
-        inCode = true;
-        codeLang = line.replace(/^```/, '').trim();
-        codeBuffer = [];
-      }
+    const trimmedLine = line.trim();
+    const codeMatch = trimmedLine.match(/^(`{3,}|~{3,})(.*)$/);
+    if (codeMatch && !inCode) {
+      inCode = true;
+      codeMarker = codeMatch[1];
+      const info = codeMatch[2].trim();
+      const rawLang = info.split(/\s+/)[0] || '';
+      codeLang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '');
+      codeBuffer = [];
+      continue;
+    }
+    if (codeMarker && trimmedLine.startsWith(codeMarker[0].repeat(codeMarker.length)) && inCode) {
+      inCode = false;
+      cards.push({
+        type: 'code',
+        title: `代码实现 (${codeLang || 'Snippet'})`,
+        bodyLines: codeBuffer.slice(0, 18), // keep within single 3:4 card height
+        codeLang: codeLang || 'typescript',
+      });
+      codeBuffer = [];
+      codeLang = '';
+      codeMarker = '';
       continue;
     }
 
