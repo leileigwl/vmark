@@ -312,6 +312,24 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R43_1",
+            title: "R43-1. Ctrl/Cmd+X 剪切隔离（绝不把下方代码块 text 拉上来）",
+            status: "done",
+            statusText: "Round 43 已修复待核验",
+            img: "media_1794908249978_08972a76.png",
+            desc: "新增 handleEditorCutCapture 拦截剪切事件，保留完整 Markdown 剪贴板内容并严格阻断跨受保护块选区或行尾剪切向下合并。",
+            plan: "在引用或段落选中文本（含拖选至行尾）按 Ctrl/Cmd+X，确认仅剪切当前文本，下方代码块 text 标签不被拉上来。"
+          },
+          {
+            id: "R43_2",
+            title: "R43-2. 点击代码块语言标签不锁死 + 中间位置 ``` 精准落焦新代码块",
+            status: "done",
+            statusText: "Round 43 已修复待核验",
+            img: "media_1794908249978_57891cdb.png",
+            desc: "点击 .vditor-ir__marker--info 时显式聚焦 .vditor-reset 防止假选中锁死；三反引号展开改用当前选区定位新代码块而非 allCbs[last]。",
+            plan: "失焦后点击代码块语言标签 ts 并直接打字修改，确认立即生效；在已有代码块上方输入 ``` 确认光标落入新建代码块而非跳到底部。"
+          },
+          {
             id: "R41_1",
             title: "R41-1. 接入 Playwright 真实浏览器 E2E 测试（8/8 通过）+ 根治空格渲染与 /table 失效",
             status: "done",

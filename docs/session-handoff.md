@@ -1,8 +1,19 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 42 已完成反引号 1:1 输入、/table 空表不跳顶、引用嵌套限制、空行 Delete 光标落叶与语言框替换，并扩展 9 项 Playwright E2E 回归**
-- **上一提交**：`93c1234`（Round 41）
+- **当前阶段**：**Round 43 方案规划与文档更新（先改文档 → 写完测试 → 再改代码 → 持续回归）**
+- **上一提交**：`fe1f515`（Round 42）
+
+### Round 43 根因定位与修复规划
+1. **`Ctrl/Cmd+X` 剪切把下方代码块 `text` 拉上来**（图 1）：
+   - **真因**：未拦截 `cut` 事件，跨块/行尾三击选区剪切时浏览器原生删除会把下方代码块 `.vditor-ir__marker--info`（`text`）拉入上方引用/段落。
+   - **方案**：新增 `handleEditorCutCapture`，复刻 Markdown 剪贴板写入并在跨受保护块选区或行尾剪切时隔离容器边界，绝不拉扯下方块。
+2. **点击语言框 `ts` 莫名被锁、无法输入**（图 2）：
+   - **真因**：`handleEditorMouseDownCapture` 点击 `infoSpan` 时调用了 `e.preventDefault()`，却未聚焦 `.vditor-reset`，导致选区虽高亮蓝色但编辑器无 DOM 焦点，键盘输入被锁。
+   - **方案**：在选中 `infoSpan` 前显式执行 `resetEl.focus({ preventScroll: true })`，确保点击即聚焦可编辑。
+3. **文档中间输入 ```` ``` ```` 光标跳过新建代码块**：
+   - **真因**：`vditorKeyboard.ts` 展开代码块后取 `allCbs[allCbs.length - 1]`，导致在文档中间输入 ```` ``` ```` 时光标跳到文档最末尾的旧代码块，跳过新建代码块。
+   - **方案**：改为通过当前选区 `anchorNode?.closest('.vditor-ir__node[data-type="code-block"]')` 精确定位刚插入的新代码块。
 
 ### Round 41 E2E 实测暴露并根治的隐藏真因
 1. **列表/引用按空格不渲染的隐藏真因**：Vditor IR 的编辑区根节点本身是 `<pre class="vditor-reset">`，导致 `anchorEl.closest('pre, ...')` 对所有普通段落全部返回 `PRE`，彻底屏蔽了空格即刻渲染与 `>` 延迟编译；已全面替换为 `pre:not(.vditor-reset)`。

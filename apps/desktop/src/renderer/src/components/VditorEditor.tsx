@@ -31,6 +31,7 @@ import { processVditorKeyDownCapture } from '../editor/vditorKeyboard';
 import {
   handleEditorContextMenu,
   handleEditorCopyCapture,
+  handleEditorCutCapture,
   handleEditorDragStartCapture,
   handleEditorDropCapture,
   handleEditorMouseDownCapture,
@@ -891,6 +892,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       const handleContextMenu = (e: MouseEvent) => handleEditorContextMenu(e, pointerCtx);
       const handlePasteCapture = (e: ClipboardEvent) => handleEditorPasteCapture(e, instance);
       const handleCopyCapture = (e: ClipboardEvent) => handleEditorCopyCapture(e, el, instance, prefsRef);
+      const handleCutCapture = (e: ClipboardEvent) => handleEditorCutCapture(e, el, instance, prefsRef);
 
       const handleMouseUpCapture = (e: MouseEvent) => {
         if (Date.now() < suppressPreviewClickUntilRef.current) {
@@ -995,6 +997,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       document.addEventListener('selectionchange', handleSelectionChange);
       el.addEventListener('compositionend', handleCompositionEnd, true);
       el.addEventListener('copy', handleCopyCapture, true);
+      el.addEventListener('cut', handleCutCapture, true);
       el.addEventListener('paste', handlePasteCapture, true);
       el.addEventListener('dragstart', handleEditorDragStartCapture, true);
       el.addEventListener('drop', handleEditorDropCapture, true);
@@ -1018,6 +1021,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('keyup', detectSlashCommand, true);
         el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);
+        el.removeEventListener('cut', handleCutCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
         el.removeEventListener('dragstart', handleEditorDragStartCapture, true);
         el.removeEventListener('drop', handleEditorDropCapture, true);

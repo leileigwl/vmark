@@ -65,13 +65,16 @@ export function handleEditorMouseDownCapture(e: MouseEvent, ctx: PointerEventCon
         ctx.clearActiveZoomTarget();
         ctx.collapseExpandedCodeBlocks(codeBlockNode);
         codeBlockNode.classList.add('vditor-ir__node--expand');
-        const sel = window.getSelection();
-        if (sel) {
-          const range = document.createRange();
-          range.selectNodeContents(infoSpan);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
+        (el.querySelector('.vditor-ir .vditor-reset') as HTMLElement | null)?.focus({ preventScroll: true });
+        setTimeout(() => {
+          const sel = window.getSelection();
+          if (sel && infoSpan.isConnected) {
+            const range = document.createRange();
+            range.selectNodeContents(infoSpan);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }, 30);
         return;
       }
     }
@@ -324,5 +327,70 @@ export function handleEditorDropCapture(e: DragEvent): void {
   if (target?.closest('.vditor-ir__marker--info, .vditor-copy, .vcat-code-copy-btn')) {
     e.preventDefault();
     e.stopPropagation();
+  }
+}
+
+function getTopBlockForCut(target: Node, resetEl: Element): HTMLElement | null {
+  let cur: Node | null = target;
+  while (cur && cur.parentElement !== resetEl) {
+    if (!cur.parentElement) return null;
+    cur = cur.parentElement;
+  }
+  return cur instanceof HTMLElement && resetEl.contains(cur) ? cur : null;
+}
+
+function isProtectedBlockForCut(el: Element): boolean {
+  const tag = el.tagName.toLowerCase();
+  if (['blockquote', 'pre', 'table', 'hr'].includes(tag)) return true;
+  const dt = el.getAttribute('data-type');
+  return Boolean(dt && ['blockquote', 'code-block', 'table', 'hr', 'html-block', 'math-block'].includes(dt));
+}
+
+export function handleEditorCutCapture(
+  e: ClipboardEvent,
+  el: HTMLElement,
+  instance: Vditor,
+  prefsRef: { current: EditorPreferences }
+): void {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+
+  // 先执行与 Copy 相同的剪贴板写入
+  handleEditorCopyCapture(e, el, instance, prefsRef);
+
+  const range = sel.getRangeAt(0);
+  const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
+  if (!resetEl) return;
+
+  const startTop = getTopBlockForCut(range.startContainer, resetEl);
+  const endTop = getTopBlockForCut(range.endContainer, resetEl);
+
+  // 若选区跨越受保护块边界（如引用末尾拖选到下方代码块），阻断原生剪切合并，仅安全删除起点块内选中内容
+  if (startTop && endTop && startTop !== endTop && (isProtectedBlockForCut(startTop) || isProtectedBlockForCut(endTop))) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    try {
+      const safeRange = document.createRange();
+      safeRange.setStart(range.startContainer, range.startOffset);
+      safeRange.setEnd(startTop, startTop.childNodes.length);
+      safeRange.deleteContents();
+      if ((startTop.textContent || '').replace(/[\u200b\ufeff\s]/g, '').length === 0) {
+        if (startTop.tagName === 'BLOCKQUOTE') {
+          startTop.innerHTML = '<p data-block="0"><br></p>';
+        } else {
+          startTop.innerHTML = '<br>';
+        }
+      }
+      const leaf = (startTop.querySelector('p, li, code') as HTMLElement | null) ?? startTop;
+      const nr = document.createRange();
+      nr.selectNodeContents(leaf);
+      nr.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+    } catch {
+      // ignore range error
+    }
   }
 }

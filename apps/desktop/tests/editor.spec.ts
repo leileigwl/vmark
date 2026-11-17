@@ -303,4 +303,59 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     await page.waitForTimeout(100);
     await expect(page.locator('.vditor-ir .vditor-reset blockquote blockquote')).toHaveCount(0);
   });
+
+  test('10. Ctrl/Cmd+X 剪切引用内容时绝不把下方代码块 text 拉上来', async ({ page }) => {
+    await setupApp(page, '> sfsafsafas\n\n```text\nconst a = 1;\n```\n');
+    const quoteP = page.locator('.vditor-ir .vditor-reset blockquote p').first();
+    await quoteP.click();
+    // Select across quote paragraph boundary (simulating triple-click / line cut)
+    await page.evaluate(() => {
+      const q = document.querySelector('.vditor-ir .vditor-reset blockquote p')!;
+      const cbInfo = document.querySelector('.vditor-ir .vditor-reset .vditor-ir__marker--info')!;
+      const r = document.createRange();
+      r.setStart(q, 0);
+      r.setEnd(cbInfo, 0);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+    });
+    await page.keyboard.press('Meta+x');
+    await page.waitForTimeout(150);
+
+    // Code block and its info marker must remain intact, and blockquote must not contain 'text'
+    await expect(page.locator('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]')).toHaveCount(1);
+    const quoteText = (await page.locator('.vditor-ir .vditor-reset blockquote').first().textContent()) || '';
+    expect(quoteText).not.toContain('text');
+  });
+
+  test('11. 失焦后点击代码块语言标签 ts 可立即打字修改不锁死 + 文档中间 ``` 落焦新代码块', async ({ page }) => {
+    await setupApp(page, '第一段\n\n```ts\nconst bottom = 1;\n```\n');
+    // Blur editor first, then click language badge 'ts'
+    await page.locator('header').first().click();
+    await page.waitForTimeout(100);
+    const infoMarker = page.locator('.vditor-ir .vditor-reset .vditor-ir__marker--info').first();
+    await infoMarker.click();
+    await page.waitForTimeout(100);
+    await page.keyboard.type('py');
+    await page.waitForTimeout(100);
+    expect((await infoMarker.textContent())?.replace(/\u200b/g, '').trim()).toBe('py');
+
+    // Now type ``` in the FIRST paragraph (above the existing code block)
+    const firstP = page.locator('.vditor-ir .vditor-reset > p').first();
+    await firstP.click();
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('```');
+    await page.waitForTimeout(200);
+
+    // The NEW (first) code block should be expanded and focused, NOT the bottom one
+    const firstCb = page.locator('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]').first();
+    await expect(firstCb).toHaveClass(/vditor-ir__node--expand/);
+    const focusedInFirstCb = await page.evaluate(() => {
+      const first = document.querySelectorAll('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]')[0];
+      const sel = window.getSelection();
+      return Boolean(first && sel?.anchorNode && first.contains(sel.anchorNode));
+    });
+    expect(focusedInFirstCb).toBe(true);
+  });
 });

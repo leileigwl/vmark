@@ -107,6 +107,14 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
     if (e.key.length === 1 && (infoMarker.textContent || '').replace(/\u200b/g, '').trim() === 'text') {
       infoMarker.textContent = '';
+    } else if (
+      e.key.length === 1 &&
+      selInfo &&
+      !selInfo.isCollapsed &&
+      selInfo.rangeCount > 0 &&
+      infoMarker.contains(selInfo.anchorNode)
+    ) {
+      selInfo.getRangeAt(0).deleteContents();
     }
 
     if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -823,19 +831,21 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           }
 
           ctx.pushVditorUndo();
+          const prevCbs = new Set(Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]')));
           instance.focus();
           instance.insertValue('```ts\n\n```\n');
           setTimeout(() => {
             ctx.ensureCodeBlockInfoMarkers?.();
-            const allCbs = el.querySelectorAll('.vditor-ir__node[data-type="code-block"]');
-            const lastCb = allCbs[allCbs.length - 1] as HTMLElement | null;
-            const infoSpan = lastCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
-            if (lastCb && infoSpan) {
-              lastCb.classList.add('vditor-ir__node--expand');
+            const allCbs = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
+            const targetCb =
+              (allCbs.find((cb) => !prevCbs.has(cb)) as HTMLElement | undefined) ??
+              (allCbs[allCbs.length - 1] as HTMLElement | undefined);
+            const infoSpan = targetCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+            if (targetCb && infoSpan) {
+              targetCb.classList.add('vditor-ir__node--expand');
               ctx.lastActiveInfoMarkerRef.current = infoSpan;
               const r = document.createRange();
               r.selectNodeContents(infoSpan);
-              r.collapse(false);
               const s = window.getSelection();
               s?.removeAllRanges();
               s?.addRange(r);
