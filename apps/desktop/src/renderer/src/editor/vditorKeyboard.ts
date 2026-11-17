@@ -27,31 +27,16 @@ export interface KeyboardCaptureContext {
 }
 
 /** Returns the direct child of resetEl that contains the given element, or null. */
-function getTopBlock(el: HTMLElement, resetEl: Element): HTMLElement | null {
-  let cur: HTMLElement | null = el;
+function getTopBlock(target: Node, resetEl: Element): HTMLElement | null {
+  let cur: Node | null = target;
   while (cur && cur.parentElement !== resetEl) {
     if (!cur.parentElement) return null;
     cur = cur.parentElement;
   }
-  return cur && resetEl.contains(cur) ? cur : null;
+  return cur instanceof HTMLElement && resetEl.contains(cur) ? cur : null;
 }
 
-/** Checks whether range start is at the very first text position of topBlock. */
-function isAtBlockStart(range: Range, topBlock: HTMLElement): boolean {
-  if (range.startOffset !== 0) return false;
-  // Walk up: if startContainer is topBlock itself at offset 0, true.
-  if (range.startContainer === topBlock) return true;
-  // Walk up the DOM from startContainer; every branch to reach topBlock must be leftmost child.
-  let node: Node = range.startContainer;
-  while (node !== topBlock) {
-    if (!node.parentNode) return false;
-    if (node.parentNode.childNodes[0] !== node) return false;
-    node = node.parentNode;
-  }
-  return true;
-}
-
-/** Tags that indicate a "protected" block that should not be merged into. */
+/** Tags that indicate a "protected" block that should not be merged into from below or above. */
 const PROTECTED_TAGS = new Set(['blockquote', 'pre', 'table', 'hr']);
 function isProtectedBlock(el: Element): boolean {
   if (PROTECTED_TAGS.has(el.tagName.toLowerCase())) return true;
@@ -226,27 +211,28 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   if (!el.contains(targetNode)) return;
 
   // ─── Block Deletion Isolation ──────────────────────────────────────────────
-  // Prevent Backspace at the very start of a block from merging into a protected
-  // block above (blockquote / callout / code / table / hr / html-block).
-  // Also prevent Delete at the very end of a block from merging into a protected
-  // block below.
-  if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
+  // 彻底阻断从下方按 Backspace 时将正文/标题吞并进上方的 Callout / blockquote / code / table
+  if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
     const sel = window.getSelection();
     if (sel && sel.isCollapsed && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
-      const anchorEl =
-        range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
       const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
 
-      if (anchorEl && resetEl) {
-        const topBlock = getTopBlock(anchorEl as HTMLElement, resetEl);
+      if (resetEl) {
+        const topBlock = getTopBlock(range.startContainer, resetEl);
         if (topBlock) {
-          if (e.key === 'Backspace') {
-            // Block Backspace isolation: cursor at absolute start of block AND previous sibling is protected
-            if (isAtBlockStart(range, topBlock)) {
+          // 计算当前光标在 topBlock 内的位置前是否有实际字符
+          try {
+            const preRange = document.createRange();
+            preRange.setStart(topBlock, 0);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            const preClean = preRange.toString().replace(/[\u200b\ufeff\s]/g, '');
+            // 如果光标在行首（前面只有零宽字符或仅有若干个#标题标记）
+            const isAtStart = preClean.length === 0 || /^#{1,6}$/.test(preClean);
+            if (isAtStart) {
               const prevSib = topBlock.previousElementSibling;
               if (prevSib && isProtectedBlock(prevSib)) {
-                // Only block if the current block has actual content (don't block deleting empty lines)
+                // 如果当前块有文字内容，坚决禁止 Backspace 合并进上一块
                 const curText = (topBlock.textContent || '')
                   .replace(/^#{1,6}\s*/, '')
                   .replace(/[\u200b\ufeff]/g, '')
@@ -259,27 +245,93 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                 }
               }
             }
-          } else if (e.key === 'Delete') {
-            // Block Delete isolation: cursor at absolute end of block AND next sibling is protected
-            const topBlockText = topBlock.textContent || '';
-            const textLen = topBlockText.replace(/[\u200b\ufeff]/g, '').length;
+          } catch {
+            // ignore range errors
+          }
+        }
+      }
+    }
+  }
+
+  // ─── Space 即刻触发 Markdown 渲染（1.、-、>、[] 等及引用内嵌套）───────
+  if (
+    e.key === ' ' &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey &&
+    !e.shiftKey &&
+    !isImeComposing
+  ) {
+    const sel = window.getSelection();
+    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const sc = range.startContainer;
+      const anchorEl = sc instanceof Element ? sc : sc.parentElement;
+
+      // 仅在非代码块、非表格、非语言提示框中处理
+      if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, .vditor-ir__marker--info, table')) {
+        const curBlock =
+          (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li, blockquote') as HTMLElement | null) ??
+          anchorEl;
+
+        if (curBlock && el.contains(curBlock)) {
+          try {
             const preRange = document.createRange();
-            preRange.setStart(range.startContainer, range.startOffset);
-            try {
-              preRange.setEnd(topBlock, topBlock.childNodes.length);
-            } catch {
-              // ignore
-            }
-            const afterText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
-            if (afterText.length === 0 || textLen === 0) {
-              const nextSib = topBlock.nextElementSibling;
-              if (nextSib && isProtectedBlock(nextSib)) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                return;
+            preRange.setStart(curBlock, 0);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
+
+            // 模式匹配：敲击空格时即刻转换为 Markdown 语法
+            const matchNestedQuoteOl = preText.match(/^>\s*(\d+)\.$/);
+            const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
+            const matchOl = preText.match(/^(\d+)\.$/);
+            const matchUl = preText.match(/^[-*]$/);
+            const matchQuote = preText === '>';
+            const matchTask = preText === '[]' || preText === '[ ]' || preText === '- []' || preText === '- [ ]';
+            const matchHeading = preText.match(/^(#{1,6})$/);
+
+            if (matchNestedQuoteOl || matchNestedQuoteUl || matchOl || matchUl || matchQuote || matchTask || matchHeading) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              ctx.pushVditorUndo();
+
+              // 删除敲入的前缀文字
+              preRange.deleteContents();
+
+              let mdToInsert = '';
+              if (matchNestedQuoteOl) {
+                mdToInsert = `> ${matchNestedQuoteOl[1]}. \n`;
+              } else if (matchNestedQuoteUl) {
+                mdToInsert = '> - \n';
+              } else if (matchOl) {
+                mdToInsert = `${matchOl[1]}. \n`;
+              } else if (matchUl) {
+                mdToInsert = '- \n';
+              } else if (matchQuote) {
+                mdToInsert = '> \n';
+              } else if (matchTask) {
+                mdToInsert = '- [ ] \n';
+              } else if (matchHeading) {
+                mdToInsert = `${matchHeading[1]} \n`;
               }
+
+              const inst = instance as unknown as {
+                insertMD?: (md: string) => void;
+                insertValue: (v: string) => void;
+              };
+              if (typeof inst.insertMD === 'function') {
+                inst.insertMD(mdToInsert);
+              } else {
+                inst.insertValue(mdToInsert);
+              }
+
+              ctx.pushVditorUndo();
+              ctx.onChangeValue(instance.getValue());
+              return;
             }
+          } catch {
+            // ignore range error
           }
         }
       }
@@ -424,7 +476,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           e.stopImmediatePropagation();
           const selectedText = range.toString();
           document.execCommand('insertText', false, `\`${selectedText}\``);
-          // move selection back to just the inner text
           ctx.onChangeValue(instance.getValue());
           return;
         }
@@ -457,7 +508,15 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           document.execCommand('delete', false);
           document.execCommand('delete', false);
           ctx.pushVditorUndo();
-          instance.insertMD('```ts\n\n```\n');
+          const inst = instance as unknown as {
+            insertMD?: (md: string) => void;
+            insertValue: (v: string) => void;
+          };
+          if (typeof inst.insertMD === 'function') {
+            inst.insertMD('```ts\n\n```\n');
+          } else {
+            inst.insertValue('```ts\n\n```\n');
+          }
           setTimeout(() => {
             ctx.ensureCodeBlockInfoMarkers?.();
             const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));

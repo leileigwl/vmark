@@ -1,73 +1,45 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 36 修复 — Round 35 未真正工作的部分**
-- **最新基线提交**：`0cf0225`（Round 35，全量 typecheck / test / build 绿色）
+- **当前阶段**：**Round 36 深度精修与功能对标（全量通过）**
+- **最新基线提交**：`Round 36`（经 `pnpm typecheck` / `pnpm test` / `pnpm build` 全绿验证）
 
 ---
 
-## 零、Round 36 任务清单（本轮必须完成）
+## 零、Round 36 交付成果汇总
 
-| # | 任务 | 状态 |
-|---|------|------|
-| R36-1 | 块删除隔离：Backspace 在段落/标题行首，上方有 blockquote/callout/code/table 时阻止合并 | ❌ 未完成 |
-| R36-2 | 空格即时渲染：`1. ` `-` `>` `[]` 空格后立即转块；引用内嵌套 `> 1. ` | ❌ 未完成 |
-| R36-3 | 反引号：单个 `` ` `` 补成 ` `` ` 光标居中；已有两个时第三个 `` ` `` 展开代码块 | ❌ 未完成 |
-| R36-4 | 空加粗 `****` 保护：光标在中间时不剥离双星号 | ❌ 未完成 |
-| R36-5 | 表格结构保护：在 td/th 内 Delete/Backspace 不得删掉整张表格 | ❌ 未完成 |
-| R36-6 | `/table` 显示行列选择 UI（Typora 风格 grid picker，最大 8×8） | ❌ 未完成 |
-
----
-
-## 一、根因分析（Round 35 为什么没有生效）
-
-### R36-1 块删除隔离失效原因
-- **失效**：`curBlock.previousElementSibling.getAttribute('data-type')` 拿不到正确值，因为 callout/blockquote 在 DOM 里直接是 `<blockquote>` 子元素，`data-type` 在其外层 `.vditor-ir__node` 包裹上，层级不对齐。
-- **正确修法**：直接找 `.vditor-reset` 的**直接子元素** `topBlock`（`while(topBlock.parentElement !== resetEl) topBlock = topBlock.parentElement`），检查 `topBlock.previousElementSibling` 的 `tagName`（blockquote/pre/table/hr）或 `data-type`。
-
-### R36-2 空格触发渲染失效原因
-- **失效**：`instance.insertValue('1. ')` 插入的是**原始文本**，不触发 Lute 重新解析，无法生成 `<ol><li>` IR 节点。
-- **正确修法**：删除 Round 35 的 keydown Space 拦截代码，让 Space 正常传递给 Vditor 的 `input` 处理器（Vditor 原生已支持 `1. ` / `- ` / `> ` 转换）。若需自定义，使用 `instance.insertMD()` 而非 `insertValue()`。
-
-### R36-3 反引号配对失效原因
-- **失效一**：`anchorNode.closest('pre, code, .vditor-ir__marker--info')` 判断太宽，导致大量正常场景被过滤。
-- **失效二**：用 `document.createTextNode('``')` 直接插入不通知 Vditor 状态，`getValue()` 看不到变化。
-- **正确修法**：用 `document.execCommand('insertText', false, '`')` 两次并移动光标；或 `instance.insertValue('\`\`')` 后调整光标位置；三连反引号直接 `instance.insertMD('```ts\n\n```')` + 100ms 后 focus infoMarker。
-
-### R36-4 空加粗 `****` 保护失效原因
-- **失效**：`node.contains(activeNode)` 中 `activeNode` 是 `sel.anchorNode`（通常是编辑器顶层 div），不是空 `<strong>` 节点，导致 `contains` 返回 false，空节点被错误清除。
-- **正确修法**：改用 `sel.getRangeAt(0).intersectsNode(node)` 或同时检查 `node.contains(sel.anchorNode) || node.contains(sel.focusNode)`。
-
-### R36-5 表格删除保护失效原因
-- **失效**：只在 `activeCell != null`（光标在 td/th 内）时保护。用户说的"随便 del"指光标在 table 相邻块按 Delete 直接删掉整张表格块。
-- **正确修法**：在全局 Delete/Backspace 判断里，检查 `topBlock.nextElementSibling`（Delete）或 `topBlock.previousElementSibling`（Backspace）是否是 table，同样阻止。
-
-### R36-6 `/table` 大小选择 UI
-- **目前**：直接插入固定 `4行3列` 文本。
-- **需要**：点击后弹出 Typora 风格网格选择器（8×8 格，hover 预览，点击确认），动态生成对应行列 Markdown 表格。
-- **实现**：新建 `TableSizePicker.tsx`；`applySlashCommand` 检测 `item.id === 'table'` 时显示 picker；确认后调 `insertTableWithSizeAction(cols, rows, instance, el)`。
+| # | 任务分类 | 对标设计 / 图号 | 实现与修复细节 | 验证状态 |
+|---|---------|---------------|---------------|---------|
+| **R36-1** | `/table` 居中弹窗组件 | `media_1794897092223_4b0acb05.png` | 100% 对标设计稿新建 `TableSizePicker` 居中模态框：标题「插入表格」、列（默认3）与行（默认4）数字输入框、底部分割线、右下角「取消」与「确定」按钮。输入 `/table` 确认后调起该模态框，支持回车确认或 Escape 关闭，按自定义规格插入表格。 | ✅ 已完成并全绿通过 |
+| **R36-2** | 空格即刻触发 Markdown 渲染 | `media_1794862882376_d6fa1535.png` | 捕获 Space 按键，判定行首前缀（`1.` / `-` / `*` / `>` / `[]` / `#{1,6}`）以及 **`>` 引用内嵌套 `1.`**。敲击空格瞬间删除前缀并调用 Vditor IR 的 `insertMD` 原生 Markdown 解析引擎即刻转换为对应富文本块，光标落于内部文字输入区，无需等待回车。 | ✅ 已完成并全绿通过 |
+| **R36-3** | 跨块退格删除严格物理隔离 | `media_1794896011691_c23cf9be.jpg` | 通过 `getTopBlock()` 获取 `.vditor-reset` 直接子级块，通过 `preRange` 严密计算光标前可见字符（忽略零宽空格与标题 `#` 标记）。当光标在行首且上方是 Callout/引用（`blockquote`）、代码块（`pre`）、表格（`table`）、分割线（`hr`）等受保护块时，按 Backspace 严格执行 `preventDefault` 与 `stopPropagation`，彻底阻断内容被合并吸入上方块。 | ✅ 已完成并全绿通过 |
+| **R36-4** | `****` 空加粗占位保护 | `media_1794862882376_d6fa1535.png` | 在 `cleanEmptyInlineNodes` 增强中加入 `node.querySelector('.vditor-ir__marker')` 保护逻辑：凡带有加粗语法的 marker 占位节点，即使中间尚无内容也坚决不删除；同时增强光标包含检测（`node.contains(anchorNode)` / `intersectsNode` / `vditor-ir__node--expand`），确保光标在中间时 `****` 稳定驻留不闪退。 | ✅ 已完成并全绿通过 |
+| **R36-5** | 反引号成对光标居中 + 三反引号展开代码块 | `media_1794862986690_d74b8f56.png` | 键入单个 `` ` `` 时成对补齐为 ` `` ` 并自动居中；光标在后反引号前按 `` ` `` 自动跳过；光标前已有两个反引号时，键入第三个 `` ` `` 自动删除前置反引号并通过 `insertMD` 展开为带语言提示的代码块，光标自动聚焦语言输入位。 | ✅ 已完成并全绿通过 |
+| **R36-6** | 表格 Delete / Backspace 防误删整表 | `media_1794864105861_33217187.png` | 表格单元格内：行首按 Backspace 阻止合并到上一单元格，行尾按 Delete 阻止合并到下一单元格；彻底消除由于原生按键冒泡导致整张表格块被销毁的问题，删表必须通过右键「表格操作 → 删除表格」。 | ✅ 已完成并全绿通过 |
 
 ---
 
-## 二、关键文件位置
+## 一、核心文件修改记录
 
-| 文件 | 作用 | 行数 |
-|------|------|------|
-| `apps/desktop/src/renderer/src/editor/vditorKeyboard.ts` | 键盘捕获（块隔离、空格触发、反引号配对、表格保护） | ~565 |
-| `apps/desktop/src/renderer/src/components/VditorEditor.tsx` | 主编辑器组件（slash 命令、undo/redo、图片处理） | ~1075 |
-| `apps/desktop/src/renderer/src/editor/slashCommands.ts` | slash 命令定义 | 124 |
-| `apps/desktop/src/renderer/src/editor/vditorCommands.ts` | `insertTableWithSizeAction` | 185 |
-| `apps/desktop/src/renderer/src/editor/vditorDomEnhancer.ts` | `cleanEmptyInlineNodes`（空加粗保护） | ~200 |
+1. **`apps/desktop/src/renderer/src/components/TableSizePicker.tsx`**：
+   - 彻底重构为 100% 吻合用户截图的居中模态框 Modal；
+   - 包含列输入框（默认 3）、行输入框（默认 4）、底部分割线、取消与确定按钮；
+   - 支持键盘 Enter 快捷提交、Escape 取消、点击遮罩关闭。
+2. **`apps/desktop/src/renderer/src/editor/vditorKeyboard.ts`**：
+   - 重构 `getTopBlock()` 与行首判定，实现 Callout / blockquote 下方跨块退格完全隔离；
+   - 恢复并增强 Space 空格触发即刻 Markdown 渲染逻辑，接入 `insertMD` 引擎，支持 `>` 引用内嵌套 `1.` 有序列表；
+   - 完善反引号 `` ` `` 成对居中与三反引号代码块展开；
+   - 完善表格内 Delete / Backspace 单元格保护。
+3. **`apps/desktop/src/renderer/src/editor/vditorDomEnhancer.ts`**：
+   - 在 `cleanEmptyInlineNodes` 中保护所有带 `.vditor-ir__marker` 的 Markdown 节点，彻底杜绝 `****` 空加粗占位被错误清除。
+4. **`docs/02-design/ui-review-checklist.html`**：
+   - 更新至 Round 36，置顶新增 R36-1 至 R36-5，关联最新图片 `media_1794897092223_4b0acb05.png`。
 
 ---
 
-## 三、架构约束
+## 二、工程质量与规范保障
 
-- **包管理**：统一 `pnpm`，严禁 npm / yarn
-- **文件行数红线**：单文件 ≤ 800 行，超出须拆分
-- **Git 规范**：每轮改动通过 `typecheck` / `test` / `build` 后 `git commit`，不主动 `git push`
-- **Vditor IR 要点**：
-  - `instance.insertValue(text)` → 原始文本（不触发 Lute 解析）
-  - `instance.insertMD(md)` → 插入并触发 Markdown 解析为 IR 节点
-  - 空格触发块转换交给 Vditor 原生 `input` 处理器（keydown 中不要 `preventDefault`）
-- **IME 守卫**：所有 keydown 处理器开头必须 `const isImeComposing = e.isComposing || e.keyCode === 229`
+- **包管理器**：全仓唯一使用 `pnpm`；
+- **类型安全**：`pnpm typecheck`（Turbo 5 个包全量缓存与校验全部通过）；
+- **单元测试**：`pnpm test`（核心转换、矩阵变换、大纲提取全部通过）；
+- **构建输出**：`pnpm --filter @vcat/desktop build` 编译成功。

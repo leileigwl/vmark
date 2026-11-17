@@ -212,18 +212,15 @@ export function normalizeEmojiAndCalloutIcons(el: HTMLElement): void {
 
 export function cleanEmptyInlineNodes(el: HTMLElement): void {
   const sel = window.getSelection();
-  // Use anchorNode + focusNode directly (not their parentElement) so that
-  // node.contains() / intersectsNode() works correctly when the cursor is
-  // inside a leaf text node of the inline span.
   const anchorNode = sel?.anchorNode ?? null;
   const focusNode = sel?.focusNode ?? null;
 
   function isCursorInsideNode(node: Element): boolean {
     if (!sel || sel.rangeCount === 0) return false;
-    // Check both anchor and focus nodes
-    if (anchorNode && node.contains(anchorNode)) return true;
-    if (focusNode && node.contains(focusNode)) return true;
-    // Fallback: use Range.intersectsNode if available
+    if (anchorNode && (node === anchorNode || node.contains(anchorNode))) return true;
+    if (focusNode && (node === focusNode || node.contains(focusNode))) return true;
+    if (node.closest('.vditor-ir__node--expand')) return true;
+    if (node.classList.contains('vditor-ir__node--expand')) return true;
     try {
       const range = sel.getRangeAt(0);
       return range.intersectsNode(node);
@@ -236,8 +233,12 @@ export function cleanEmptyInlineNodes(el: HTMLElement): void {
     'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
   );
   inlineNodes.forEach((node) => {
-    // Skip if cursor is inside this inline node
+    // 保护正在编辑、展开态、或光标在内的节点，绝对不清理
     if (isCursorInsideNode(node)) {
+      return;
+    }
+    // 如果节点带有 marker（如包含 **），说明保留有 markdown 语法占位，保护空加粗 **** 绝对不要清理
+    if (node.querySelector('.vditor-ir__marker')) {
       return;
     }
     const inner = node.querySelector('strong, b, em, i, s, del, code');
