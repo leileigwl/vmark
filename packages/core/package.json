@@ -17,6 +17,7 @@
     "@vcat/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "typescript": "^5.7.2"
   }
 }
