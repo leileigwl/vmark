@@ -66,6 +66,14 @@ export function PublishModal({
   };
 
   useEffect(() => {
+    void refreshAuthStates();
+    const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
+      setAuthStates((prev) => ({ ...prev, ...states }));
+    });
+    return () => unsub?.();
+  }, []);
+
+  useEffect(() => {
     if (tab === 'git') {
       void refreshAuthStates();
     }

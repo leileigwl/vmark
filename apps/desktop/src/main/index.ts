@@ -33,6 +33,7 @@ import {
   hasSessionAuthCookies,
   PLATFORM_AUTH_COOKIE_RULES,
   registerPublishHandlers,
+  verifyPlatformAuth,
 } from './publishHandlers';
 
 const execFileAsync = promisify(execFile);
@@ -740,18 +741,47 @@ function registerIpcHandlers(): void {
       const targetSession = session.fromPartition(partition);
       targetSession.setUserAgent(CHROME_DESKTOP_UA);
 
+      targetSession.webRequest.onHeadersReceived((details, callback) => {
+        const responseHeaders = { ...details.responseHeaders };
+        // Strip restrictions so cross-domain login bundles, CSDN passport assets and WeChat QR iframes render cleanly
+        delete responseHeaders['x-frame-options'];
+        delete responseHeaders['X-Frame-Options'];
+        delete responseHeaders['content-security-policy'];
+        delete responseHeaders['Content-Security-Policy'];
+        callback({ cancel: false, responseHeaders });
+      });
+
+      targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        const requestHeaders = { ...details.requestHeaders };
+        requestHeaders['User-Agent'] = CHROME_DESKTOP_UA;
+        callback({ cancel: false, requestHeaders });
+      });
+
       const loginWin = new BrowserWindow({
         width: 1040,
         height: 740,
         title: `平台授权登录 - ${platformId}`,
         webPreferences: {
           partition,
+          webSecurity: false,
           contextIsolation: true,
           nodeIntegration: false,
         },
       });
 
       loginWin.webContents.setUserAgent(CHROME_DESKTOP_UA);
+
+      loginWin.webContents.setWindowOpenHandler(() => ({
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            partition,
+            webSecurity: false,
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        },
+      }));
 
       loginWin.webContents.on('did-fail-load', (_ev, errorCode, errorDescription, validatedURL) => {
         if (errorCode === -3) return; // aborted / redirect
@@ -777,13 +807,20 @@ function registerIpcHandlers(): void {
         void loginWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`);
       });
 
-      let detectedAuth = false;
-      const cookieListener = (_ev: Electron.Event, cookie: Electron.Cookie) => {
-        const rules = PLATFORM_AUTH_COOKIE_RULES[platformId] ?? [];
-        if (rules.some((rule) => cookie.name.includes(rule))) {
-          detectedAuth = true;
-          activeMainWindow?.webContents.send('platform:authStateChanged', { platformId, authorized: true });
-        }
+      let authCheckTimer: NodeJS.Timeout | null = null;
+      const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
+        if (removed) return;
+        if (authCheckTimer) clearTimeout(authCheckTimer);
+        authCheckTimer = setTimeout(async () => {
+          const isAuthorized = await verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig });
+          if (isAuthorized) {
+            await upsertAccountRecord(platformId, {
+              authorized: true,
+              statusMessage: '授权有效',
+            });
+            activeMainWindow?.webContents.send('platform:authStatesUpdated', { [platformId]: true });
+          }
+        }, 1200);
       };
 
       targetSession.cookies.on('changed', cookieListener);
@@ -796,21 +833,15 @@ function registerIpcHandlers(): void {
 
       return new Promise<boolean>((resolve) => {
         loginWin.on('closed', async () => {
+          if (authCheckTimer) clearTimeout(authCheckTimer);
           targetSession.cookies.removeListener('changed', cookieListener);
-          let isAuthorized = await hasSessionAuthCookies(session, platformId);
-          if (isAuthorized && platformId === 'weixin') {
-            try {
-              const wxSession = session.fromPartition('persist:platform_weixin');
-              const adapter = new WeixinAdapter(createSessionFetch(wxSession));
-              isAuthorized = await adapter.checkAuth();
-            } catch {
-              isAuthorized = false;
-            }
-          }
+          const isAuthorized = await verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig });
           await upsertAccountRecord(platformId, {
             authorized: isAuthorized,
             statusMessage: isAuthorized ? '授权有效' : '未登录或已失效',
           });
+          const allStates = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
+          activeMainWindow?.webContents.send('platform:authStatesUpdated', allStates);
           resolve(isAuthorized);
         });
       });
