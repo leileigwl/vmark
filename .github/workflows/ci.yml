@@ -1,10 +1,10 @@
-name: CI / Build & Verification
+name: CI / Build, Unit & E2E Verification
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master, test, 'feature-*' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master, test ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,8 +12,8 @@ concurrency:
 
 jobs:
   verify:
-    name: Lint, Typecheck & Unit Tests
-    runs-on: ubuntu-latest
+    name: Typecheck, Unit Tests, Build & Playwright E2E
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,30 +35,16 @@ jobs:
       - name: Run Typecheck
         run: pnpm typecheck
 
-      - name: Run Tests
+      - name: Run Unit Tests
         run: pnpm test
 
-  build:
-    name: Build Desktop Application
-    runs-on: macos-latest
-    needs: verify
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.32.1
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build Electron App
+      - name: Build Desktop Application
         run: pnpm --filter @vcat/desktop build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @vcat/desktop exec playwright install chromium
+
+      - name: Run Editor Playwright E2E Suite
+        run: pnpm --filter @vcat/desktop exec playwright test --reporter=list
+        env:
+          CI: true

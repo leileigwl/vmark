@@ -12,9 +12,48 @@
 [![Package Manager](https://img.shields.io/badge/pnpm-workspace-F69220.svg)](#自己如何独立打开-vmark维记)
 [![Platforms](https://img.shields.io/badge/Platforms-30%2B%20Supported-2ea44f.svg)](#支持平台与真实发布策略直发--二次确认--后续调用)
 
-[快速启动](#-自己如何独立打开-vmark维记) · [界面预览](#-界面实拍预览) · [核心对比](#-为什么需要-vmark维记) · [平台策略](#-支持平台与真实发布策略直发--二次确认--后续调用) · [架构规范](#️-系统架构与-5-步送达管线) · [常见问题 FAQ](#-常见问题-faq)
+[快速启动](#-自己如何独立打开-vmark维记) · [研发分支与 CI/CD 规范](#-研发分支流程与-github-cicd-自动化规范) · [界面预览](#-界面实拍预览) · [第二阶段发布规划](docs/02-design/phase2-publish-plan.md) · [常见问题 FAQ](#-常见问题-faq)
 
 </div>
+
+---
+
+## 🔄 研发分支流程与 GitHub CI/CD 自动化规范
+
+> 新功能开发一律不直接在 `master` 生产分支修改，严格遵循以下三分支协同流程与自动化门禁：
+
+```
+master (生产分支) ── checkout ──▶ feature-xxxx-YYYYMMDD (功能分支) ── merge ──▶ test (测试分支)
+       ▲                                    │
+       └────────────── PR 审核 + CI 全绿 merge ┘
+```
+
+1. **三类分支职责**
+   - `master`（生产分支）：始终保持可随时打包发布的稳定基线；**禁止直接 push 脏改动**，只接受来自功能分支通过 PR + CI 校验后的合并。
+   - `feature-xxxx-YYYYMMDD`（功能分支，如 `feature-weixin-publish-20261117`）：每次开发新需求从 `master` 切出，独立开发并本地跑通校验。
+   - `test`（测试集成分支）：需要联调或提测时，将功能分支合并到 `test` 进行集中验证。
+
+2. **GitHub CI/CD 是干嘛的？（已配好开箱即用）**
+   - **CI（持续集成 · 自动体检）**：配置在 [.github/workflows/ci.yml](.github/workflows/ci.yml)。每当你向 `feature-*`、`test` 或 `master` 推送代码或发起 Pull Request（PR）时，GitHub 服务器会自动运行 `pnpm typecheck`、`pnpm test`、`pnpm --filter @vcat/desktop build` 以及 **Playwright 真实浏览器 E2E 测试**。只要有任意一项红叉，PR 页面会直接拦截，防止把 Bug 合进 `master`。
+   - **CD（持续交付 · 自动打包）**：配置在 [.github/workflows/release.yml](.github/workflows/release.yml)。当 `master` 确认无误后，在本地打一个版本标签并推送（如 `git tag v0.2.0 && git push origin v0.2.0`），GitHub Actions 会自动在云端 macOS 环境编译并生成 `.dmg` / `.zip` 安装包上传到 GitHub Releases。
+
+3. **标准日常操作速查**
+   ```bash
+   # 1. 从最新 master 切出功能分支
+   git checkout master && git pull origin master
+   git checkout -b feature-weixin-publish-20261117
+
+   # 2. 开发完成并本地跑通校验后推到远程，再合并到 test 分支联调
+   git push -u origin feature-weixin-publish-20261117
+   git checkout test && git merge feature-weixin-publish-20261117 && git push origin test
+
+   # 3. 测试无误后，在 GitHub 发起 feature -> master 的 PR，等待 CI 全绿后 Merge
+   # 4. 需要发版时打 tag 自动触发 CD 打包
+   git checkout master && git pull origin master
+   git tag v0.2.0 && git push origin v0.2.0
+   ```
+
+4. **第二阶段规划入口**：编辑器基线已通过 19 项 Playwright E2E 回归，下一步进入 **[第二阶段：多平台发布与分发效果规划](docs/02-design/phase2-publish-plan.md)**（首期聚焦微信公众号草稿箱 + 主题内联 CSS 渲染 + 图床自动上传）。
 
 ---
 
