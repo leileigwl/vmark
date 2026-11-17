@@ -68,9 +68,36 @@ pnpm test
 
   const result = renderBaijiahaoHtml(md);
   assert.ok(result.html.includes('<h2>百家号标题</h2>'));
-  assert.ok(result.html.includes('<pre><code>pnpm test</code></pre>'));
+  assert.ok(result.html.includes('<pre><code class="language-bash">pnpm test</code></pre>'));
   assert.ok(result.html.includes('<img src="https://bjh.baidu.com/img.jpg"'));
   assert.equal(result.imageUrls.length, 1);
+});
+
+test('Renderers robustly handle GFM tildes, info strings, and C++ code blocks', () => {
+  const md = `
+~~~c++
+#include <iostream>
+int main() {
+    return 0;
+}
+~~~
+
+\`\`\`typescript {1-3} title="test.ts"
+const x: number = 42;
+\`\`\`
+`;
+
+  const zhihu = renderZhihuHtml(md);
+  assert.ok(zhihu.html.includes('<code class="language-c++">'));
+  assert.ok(zhihu.html.includes('<code class="language-typescript">'));
+
+  const bjh = renderBaijiahaoHtml(md);
+  assert.ok(bjh.html.includes('<code class="language-c++">'));
+  assert.ok(bjh.html.includes('<code class="language-typescript">'));
+
+  const xhs = renderXiaohongshuCards(md);
+  assert.ok(xhs.cards.some((c) => c.type === 'code' && c.codeLang === 'c++'));
+  assert.ok(xhs.cards.some((c) => c.type === 'code' && c.codeLang === 'typescript'));
 });
 
 test('renderXiaohongshuCards creates cover, content, code cards and caption text', () => {

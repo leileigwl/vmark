@@ -57,3 +57,29 @@ test('renderWeixinHtml injects cover image when showCoverInBody is true and extr
     '第一节 这里是核心摘要内容，用于测试自动提取。'
   );
 });
+
+test('renderWeixinHtml handles GFM tilde fences, C++, info strings, and highlights tokens without class names', () => {
+  const md = `
+~~~c++
+// 这是一个 C++ 注释
+#include <iostream>
+int main() {
+    const int val = 100;
+    return 0;
+}
+~~~
+
+\`\`\`ts {1-5} title="demo.ts"
+import { test } from 'vitest';
+const isTrue = true;
+\`\`\`
+`;
+
+  const res = renderWeixinHtml(md);
+  assert.ok(res.html.includes('c++'));
+  assert.ok(res.html.includes('demo.ts') || res.html.includes('ts'));
+  assert.ok(res.html.includes('font-style: italic;'), 'Comment should be styled italic');
+  assert.ok(res.html.includes('color: #d73a49;'), 'Keywords (const/return/import) should be highlighted');
+  assert.ok(res.html.includes('color: #005cc5;'), 'Numbers/booleans should be highlighted');
+  assert.ok(!res.html.includes('class='), 'Must not contain any class attributes');
+});

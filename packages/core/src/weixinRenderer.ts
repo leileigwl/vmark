@@ -36,11 +36,48 @@ function isWeixinDomain(url: string): boolean {
   return /^https?:\/\/([^/]+\.)?(mp\.weixin\.qq\.com|weixin\.qq\.com)(\/|$)/i.test(url.trim());
 }
 
+function highlightWeixinCodeTokens(code: string, _lang: string): string {
+  const lines = code.split('\n');
+  const KEYWORDS = new Set([
+    'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do',
+    'switch', 'case', 'default', 'break', 'continue', 'import', 'from', 'export',
+    'class', 'extends', 'super', 'new', 'this', 'typeof', 'instanceof', 'void',
+    'async', 'await', 'try', 'catch', 'finally', 'throw', 'interface', 'type',
+    'def', 'elif', 'pass', 'lambda', 'with', 'as', 'in', 'is', 'not', 'and', 'or',
+    'fn', 'pub', 'mut', 'impl', 'struct', 'enum', 'trait', 'match', 'package', 'func',
+  ]);
+  const LITERALS = new Set(['true', 'false', 'null', 'undefined', 'None', 'True', 'False', 'nil']);
+
+  const highlightedLines = lines.map((line) => {
+    const escaped = escapeHtml(line);
+    const trimmed = escaped.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('/*')) {
+      return `<span style="color: #6a737d; font-style: italic;">${escaped}</span>`;
+    }
+
+    return escaped.replace(
+      /(\/\/[^\n]*|#[^\n]*)|(&quot;[\s\S]*?&quot;|&#39;[\s\S]*?&#39;|`[\s\S]*?`)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_$][a-zA-Z0-9_$]*\b)/g,
+      (match, comment, str, num, word) => {
+        if (comment) return `<span style="color: #6a737d; font-style: italic;">${comment}</span>`;
+        if (str) return `<span style="color: #032f62;">${str}</span>`;
+        if (num) return `<span style="color: #005cc5;">${num}</span>`;
+        if (word) {
+          if (KEYWORDS.has(word)) return `<span style="color: #d73a49; font-weight: 600;">${word}</span>`;
+          if (LITERALS.has(word)) return `<span style="color: #005cc5; font-weight: 600;">${word}</span>`;
+        }
+        return match;
+      }
+    );
+  });
+
+  return highlightedLines.join('\n');
+}
+
 /** Extracts clean plain-text digest (max 120 chars) from Markdown body. */
 export function extractWeixinDigest(markdown: string, maxLength = 120): string {
   const withoutFrontmatter = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   const plain = withoutFrontmatter
-    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
@@ -137,18 +174,25 @@ export function renderWeixinHtml(
       continue;
     }
 
-    // Fenced code block
-    const fenceMatch = trimmed.match(/^```([a-zA-Z0-9_-]*)$/);
+    // Fenced code block (GFM 3+ backticks or 3+ tildes, optional language, info string, c++, c#)
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})(.*)$/);
     if (fenceMatch) {
-      const lang = fenceMatch[1] || 'text';
+      const marker = fenceMatch[1];
+      const info = fenceMatch[2].trim();
+      const rawLang = info.split(/\s+/)[0] || '';
+      const lang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '') || 'text';
       const codeLines: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+      while (i < lines.length) {
+        const nextTrimmed = lines[i].trim();
+        if (nextTrimmed.startsWith(marker[0].repeat(marker.length))) {
+          break;
+        }
         codeLines.push(lines[i]);
         i++;
       }
-      i++; // skip closing ```
-      const codeHtml = escapeHtml(codeLines.join('\n'));
+      i++; // skip closing fence
+      const codeHtml = highlightWeixinCodeTokens(codeLines.join('\n'), lang);
       blocks.push(
         `<section style="margin: 16px 0; border-radius: 10px; border: 1px solid rgba(0, 0, 0, 0.08); background-color: #f6f8fa; overflow: hidden;">` +
           `<section style="display: flex; align-items: center; padding: 8px 12px; background-color: #eef1f5; border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 12px; color: #666;">` +

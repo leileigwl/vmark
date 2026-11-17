@@ -75,6 +75,7 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
     return {
       ok: res.ok,
       status: res.status,
+      headers: res.headers,
       text: () => res.text(),
       json: () => res.json(),
     };
@@ -168,6 +169,30 @@ export async function verifyPlatformAuth(params: {
       const adapter = new WeixinAdapter(createSessionFetch(wxSession));
       return await Promise.race([
         adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'cnblogs') {
+      const cbSession = session.fromPartition('persist:platform_cnblogs');
+      const sFetch = createSessionFetch(cbSession);
+      return await Promise.race([
+        sFetch('https://i.cnblogs.com/api/user', {
+          headers: { Referer: 'https://i.cnblogs.com/' },
+        }).then((res) => res.ok),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'bilibili') {
+      const bSession = session.fromPartition('persist:platform_bilibili');
+      const sFetch = createSessionFetch(bSession);
+      return await Promise.race([
+        sFetch('https://api.bilibili.com/x/web-interface/nav').then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { code?: number; data?: { isLogin?: boolean } };
+          return data.code === 0 && Boolean(data.data?.isLogin);
+        }),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
@@ -367,6 +392,25 @@ async function publishToSingleTarget(params: {
   const { platformId, mode, payload, cfg, session } = params;
   const includeRemote = payload.includeRemoteImages ?? true;
 
+  const resolveUploadFn = (platformAdapter?: { uploadImage: (buf: Buffer, name: string) => Promise<string> }) => {
+    if (cfg.imageBed.strategy === 'custom_oss' && cfg.imageBed.provider) {
+      return createImageBedUploader();
+    }
+    return async (buffer: Buffer, fileName: string) => {
+      if (platformAdapter) {
+        try {
+          return await platformAdapter.uploadImage(buffer, fileName);
+        } catch (err) {
+          if (cfg.imageBed.provider) {
+            return await createImageBedUploader()(buffer, fileName, cfg.imageBed);
+          }
+          throw err;
+        }
+      }
+      return await createImageBedUploader()(buffer, fileName, cfg.imageBed);
+    };
+  };
+
   try {
     if (platformId === 'weixin') {
       const res = await executeWeixinDraftPublish({
@@ -416,7 +460,7 @@ async function publishToSingleTarget(params: {
         markdown: payload.markdown,
         config: cfg.imageBed,
         includeRemote,
-        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+        uploadFn: resolveUploadFn(adapter),
       });
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode, message: uploadResult.errors.join('；') };
@@ -525,7 +569,7 @@ async function publishToSingleTarget(params: {
         markdown: payload.markdown,
         config: cfg.imageBed,
         includeRemote,
-        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+        uploadFn: resolveUploadFn(adapter),
       });
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
@@ -567,7 +611,7 @@ async function publishToSingleTarget(params: {
         markdown: payload.markdown,
         config: cfg.imageBed,
         includeRemote,
-        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+        uploadFn: resolveUploadFn(adapter),
       });
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
@@ -650,7 +694,7 @@ async function publishToSingleTarget(params: {
         markdown: payload.markdown,
         config: cfg.imageBed,
         includeRemote,
-        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+        uploadFn: resolveUploadFn(adapter),
       });
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };

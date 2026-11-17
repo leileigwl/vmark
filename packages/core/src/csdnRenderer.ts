@@ -53,7 +53,7 @@ export function parseCsdnMarkdown(rawMarkdown: string, fallbackTitle = '未命�
 
   // Digest
   const plain = cleanMd
-    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')

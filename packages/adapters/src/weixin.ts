@@ -21,6 +21,7 @@ export interface WeixinDraftPayload extends AdapterPushPayload {
 export type FetchLike = (input: string, init?: RequestInit) => Promise<{
   ok: boolean;
   status: number;
+  headers?: { get: (name: string) => string | null };
   text: () => Promise<string>;
   json: () => Promise<unknown>;
 }>;

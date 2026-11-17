@@ -38,6 +38,9 @@ import {
 
 const execFileAsync = promisify(execFile);
 
+export const CHROME_DESKTOP_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'vcat-asset',
@@ -731,9 +734,6 @@ function registerIpcHandlers(): void {
     };
   });
 
-  const CHROME_DESKTOP_UA =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-
   ipcMain.handle(
     'platform:openLogin',
     async (_event, platformId: PlatformId, loginUrl: string) => {
@@ -743,16 +743,27 @@ function registerIpcHandlers(): void {
 
       targetSession.webRequest.onHeadersReceived((details, callback) => {
         const responseHeaders = { ...details.responseHeaders };
-        // Strip restrictions so cross-domain login bundles, CSDN passport assets and WeChat QR iframes render cleanly
-        delete responseHeaders['x-frame-options'];
-        delete responseHeaders['X-Frame-Options'];
-        delete responseHeaders['content-security-policy'];
-        delete responseHeaders['Content-Security-Policy'];
+        // Case-insensitive removal of frame and security policy restrictions
+        for (const key of Object.keys(responseHeaders)) {
+          const lower = key.toLowerCase();
+          if (
+            lower === 'x-frame-options' ||
+            lower === 'content-security-policy' ||
+            lower === 'content-security-policy-report-only'
+          ) {
+            delete responseHeaders[key];
+          }
+        }
         callback({ cancel: false, responseHeaders });
       });
 
       targetSession.webRequest.onBeforeSendHeaders((details, callback) => {
         const requestHeaders = { ...details.requestHeaders };
+        for (const key of Object.keys(requestHeaders)) {
+          if (key.toLowerCase() === 'user-agent') {
+            delete requestHeaders[key];
+          }
+        }
         requestHeaders['User-Agent'] = CHROME_DESKTOP_UA;
         callback({ cancel: false, requestHeaders });
       });
@@ -782,6 +793,10 @@ function registerIpcHandlers(): void {
           },
         },
       }));
+
+      loginWin.webContents.on('did-create-window', (childWin) => {
+        childWin.webContents.setUserAgent(CHROME_DESKTOP_UA);
+      });
 
       loginWin.webContents.on('did-fail-load', (_ev, errorCode, errorDescription, validatedURL) => {
         if (errorCode === -3) return; // aborted / redirect
@@ -841,6 +856,7 @@ function registerIpcHandlers(): void {
             statusMessage: isAuthorized ? '授权有效' : '未登录或已失效',
           });
           const allStates = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
+          await batchSyncHeartbeatResults(allStates);
           activeMainWindow?.webContents.send('platform:authStatesUpdated', allStates);
           resolve(isAuthorized);
         });
@@ -1213,6 +1229,7 @@ function startHeartbeatEngine(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.vcat.publisher');
+  app.userAgentFallback = CHROME_DESKTOP_UA;
 
   if (process.platform === 'darwin') {
     const iconPath = getAppIconPath();

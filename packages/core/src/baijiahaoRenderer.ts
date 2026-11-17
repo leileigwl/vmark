@@ -35,18 +35,29 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
 
   const out: string[] = [];
   let inCode = false;
+  let codeLang = '';
+  let codeMarker = '';
   let codeLines: string[] = [];
 
   for (const line of lines) {
-    if (line.startsWith('```')) {
-      if (inCode) {
-        inCode = false;
-        out.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
-        codeLines = [];
-      } else {
-        inCode = true;
-        codeLines = [];
-      }
+    const trimmedLine = line.trim();
+    const codeMatch = trimmedLine.match(/^(`{3,}|~{3,})(.*)$/);
+    if (codeMatch && !inCode) {
+      inCode = true;
+      codeMarker = codeMatch[1];
+      const info = codeMatch[2].trim();
+      const rawLang = info.split(/\s+/)[0] || '';
+      codeLang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '');
+      codeLines = [];
+      continue;
+    }
+    if (codeMarker && trimmedLine.startsWith(codeMarker[0].repeat(codeMarker.length)) && inCode) {
+      inCode = false;
+      const langClass = codeLang ? ` class="language-${escapeHtml(codeLang)}"` : '';
+      out.push(`<pre><code${langClass}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+      codeLines = [];
+      codeLang = '';
+      codeMarker = '';
       continue;
     }
     if (inCode) {
@@ -72,7 +83,7 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
   }
 
   const plain = cleanMd
-    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/[*_~`]+/g, '')
