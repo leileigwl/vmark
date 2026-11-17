@@ -241,4 +241,8 @@ export interface ElectronAPI {
   publishMultiPlatform?: (
     payload: MultiPlatformPublishPayload
   ) => Promise<{ results: MultiPlatformPublishResultItem[] }>;
+  getPlatformAccounts?: () => Promise<Record<string, unknown>>;
+  onPlatformAuthUpdated?: (
+    callback: (states: Partial<Record<PlatformId, boolean>>) => void
+  ) => () => void;
 }
