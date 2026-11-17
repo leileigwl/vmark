@@ -27,6 +27,12 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
       saveStartupConfig: async () => ({ ok: true }),
       setRecentFiles: () => {},
       onMenuAction: () => () => {},
+      publishWeixinDraft: async () => ({
+        ok: true,
+        postId: '10086',
+        url: 'https://mp.weixin.qq.com/cgi-bin/appmsg?appmsgid=10086',
+        verified: true,
+      }),
     };
   }, initialMarkdown);
 
@@ -57,6 +63,10 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     // Click copy rich text
     await page.getByRole('button', { name: '一键复制公众号富文本' }).click();
     await expect(page.getByText(/已复制公众号富文本|复制失败/)).toBeVisible();
+
+    // Click push to WeChat draft box
+    await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
+    await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
     // Switch to Git / 其他平台 tab and close
     await page.getByRole('button', { name: 'Git / 其他平台' }).click();

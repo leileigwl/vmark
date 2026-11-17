@@ -65,6 +65,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('image:saveAs', src),
   openWorkspaceLink: (href: string, currentRelativePath?: string) =>
     ipcRenderer.invoke('workspace:openLink', href, currentRelativePath),
+  publishWeixinDraft: (payload: Parameters<NonNullable<ElectronAPI['publishWeixinDraft']>>[0]) =>
+    ipcRenderer.invoke('publish:weixinDraft', payload),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

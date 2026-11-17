@@ -200,4 +200,13 @@ export interface ElectronAPI {
     href: string,
     currentRelativePath?: string
   ) => Promise<{ ok: boolean; kind?: 'article' | 'external'; relativePath?: string; target?: string }>;
+  publishWeixinDraft?: (payload: {
+    title: string;
+    markdown: string;
+    author?: string;
+    digest?: string;
+    coverImageUrl?: string;
+    showCoverInBody?: boolean;
+    sourceUrl?: string;
+  }) => Promise<{ ok: true; postId: string; url: string; verified: boolean } | { ok: false; message: string }>;
 }

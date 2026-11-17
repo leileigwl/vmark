@@ -155,3 +155,7 @@ export const PLATFORM_CATALOG: PlatformDescriptor[] = [
     referenceSource: 'references/siyuan-plugin-publisher/src/adaptors/web/xiaohongshu & 小V猫规范',
   },
 ];
+
+export { WeixinAdapter, type FetchLike, type WeixinAuthMeta, type WeixinDraftPayload } from './weixin.ts';
+export { GitHubStaticAdapter, type GitHubStaticOptions } from './githubStatic.ts';
+export { CnblogsAdapter, type CnblogsOptions } from './cnblogs.ts';
