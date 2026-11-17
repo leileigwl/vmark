@@ -403,8 +403,13 @@ export default function App() {
       const timer = setInterval(() => {
         attempts++;
         const count = editorRef.current?.jumpToMatch(keyword, 0, { caseSensitive: false }) ?? 0;
-        if (count > 0 || attempts >= 15) {
+        if (count > 0 || attempts >= 25) {
           clearInterval(timer);
+          if (count > 0) {
+            setTimeout(() => {
+              editorRef.current?.jumpToMatch(keyword, 0, { caseSensitive: false });
+            }, 120);
+          }
         }
       }, 60);
     };

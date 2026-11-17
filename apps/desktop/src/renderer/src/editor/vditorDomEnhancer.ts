@@ -229,6 +229,19 @@ export function cleanEmptyInlineNodes(el: HTMLElement): void {
     }
   }
 
+  // 标记所有空行内格式节点（含仅含零宽字符 \u200b / \ufeff 的情况），供 CSS 彻底去胶囊色块
+  const allInlineTags = el.querySelectorAll(
+    '.vditor-reset strong, .vditor-reset b, .vditor-reset em, .vditor-reset i, .vditor-reset s, .vditor-reset del, .vditor-reset :not(pre) > code'
+  );
+  allInlineTags.forEach((tag) => {
+    const clean = (tag.textContent || '').replace(/[\u200b\ufeff]/g, '');
+    if (clean.length === 0) {
+      tag.setAttribute('data-vcat-empty', '1');
+    } else {
+      tag.removeAttribute('data-vcat-empty');
+    }
+  });
+
   const inlineNodes = el.querySelectorAll(
     'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
   );

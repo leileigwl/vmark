@@ -312,6 +312,69 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R38_1",
+            title: "R38-1. 代码块正文精确判空删除 + 行首防撕裂",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794900067617_17bbcd2a.png",
+            desc: "改用 pre > code 正文文本判空（不再被语言标签 ts 与 ``` 干扰），空代码块内按 Backspace 安全删除整块；正文有内容时在代码首行或语言框首行按 Backspace 坚决阻断向上合并，彻底杜绝语言标签与 mac 圆点撕裂。",
+            plan: "新建或清空代码块正文后按 Backspace，确认整块干净删除；有代码时在第一行行首按 Backspace，确认语言标签与 mac 圆点完好无损。"
+          },
+          {
+            id: "R38_2",
+            title: "R38-2. 空格即刻触发 Markdown 渲染 + 引用嵌套（直连 SpinVditorIRDOM）",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794898290392_05313f53.png",
+            desc: "绕过 Vditor 原生 endSpace === true 跳过编译的限制，键入 1.、-、*、>、[]、# 后按空格即刻插入 <wbr> 并调用 lute.SpinVditorIRDOM 编译（在引用块内时整体编译 blockquote），无需回车即刻渲染为列表/引用/任务框。",
+            plan: "分别输入 1. + 空格、- + 空格、> + 空格、[] + 空格，以及在 > 引用内输入 1. + 空格，确认敲下空格瞬间立即渲染出对应格式。"
+          },
+          {
+            id: "R38_3",
+            title: "R38-3. 反引号三步状态机第 3 击双侧清理零残留",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794899024090_ad772333.png",
+            desc: "第 3 次敲击反引号展开代码块时，同时选中并删除光标左侧 2 个及紧邻右侧自动配对的 1 个反引号，彻底消除代码块上方残留 `` 的问题。",
+            plan: "在空白行连续敲击 3 次 `，确认先成对再凑满 3 个并干净展开代码块，上方无任何多余反引号残留。"
+          },
+          {
+            id: "R38_4",
+            title: "R38-4. 表格直接替换占位锚点编译插入 + 精确行数",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794899096919_b457394a.png",
+            desc: "弹窗确认后不再提前 remove 占位节点导致选区坍缩，而是直接用 lute.Md2VditorIRDOM 将 #vcat-table-placeholder 所在空段落替换为真实表格并聚焦首格；修正总行数计算（1 表头 + rows - 1 数据行）。",
+            plan: "暗黑模式下输入 /table 选择 3 列 4 行点击确定，确认表格 100% 插入且总行数为 4 行，光标直接落入首个单元格。"
+          },
+          {
+            id: "R38_5",
+            title: "R38-5. 全行内格式 data-vcat-empty 零宽字符判空去胶囊",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794899132141_cb0c01c9.png",
+            desc: "针对 Vditor 在空 strong/em/s/code 内插入 \\u200b 导致 CSS :empty 失效的问题，在 vditorDomEnhancer 中剥离零宽字符后打上 data-vcat-empty='1'，并在 editor.css 对所有空行内节点统一透明无边距。",
+            plan: "输入 **** 或删空加粗/斜体/删除线/行内代码内容，确认中间不再出现绿色胶囊或背景色块。"
+          },
+          {
+            id: "R38_6",
+            title: "R38-6. 代码块语言回车提交后异步重查 DOM 直切正文第 1 行",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794899194373_7c4a963e.png",
+            desc: "commitCodeBlockLanguage 后在下一帧重新查询最新连接的 codeBody 并先 focus 再设置首行选区，避免焦点重置或重绘丢失。",
+            plan: "在代码块语言框选择语言后按 Enter，确认光标立即落入代码正文第 1 行。"
+          },
+          {
+            id: "R38_7",
+            title: "R38-7. 侧边栏搜索结果点击稳健定位（instant scroll + 二次校准）",
+            status: "done",
+            statusText: "Round 38 已修复待核验",
+            img: "media_1794862106890_273b081c.png",
+            desc: "将 jumpToMatchInEl 的 scrollIntoView 改为即时居中滚动避免被编辑器聚焦打断，并在 App.tsx 中延长轮询窗口至 25 次且在首次命中后 120ms 再次校准滚动。",
+            plan: "在侧边栏搜索关键词并点击其他文章结果卡片，确认切换文章后准确滚动并高亮到目标关键词。"
+          },
+          {
             id: "R37_1",
             title: "R37-1. 正常代码块与空 Callout 恢复正常删除与防撕裂（图七/八/十）",
             status: "done",

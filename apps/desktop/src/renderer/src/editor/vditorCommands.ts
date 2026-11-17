@@ -113,28 +113,61 @@ export function insertTableWithSizeAction(
 ): void {
   const safeCols = Math.max(1, Math.min(20, cols));
   // Total rows includes 1 header row + (rows - 1) body rows
-  const safeBodyRows = Math.max(1, Math.min(50, rows - 1));
-
-  // 1. 如果有占位锚点，精准恢复光标至占位锚点并移除占位节点
-  const placeholder = el.querySelector('#vcat-table-placeholder');
-  if (placeholder) {
-    const range = document.createRange();
-    range.selectNode(placeholder);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    placeholder.remove();
-  }
+  const safeBodyRows = Math.max(0, Math.min(50, rows - 1));
 
   const header = `| ${Array.from({ length: safeCols }, (_, i) => `列 ${i + 1}`).join(' | ')} |`;
   const sep = `| ${Array.from({ length: safeCols }, () => '---').join(' | ')} |`;
   const bodyRows = Array.from({ length: safeBodyRows }, (_, rIdx) =>
     `| ${Array.from({ length: safeCols }, (_, cIdx) => `内容 ${rIdx + 1}-${cIdx + 1}`).join(' | ')} |`
   );
-  const tableMd = `\n\n${[header, sep, ...bodyRows].join('\n')}\n\n`;
+  const tableMd = [header, sep, ...bodyRows].join('\n');
 
+  const placeholder = el.querySelector('#vcat-table-placeholder');
+  const v = (instance as unknown as {
+    vditor?: {
+      lute?: { Md2VditorIRDOM: (md: string) => string };
+    };
+  }).vditor;
+
+  if (placeholder && v?.lute?.Md2VditorIRDOM) {
+    const irHtml = v.lute.Md2VditorIRDOM(tableMd);
+    const temp = document.createElement('div');
+    temp.innerHTML = irHtml;
+    const newNodes = Array.from(temp.childNodes);
+    const firstTable = temp.querySelector('table');
+
+    if (newNodes.length > 0) {
+      const hostBlock = placeholder.closest('p, .vditor-ir__node');
+      const hostClean = (hostBlock?.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+      if (hostBlock && hostClean.length === 0) {
+        hostBlock.replaceWith(...newNodes);
+      } else {
+        placeholder.replaceWith(...newNodes);
+      }
+
+      if (!el.contains(document.activeElement)) {
+        instance.focus();
+      }
+      const firstCell = firstTable?.querySelector('th, td') as HTMLElement | null;
+      if (firstCell) {
+        const range = document.createRange();
+        range.selectNodeContents(firstCell);
+        range.collapse(true);
+        const selNow = window.getSelection();
+        selNow?.removeAllRanges();
+        selNow?.addRange(range);
+      }
+      const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
+      resetEl?.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      return;
+    }
+  }
+
+  if (placeholder) {
+    placeholder.remove();
+  }
   instance.focus();
-  instance.insertValue(tableMd);
+  instance.insertValue(`\n\n${tableMd}\n\n`);
 
   // Focus the first table cell after render
   setTimeout(() => {
@@ -144,7 +177,7 @@ export function insertTableWithSizeAction(
     if (firstCell) {
       const range = document.createRange();
       range.selectNodeContents(firstCell);
-      range.collapse(false);
+      range.collapse(true);
       const selNow = window.getSelection();
       selNow?.removeAllRanges();
       selNow?.addRange(range);

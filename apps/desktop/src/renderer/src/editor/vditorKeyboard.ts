@@ -159,21 +159,30 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       ctx.commitCodeBlockLanguage(infoMarker, (rawChoice || 'text').trim());
 
       // 选完语言后，立刻把光标移入代码正文第一行
-      const codeBlock = infoMarker.closest('.vditor-ir__node[data-type="code-block"]');
-      const codeBody = (codeBlock?.querySelector(
-        'pre.vditor-ir__marker--pre > code, pre:not(.vditor-ir__preview) code, code'
-      ) as HTMLElement | null);
-      if (codeBody) {
-        requestAnimationFrame(() => {
+      const codeBlock = infoMarker.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null;
+      requestAnimationFrame(() => {
+        const activeBlock =
+          codeBlock && codeBlock.isConnected
+            ? codeBlock
+            : (ctx.lastActiveInfoMarkerRef.current?.closest('.vditor-ir__node[data-type="code-block"]') as HTMLElement | null);
+        const codeBody = activeBlock?.querySelector(
+          'pre.vditor-ir__marker--pre > code, pre:not(.vditor-ir__preview) code, code'
+        ) as HTMLElement | null;
+        if (codeBody) {
           instance.focus();
           const range = document.createRange();
-          range.selectNodeContents(codeBody);
-          range.collapse(false);
+          if (codeBody.firstChild) {
+            range.setStart(codeBody.firstChild, 0);
+            range.collapse(true);
+          } else {
+            range.selectNodeContents(codeBody);
+            range.collapse(true);
+          }
           const sel = window.getSelection();
           sel?.removeAllRanges();
           sel?.addRange(range);
-        });
-      }
+        }
+      });
       return;
     }
 
@@ -251,29 +260,104 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
         if (topBlock) {
           // 场景 A：如果光标就在受保护块内部（例如在 Callout、代码块、引用内部）：
           if (isProtectedBlock(topBlock)) {
-            const rawText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
-            // 如果受保护块内部文字已被删空，按 Backspace 干净将其转为普通空白段落
-            if (rawText.length === 0) {
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              ctx.pushVditorUndo();
-              const prev = topBlock.previousElementSibling;
-              const p = document.createElement('p');
-              p.setAttribute('data-block', '0');
-              p.innerHTML = '<br>';
-              topBlock.replaceWith(p);
-              const target = prev ?? p;
-              const newRange = document.createRange();
-              newRange.selectNodeContents(target);
-              newRange.collapse(false);
-              sel.removeAllRanges();
-              sel.addRange(newRange);
-              ctx.pushVditorUndo();
-              ctx.onChangeValue(instance.getValue());
-              return;
+            const isCodeBlock =
+              topBlock.getAttribute('data-type') === 'code-block' || topBlock.tagName === 'PRE';
+
+            if (isCodeBlock) {
+              const anchorNodeEl =
+                range.startContainer instanceof Element
+                  ? range.startContainer
+                  : range.startContainer.parentElement;
+              const inInfoMarker = Boolean(anchorNodeEl?.closest('.vditor-ir__marker--info'));
+              const codeEl = topBlock.querySelector(
+                'pre.vditor-ir__marker--pre > code, pre:not(.vditor-ir__preview) code, code'
+              ) as HTMLElement | null;
+              const codeText = (codeEl?.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+
+              if (!inInfoMarker && codeText.length === 0) {
+                // 代码块正文已空，按 Backspace 干净删除整个代码块转为普通空段落
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                ctx.pushVditorUndo();
+                const prev = topBlock.previousElementSibling;
+                const p = document.createElement('p');
+                p.setAttribute('data-block', '0');
+                p.innerHTML = '<br>';
+                topBlock.replaceWith(p);
+                const target = prev ?? p;
+                const newRange = document.createRange();
+                newRange.selectNodeContents(target);
+                newRange.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                ctx.pushVditorUndo();
+                ctx.onChangeValue(instance.getValue());
+                return;
+              }
+
+              // 代码块正文尚有内容且光标在正文行首时，严禁 Backspace 向上合并撕裂语言标签与圆点
+              if (!inInfoMarker && codeEl && codeEl.contains(range.startContainer)) {
+                try {
+                  const preCodeRange = document.createRange();
+                  preCodeRange.setStart(codeEl, 0);
+                  preCodeRange.setEnd(range.startContainer, range.startOffset);
+                  const preCodeClean = preCodeRange.toString().replace(/[\u200b\ufeff]/g, '');
+                  if (preCodeClean.length === 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    return;
+                  }
+                } catch {
+                  // ignore range errors
+                }
+              }
+
+              // 光标在语言标签行首时，也不允许 Backspace 向上吞并 ``` 标记
+              if (inInfoMarker) {
+                const infoMarker = anchorNodeEl?.closest('.vditor-ir__marker--info') as HTMLElement | null;
+                if (infoMarker) {
+                  try {
+                    const preInfoRange = document.createRange();
+                    preInfoRange.setStart(infoMarker, 0);
+                    preInfoRange.setEnd(range.startContainer, range.startOffset);
+                    if (preInfoRange.toString().replace(/[\u200b\ufeff]/g, '').length === 0) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.stopImmediatePropagation();
+                      return;
+                    }
+                  } catch {
+                    // ignore range errors
+                  }
+                }
+              }
+            } else {
+              const rawText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+              // 如果 Callout / 引用内部文字已被删空，按 Backspace 干净将其转为普通空白段落
+              if (rawText.length === 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                ctx.pushVditorUndo();
+                const prev = topBlock.previousElementSibling;
+                const p = document.createElement('p');
+                p.setAttribute('data-block', '0');
+                p.innerHTML = '<br>';
+                topBlock.replaceWith(p);
+                const target = prev ?? p;
+                const newRange = document.createRange();
+                newRange.selectNodeContents(target);
+                newRange.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+                ctx.pushVditorUndo();
+                ctx.onChangeValue(instance.getValue());
+                return;
+              }
             }
-            // 内部尚有内容时，允许代码块/Callout 内自由删除，绝不阻断
+            // 内部尚有内容且非边界时，允许代码块/Callout 内自由删除，绝不阻断
           } else {
             // 场景 B：当前块是普通段落/标题等（!isProtectedBlock(topBlock)）
             try {
@@ -370,7 +454,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               e.stopImmediatePropagation();
               ctx.pushVditorUndo();
 
-              // 删除前缀文本
+              // 删除前缀文本并插入目标 Markdown + <wbr>，直接调用 Vditor Lute SpinVditorIRDOM 即刻编译
               preRange.deleteContents();
 
               let mdToInsert = '';
@@ -394,8 +478,50 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                 mdToInsert = `${matchHeading[1]} `;
               }
 
-              instance.focus();
-              instance.insertValue(mdToInsert);
+              const v = (instance as unknown as {
+                vditor?: {
+                  lute?: { SpinVditorIRDOM: (html: string) => string };
+                  ir?: { element: HTMLElement };
+                };
+              }).vditor;
+
+              if (v?.lute?.SpinVditorIRDOM) {
+                const textNode = document.createTextNode(mdToInsert);
+                const wbrNode = document.createElement('wbr');
+                preRange.insertNode(wbrNode);
+                preRange.insertNode(textNode);
+
+                const spinTarget = (curBlock.closest('blockquote') as HTMLElement | null) ?? curBlock;
+                const spunHtml = v.lute.SpinVditorIRDOM(spinTarget.outerHTML);
+                const temp = document.createElement('div');
+                temp.innerHTML = spunHtml;
+                const newNodes = Array.from(temp.childNodes);
+                if (newNodes.length > 0) {
+                  spinTarget.replaceWith(...newNodes);
+                }
+
+                const resetContainer =
+                  el.querySelector('.vditor-ir .vditor-reset') ??
+                  el.querySelector('.vditor-reset') ??
+                  el;
+                const wbr = resetContainer.querySelector('wbr');
+                if (wbr && wbr.parentNode) {
+                  const newRange = document.createRange();
+                  const parent = wbr.parentNode;
+                  const idx = Array.prototype.indexOf.call(parent.childNodes, wbr);
+                  wbr.remove();
+                  newRange.setStart(parent, Math.min(idx, parent.childNodes.length));
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                }
+                if (!el.contains(document.activeElement)) {
+                  instance.focus();
+                }
+              } else {
+                instance.focus();
+                instance.insertValue(mdToInsert);
+              }
               ctx.pushVditorUndo();
               ctx.onChangeValue(instance.getValue());
               return;
@@ -562,10 +688,19 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
         const afterText =
           sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
 
-        // 场景 1: 前面已有两个连续反引号（preClean 以 `` 结尾），敲击第 3 个反引号 -> 展开代码块！
+        // 场景 1: 前面已有两个连续反引号（preClean 以 `` 结尾），敲击第 3 个反引号 -> 清除左侧2个与右侧配对1个，展开代码块！
         if (preClean.endsWith('``')) {
-          document.execCommand('delete', false);
-          document.execCommand('delete', false);
+          if (sc.nodeType === Node.TEXT_NODE && range.startOffset >= 2) {
+            const delRange = document.createRange();
+            delRange.setStart(sc, range.startOffset - 2);
+            delRange.setEnd(sc, afterText.startsWith('`') ? range.startOffset + 1 : range.startOffset);
+            selNow.removeAllRanges();
+            selNow.addRange(delRange);
+            document.execCommand('delete', false);
+          } else {
+            document.execCommand('delete', false);
+            document.execCommand('delete', false);
+          }
 
           ctx.pushVditorUndo();
           instance.focus();

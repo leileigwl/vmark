@@ -164,8 +164,12 @@
 /* Empty bold/strong placeholder: never show colored background or padding */
 [data-theme*='-dark'] .vditor-reset strong:empty,
 [data-theme*='-dark'] .vditor-reset b:empty,
+[data-theme*='-dark'] .vditor-reset strong[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset b[data-vcat-empty='1'],
 .vditor-reset strong:empty,
-.vditor-reset b:empty {
+.vditor-reset b:empty,
+.vditor-reset strong[data-vcat-empty='1'],
+.vditor-reset b[data-vcat-empty='1'] {
   background-color: transparent !important;
   padding: 0 !important;
 }
@@ -726,14 +730,28 @@
 .vditor-reset i:empty,
 .vditor-reset s:empty,
 .vditor-reset del:empty,
-.vditor-reset code:empty,
+.vditor-reset :not(pre) > code:empty,
+.vditor-reset strong[data-vcat-empty='1'],
+.vditor-reset b[data-vcat-empty='1'],
+.vditor-reset em[data-vcat-empty='1'],
+.vditor-reset i[data-vcat-empty='1'],
+.vditor-reset s[data-vcat-empty='1'],
+.vditor-reset del[data-vcat-empty='1'],
+.vditor-reset :not(pre) > code[data-vcat-empty='1'],
 [data-theme*='-dark'] .vditor-reset strong:empty,
 [data-theme*='-dark'] .vditor-reset b:empty,
 [data-theme*='-dark'] .vditor-reset em:empty,
 [data-theme*='-dark'] .vditor-reset i:empty,
 [data-theme*='-dark'] .vditor-reset s:empty,
 [data-theme*='-dark'] .vditor-reset del:empty,
-[data-theme*='-dark'] .vditor-reset code:empty {
+[data-theme*='-dark'] .vditor-reset :not(pre) > code:empty,
+[data-theme*='-dark'] .vditor-reset strong[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset b[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset em[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset i[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset s[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset del[data-vcat-empty='1'],
+[data-theme*='-dark'] .vditor-reset :not(pre) > code[data-vcat-empty='1'] {
   background-color: transparent !important;
   background: transparent !important;
   padding: 0 !important;
@@ -743,8 +761,11 @@
 }
 
 .vditor-ir__node[data-type="em"]:has(em:empty) .vditor-ir__marker,
+.vditor-ir__node[data-type="em"]:has(em[data-vcat-empty='1']) .vditor-ir__marker,
 .vditor-ir__node[data-type="s"]:has(s:empty) .vditor-ir__marker,
-.vditor-ir__node[data-type="inline-code"]:has(code:empty) .vditor-ir__marker {
+.vditor-ir__node[data-type="s"]:has(s[data-vcat-empty='1']) .vditor-ir__marker,
+.vditor-ir__node[data-type="inline-code"]:has(code:empty) .vditor-ir__marker,
+.vditor-ir__node[data-type="inline-code"]:has(code[data-vcat-empty='1']) .vditor-ir__marker {
   display: inline !important;
   visibility: visible !important;
   color: var(--text-muted, #8e8e93) !important;

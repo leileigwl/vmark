@@ -91,6 +91,6 @@ export function jumpToMatchInEl(
     hitRange.startContainer instanceof Element
       ? hitRange.startContainer
       : hitRange.startContainer.parentElement;
-  parentEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  parentEl?.scrollIntoView({ behavior: 'auto', block: 'center' });
   return ranges.length;
 }
