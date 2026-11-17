@@ -60,7 +60,12 @@ export function replaceImagesInMemory(
   });
 }
 
-export { uploadLocalImagesForPublish, type ImageUploadFn, type PublishImageUploadResult } from './uploader.ts';
+export {
+  resolveRefererForUrl,
+  uploadLocalImagesForPublish,
+  type ImageUploadFn,
+  type PublishImageUploadResult,
+} from './uploader.ts';
 export {
   buildPicgoEnv,
   createImageBedUploader,

@@ -156,6 +156,35 @@ export interface ArticleSearchResult {
   matchCount: number;
 }
 
+export interface MultiPlatformPublishTarget {
+  platformId: PlatformId;
+  mode: PublishMode;
+}
+
+export interface MultiPlatformPublishPayload {
+  title: string;
+  markdown: string;
+  author?: string;
+  digest?: string;
+  coverImageUrl?: string;
+  showCoverInBody?: boolean;
+  sourceUrl?: string;
+  tags?: string[];
+  includeRemoteImages?: boolean;
+  targets: MultiPlatformPublishTarget[];
+}
+
+export interface MultiPlatformPublishResultItem {
+  platformId: PlatformId;
+  ok: boolean;
+  mode: PublishMode;
+  postId?: string;
+  url?: string;
+  verified?: boolean;
+  uploadedImagesCount?: number;
+  message: string;
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -209,4 +238,7 @@ export interface ElectronAPI {
     showCoverInBody?: boolean;
     sourceUrl?: string;
   }) => Promise<{ ok: true; postId: string; url: string; verified: boolean } | { ok: false; message: string }>;
+  publishMultiPlatform?: (
+    payload: MultiPlatformPublishPayload
+  ) => Promise<{ results: MultiPlatformPublishResultItem[] }>;
 }

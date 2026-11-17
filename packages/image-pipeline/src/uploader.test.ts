@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { saveImageToAssets } from './index.ts';
-import { uploadLocalImagesForPublish } from './uploader.ts';
+import { resolveRefererForUrl, uploadLocalImagesForPublish } from './uploader.ts';
 
 test('uploadLocalImagesForPublish uploads local assets and rewrites markdown in memory', async () => {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vmark-upload-test-'));
@@ -47,4 +47,39 @@ test('uploadLocalImagesForPublish records error for missing image without crashi
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('uploadLocalImagesForPublish downloads anti-hotlink remote images with Referer and skips trusted hosts', async () => {
+  const capturedReferers: Record<string, string | null> = {};
+  const mockFetch: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    capturedReferers[url] = headers.get('Referer');
+    return new Response(Buffer.from('remote-img-bytes'), {
+      status: 200,
+      headers: { 'content-type': 'image/webp' },
+    });
+  };
+
+  const md = [
+    '![zhihu](https://pic1.zhimg.com/v2-abc.jpg)',
+    '![wx](https://mmbiz.qpic.cn/mmbiz_png/already-wx/0?wx_fmt=png)',
+  ].join('\n');
+
+  const res = await uploadLocalImagesForPublish({
+    markdown: md,
+    config: { strategy: 'platform_private' },
+    includeRemote: true,
+    skipHosts: ['mmbiz.qpic.cn'],
+    fetchFn: mockFetch,
+    uploadFn: async (_buf, fileName) => `https://mmbiz.qpic.cn/reuploaded/${fileName}`,
+  });
+
+  assert.equal(res.uploadedCount, 1);
+  assert.equal(res.errors.length, 0);
+  assert.equal(capturedReferers['https://pic1.zhimg.com/v2-abc.jpg'], 'https://www.zhihu.com/');
+  assert.equal(capturedReferers['https://mmbiz.qpic.cn/mmbiz_png/already-wx/0?wx_fmt=png'], undefined);
+  assert.ok(res.markdown.includes('https://mmbiz.qpic.cn/reuploaded/v2-abc.jpg'));
+  assert.ok(res.markdown.includes('https://mmbiz.qpic.cn/mmbiz_png/already-wx/0?wx_fmt=png'));
+  assert.equal(resolveRefererForUrl('https://img-blog.csdnimg.cn/123.png'), 'https://blog.csdn.net/');
 });
