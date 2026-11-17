@@ -772,15 +772,35 @@
   opacity: 0.85 !important;
 }
 
-/* Ordered, Unordered, Task Lists and Blockquote Nested Lists */
-.vditor-reset ol,
-.vditor-reset ul {
-  padding-left: 1.6em !important;
+/* Ordered, Unordered, Task Lists and Blockquote Nested Lists (override Tailwind Preflight list-style: none) */
+.vditor-reset ol {
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.8em !important;
   margin: 0.5em 0 !important;
 }
+.vditor-reset ol ol {
+  list-style-type: lower-alpha !important;
+}
+.vditor-reset ul {
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+  padding-left: 1.8em !important;
+  margin: 0.5em 0 !important;
+}
+.vditor-reset ul ul {
+  list-style-type: circle !important;
+}
+.vditor-reset ul ul ul {
+  list-style-type: square !important;
+}
 .vditor-reset li {
+  display: list-item !important;
   margin: 0.25em 0 !important;
   line-height: 1.75 !important;
+}
+.vditor-reset li.vditor-task {
+  list-style: none !important;
 }
 .vditor-reset li > p {
   margin: 0 !important;
@@ -789,7 +809,7 @@
 .vditor-reset blockquote ol,
 .vditor-reset blockquote ul {
   margin: 0.4em 0 !important;
-  padding-left: 1.4em !important;
+  padding-left: 1.6em !important;
 }
 .vditor-reset ol > li::marker {
   color: var(--accent);

@@ -31,6 +31,8 @@ import { processVditorKeyDownCapture } from '../editor/vditorKeyboard';
 import {
   handleEditorContextMenu,
   handleEditorCopyCapture,
+  handleEditorDragStartCapture,
+  handleEditorDropCapture,
   handleEditorMouseDownCapture,
   handleEditorPasteCapture,
   type PointerEventContext,
@@ -994,6 +996,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
       el.addEventListener('compositionend', handleCompositionEnd, true);
       el.addEventListener('copy', handleCopyCapture, true);
       el.addEventListener('paste', handlePasteCapture, true);
+      el.addEventListener('dragstart', handleEditorDragStartCapture, true);
+      el.addEventListener('drop', handleEditorDropCapture, true);
       window.addEventListener('keydown', handleKeyDownCapture, true);
       el.addEventListener('mousedown', handleMouseDownCapture, true);
       el.addEventListener('mouseup', handleMouseUpCapture, true);
@@ -1015,6 +1019,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         el.removeEventListener('compositionend', handleCompositionEnd, true);
         el.removeEventListener('copy', handleCopyCapture, true);
         el.removeEventListener('paste', handlePasteCapture, true);
+        el.removeEventListener('dragstart', handleEditorDragStartCapture, true);
+        el.removeEventListener('drop', handleEditorDropCapture, true);
         window.removeEventListener('keydown', handleKeyDownCapture, true);
         el.removeEventListener('mousedown', handleMouseDownCapture, true);
         el.removeEventListener('mouseup', handleMouseUpCapture, true);

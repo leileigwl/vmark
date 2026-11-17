@@ -476,6 +476,37 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
             } catch {
               // ignore range errors
             }
+          } else if (e.key === 'Delete') {
+            // 场景 C：当前块在受保护块上方，行尾按 Delete 禁止向下吞并撕裂下方代码块/引用块/表格
+            try {
+              const postRange = document.createRange();
+              postRange.setStart(range.startContainer, range.startOffset);
+              postRange.setEnd(topBlock, topBlock.childNodes.length);
+              const postClean = postRange.toString().replace(/[\u200b\ufeff\s]/g, '');
+              if (postClean.length === 0) {
+                const nextSib = topBlock.nextElementSibling;
+                if (nextSib && isProtectedBlock(nextSib)) {
+                  const fullText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.stopImmediatePropagation();
+                  if (fullText.length === 0) {
+                    ctx.pushVditorUndo();
+                    topBlock.remove();
+                    const newRange = document.createRange();
+                    newRange.selectNodeContents(nextSib);
+                    newRange.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                    ctx.pushVditorUndo();
+                    ctx.onChangeValue(instance.getValue());
+                  }
+                  return;
+                }
+              }
+            } catch {
+              // ignore range errors
+            }
           }
         }
       }
@@ -503,7 +534,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
           (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li') as HTMLElement | null) ??
           anchorEl;
 
-        if (curBlock && el.contains(curBlock)) {
+        if (curBlock && el.contains(curBlock) && !curBlock.classList.contains('vditor-reset')) {
           try {
             const preRange = document.createRange();
             preRange.setStart(curBlock, 0);
@@ -587,9 +618,12 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
                 const wbr = resetContainer.querySelector('wbr');
                 if (wbr && wbr.parentNode) {
                   const newRange = document.createRange();
-                  const parent = wbr.parentNode;
+                  const parent = wbr.parentNode as HTMLElement;
                   const idx = Array.prototype.indexOf.call(parent.childNodes, wbr);
                   wbr.remove();
+                  if (parent.tagName === 'LI' && parent.childNodes.length === 0) {
+                    parent.appendChild(document.createElement('br'));
+                  }
                   newRange.setStart(parent, Math.min(idx, parent.childNodes.length));
                   newRange.collapse(true);
                   sel.removeAllRanges();

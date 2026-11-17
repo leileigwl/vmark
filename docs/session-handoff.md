@@ -1,9 +1,35 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 39 已完成引用空格延迟渲染、整块复制保留与代码块全场景删除隔离，并补充全格式标准参考文章**
-- **上一提交**：`234d86c`（Round 38）
-- **本轮验证**：`pnpm typecheck`（5/5 packages）、`pnpm test`（8/8 tests）、`pnpm --filter @vcat/desktop build` 全部通过。
+- **当前阶段**：**Round 40 深度调试与测试发现（先写文档，调试确认后再改代码）**
+- **上一提交**：`cce7d76`（Round 39）
+
+---
+
+## Round 40 深度测试与调试发现清单
+
+通过 Node 直接实测 `lute.SpinVditorIRDOM`、CSS 级联排查与全路径事件审计，定位以下 4 类核心问题：
+
+### 1. 有序列表（`1.` + 空格）与无序列表（`-` / `*` + 空格）显示不出来的真实根因
+- **Lute 实测结果**：使用 `node` 直接运行 `lute.SpinVditorIRDOM('<p data-block="0">1. <wbr></p>')` 与 `'- <wbr>'`，确认 Lute 已正确返回 `<ol data-tight="true" data-marker="1." data-block="0"><li data-marker="1."><wbr></li></ol>` 与 `<ul ...><li data-marker="-"><wbr></li></ul>`。
+- **真因 A（CSS 被 Tailwind Preflight 吞没）**：全局样式引入的 Tailwind Preflight 默认对所有 `ol, ul` 设置了 `list-style: none;`，而 `editor.css` 仅设置了 `padding-left: 1.6em` 与 `::marker` 颜色，**漏掉了 `list-style-type: decimal !important`（有序列表）与 `list-style-type: disc !important`（无序列表）及嵌套层级 `circle` / `square`**，导致编号与圆点完全不可见。
+- **真因 B（空 `<li>` 塌陷与容器误判）**：`wbr.remove()` 后新建的 `<li></li>` 内部没有任何子节点，Chromium 下空 `<li>` 易发生行高塌陷与光标不可见，需补入 `<br>` 占位；同时 `curBlock` 需排除 `.vditor-reset` 自身，避免极端空文档下误替换整个编辑器根节点。
+- **任务列表兼容**：`li.vditor-task` 必须显式保留 `list-style: none !important`，避免复选框旁边多出圆点。
+
+### 2. 拖拽（Drag & Drop）与跨块拖选删除的隔离漏洞
+- **拖拽漏洞**：编辑器内尚未拦截 `.vditor-ir__marker--info`（语言标签）与 `.vditor-copy` 的 `dragstart` / `drop`，拖拽语言标签或把文本拖入语言标签会直接撕裂代码块外壳。
+- **跨块选区删除漏洞**：当前仅保护了**同一代码块内部**的选区删除（`startTop === endTop`）；当用户从代码块/引用块**跨块拖选**到相邻段落（`startTop !== endTop`）再按 `Backspace` 或 `Delete` 时，浏览器原生删除会把局部 `<pre><code>` / `<blockquote>` 与普通 `<p>` 强行合并，导致格式撕裂。
+
+### 3. `Delete` 键在受保护块上方段落末尾向下吞并漏洞
+- 当前仅拦截了「受保护块下方段落行首按 `Backspace` 向上吞并」；当光标位于代码块 / 引用块 / 表格**上方**普通段落末尾按 `Delete` 时，浏览器原生前向删除同样会把下方的受保护块拉进 `<p>` 中撕毁。
+
+### 4. Round 40 实施与验证计划
+1. **CSS 修复**（`editor.css`）：恢复 `.vditor-reset ol` (`decimal`)、`.vditor-reset ul` (`disc` / `circle` / `square`)、`.vditor-reset li.vditor-task` (`none`) 与嵌套列表样式。
+2. **空格渲染与空 `<li>` 兜底**（`vditorKeyboard.ts`）：排除 `.vditor-reset` 误替换，空 `<li>` 自动补 `<br>` 保证编号与光标立即可见。
+3. **拖拽与跨块/Delete 全隔离**（`vditorPointerEvents.ts` + `vditorKeyboard.ts`）：
+   - 禁止 `dragstart` 拖走 `.vditor-ir__marker--info` 及向其 `drop`；
+   - 拦截跨受保护块选区删除（`startTop !== endTop`）与受保护块上方段落末尾 `Delete` 吞并。
+4. **验证**：运行 `pnpm typecheck && pnpm test && pnpm --filter @vcat/desktop build`，并结合真实 DOM/Lute 测试用例验证后本地提交。
 
 ---
 

@@ -310,3 +310,19 @@ export function handleEditorCopyCapture(
     e.clipboardData?.setData('text/plain', md);
   }
 }
+
+export function handleEditorDragStartCapture(e: DragEvent): void {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('.vditor-ir__marker--info, .vditor-copy, .vcat-code-copy-btn')) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
+export function handleEditorDropCapture(e: DragEvent): void {
+  const target = e.target as HTMLElement | null;
+  if (target?.closest('.vditor-ir__marker--info, .vditor-copy, .vcat-code-copy-btn')) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}

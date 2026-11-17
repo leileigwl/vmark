@@ -312,6 +312,24 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R40_1",
+            title: "R40-1. 恢复有序/无序/嵌套列表标号（覆盖 Tailwind list-style: none）+ 空 li 占位",
+            status: "done",
+            statusText: "Round 40 已修复待核验",
+            img: "media_1794898290392_05313f53.png",
+            desc: "修复 Tailwind Preflight 全局 list-style: none 吞掉 Vditor 有序列表（1. 2. 3.）与无序列表（•）标记的问题，显式恢复 decimal / disc / circle / square（任务列表 li.vditor-task 保持 none）；同时为空 <li> 补充 <br> 占位并防止替换 .vditor-reset 根节点。",
+            plan: "输入 1. + 空格、- + 空格、* + 空格以及在 > 引用内输入 1. + 空格，确认编号与圆点立即清晰显示。"
+          },
+          {
+            id: "R40_2",
+            title: "R40-2. 拖拽防护（语言标签/mac 圆点不可拖放）与受保护块上方行尾 Delete 防吞并",
+            status: "done",
+            statusText: "Round 40 已修复待核验",
+            img: "media_1794900067617_17bbcd2a.png",
+            desc: "新增 dragstart / drop 捕获防护，禁止拖拽或向语言标签/复制按钮投递内容；新增受保护块上方普通段落末尾按 Delete 键拦截，防止向下吞并撕裂代码块、引用块或表格。",
+            plan: "尝试拖拽代码块语言标签与 mac 圆点区域，确认不会被拖走撕裂；在代码块上方行尾按 Delete 确认不吞并下方代码块。"
+          },
+          {
             id: "R39_1",
             title: "R39-1. 引用 `>` 严格等空格才渲染 + 整段引用复制粘贴保留 `>` 前缀",
             status: "done",
