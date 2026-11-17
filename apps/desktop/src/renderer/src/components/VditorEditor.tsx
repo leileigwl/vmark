@@ -978,7 +978,7 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         if (sel && sel.isCollapsed && sel.rangeCount > 0) {
           const sc = sel.getRangeAt(0).startContainer;
           const anchorEl = sc instanceof Element ? sc : sc.parentElement;
-          if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, blockquote, table')) {
+          if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre:not(.vditor-reset), code, blockquote, table')) {
             const curBlock = anchorEl.closest('p, li') as HTMLElement | null;
             const clean = (curBlock?.textContent || '').replace(/[\u200b\ufeff]/g, '');
             if (clean === '>') {
@@ -1123,13 +1123,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           <TableSizePicker
             onConfirm={(cols, rows) => {
               const inst = vditorRef.current;
-              const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
+              const el = containerRef.current;
+              setTablePicker({ open: false, x: 0, y: 0 });
               if (inst && el) {
                 insertTableWithSizeAction(cols, rows, inst, el);
               }
             }}
             onClose={() => {
-              const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
+              const el = containerRef.current;
               el?.querySelector('#vcat-table-placeholder')?.remove();
               setTablePicker({ open: false, x: 0, y: 0 });
             }}

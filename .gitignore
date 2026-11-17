@@ -10,4 +10,6 @@ release/
 *.log
 references/
 apps/desktop/src/renderer/public/vditor/
+test-results/
+playwright-report/
 

@@ -229,6 +229,16 @@ export function cleanEmptyInlineNodes(el: HTMLElement): void {
     }
   }
 
+  // 标记空标题（仅含 # 标记无正文内容），防止失焦后被 Vditor 隐藏导致视觉消失
+  el.querySelectorAll('.vditor-reset h1, .vditor-reset h2, .vditor-reset h3, .vditor-reset h4, .vditor-reset h5, .vditor-reset h6').forEach((h) => {
+    const bodyText = (h.textContent || '').replace(/[\u200b\ufeff\s#]/g, '');
+    if (bodyText.length === 0) {
+      h.setAttribute('data-vcat-empty-heading', '1');
+    } else {
+      h.removeAttribute('data-vcat-empty-heading');
+    }
+  });
+
   // 标记所有空行内格式节点（含仅含零宽字符 \u200b / \ufeff 的情况），供 CSS 彻底去胶囊色块
   const allInlineTags = el.querySelectorAll(
     '.vditor-reset strong, .vditor-reset b, .vditor-reset em, .vditor-reset i, .vditor-reset s, .vditor-reset del, .vditor-reset :not(pre) > code'

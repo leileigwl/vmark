@@ -127,6 +127,21 @@
   background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 8%, transparent)) !important;
   pointer-events: none !important;
 }
+.vditor-reset h1[data-vcat-empty-heading='1'] .vditor-ir__marker--heading,
+.vditor-reset h2[data-vcat-empty-heading='1'] .vditor-ir__marker--heading,
+.vditor-reset h3[data-vcat-empty-heading='1'] .vditor-ir__marker--heading,
+.vditor-reset h4[data-vcat-empty-heading='1'] .vditor-ir__marker--heading,
+.vditor-reset h5[data-vcat-empty-heading='1'] .vditor-ir__marker--heading,
+.vditor-reset h6[data-vcat-empty-heading='1'] .vditor-ir__marker--heading {
+  display: inline !important;
+  width: auto !important;
+  height: auto !important;
+  opacity: 0.85 !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  color: var(--text-main) !important;
+}
+
 .vditor-reset h3 {
   font-size: 1.38em !important;
   line-height: 1.43 !important;

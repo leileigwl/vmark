@@ -1,8 +1,14 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Round 40 深度调试与测试发现（先写文档，调试确认后再改代码）**
-- **上一提交**：`cce7d76`（Round 39）
+- **当前阶段**：**Round 41 已接入 Playwright 真实 Chromium E2E 测试套件（8/8 通过）并根治 `pre.vditor-reset` 误判与 `/table` 容器选择器 Bug**
+- **上一提交**：`954c783`（Round 40）
+
+### Round 41 E2E 实测暴露并根治的隐藏真因
+1. **列表/引用按空格不渲染的隐藏真因**：Vditor IR 的编辑区根节点本身是 `<pre class="vditor-reset">`，导致 `anchorEl.closest('pre, ...')` 对所有普通段落全部返回 `PRE`，彻底屏蔽了空格即刻渲染与 `>` 延迟编译；已全面替换为 `pre:not(.vditor-reset)`。
+2. **`/table` 点击确定不插入的真因**：`VditorEditor.tsx` 传入了 `containerRef.current?.querySelector('.vditor')`（返回 `null`），已改为 `containerRef.current` 并补充确认后自动关闭弹窗。
+3. **代码块语言 hint `Tab`/`Enter` 检测**：`hintEl.offsetParent !== null` 对 `position: fixed` 弹窗返回 `false`，改为 `hintEl.getBoundingClientRect().height > 0`。
+4. **空标题失焦保持大号黑体**：`vditorDomEnhancer` 为无正文标题打上 `data-vcat-empty-heading="1"`，CSS 保持 `.vditor-ir__marker--heading` 继承标题大号粗体且不消失。
 
 ---
 

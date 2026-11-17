@@ -100,7 +100,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     const hintButtons = hintEl ? Array.from(hintEl.querySelectorAll('button')) : [];
     const hintVisible = Boolean(
       hintEl &&
-      hintEl.offsetParent !== null &&
+      hintEl.getBoundingClientRect().height > 0 &&
       window.getComputedStyle(hintEl).display !== 'none' &&
       hintButtons.length > 0
     );
@@ -528,8 +528,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       const sc = range.startContainer;
       const anchorEl = sc instanceof Element ? sc : sc.parentElement;
 
-      // 仅在非代码块、非表格、非语言提示框中处理
-      if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, .vditor-ir__marker--info, table')) {
+      // 仅在非代码块、非表格、非语言提示框中处理（排除根容器 pre.vditor-reset）
+      if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre:not(.vditor-reset), code, .vditor-ir__marker--info, table')) {
         const curBlock =
           (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li') as HTMLElement | null) ??
           anchorEl;
@@ -640,8 +640,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
               ctx.onChangeValue(instance.getValue());
               return;
             }
-          } catch {
-            // ignore range error
+          } catch (err) {
+            console.error('[vcat] space-render error:', err);
           }
         }
       }

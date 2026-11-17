@@ -312,6 +312,15 @@
         subtitle: "打勾后自动隐藏 · 仅展示每次最新修改与未打勾项",
         items: [
           {
+            id: "R41_1",
+            title: "R41-1. 接入 Playwright 真实浏览器 E2E 测试（8/8 通过）+ 根治空格渲染与 /table 失效",
+            status: "done",
+            statusText: "Round 41 已实测通过",
+            img: "media_1794906001725_73496064.png",
+            desc: "建立 apps/desktop/tests/editor.spec.ts 8 项 Chromium E2E 测试并暴露根治 4 个真实 Bug：1. 排除根容器 pre.vditor-reset 让 1./-/[]/> 空格即刻渲染生效；2. 修复 /table 弹窗传入 null 容器导致无法插入表格；3. 修复 hintEl.offsetParent 对 fixed 弹窗失效导致 Enter/Tab 漏判；4. 空标题 data-vcat-empty-heading='1' 失焦仍保持大号粗体。",
+            plan: "在桌面端实测 ### + 空格失焦、代码块选语言按 Tab/Enter、连续 3 个反引号、/table 3x4 以及 1./- + 空格即刻渲染。"
+          },
+          {
             id: "R40_1",
             title: "R40-1. 恢复有序/无序/嵌套列表标号（覆盖 Tailwind list-style: none）+ 空 li 占位",
             status: "done",
