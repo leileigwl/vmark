@@ -79,11 +79,21 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
     await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
-    // Switch to 多平台分发 / Git tab, verify auth states, select multiple platforms and dispatch
+    // Switch to 多平台分发 / Git tab, verify auth states and pre-flight interception
     await page.getByRole('button', { name: '多平台分发 / Git' }).click();
     await expect(page.getByRole('button', { name: '刷新账号检测状态' })).toBeVisible();
+
+    // Check GitHub (authed) + Cnblogs (unauthed)
     await page.getByRole('checkbox', { name: /GitHub 静态博客/ }).check();
-    await page.getByRole('button', { name: /一键分发至所选平台 \(2\)/ }).click();
+    await page.getByRole('checkbox', { name: /博客园 \(Cnblogs\)/ }).check();
+
+    // Trigger publish -> should be intercepted by Pre-flight check
+    await page.getByRole('button', { name: /一键分发至所选平台 \(3\)/ }).click();
+    await expect(page.getByText('⚠️ 前置强校验拦截：检测到以下已勾选平台尚未完成授权登录')).toBeVisible();
+    await expect(page.getByText('博客园 (Cnblogs)').first()).toBeVisible();
+
+    // Click "一键排除故障平台，继续发布健康平台"
+    await page.getByRole('button', { name: /一键排除故障平台，继续发布健康平台 \(2\)/ }).click();
     await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-weixin）/)).toBeVisible();
     await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-github_static）/)).toBeVisible();
     await page.getByRole('button', { name: '关闭' }).click();

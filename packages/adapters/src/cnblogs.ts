@@ -61,8 +61,8 @@ export class CnblogsAdapter implements PlatformAdapter {
   readonly descriptor: PlatformDescriptor = {
     id: 'cnblogs',
     name: '博客园 (Cnblogs)',
-    supportedModes: ['draft', 'direct'],
-    defaultMode: 'draft',
+    supportedModes: ['direct', 'draft'],
+    defaultMode: 'direct',
     authChannel: 'metaweblog',
     riskLevel: 'low',
     referenceSource: 'references/siyuan-plugin-publisher/src/adaptors/api/cnblogs',
