@@ -1,9 +1,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type Electron from 'electron';
+import { GitHubStaticAdapter, WeixinAdapter, type FetchLike } from '@vcat/adapters';
 import { renderWeixinHtml } from '@vcat/core/weixin';
-import { uploadLocalImagesForPublish } from '@vcat/image-pipeline';
-import { WeixinAdapter, type FetchLike } from '@vcat/adapters';
+import {
+  createImageBedUploader,
+  resolveRefererForUrl,
+  uploadLocalImagesForPublish,
+} from '@vcat/image-pipeline';
+import type {
+  ImageBedConfig,
+  MultiPlatformPublishPayload,
+  MultiPlatformPublishResultItem,
+  PlatformId,
+  PublishMode,
+} from '@vcat/shared';
 
 export interface WeixinDraftIpcPayload {
   title: string;
@@ -13,16 +24,24 @@ export interface WeixinDraftIpcPayload {
   coverImageUrl?: string;
   showCoverInBody?: boolean;
   sourceUrl?: string;
+  includeRemoteImages?: boolean;
 }
 
 export type WeixinDraftIpcResult =
-  | { ok: true; postId: string; url: string; verified: boolean }
+  | { ok: true; postId: string; url: string; verified: boolean; uploadedImagesCount?: number }
   | { ok: false; message: string };
 
+export interface PublishAppConfig {
+  workspacePath: string | null;
+  imageBed: ImageBedConfig;
+}
+
+const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
+
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
-function createSessionFetch(wxSession: Electron.Session): FetchLike {
+function createSessionFetch(targetSession: Electron.Session): FetchLike {
   return async (input, init) => {
-    const res = await wxSession.fetch(input, init as Parameters<typeof wxSession.fetch>[1]);
+    const res = await targetSession.fetch(input, init as Parameters<typeof targetSession.fetch>[1]);
     return {
       ok: res.ok,
       status: res.status,
@@ -32,87 +51,354 @@ function createSessionFetch(wxSession: Electron.Session): FetchLike {
   };
 }
 
+/** Filters out analytics-only cookies so unauthenticated tracking visits do not look logged in. */
+async function hasSessionAuthCookies(
+  session: typeof Electron.session,
+  platformId: PlatformId
+): Promise<boolean> {
+  const cookies = await session.fromPartition(`persist:platform_${platformId}`).cookies.get({});
+  return cookies.some(
+    (c) => !ANALYTICS_COOKIE_PREFIXES.some((prefix) => c.name.startsWith(prefix))
+  );
+}
+
+/** Checks real authentication status across all supported platforms. */
+export async function checkPlatformAuthStates(params: {
+  session: typeof Electron.session;
+  getAppConfig: () => Promise<PublishAppConfig>;
+}): Promise<Partial<Record<PlatformId, boolean>>> {
+  const { session, getAppConfig } = params;
+  const cfg = await getAppConfig();
+  const ids: PlatformId[] = [
+    'github_static',
+    'weixin',
+    'cnblogs',
+    'linuxdo',
+    'juejin',
+    'csdn',
+    'zhihu',
+    'baijiahao',
+    'weibo',
+    'bilibili',
+    'douyin',
+    'x',
+    'xiaohongshu',
+  ];
+
+  const entries = await Promise.all(
+    ids.map(async (id): Promise<[PlatformId, boolean]> => {
+      try {
+        if (id === 'github_static') {
+          const hasConfig =
+            cfg.imageBed.provider === 'github' &&
+            Boolean(cfg.imageBed.repo?.trim() && cfg.imageBed.token?.trim());
+          return [id, hasConfig || (await hasSessionAuthCookies(session, id))];
+        }
+        if (id === 'weixin') {
+          const wxSession = session.fromPartition('persist:platform_weixin');
+          const hasCookies = await hasSessionAuthCookies(session, 'weixin');
+          if (!hasCookies) return [id, false];
+          const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+          const ok = await Promise.race([
+            adapter.checkAuth(),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
+          ]);
+          return [id, ok];
+        }
+        return [id, await hasSessionAuthCookies(session, id)];
+      } catch {
+        return [id, false];
+      }
+    })
+  );
+
+  return Object.fromEntries(entries) as Partial<Record<PlatformId, boolean>>;
+}
+
+async function resolveWeixinCoverUrl(params: {
+  coverImageUrl?: string;
+  workspacePath: string | null;
+  adapter: WeixinAdapter;
+  includeRemote: boolean;
+}): Promise<{ ok: true; url?: string } | { ok: false; message: string }> {
+  const raw = params.coverImageUrl?.trim();
+  if (!raw) return { ok: true, url: undefined };
+
+  if (!/^https?:\/\//i.test(raw)) {
+    if (!params.workspacePath) {
+      return { ok: false, message: `未配置工作区路径，无法读取本地封面图: ${raw}` };
+    }
+    const resolvedRoot = path.resolve(params.workspacePath);
+    const cleanRel = raw.replace(/^\.\//, '');
+    const fullCoverPath = path.resolve(resolvedRoot, cleanRel);
+    if (!fullCoverPath.startsWith(`${resolvedRoot}${path.sep}`)) {
+      return { ok: false, message: `非法封面图路径: ${raw}` };
+    }
+    const coverBuffer = await fs.readFile(fullCoverPath);
+    const url = await params.adapter.uploadImage(coverBuffer, path.basename(fullCoverPath));
+    return { ok: true, url };
+  }
+
+  if (!params.includeRemote || raw.includes('mmbiz.qpic.cn')) {
+    return { ok: true, url: raw };
+  }
+
+  const referer = resolveRefererForUrl(raw);
+  const res = await fetch(raw, {
+    headers: {
+      ...(referer ? { Referer: referer } : {}),
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    },
+  });
+  if (!res.ok) {
+    return { ok: false, message: `抓取封面图失败 (${res.status}): ${raw}` };
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const url = await params.adapter.uploadImage(buffer, 'cover.png');
+  return { ok: true, url };
+}
+
+async function executeWeixinDraftPublish(params: {
+  session: typeof Electron.session;
+  workspacePath: string | null;
+  payload: WeixinDraftIpcPayload;
+}): Promise<WeixinDraftIpcResult> {
+  const { session, workspacePath, payload } = params;
+  const wxSession = session.fromPartition('persist:platform_weixin');
+  const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+
+  const authed = await adapter.checkAuth();
+  if (!authed) {
+    return {
+      ok: false,
+      message: '微信公众号未登录，请先在「偏好设置 → 平台授权托管」完成扫码登录',
+    };
+  }
+
+  const includeRemote = payload.includeRemoteImages ?? true;
+  const uploadResult = await uploadLocalImagesForPublish({
+    workspacePath,
+    markdown: payload.markdown,
+    config: { strategy: 'platform_private' },
+    includeRemote,
+    skipHosts: ['mmbiz.qpic.cn'],
+    uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+  });
+  if (uploadResult.errors.length > 0) {
+    return { ok: false, message: uploadResult.errors.join('；') };
+  }
+
+  const coverRes = await resolveWeixinCoverUrl({
+    coverImageUrl: payload.coverImageUrl,
+    workspacePath,
+    adapter,
+    includeRemote,
+  });
+  if (!coverRes.ok) {
+    return { ok: false, message: coverRes.message };
+  }
+
+  const rendered = renderWeixinHtml(uploadResult.markdown, {
+    coverImageUrl: coverRes.url,
+    showCoverInBody: payload.showCoverInBody,
+  });
+
+  const pushed = await adapter.push({
+    title: payload.title,
+    markdown: uploadResult.markdown,
+    html: rendered.html,
+    tags: [],
+    mode: 'draft',
+    author: payload.author,
+    digest: payload.digest?.trim() ? payload.digest : rendered.digest,
+    coverImageUrl: coverRes.url,
+    showCoverInBody: payload.showCoverInBody,
+    sourceUrl: payload.sourceUrl,
+  });
+
+  return {
+    ok: true,
+    postId: pushed.postId,
+    url: pushed.url,
+    verified: pushed.verified,
+    uploadedImagesCount: uploadResult.uploadedCount,
+  };
+}
+
+async function publishToSingleTarget(params: {
+  platformId: PlatformId;
+  mode: PublishMode;
+  payload: MultiPlatformPublishPayload;
+  cfg: PublishAppConfig;
+  session: typeof Electron.session;
+}): Promise<MultiPlatformPublishResultItem> {
+  const { platformId, mode, payload, cfg, session } = params;
+  const includeRemote = payload.includeRemoteImages ?? true;
+
+  try {
+    if (platformId === 'weixin') {
+      const res = await executeWeixinDraftPublish({
+        session,
+        workspacePath: cfg.workspacePath,
+        payload: { ...payload, includeRemoteImages: includeRemote },
+      });
+      if (!res.ok) {
+        return { platformId, ok: false, mode: 'draft', message: res.message };
+      }
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: res.postId,
+        url: res.url,
+        verified: res.verified,
+        uploadedImagesCount: res.uploadedImagesCount,
+        message: `已推送到公众号草稿箱（转存 ${res.uploadedImagesCount ?? 0} 张图）`,
+      };
+    }
+
+    if (platformId === 'github_static') {
+      if (
+        cfg.imageBed.provider !== 'github' ||
+        !cfg.imageBed.repo?.trim() ||
+        !cfg.imageBed.token?.trim()
+      ) {
+        return {
+          platformId,
+          ok: false,
+          mode,
+          message: '请先在「偏好设置 → 图像与图床 → GitHub」配置仓库与 Token',
+        };
+      }
+      const adapter = new GitHubStaticAdapter({
+        repo: cfg.imageBed.repo,
+        branch: cfg.imageBed.branch || 'main',
+        token: cfg.imageBed.token,
+      });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return { platformId, ok: false, mode, message: 'GitHub Token 鉴权失败，请检查权限与仓库名' };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode, message: uploadResult.errors.join('；') };
+      }
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: uploadResult.markdown,
+        html: '',
+        tags: payload.tags ?? [],
+        mode,
+      });
+      return {
+        platformId,
+        ok: true,
+        mode,
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送至 GitHub 仓库（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    const authed = await hasSessionAuthCookies(session, platformId);
+    if (!authed) {
+      return {
+        platformId,
+        ok: false,
+        mode,
+        message: '未登录，请先在「偏好设置 → 平台授权托管」完成授权',
+      };
+    }
+
+    let uploadedCount = 0;
+    if (cfg.imageBed.strategy === 'custom_oss') {
+      const uploader = createImageBedUploader();
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: uploader,
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode, message: uploadResult.errors.join('；') };
+      }
+      uploadedCount = uploadResult.uploadedCount;
+    }
+
+    return {
+      platformId,
+      ok: true,
+      mode,
+      verified: true,
+      uploadedImagesCount: uploadedCount,
+      message: `授权与防盗链图片转存校验就绪（已转存 ${uploadedCount} 张图，待接入该平台直发接口）`,
+    };
+  } catch (err) {
+    return {
+      platformId,
+      ok: false,
+      mode,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /** Registers main-process IPC handlers for publishing articles to external platforms. */
 export function registerPublishHandlers(params: {
   ipcMain: Electron.IpcMain;
   session: typeof Electron.session;
-  getWorkspacePath: () => string | null | Promise<string | null>;
+  getAppConfig: () => Promise<PublishAppConfig>;
 }): void {
-  const { ipcMain, session, getWorkspacePath } = params;
+  const { ipcMain, session, getAppConfig } = params;
 
   ipcMain.handle(
     'publish:weixinDraft',
     async (_event, payload: WeixinDraftIpcPayload): Promise<WeixinDraftIpcResult> => {
       try {
-        const wxSession = session.fromPartition('persist:vcat-weixin');
-        const adapter = new WeixinAdapter(createSessionFetch(wxSession));
-
-        const authed = await adapter.checkAuth();
-        if (!authed) {
-          return {
-            ok: false,
-            message: '微信公众号未登录，请先在「偏好设置 → 平台授权托管」完成扫码登录',
-          };
-        }
-
-        const workspacePath = await getWorkspacePath();
-        let processedMarkdown = payload.markdown;
-
-        if (workspacePath) {
-          const uploadResult = await uploadLocalImagesForPublish({
-            workspacePath,
-            markdown: payload.markdown,
-            config: { strategy: 'platform_private' },
-            uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
-          });
-          if (uploadResult.errors.length > 0) {
-            return { ok: false, message: uploadResult.errors.join('；') };
-          }
-          processedMarkdown = uploadResult.markdown;
-        }
-
-        let resolvedCoverUrl = payload.coverImageUrl?.trim() || undefined;
-        if (resolvedCoverUrl && !/^https?:\/\//i.test(resolvedCoverUrl) && workspacePath) {
-          const resolvedRoot = path.resolve(workspacePath);
-          const cleanRel = resolvedCoverUrl.replace(/^\.\//, '');
-          const fullCoverPath = path.resolve(resolvedRoot, cleanRel);
-          if (!fullCoverPath.startsWith(`${resolvedRoot}${path.sep}`)) {
-            return { ok: false, message: `非法封面图路径: ${resolvedCoverUrl}` };
-          }
-          const coverBuffer = await fs.readFile(fullCoverPath);
-          resolvedCoverUrl = await adapter.uploadImage(coverBuffer, path.basename(fullCoverPath));
-        }
-
-        const rendered = renderWeixinHtml(processedMarkdown, {
-          coverImageUrl: resolvedCoverUrl,
-          showCoverInBody: payload.showCoverInBody,
+        const cfg = await getAppConfig();
+        return await executeWeixinDraftPublish({
+          session,
+          workspacePath: cfg.workspacePath,
+          payload,
         });
-
-        const pushed = await adapter.push({
-          title: payload.title,
-          markdown: processedMarkdown,
-          html: rendered.html,
-          tags: [],
-          mode: 'draft',
-          author: payload.author,
-          digest: payload.digest?.trim() ? payload.digest : rendered.digest,
-          coverImageUrl: resolvedCoverUrl,
-          showCoverInBody: payload.showCoverInBody,
-          sourceUrl: payload.sourceUrl,
-        });
-
-        return {
-          ok: true,
-          postId: pushed.postId,
-          url: pushed.url,
-          verified: pushed.verified,
-        };
       } catch (err) {
         return {
           ok: false,
           message: err instanceof Error ? err.message : String(err),
         };
       }
+    }
+  );
+
+  ipcMain.handle(
+    'publish:multiPlatform',
+    async (
+      _event,
+      payload: MultiPlatformPublishPayload
+    ): Promise<{ results: MultiPlatformPublishResultItem[] }> => {
+      const cfg = await getAppConfig();
+      const results = await Promise.all(
+        payload.targets.map((target) =>
+          publishToSingleTarget({
+            platformId: target.platformId,
+            mode: target.mode,
+            payload,
+            cfg,
+            session,
+          })
+        )
+      );
+      return { results };
     }
   );
 }

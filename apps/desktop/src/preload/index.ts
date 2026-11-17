@@ -69,6 +69,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('workspace:openLink', href, currentRelativePath),
   publishWeixinDraft: (payload: Parameters<NonNullable<ElectronAPI['publishWeixinDraft']>>[0]) =>
     ipcRenderer.invoke('publish:weixinDraft', payload),
+  publishMultiPlatform: (payload: Parameters<NonNullable<ElectronAPI['publishMultiPlatform']>>[0]) =>
+    ipcRenderer.invoke('publish:multiPlatform', payload),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

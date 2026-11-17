@@ -20,7 +20,7 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
       listFolders: async () => [],
       getImageBedConfig: async () => ({ strategy: 'platform_private' }),
       getStartupConfig: async () => ({ lastArticlePath: 'publish-demo.md', theme: 'apple-light' }),
-      getPlatformAuthStates: async () => ({}),
+      getPlatformAuthStates: async () => ({ weixin: true, github_static: true, cnblogs: false }),
       getGitStatus: async () => ({ isGitRepo: false, branch: '', changedFiles: 0 }),
       readArticle: async () => md,
       saveArticle: async () => ({ ok: true }),
@@ -32,6 +32,17 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
         postId: '10086',
         url: 'https://mp.weixin.qq.com/cgi-bin/appmsg?appmsgid=10086',
         verified: true,
+      }),
+      publishMultiPlatform: async (payload: { targets: Array<{ platformId: string; mode: string }> }) => ({
+        results: payload.targets.map((t) => ({
+          platformId: t.platformId,
+          ok: true,
+          mode: t.mode,
+          postId: `post-${t.platformId}`,
+          verified: true,
+          uploadedImagesCount: 2,
+          message: `已完成分发（转存 2 张防盗链图片）`,
+        })),
       }),
     };
   }, initialMarkdown);
@@ -68,9 +79,13 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
     await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
-    // Switch to Git / 其他平台 tab and close
-    await page.getByRole('button', { name: 'Git / 其他平台' }).click();
-    await expect(page.getByText(/已注册 .* 个适配器/)).toBeVisible();
+    // Switch to 多平台分发 / Git tab, verify auth states, select multiple platforms and dispatch
+    await page.getByRole('button', { name: '多平台分发 / Git' }).click();
+    await expect(page.getByRole('button', { name: '刷新账号检测状态' })).toBeVisible();
+    await page.getByRole('checkbox', { name: /GitHub 静态博客/ }).check();
+    await page.getByRole('button', { name: /一键分发至所选平台 \(2\)/ }).click();
+    await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-weixin）/)).toBeVisible();
+    await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-github_static）/)).toBeVisible();
     await page.getByRole('button', { name: '关闭' }).click();
     await expect(preview).toBeHidden();
   });

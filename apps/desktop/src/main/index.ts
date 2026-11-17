@@ -21,7 +21,7 @@ import type {
   StartupConfig,
 } from '@vcat/shared';
 import { markdownToDocxBuffer } from './exportDocx';
-import { registerPublishHandlers } from './publishHandlers';
+import { checkPlatformAuthStates, registerPublishHandlers } from './publishHandlers';
 
 const execFileAsync = promisify(execFile);
 
@@ -735,28 +735,9 @@ function registerIpcHandlers(): void {
     }
   );
 
-  ipcMain.handle('platform:authStates', async () => {
-    const ids: PlatformId[] = [
-      'weixin',
-      'cnblogs',
-      'linuxdo',
-      'juejin',
-      'csdn',
-      'zhihu',
-      'baijiahao',
-      'weibo',
-      'bilibili',
-      'douyin',
-      'x',
-      'xiaohongshu',
-    ];
-    const states: Partial<Record<PlatformId, boolean>> = {};
-    for (const id of ids) {
-      const cookies = await session.fromPartition(`persist:platform_${id}`).cookies.get({});
-      states[id] = cookies.length > 0;
-    }
-    return states;
-  });
+  ipcMain.handle('platform:authStates', async () =>
+    checkPlatformAuthStates({ session, getAppConfig: readAppConfig })
+  );
 
   ipcMain.handle('git:status', async () => {
     const cfg = await readAppConfig();
@@ -1122,7 +1103,7 @@ app.whenReady().then(() => {
   registerPublishHandlers({
     ipcMain,
     session,
-    getWorkspacePath: async () => (await readAppConfig()).workspacePath,
+    getAppConfig: readAppConfig,
   });
   createWindow();
 

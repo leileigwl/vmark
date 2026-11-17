@@ -1,7 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
 import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
-import type { ArticleMeta, GitStatusInfo } from '@vcat/shared';
+import type {
+  ArticleMeta,
+  GitStatusInfo,
+  MultiPlatformPublishResultItem,
+  PlatformId,
+  PublishMode,
+} from '@vcat/shared';
 
 interface PublishModalProps {
   activeArticle: ArticleMeta | null;
@@ -32,6 +38,65 @@ export function PublishModal({
   const [copyStatus, setCopyStatus] = useState('');
   const [pushingWeixin, setPushingWeixin] = useState(false);
   const [weixinPushMsg, setWeixinPushMsg] = useState('');
+
+  // Multi-platform batch dispatch state
+  const [authStates, setAuthStates] = useState<Partial<Record<PlatformId, boolean>>>({});
+  const [checkingAuth, setCheckingAuth] = useState(false);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['weixin']);
+  const [platformModes, setPlatformModes] = useState<Record<string, PublishMode>>(() =>
+    Object.fromEntries(PLATFORM_CATALOG.map((p) => [p.id, p.defaultMode]))
+  );
+  const [includeRemoteImages, setIncludeRemoteImages] = useState(true);
+  const [pushingMulti, setPushingMulti] = useState(false);
+  const [multiResults, setMultiResults] = useState<MultiPlatformPublishResultItem[]>([]);
+
+  const refreshAuthStates = async () => {
+    if (!window.electronAPI?.getPlatformAuthStates) return;
+    setCheckingAuth(true);
+    try {
+      const states = await window.electronAPI.getPlatformAuthStates();
+      setAuthStates(states ?? {});
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'git') {
+      void refreshAuthStates();
+    }
+  }, [tab]);
+
+  const togglePlatform = (id: PlatformId) => {
+    setSelectedPlatforms((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handlePushMultiPlatform = async () => {
+    if (!window.electronAPI?.publishMultiPlatform || selectedPlatforms.length === 0) return;
+    setPushingMulti(true);
+    setMultiResults([]);
+    try {
+      const res = await window.electronAPI.publishMultiPlatform({
+        title: activeArticle?.title || '未命名文章',
+        markdown,
+        author: author.trim() || undefined,
+        digest: digest.trim() || undefined,
+        coverImageUrl: coverUrl.trim() || undefined,
+        showCoverInBody,
+        sourceUrl: sourceUrl.trim() || undefined,
+        includeRemoteImages,
+        targets: selectedPlatforms.map((platformId) => ({
+          platformId,
+          mode: platformModes[platformId] ?? 'draft',
+        })),
+      });
+      setMultiResults(res.results ?? []);
+    } finally {
+      setPushingMulti(false);
+    }
+  };
 
   const handlePushWeixinDraft = async () => {
     if (!window.electronAPI?.publishWeixinDraft) {
@@ -116,7 +181,7 @@ export function PublishModal({
                   : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
               }`}
             >
-              Git / 其他平台
+              多平台分发 / Git
             </button>
             <button
               type="button"
@@ -232,7 +297,7 @@ export function PublishModal({
             </div>
           </div>
         ) : (
-          <div className="space-y-3 p-4 text-[13px] text-[var(--control-text-color)]">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-[13px] text-[var(--control-text-color)]">
             {gitStatus.isGitRepo && (
               <div className="flex items-center justify-between rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2">
                 <div>
@@ -251,11 +316,95 @@ export function PublishModal({
               </div>
             )}
             {gitPushLog && <div className="text-xs text-[var(--accent)]">{gitPushLog}</div>}
-            <p className="text-xs">
-              其他平台（微信公众号、Linux.do、博客园、掘金、小红书等）已注册 {PLATFORM_CATALOG.length}{' '}
-              个适配器，可在「偏好设置 → 平台授权托管」先完成沙箱登录。
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2 text-xs">
+              <label className="flex cursor-pointer items-center gap-2 text-[var(--text-main)]">
+                <input
+                  type="checkbox"
+                  checked={includeRemoteImages}
+                  onChange={(e) => setIncludeRemoteImages(e.target.checked)}
+                />
+                自动转存第三方防盗链外链图片与本地图片（带平台 Referer 抓取并重写）
+              </label>
+              <button
+                type="button"
+                disabled={checkingAuth}
+                onClick={() => void refreshAuthStates()}
+                className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]"
+              >
+                {checkingAuth ? '检测中…' : '刷新账号检测状态'}
+              </button>
+            </div>
+
+            <div className="divide-y divide-[var(--border-color)] rounded-lg border border-[var(--border-color)]">
+              {PLATFORM_CATALOG.map((p) => {
+                const checked = selectedPlatforms.includes(p.id);
+                const online = Boolean(authStates[p.id]);
+                const currentMode = platformModes[p.id] ?? p.defaultMode;
+                const result = multiResults.find((r) => r.platformId === p.id);
+                return (
+                  <div key={p.id} className="flex flex-col gap-1 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex cursor-pointer items-center gap-2 font-medium text-[var(--text-main)]">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePlatform(p.id)}
+                        />
+                        <span>{p.name}</span>
+                        {online ? (
+                          <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[10px] text-[#116329]">
+                            ● 已授权
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] text-[var(--control-text-color)]">
+                            未登录
+                          </span>
+                        )}
+                      </label>
+                      <select
+                        aria-label={`${p.name} 发布模式`}
+                        value={currentMode}
+                        disabled={p.supportedModes.length <= 1}
+                        onChange={(e) =>
+                          setPlatformModes((prev) => ({
+                            ...prev,
+                            [p.id]: e.target.value as PublishMode,
+                          }))
+                        }
+                        className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-0.5 text-[11px] text-[var(--text-main)]"
+                      >
+                        {p.supportedModes.includes('draft') && <option value="draft">推入草稿箱</option>}
+                        {p.supportedModes.includes('direct') && <option value="direct">直接发布</option>}
+                      </select>
+                    </div>
+                    {result && (
+                      <div
+                        className={`pl-6 text-[11px] ${
+                          result.ok ? 'text-[#116329]' : 'text-[#cf222e]'
+                        }`}
+                      >
+                        {result.ok ? '✓ ' : '✗ '}
+                        {result.message}
+                        {result.postId ? `（ID: ${result.postId}）` : ''}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <button
+                type="button"
+                disabled={pushingMulti || selectedPlatforms.length === 0}
+                onClick={() => void handlePushMultiPlatform()}
+                className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {pushingMulti
+                  ? '正在并行分发…'
+                  : `一键分发至所选平台 (${selectedPlatforms.length})`}
+              </button>
               {activeArticle && (
                 <button
                   type="button"
