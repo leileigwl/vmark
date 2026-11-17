@@ -10,7 +10,7 @@ vcat-publisher-desktop/
 │   └── desktop/                  # Electron + Vite + React 18 桌面端主应用
 │       ├── src/main/             # Electron 主进程（文件 I/O、SQLite、Session 沙箱、IPC）
 │       ├── src/preload/          # ContextBridge 强类型安全桥接
-│       └── src/renderer/         # React 18 + Tailwind + Vditor (Typora 白色 github.css)
+│       └── src/renderer/         # React 18 + Tailwind + Vditor (Apple Light / Bloom 现代主题)
 ├── packages/
 │   ├── shared/                   # 全局 TypeScript 类型契约、错误码、合规检查清单
 │   ├── core/                     # 本地工作区扫描、SQLite 索引层、多平台预览渲染引擎（无模板）
@@ -52,6 +52,12 @@ vcat-publisher-desktop/
 3. `TRANSFORM`（格式编译与微调注入）：合并用户在分发小窗微调的标题/标签/板块分类，编译目标格式（如公众号内联 HTML）。
 4. `PUSH`（草稿箱推送 / 直接发布）：按所选模式调用适配器提交。
 5. `VERIFY_DELIVERY`（送达成功二次检测）：校验返回的 `postId` 与真实可访问链接，回写 SQLite `sync_records`，管理台表格展示具体状态与直达入口。
+
+### 平台草稿反向导入与本地独立管理（Local-First Decoupling 原则）
+为解决用户在各平台历史草稿与文章的归档与再创作诉求，系统建立单向导入通道：
+1. **真实沙箱交互提取**：用户可通过独立工作台沙箱实时查看并一键刷新各平台（微信公众号图文草稿、博客园、掘金等）草稿列表。
+2. **反向落盘转存**：富文本 HTML 经清洗后自动编译为纯净 GFM Markdown，内嵌的平台防盗链图片通过各平台 Referer 抓取并写入本地 `./assets/` 物理文件，彻底离线化。
+3. **彻底切断云端双向绑定**：导入工作区后，文章即为纯粹的本地文件，不与云端保持任何双向强同步或自动覆盖，保证创作者本地数据主权；云端仅负责会话授权与单向分发推送。
 
 ## 4. 安全与合规红线
 

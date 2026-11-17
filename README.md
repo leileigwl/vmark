@@ -12,7 +12,7 @@
 [![Package Manager](https://img.shields.io/badge/pnpm-workspace-F69220.svg)](#自己如何独立打开-vmark维记)
 [![Platforms](https://img.shields.io/badge/Platforms-30%2B%20Supported-2ea44f.svg)](#支持平台与真实发布策略直发--二次确认--后续调用)
 
-[快速启动](#-自己如何独立打开-vmark维记) · [研发分支与 CI/CD 规范](#-研发分支流程与-github-cicd-自动化规范) · [界面预览](#-界面实拍预览) · [第二阶段发布规划](docs/02-design/phase2-publish-plan.md) · [常见问题 FAQ](#-常见问题-faq)
+[快速启动](#-自己如何独立打开-vmark维记) · [研发分支与 CI/CD 规范](#-研发分支流程与-github-cicd-自动化规范) · [界面预览](#-界面实拍预览) · [第二阶段发布规划](docs/02-design/phase2-publish-plan.md) · [草稿反向导入与独立管理方案](docs/02-design/platform-import-and-draft-management-plan.md) · [常见问题 FAQ](#-常见问题-faq)
 
 </div>
 
@@ -53,7 +53,9 @@ master (生产分支) ── checkout ──▶ feature-xxxx-YYYYMMDD (功能分
    git tag v0.2.0 && git push origin v0.2.0
    ```
 
-4. **第二阶段规划入口**：编辑器基线已通过 19 项 Playwright E2E 回归，下一步进入 **[第二阶段：多平台发布与分发效果规划](docs/02-design/phase2-publish-plan.md)**（首期聚焦微信公众号草稿箱 + 主题内联 CSS 渲染 + 图床自动上传）。
+4. **第二阶段规划入口**：编辑器基线已通过 Playwright E2E 回归，第二阶段聚焦：
+   - **[多平台发布与分发效果规划](docs/02-design/phase2-publish-plan.md)**（微信公众号草稿箱 + 内联 CSS 渲染 + 图床与防盗链转存）。
+   - **[平台草稿反向导入与本地独立管理方案](docs/02-design/platform-import-and-draft-management-plan.md)**（真实沙箱工作台 + 草稿单向拉取导入 + 本地 Markdown 独立管理，切断云端双向绑定）。
 
 ---
 
