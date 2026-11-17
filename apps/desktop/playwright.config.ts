@@ -7,10 +7,11 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1280, height: 860 },
-    launchOptions: {
-      executablePath:
-        '/Users/leileigwl/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell',
-    },
+    // Use Playwright's own bundled Chromium by default (CI runs `playwright install chromium`).
+    // Set PW_CHROMIUM_PATH locally only if you need a specific browser binary.
+    launchOptions: process.env.PW_CHROMIUM_PATH
+      ? { executablePath: process.env.PW_CHROMIUM_PATH }
+      : {},
   },
   webServer: {
     command: 'npx vite preview --outDir out/renderer --port 4173 --strictPort',
