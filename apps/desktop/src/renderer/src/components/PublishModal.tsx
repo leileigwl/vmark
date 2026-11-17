@@ -1,4 +1,6 @@
+import { useMemo, useState } from 'react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
+import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
 import type { ArticleMeta, GitStatusInfo } from '@vcat/shared';
 
 interface PublishModalProps {
@@ -11,7 +13,7 @@ interface PublishModalProps {
   onSaveArticle: (content: string) => void;
 }
 
-/** Multi-platform publish & local Git CI/CD push modal. */
+/** Multi-platform publish, WeChat Official Account inline-CSS preview & local Git push modal. */
 export function PublishModal({
   activeArticle,
   gitStatus,
@@ -21,57 +23,214 @@ export function PublishModal({
   onGitPush,
   onSaveArticle,
 }: PublishModalProps) {
+  const [tab, setTab] = useState<'weixin' | 'git'>('weixin');
+  const [author, setAuthor] = useState('');
+  const [digest, setDigest] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [showCoverInBody, setShowCoverInBody] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
+
+  const autoDigest = useMemo(() => extractWeixinDigest(markdown), [markdown]);
+  const weixinRendered = useMemo(
+    () =>
+      renderWeixinHtml(markdown, {
+        coverImageUrl: coverUrl,
+        showCoverInBody,
+      }),
+    [markdown, coverUrl, showCoverInBody]
+  );
+
+  const handleCopyWeixinRichText = async () => {
+    try {
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        const htmlBlob = new Blob([weixinRendered.html], { type: 'text/html' });
+        const textBlob = new Blob([markdown], { type: 'text/plain' });
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }),
+        ]);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(weixinRendered.html);
+      }
+      setCopyStatus('已复制公众号富文本 ✓');
+      setTimeout(() => setCopyStatus(''), 2500);
+    } catch {
+      setCopyStatus('复制失败，请检查剪贴板权限');
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-xs">
-      <div className="w-[480px] overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-xs">
+      <div className="flex max-h-[88vh] w-[820px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-elevated)] px-4 py-3 text-sm font-semibold">
           <span>合并分发（{activeArticle?.title ?? '未选择文章'}）</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs text-[var(--control-text-color)] hover:text-[var(--text-main)]"
-          >
-            关闭
-          </button>
-        </div>
-        <div className="space-y-3 p-4 text-[13px] text-[var(--control-text-color)]">
-          {gitStatus.isGitRepo && (
-            <div className="flex items-center justify-between rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2">
-              <div>
-                <div className="font-medium text-[var(--text-main)]">
-                  GitHub 静态博客 ({gitStatus.branch})
-                </div>
-                <div className="text-[11px]">{gitStatus.changedFiles} 项改动待推送</div>
-              </div>
-              <button
-                type="button"
-                onClick={onGitPush}
-                className="rounded bg-[var(--accent)] px-2.5 py-1 text-xs text-white hover:opacity-90"
-              >
-                Commit & Push
-              </button>
-            </div>
-          )}
-          {gitPushLog && <div className="text-xs text-[var(--accent)]">{gitPushLog}</div>}
-          <p className="text-xs">
-            其他平台（微信公众号、Linux.do、博客园、掘金、小红书等）已注册 {PLATFORM_CATALOG.length}{' '}
-            个适配器，可在「偏好设置 → 平台授权托管」先完成沙箱登录。
-          </p>
-          <div className="flex justify-end gap-2 pt-2">
-            {activeArticle && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSaveArticle(markdown);
-                  onClose();
-                }}
-                className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
-              >
-                保存本地文章
-              </button>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTab('weixin')}
+              className={`rounded px-2.5 py-1 text-xs font-medium ${
+                tab === 'weixin'
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              微信公众号排版
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('git')}
+              className={`rounded px-2.5 py-1 text-xs font-medium ${
+                tab === 'git'
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
+              }`}
+            >
+              Git / 其他平台
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-2 text-xs text-[var(--control-text-color)] hover:text-[var(--text-main)]"
+            >
+              关闭
+            </button>
           </div>
         </div>
+
+        {tab === 'weixin' ? (
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-2">
+            <div className="space-y-3 text-xs">
+              <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] p-3">
+                <div className="mb-2 font-semibold text-[var(--text-main)]">头图与副文本元信息</div>
+                <label className="mb-2 block">
+                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">
+                    头图 / 封面图 URL（建议 2.35:1 如 900×383）
+                  </span>
+                  <input
+                    type="text"
+                    value={coverUrl}
+                    onChange={(e) => setCoverUrl(e.target.value)}
+                    placeholder="https://... 或 ./assets/cover.png"
+                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+                <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--control-text-color)]">
+                  <input
+                    type="checkbox"
+                    checked={showCoverInBody}
+                    onChange={(e) => setShowCoverInBody(e.target.checked)}
+                  />
+                  在正文顶部同时展示封面图
+                </label>
+                <label className="mb-2 block">
+                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">作者</span>
+                  <input
+                    type="text"
+                    value={author}
+                    onChange={(e) => setAuthor(e.target.value)}
+                    placeholder="选填，如：Vmark 作者"
+                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+                <label className="mb-2 block">
+                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">
+                    摘要（留空将自动提取正文前 120 字）
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={digest}
+                    onChange={(e) => setDigest(e.target.value)}
+                    placeholder={autoDigest || '文章摘要…'}
+                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">阅读原文链接</span>
+                  <input
+                    type="text"
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyWeixinRichText()}
+                  className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                >
+                  一键复制公众号富文本
+                </button>
+                {activeArticle && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSaveArticle(markdown);
+                      onClose();
+                    }}
+                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
+                  >
+                    保存本地文章
+                  </button>
+                )}
+                {copyStatus && <span className="text-xs text-[var(--accent)]">{copyStatus}</span>}
+              </div>
+            </div>
+
+            <div className="flex min-h-[320px] flex-col overflow-hidden rounded-lg border border-[var(--border-color)] bg-white text-[#333]">
+              <div className="border-b border-black/10 bg-[#f7f7f7] px-3 py-2 text-[11px] font-medium text-[#555]">
+                公众号行内 CSS 排版预览（外链已转为文末脚注：{weixinRendered.footnotes.length} 条）
+              </div>
+              <div
+                data-testid="weixin-preview"
+                className="flex-1 overflow-y-auto p-3"
+                dangerouslySetInnerHTML={{ __html: weixinRendered.html }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 p-4 text-[13px] text-[var(--control-text-color)]">
+            {gitStatus.isGitRepo && (
+              <div className="flex items-center justify-between rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2">
+                <div>
+                  <div className="font-medium text-[var(--text-main)]">
+                    GitHub 静态博客 ({gitStatus.branch})
+                  </div>
+                  <div className="text-[11px]">{gitStatus.changedFiles} 项改动待推送</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onGitPush}
+                  className="rounded bg-[var(--accent)] px-2.5 py-1 text-xs text-white hover:opacity-90"
+                >
+                  Commit & Push
+                </button>
+              </div>
+            )}
+            {gitPushLog && <div className="text-xs text-[var(--accent)]">{gitPushLog}</div>}
+            <p className="text-xs">
+              其他平台（微信公众号、Linux.do、博客园、掘金、小红书等）已注册 {PLATFORM_CATALOG.length}{' '}
+              个适配器，可在「偏好设置 → 平台授权托管」先完成沙箱登录。
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              {activeArticle && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSaveArticle(markdown);
+                    onClose();
+                  }}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
+                >
+                  保存本地文章
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

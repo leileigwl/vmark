@@ -59,3 +59,5 @@ export function replaceImagesInMemory(
     return mapped ? `![${alt}](${mapped})` : full;
   });
 }
+
+export { uploadLocalImagesForPublish, type ImageUploadFn, type PublishImageUploadResult } from './uploader.ts';
