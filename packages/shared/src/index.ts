@@ -102,7 +102,6 @@ export interface GitStatusInfo {
 
 export type ThemeId =
   | 'apple-light'
-  | 'typora-white'
   | 'custom-typora'
   | 'bloom-amber'
   | 'bloom-amber-dark'
@@ -180,6 +179,7 @@ export interface ElectronAPI {
     base64Data: string,
     ext: string
   ) => Promise<{ relativeMarkdownPath: string; fullPath: string }>;
+  uploadRemoteImage?: (base64Data: string, fileName: string) => Promise<{ url: string }>;
   getImageBedConfig: () => Promise<ImageBedConfig>;
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
   testImageBedUpload: (config: ImageBedConfig) => Promise<{ ok: boolean; url?: string; message: string }>;

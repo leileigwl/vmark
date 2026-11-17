@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { constants as fsConstants } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,9 +7,64 @@ import { promisify } from 'node:util';
 import type { ImageBedConfig } from '@vcat/shared';
 import type { ImageUploadFn } from './uploader.ts';
 
-const execFileAsync = promisify(execFile);
+const defaultExecFileAsync = promisify(execFile);
 
 export type FetchFn = typeof fetch;
+export type ExecFileFn = (
+  file: string,
+  args: string[],
+  options?: { env?: NodeJS.ProcessEnv; timeout?: number }
+) => Promise<{ stdout: string; stderr: string }>;
+
+function getExtraBinDirs(): string[] {
+  const home = os.homedir();
+  const dirs = [
+    path.join(home, '.local', 'share', 'pnpm'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    path.join(home, '.npm-global', 'bin'),
+    path.join(home, '.yarn', 'bin'),
+    '/usr/bin',
+    '/bin',
+  ];
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    dirs.unshift(path.join(process.env.APPDATA, 'npm'));
+  }
+  return dirs;
+}
+
+/** Builds an environment with common Node/pnpm/Homebrew bin directories on PATH for GUI Electron apps. */
+export function buildPicgoEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const currentPath = baseEnv.PATH ?? '';
+  const merged = [...currentPath.split(path.delimiter).filter(Boolean), ...getExtraBinDirs()];
+  const deduped = Array.from(new Set(merged));
+  return { ...baseEnv, PATH: deduped.join(path.delimiter) };
+}
+
+/** Resolves the PicGo-Core CLI binary path, falling back across common macOS/Linux/Windows install locations. */
+export async function resolvePicgoBinary(customPath?: string): Promise<string> {
+  const trimmed = customPath?.trim();
+  if (trimmed) {
+    return trimmed.startsWith('~/') ? path.join(os.homedir(), trimmed.slice(2)) : trimmed;
+  }
+
+  const binName = process.platform === 'win32' ? 'picgo.cmd' : 'picgo';
+  const searchDirs = [
+    ...(process.env.PATH ?? '').split(path.delimiter).filter(Boolean),
+    ...getExtraBinDirs(),
+  ];
+
+  for (const dir of Array.from(new Set(searchDirs))) {
+    const candidate = path.join(dir, binName);
+    try {
+      await fs.access(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {
+      // try next candidate
+    }
+  }
+  return 'picgo';
+}
 
 interface SmmsResponse {
   success?: boolean;
@@ -128,20 +184,26 @@ async function uploadToSmms(
 async function uploadWithPicgoCore(
   buffer: Buffer,
   fileName: string,
-  config: ImageBedConfig
+  config: ImageBedConfig,
+  execFileFn: ExecFileFn = defaultExecFileAsync
 ): Promise<string> {
-  const picgoBin = config.picgoPath?.trim() || 'picgo';
+  const picgoBin = await resolvePicgoBinary(config.picgoPath);
   const cleanName = sanitizeFileName(fileName);
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vcat-picgo-'));
   const tempFile = path.join(tmpDir, cleanName);
 
   try {
     await fs.writeFile(tempFile, buffer);
-    const { stdout } = await execFileAsync(picgoBin, ['upload', tempFile]);
+    const { stdout, stderr } = await execFileFn(picgoBin, ['upload', tempFile], {
+      env: buildPicgoEnv(),
+      timeout: 20000,
+    });
     const urls = stdout.match(/https?:\/\/[^\s'"]+/g);
     const uploadedUrl = urls?.[urls.length - 1];
     if (!uploadedUrl) {
-      throw new Error(`PicGo 上传未返回有效 URL: ${stdout.trim() || '无输出'}`);
+      const errMatch = `${stdout}\n${stderr}`.match(/\[PicGo ERROR\]:?\s*(.+)/i);
+      const detail = errMatch?.[1]?.trim() || stdout.trim() || stderr.trim() || '无输出';
+      throw new Error(`PicGo 上传未返回有效 URL: ${detail}`);
     }
     return uploadedUrl;
   } catch (err) {
@@ -157,7 +219,10 @@ async function uploadWithPicgoCore(
 }
 
 /** Creates an ImageUploadFn supporting GitHub, SM.MS, and PicGo Core providers. */
-export function createImageBedUploader(fetchFn: FetchFn = fetch): ImageUploadFn {
+export function createImageBedUploader(
+  fetchFn: FetchFn = fetch,
+  execFileFn: ExecFileFn = defaultExecFileAsync
+): ImageUploadFn {
   return async (
     buffer: Buffer,
     fileName: string,
@@ -173,7 +238,7 @@ export function createImageBedUploader(fetchFn: FetchFn = fetch): ImageUploadFn 
       case 'smms':
         return uploadToSmms(buffer, fileName, config, fetchFn);
       case 'picgo_core':
-        return uploadWithPicgoCore(buffer, fileName, config);
+        return uploadWithPicgoCore(buffer, fileName, config, execFileFn);
       default:
         throw new Error(`暂不支持的图床服务商: ${config.provider}`);
     }
