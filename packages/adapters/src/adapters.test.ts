@@ -484,3 +484,24 @@ test('BaijiahaoAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> ve
   assert.equal(pushRes.url, 'https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=bjh_art_777');
   assert.equal(await adapter.verifyDelivery('bjh_art_777'), true);
 });
+
+test('Platform adapters return false on authentication failure or expired session', async () => {
+  const unauthFetch: FetchLike = async () => ({
+    ok: false,
+    status: 401,
+    text: async () => 'Unauthorized',
+    json: async () => ({ code: 401, errno: 401, err_no: 401 }),
+  });
+
+  const zhihu = new ZhihuAdapter({ fetchFn: unauthFetch });
+  assert.equal(await zhihu.checkAuth(), false);
+
+  const juejin = new JuejinAdapter({ fetchFn: unauthFetch });
+  assert.equal(await juejin.checkAuth(), false);
+
+  const csdn = new CsdnAdapter({ fetchFn: unauthFetch });
+  assert.equal(await csdn.checkAuth(), false);
+
+  const bjh = new BaijiahaoAdapter({ fetchFn: unauthFetch });
+  assert.equal(await bjh.checkAuth(), false);
+});

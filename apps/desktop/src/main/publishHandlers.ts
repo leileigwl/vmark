@@ -53,17 +53,17 @@ export interface PublishAppConfig {
 const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
 
 export const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
-  weixin: ['slave_user', 'slave_sid', 'data_ticket', 'bizuin'],
+  weixin: ['slave_user', 'slave_sid'],
   zhihu: ['z_c0'],
   cnblogs: ['.CNBlogsCookie', '.Cnblogs.AspNetCore.Cookies', 'Cnblogs.AspNetCore.Cookies'],
-  juejin: ['sessionid'],
+  juejin: ['sessionid', 'sessionid_ss'],
   bilibili: ['SESSDATA'],
   csdn: ['UserName', 'UserToken'],
-  baijiahao: ['BDUSS'],
+  baijiahao: ['BDUSS', 'BDUSS_BFESS'],
   linuxdo: ['_t', '_forum_session'],
   xiaohongshu: ['web_session'],
-  weibo: ['SUB', 'SUBP'],
-  douyin: ['sessionid'],
+  weibo: ['SUB'],
+  douyin: ['sessionid', 'sessionid_ss'],
   x: ['auth_token'],
   github_static: ['ghp_', 'github_pat_'],
 };
@@ -87,11 +87,131 @@ export async function hasSessionAuthCookies(
   platformId: PlatformId
 ): Promise<boolean> {
   const cookies = await session.fromPartition(`persist:platform_${platformId}`).cookies.get({});
-  const specificRules = PLATFORM_AUTH_COOKIE_RULES[platformId];
-  if (!specificRules || specificRules.length === 0) {
+  if (!cookies || cookies.length === 0) {
     return false;
   }
-  return cookies.some((c) => specificRules.some((rule) => c.name.includes(rule)));
+
+  const hasCookie = (matcher: (name: string, value: string) => boolean) =>
+    cookies.some((c) => matcher(c.name, c.value || '') && typeof c.value === 'string' && c.value.trim().length > 0);
+
+  switch (platformId) {
+    case 'weixin':
+      // Weixin Official Account requires BOTH slave_user and slave_sid
+      return hasCookie((n) => n === 'slave_user') && hasCookie((n) => n === 'slave_sid');
+
+    case 'csdn':
+      // CSDN requires BOTH UserName and UserToken
+      return hasCookie((n) => n === 'UserName') && hasCookie((n) => n.startsWith('UserToken'));
+
+    case 'zhihu':
+      return hasCookie((n) => n === 'z_c0');
+
+    case 'cnblogs':
+      return hasCookie(
+        (n) => n === '.CNBlogsCookie' || n === '.Cnblogs.AspNetCore.Cookies' || n === 'Cnblogs.AspNetCore.Cookies'
+      );
+
+    case 'juejin':
+      return hasCookie((n) => n === 'sessionid' || n === 'sessionid_ss');
+
+    case 'bilibili':
+      return hasCookie((n) => n === 'SESSDATA');
+
+    case 'baijiahao':
+      return hasCookie((n) => n === 'BDUSS' || n === 'BDUSS_BFESS');
+
+    case 'xiaohongshu':
+      return hasCookie((n) => n === 'web_session');
+
+    case 'weibo':
+      return hasCookie((n) => n === 'SUB');
+
+    case 'douyin':
+      return hasCookie((n) => n === 'sessionid' || n === 'sessionid_ss');
+
+    case 'linuxdo':
+      return hasCookie((n) => n === '_t' || n === '_forum_session');
+
+    case 'x':
+      return hasCookie((n) => n === 'auth_token');
+
+    case 'github_static':
+      return hasCookie((n) => n.startsWith('ghp_') || n.startsWith('github_pat_'));
+
+    default:
+      return false;
+  }
+}
+
+/** Verifies true authentication for a single platform via cookies and live API check when available. */
+export async function verifyPlatformAuth(params: {
+  session: typeof Electron.session;
+  platformId: PlatformId;
+  getAppConfig: () => Promise<PublishAppConfig>;
+}): Promise<boolean> {
+  const { session, platformId, getAppConfig } = params;
+  try {
+    if (platformId === 'github_static') {
+      const cfg = await getAppConfig();
+      const hasConfig =
+        cfg.imageBed.provider === 'github' &&
+        Boolean(cfg.imageBed.repo?.trim() && cfg.imageBed.token?.trim());
+      return hasConfig || (await hasSessionAuthCookies(session, platformId));
+    }
+
+    const hasCookies = await hasSessionAuthCookies(session, platformId);
+    if (!hasCookies) return false;
+
+    // Deep check for platforms with live verification APIs
+    if (platformId === 'weixin') {
+      const wxSession = session.fromPartition('persist:platform_weixin');
+      const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+      return await Promise.race([
+        adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'juejin') {
+      const jSession = session.fromPartition('persist:platform_juejin');
+      const adapter = new JuejinAdapter({ fetchFn: createSessionFetch(jSession) });
+      return await Promise.race([
+        adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'zhihu') {
+      const zSession = session.fromPartition('persist:platform_zhihu');
+      const adapter = new ZhihuAdapter({ fetchFn: createSessionFetch(zSession) });
+      return await Promise.race([
+        adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'csdn') {
+      const cSession = session.fromPartition('persist:platform_csdn');
+      const adapter = new CsdnAdapter({ fetchFn: createSessionFetch(cSession) });
+      return await Promise.race([
+        adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'baijiahao') {
+      const bSession = session.fromPartition('persist:platform_baijiahao');
+      const adapter = new BaijiahaoAdapter({ fetchFn: createSessionFetch(bSession) });
+      return await Promise.race([
+        adapter.checkAuth(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Checks real authentication status across all supported platforms. */
@@ -100,7 +220,6 @@ export async function checkPlatformAuthStates(params: {
   getAppConfig: () => Promise<PublishAppConfig>;
 }): Promise<Partial<Record<PlatformId, boolean>>> {
   const { session, getAppConfig } = params;
-  const cfg = await getAppConfig();
   const ids: PlatformId[] = [
     'github_static',
     'weixin',
@@ -119,28 +238,8 @@ export async function checkPlatformAuthStates(params: {
 
   const entries = await Promise.all(
     ids.map(async (id): Promise<[PlatformId, boolean]> => {
-      try {
-        if (id === 'github_static') {
-          const hasConfig =
-            cfg.imageBed.provider === 'github' &&
-            Boolean(cfg.imageBed.repo?.trim() && cfg.imageBed.token?.trim());
-          return [id, hasConfig || (await hasSessionAuthCookies(session, id))];
-        }
-        if (id === 'weixin') {
-          const wxSession = session.fromPartition('persist:platform_weixin');
-          const hasCookies = await hasSessionAuthCookies(session, 'weixin');
-          if (!hasCookies) return [id, false];
-          const adapter = new WeixinAdapter(createSessionFetch(wxSession));
-          const ok = await Promise.race([
-            adapter.checkAuth(),
-            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 4000)),
-          ]);
-          return [id, ok];
-        }
-        return [id, await hasSessionAuthCookies(session, id)];
-      } catch {
-        return [id, false];
-      }
+      const ok = await verifyPlatformAuth({ session, platformId: id, getAppConfig });
+      return [id, ok];
     })
   );
 

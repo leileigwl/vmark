@@ -52,7 +52,7 @@ const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
   cnblogs: 'https://account.cnblogs.com/signin',
   linuxdo: 'https://linux.do/login',
-  juejin: 'https://juejin.cn/',
+  juejin: 'https://juejin.cn/login',
   csdn: 'https://passport.csdn.net/login',
   zhihu: 'https://www.zhihu.com/signin',
   baijiahao: 'https://baijiahao.baidu.com/',
@@ -243,6 +243,9 @@ export default function App() {
   }, [recentArticlePaths]);
 
   useEffect(() => {
+    void window.electronAPI?.getPlatformAuthStates?.().then((states) => {
+      if (states) setAuthStates(states);
+    });
     const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
       setAuthStates((prev) => ({ ...prev, ...states }));
     });
@@ -367,17 +370,6 @@ export default function App() {
       }
     });
   }, [activeArticle, markdown, articles]);
-
-  useEffect(() => {
-    window.electronAPI?.setRecentFiles?.(recentArticlePaths);
-  }, [recentArticlePaths]);
-
-  useEffect(() => {
-    const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
-      setAuthStates((prev) => ({ ...prev, ...states }));
-    });
-    return () => unsub?.();
-  }, []);
 
   useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
