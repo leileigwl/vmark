@@ -30,6 +30,37 @@ export function PublishModal({
   const [sourceUrl, setSourceUrl] = useState('');
   const [showCoverInBody, setShowCoverInBody] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
+  const [pushingWeixin, setPushingWeixin] = useState(false);
+  const [weixinPushMsg, setWeixinPushMsg] = useState('');
+
+  const handlePushWeixinDraft = async () => {
+    if (!window.electronAPI?.publishWeixinDraft) {
+      setWeixinPushMsg('当前环境不支持直接推送，请使用「一键复制公众号富文本」');
+      return;
+    }
+    setPushingWeixin(true);
+    setWeixinPushMsg('正在上传图片并推送至公众号草稿箱…');
+    try {
+      const res = await window.electronAPI.publishWeixinDraft({
+        title: activeArticle?.title || '未命名文章',
+        markdown,
+        author: author.trim() || undefined,
+        digest: digest.trim() || undefined,
+        coverImageUrl: coverUrl.trim() || undefined,
+        showCoverInBody,
+        sourceUrl: sourceUrl.trim() || undefined,
+      });
+      if (res.ok) {
+        setWeixinPushMsg(`已推送至公众号草稿箱（ID: ${res.postId}${res.verified ? ' · 已校验' : ''}）`);
+      } else {
+        setWeixinPushMsg(res.message);
+      }
+    } catch (err) {
+      setWeixinPushMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPushingWeixin(false);
+    }
+  };
 
   const autoDigest = useMemo(() => extractWeixinDigest(markdown), [markdown]);
   const weixinRendered = useMemo(
@@ -164,6 +195,14 @@ export function PublishModal({
                 >
                   一键复制公众号富文本
                 </button>
+                <button
+                  type="button"
+                  disabled={pushingWeixin}
+                  onClick={() => void handlePushWeixinDraft()}
+                  className="rounded border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
+                >
+                  {pushingWeixin ? '推送中…' : '推送到公众号草稿箱'}
+                </button>
                 {activeArticle && (
                   <button
                     type="button"
@@ -177,6 +216,7 @@ export function PublishModal({
                   </button>
                 )}
                 {copyStatus && <span className="text-xs text-[var(--accent)]">{copyStatus}</span>}
+                {weixinPushMsg && <div className="w-full text-[11px] text-[var(--accent)]">{weixinPushMsg}</div>}
               </div>
             </div>
 

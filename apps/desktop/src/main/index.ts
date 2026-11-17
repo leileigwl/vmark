@@ -16,6 +16,7 @@ import type {
   StartupConfig,
 } from '@vcat/shared';
 import { markdownToDocxBuffer } from './exportDocx';
+import { registerPublishHandlers } from './publishHandlers';
 
 const execFileAsync = promisify(execFile);
 
@@ -1059,6 +1060,11 @@ app.whenReady().then(() => {
 
   buildApplicationMenu();
   registerIpcHandlers();
+  registerPublishHandlers({
+    ipcMain,
+    session,
+    getWorkspacePath: async () => (await readAppConfig()).workspacePath,
+  });
   createWindow();
 
   app.on('activate', () => {

@@ -61,3 +61,4 @@ export function replaceImagesInMemory(
 }
 
 export { uploadLocalImagesForPublish, type ImageUploadFn, type PublishImageUploadResult } from './uploader.ts';
+export { createImageBedUploader, type FetchFn } from './providers.ts';
