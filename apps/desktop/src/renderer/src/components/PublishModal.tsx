@@ -49,6 +49,10 @@ export function PublishModal({
   const [includeRemoteImages, setIncludeRemoteImages] = useState(true);
   const [pushingMulti, setPushingMulti] = useState(false);
   const [multiResults, setMultiResults] = useState<MultiPlatformPublishResultItem[]>([]);
+  const [preflightBlocked, setPreflightBlocked] = useState<{
+    faultyPlatforms: PlatformId[];
+    healthyPlatforms: PlatformId[];
+  } | null>(null);
 
   const refreshAuthStates = async () => {
     if (!window.electronAPI?.getPlatformAuthStates) return;
@@ -73,10 +77,11 @@ export function PublishModal({
     );
   };
 
-  const handlePushMultiPlatform = async () => {
-    if (!window.electronAPI?.publishMultiPlatform || selectedPlatforms.length === 0) return;
+  const executePublishToTargets = async (targets: PlatformId[]) => {
+    if (!window.electronAPI?.publishMultiPlatform || targets.length === 0) return;
     setPushingMulti(true);
     setMultiResults([]);
+    setPreflightBlocked(null);
     try {
       const res = await window.electronAPI.publishMultiPlatform({
         title: activeArticle?.title || '未命名文章',
@@ -87,15 +92,33 @@ export function PublishModal({
         showCoverInBody,
         sourceUrl: sourceUrl.trim() || undefined,
         includeRemoteImages,
-        targets: selectedPlatforms.map((platformId) => ({
+        targets: targets.map((platformId) => ({
           platformId,
-          mode: platformModes[platformId] ?? 'draft',
+          mode: platformModes[platformId] ?? 'direct',
         })),
       });
       setMultiResults(res.results ?? []);
     } finally {
       setPushingMulti(false);
     }
+  };
+
+  const handlePushMultiPlatform = async () => {
+    if (selectedPlatforms.length === 0) return;
+    const faulty = selectedPlatforms.filter((id) => !authStates[id]);
+    const healthy = selectedPlatforms.filter((id) => Boolean(authStates[id]));
+    if (faulty.length > 0) {
+      setPreflightBlocked({ faultyPlatforms: faulty, healthyPlatforms: healthy });
+      return;
+    }
+    await executePublishToTargets(selectedPlatforms);
+  };
+
+  const handleExcludeFaultyAndPublish = async () => {
+    if (!preflightBlocked) return;
+    const healthy = preflightBlocked.healthyPlatforms;
+    setSelectedPlatforms(healthy);
+    await executePublishToTargets(healthy);
   };
 
   const handlePushWeixinDraft = async () => {
@@ -315,7 +338,38 @@ export function PublishModal({
                 </button>
               </div>
             )}
-            {gitPushLog && <div className="text-xs text-[var(--accent)]">{gitPushLog}</div>}
+            {preflightBlocked && (
+              <div className="rounded-lg border border-[#cf222e] bg-[#ffebe9] p-3 text-xs text-[#cf222e]">
+                <div className="font-semibold">
+                  ⚠️ 前置强校验拦截：检测到以下已勾选平台尚未完成授权登录
+                </div>
+                <div className="mt-1 text-[11px] text-[#24292f]">
+                  已拦截本次分发，防止出现「部分平台成功、部分平台失败」的不一致脏状态：
+                  <span className="ml-1 font-medium text-[#cf222e]">
+                    {preflightBlocked.faultyPlatforms
+                      .map((id) => PLATFORM_CATALOG.find((p) => p.id === id)?.name || id)
+                      .join('、')}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={preflightBlocked.healthyPlatforms.length === 0 || pushingMulti}
+                    onClick={() => void handleExcludeFaultyAndPublish()}
+                    className="rounded bg-[#cf222e] px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    一键排除故障平台，继续发布健康平台 ({preflightBlocked.healthyPlatforms.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreflightBlocked(null)}
+                    className="rounded border border-[#cf222e]/30 bg-white px-2 py-1 text-[11px] text-[#24292f] hover:bg-[#f6f8fa]"
+                  >
+                    暂缓发布，先去授权
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2 text-xs">
               <label className="flex cursor-pointer items-center gap-2 text-[var(--text-main)]">
