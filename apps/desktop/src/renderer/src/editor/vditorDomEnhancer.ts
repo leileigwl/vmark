@@ -212,14 +212,32 @@ export function normalizeEmojiAndCalloutIcons(el: HTMLElement): void {
 
 export function cleanEmptyInlineNodes(el: HTMLElement): void {
   const sel = window.getSelection();
-  const activeNode =
-    sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+  // Use anchorNode + focusNode directly (not their parentElement) so that
+  // node.contains() / intersectsNode() works correctly when the cursor is
+  // inside a leaf text node of the inline span.
+  const anchorNode = sel?.anchorNode ?? null;
+  const focusNode = sel?.focusNode ?? null;
+
+  function isCursorInsideNode(node: Element): boolean {
+    if (!sel || sel.rangeCount === 0) return false;
+    // Check both anchor and focus nodes
+    if (anchorNode && node.contains(anchorNode)) return true;
+    if (focusNode && node.contains(focusNode)) return true;
+    // Fallback: use Range.intersectsNode if available
+    try {
+      const range = sel.getRangeAt(0);
+      return range.intersectsNode(node);
+    } catch {
+      return false;
+    }
+  }
 
   const inlineNodes = el.querySelectorAll(
     'span.vditor-ir__node[data-type="strong"], span.vditor-ir__node[data-type="em"], span.vditor-ir__node[data-type="s"], span.vditor-ir__node[data-type="code"]'
   );
   inlineNodes.forEach((node) => {
-    if (activeNode && node.contains(activeNode)) {
+    // Skip if cursor is inside this inline node
+    if (isCursorInsideNode(node)) {
       return;
     }
     const inner = node.querySelector('strong, b, em, i, s, del, code');
@@ -232,18 +250,6 @@ export function cleanEmptyInlineNodes(el: HTMLElement): void {
       }
     }
   });
-  const resetEl = el.querySelector('.vditor-ir .vditor-reset');
-  if (resetEl) {
-    const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-    let tNode = walker.nextNode() as Text | null;
-    while (tNode) {
-      const val = tNode.nodeValue || '';
-      if (val.includes('****') && !tNode.parentElement?.closest('pre:not(.vditor-reset), code')) {
-        tNode.nodeValue = val.replace(/\*{4,}/g, '');
-      }
-      tNode = walker.nextNode() as Text | null;
-    }
-  }
 }
 
 export function cleanupUnusedTempGapParagraphs(el: HTMLElement, activeNode?: Node | null): void {

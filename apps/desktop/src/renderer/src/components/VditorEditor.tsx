@@ -37,6 +37,7 @@ import {
 } from '../editor/vditorPointerEvents';
 import { MediaLightbox, type LightboxPayload } from './MediaLightbox';
 import { SlashCommandMenu } from './SlashCommandMenu';
+import { TableSizePicker } from './TableSizePicker';
 
 export type { FindOptions };
 
@@ -98,6 +99,14 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     }>({ open: false, x: 0, y: 0, query: '', selectedIndex: 0 });
     const slashStateRef = useRef(slashState);
     slashStateRef.current = slashState;
+
+    const [tablePicker, setTablePicker] = useState<{ open: boolean; x: number; y: number }>({
+      open: false,
+      x: 0,
+      y: 0,
+    });
+    const tablePickerRef = useRef(tablePicker);
+    tablePickerRef.current = tablePicker;
 
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
@@ -602,6 +611,20 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           }
         }
         setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
+
+        // Table: show size picker instead of inserting fixed-size table
+        if (item.id === 'table') {
+          const selNow = window.getSelection();
+          const anchorEl = selNow?.anchorNode instanceof Element
+            ? selNow.anchorNode as HTMLElement
+            : selNow?.anchorNode?.parentElement;
+          const rect = anchorEl
+            ? anchorEl.getBoundingClientRect()
+            : { left: 100, bottom: 120 };
+          setTablePicker({ open: true, x: rect.left, y: rect.bottom + 6 });
+          return;
+        }
+
         instance.focus();
         instance.insertValue(item.insertText);
         if (item.id === 'code') {
@@ -1068,6 +1091,20 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
           onHoverIndex={(idx) => setSlashState((s) => ({ ...s, selectedIndex: idx }))}
           onSelect={(item) => insertSlashItemRef.current(item)}
         />
+        {tablePicker.open && (
+          <TableSizePicker
+            x={tablePicker.x}
+            y={tablePicker.y}
+            onConfirm={(cols, rows) => {
+              const inst = vditorRef.current;
+              const el = containerRef.current?.querySelector('.vditor') as HTMLElement | null;
+              if (inst && el) {
+                insertTableWithSizeAction(cols, rows, inst, el);
+              }
+            }}
+            onClose={() => setTablePicker({ open: false, x: 0, y: 0 })}
+          />
+        )}
         <MediaLightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
       </>
     );

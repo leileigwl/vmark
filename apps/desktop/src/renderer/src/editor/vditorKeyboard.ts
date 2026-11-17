@@ -26,6 +26,40 @@ export interface KeyboardCaptureContext {
   redo: () => void;
 }
 
+/** Returns the direct child of resetEl that contains the given element, or null. */
+function getTopBlock(el: HTMLElement, resetEl: Element): HTMLElement | null {
+  let cur: HTMLElement | null = el;
+  while (cur && cur.parentElement !== resetEl) {
+    if (!cur.parentElement) return null;
+    cur = cur.parentElement;
+  }
+  return cur && resetEl.contains(cur) ? cur : null;
+}
+
+/** Checks whether range start is at the very first text position of topBlock. */
+function isAtBlockStart(range: Range, topBlock: HTMLElement): boolean {
+  if (range.startOffset !== 0) return false;
+  // Walk up: if startContainer is topBlock itself at offset 0, true.
+  if (range.startContainer === topBlock) return true;
+  // Walk up the DOM from startContainer; every branch to reach topBlock must be leftmost child.
+  let node: Node = range.startContainer;
+  while (node !== topBlock) {
+    if (!node.parentNode) return false;
+    if (node.parentNode.childNodes[0] !== node) return false;
+    node = node.parentNode;
+  }
+  return true;
+}
+
+/** Tags that indicate a "protected" block that should not be merged into. */
+const PROTECTED_TAGS = new Set(['blockquote', 'pre', 'table', 'hr']);
+function isProtectedBlock(el: Element): boolean {
+  if (PROTECTED_TAGS.has(el.tagName.toLowerCase())) return true;
+  const dt = el.getAttribute('data-type');
+  if (!dt) return false;
+  return ['blockquote', 'code-block', 'table', 'hr', 'html-block', 'math-block'].includes(dt);
+}
+
 /** Handles capture-phase keyboard shortcuts, code-block indentation, table guards, and bracket pairing. */
 export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptureContext): void {
   const { el, instance } = ctx;
@@ -191,44 +225,55 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
   if (!el.contains(targetNode)) return;
 
-  // Block Deletion Isolation: Prevent Backspace at start of heading/paragraph from merging into Callout/blockquote/code/table
-  if (e.key === 'Backspace' && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
+  // ─── Block Deletion Isolation ──────────────────────────────────────────────
+  // Prevent Backspace at the very start of a block from merging into a protected
+  // block above (blockquote / callout / code / table / hr / html-block).
+  // Also prevent Delete at the very end of a block from merging into a protected
+  // block below.
+  if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey && !isImeComposing) {
     const sel = window.getSelection();
     if (sel && sel.isCollapsed && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
-      const anchorNode =
+      const anchorEl =
         range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
       const resetEl = el.querySelector('.vditor-ir .vditor-reset') ?? el.querySelector('.vditor-reset');
 
-      let curBlock = anchorNode?.closest('.vditor-ir__node') as HTMLElement | null;
-      while (
-        curBlock &&
-        curBlock.parentElement &&
-        curBlock.parentElement !== resetEl &&
-        curBlock.parentElement.closest('.vditor-reset')
-      ) {
-        const parentBlock = curBlock.parentElement.closest('.vditor-ir__node') as HTMLElement | null;
-        if (!parentBlock) break;
-        curBlock = parentBlock;
-      }
-
-      if (curBlock && resetEl && resetEl.contains(curBlock)) {
-        const preRange = document.createRange();
-        preRange.setStart(curBlock, 0);
-        preRange.setEnd(range.startContainer, range.startOffset);
-        const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
-
-        const isAtBlockStart = preText.length === 0 || /^#{1,6}\s*$/.test(preText);
-        if (isAtBlockStart) {
-          const prevBlock = curBlock.previousElementSibling as HTMLElement | null;
-          if (prevBlock && prevBlock.matches('.vditor-ir__node')) {
-            const prevType = prevBlock.getAttribute('data-type');
-            const isolatedTypes = ['blockquote', 'code-block', 'table', 'hr', 'html-block', 'math-block'];
-            if (prevType && isolatedTypes.includes(prevType)) {
-              const curContent = (curBlock.textContent || '')
-                .replace(/^#{1,6}\s*/, '')
-                .replace(/[\u200b\ufeff\s]/g, '');
-              if (curContent.length > 0) {
+      if (anchorEl && resetEl) {
+        const topBlock = getTopBlock(anchorEl as HTMLElement, resetEl);
+        if (topBlock) {
+          if (e.key === 'Backspace') {
+            // Block Backspace isolation: cursor at absolute start of block AND previous sibling is protected
+            if (isAtBlockStart(range, topBlock)) {
+              const prevSib = topBlock.previousElementSibling;
+              if (prevSib && isProtectedBlock(prevSib)) {
+                // Only block if the current block has actual content (don't block deleting empty lines)
+                const curText = (topBlock.textContent || '')
+                  .replace(/^#{1,6}\s*/, '')
+                  .replace(/[\u200b\ufeff]/g, '')
+                  .trim();
+                if (curText.length > 0) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.stopImmediatePropagation();
+                  return;
+                }
+              }
+            }
+          } else if (e.key === 'Delete') {
+            // Block Delete isolation: cursor at absolute end of block AND next sibling is protected
+            const topBlockText = topBlock.textContent || '';
+            const textLen = topBlockText.replace(/[\u200b\ufeff]/g, '').length;
+            const preRange = document.createRange();
+            preRange.setStart(range.startContainer, range.startOffset);
+            try {
+              preRange.setEnd(topBlock, topBlock.childNodes.length);
+            } catch {
+              // ignore
+            }
+            const afterText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
+            if (afterText.length === 0 || textLen === 0) {
+              const nextSib = topBlock.nextElementSibling;
+              if (nextSib && isProtectedBlock(nextSib)) {
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
@@ -247,6 +292,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   const activeCell = anchorEl?.closest('td, th') as HTMLTableCellElement | null;
 
   if (activeCell && el.contains(activeCell)) {
+    // ─── Table Cell Delete/Backspace Guard ──────────────────────────────────
     if ((e.key === 'Backspace' || e.key === 'Delete') && !isImeComposing) {
       const cellImg = activeCell.querySelector('.vditor-ir__node[data-type="img"], img');
       if (cellImg && (!sel || sel.isCollapsed)) {
@@ -267,15 +313,31 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
       }
       if (sel && sel.isCollapsed) {
         const range = sel.getRangeAt(0);
+        // Backspace at start of cell → prevent merging cells
         const cellPreRange = document.createRange();
         cellPreRange.setStart(activeCell, 0);
-        cellPreRange.setEnd(range.startContainer, range.startOffset);
+        try { cellPreRange.setEnd(range.startContainer, range.startOffset); } catch { /* ignore */ }
         const cellPreText = cellPreRange.toString().replace(/[\u200b\ufeff]/g, '');
         if (e.key === 'Backspace' && cellPreText.length === 0) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
           return;
+        }
+        // Delete at end of cell → prevent merging cells
+        if (e.key === 'Delete') {
+          const cellPostRange = document.createRange();
+          try {
+            cellPostRange.setStart(range.startContainer, range.startOffset);
+            cellPostRange.setEnd(activeCell, activeCell.childNodes.length);
+          } catch { /* ignore */ }
+          const cellPostText = cellPostRange.toString().replace(/[\u200b\ufeff]/g, '');
+          if (cellPostText.length === 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return;
+          }
         }
       }
     }
@@ -334,73 +396,9 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     return;
   }
 
-  // Space key instant markdown block formatting triggers
-  if (
-    e.key === ' ' &&
-    !e.metaKey &&
-    !e.ctrlKey &&
-    !e.altKey &&
-    !e.shiftKey &&
-    !isImeComposing
-  ) {
-    const sel = window.getSelection();
-    if (sel && sel.isCollapsed && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
-      const anchorEl = node instanceof Element ? node : node.parentElement;
-
-      if (anchorEl && el.contains(anchorEl) && !anchorEl.closest('pre, code, .vditor-ir__marker--info, table')) {
-        const curBlock =
-          (anchorEl.closest('.vditor-ir__node, p, h1, h2, h3, h4, h5, h6, li, blockquote') as HTMLElement | null) ??
-          anchorEl;
-        if (curBlock && el.contains(curBlock)) {
-          const preRange = document.createRange();
-          preRange.setStart(curBlock, 0);
-          preRange.setEnd(range.startContainer, range.startOffset);
-          const preText = preRange.toString().replace(/[\u200b\ufeff]/g, '');
-
-          const matchNestedQuoteOl = preText.match(/^>\s*(\d+)\.$/);
-          const matchNestedQuoteUl = preText.match(/^>\s*[-*]$/);
-          const matchOl = preText.match(/^(\d+)\.$/);
-          const matchUl = preText.match(/^[-*]$/);
-          const matchQuote = preText === '>';
-          const matchTask = preText === '[]' || preText === '[ ]' || preText === '- [ ]';
-          const matchHeading = preText.match(/^(#{1,6})$/);
-
-          if (matchNestedQuoteOl || matchNestedQuoteUl || matchOl || matchUl || matchQuote || matchTask || matchHeading) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            ctx.pushVditorUndo();
-
-            preRange.deleteContents();
-
-            if (matchNestedQuoteOl) {
-              instance.insertValue(`> ${matchNestedQuoteOl[1]}. `);
-            } else if (matchNestedQuoteUl) {
-              instance.insertValue('> - ');
-            } else if (matchOl) {
-              instance.insertValue(`${matchOl[1]}. `);
-            } else if (matchUl) {
-              instance.insertValue('- ');
-            } else if (matchQuote) {
-              instance.insertValue('> ');
-            } else if (matchTask) {
-              instance.insertValue('- [ ] ');
-            } else if (matchHeading) {
-              instance.insertValue(`${matchHeading[1]} `);
-            }
-
-            ctx.pushVditorUndo();
-            ctx.onChangeValue(instance.getValue());
-            return;
-          }
-        }
-      }
-    }
-  }
-
-  // Backtick auto-pair (`` with cursor in middle) and triple-backtick (```) code-block expansion
+  // ─── Backtick auto-pair ────────────────────────────────────────────────────
+  // ` → insert paired `` with cursor in middle
+  // `` + ` → expand to code block (delete the two backtick chars first, then insertMD)
   if (
     ctx.autoPairBrackets &&
     e.key === '`' &&
@@ -409,96 +407,101 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     !e.altKey &&
     !isImeComposing
   ) {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
+    const selNow = window.getSelection();
+    if (selNow && selNow.rangeCount > 0) {
+      const range = selNow.getRangeAt(0);
       const anchorNode =
         range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
-      if (anchorNode && el.contains(anchorNode) && !anchorNode.closest('pre, code, .vditor-ir__marker--info')) {
+
+      // Don't intercept inside infoMarker (language picker) or inside actual <code>/<pre> body
+      const inCodeBody = Boolean(anchorNode?.closest('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code'));
+      const inInfoMk = Boolean(anchorNode?.closest('.vditor-ir__marker--info'));
+      if (!inCodeBody && !inInfoMk && anchorNode && el.contains(anchorNode)) {
         if (!range.collapsed) {
+          // Wrap selection in backticks
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
           const selectedText = range.toString();
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          const wrapped = `\`${selectedText}\``;
-          const textNode = document.createTextNode(wrapped);
-          range.deleteContents();
-          range.insertNode(textNode);
-          const nextRange = document.createRange();
-          nextRange.setStart(textNode, 1);
-          nextRange.setEnd(textNode, 1 + selectedText.length);
-          sel.removeAllRanges();
-          sel.addRange(nextRange);
-          ctx.onChangeValue(instance.getValue());
-          return;
-        } else {
-          const sc = range.startContainer;
-          const beforeText =
-            sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(0, range.startOffset) : '';
-          const afterText =
-            sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
-
-          // If cursor is right before a closing backtick, step over it
-          if (afterText.startsWith('`') && !beforeText.endsWith('`')) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            const nextRange = document.createRange();
-            nextRange.setStart(sc, range.startOffset + 1);
-            nextRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(nextRange);
-            return;
-          }
-
-          // If typing 3rd backtick (already has two backticks before cursor):
-          if (beforeText.endsWith('``')) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            const delRange = document.createRange();
-            delRange.setStart(sc, range.startOffset - 2);
-            delRange.setEnd(sc, range.startOffset);
-            delRange.deleteContents();
-            ctx.pushVditorUndo();
-            instance.insertValue('```ts\n\n```');
-            setTimeout(() => {
-              ctx.ensureCodeBlockInfoMarkers?.();
-              const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
-              const lastCb = codeBlocks.pop() as HTMLElement | undefined;
-              const infoSpan = lastCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
-              if (lastCb && infoSpan) {
-                lastCb.classList.add('vditor-ir__node--expand');
-                ctx.lastActiveInfoMarkerRef.current = infoSpan;
-                const r = document.createRange();
-                r.selectNodeContents(infoSpan);
-                const s = window.getSelection();
-                s?.removeAllRanges();
-                s?.addRange(r);
-              }
-            }, 60);
-            return;
-          }
-
-          // Otherwise, insert paired `` with cursor in middle
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          const textNode = document.createTextNode('``');
-          range.deleteContents();
-          range.insertNode(textNode);
-          const nextRange = document.createRange();
-          nextRange.setStart(textNode, 1);
-          nextRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(nextRange);
+          document.execCommand('insertText', false, `\`${selectedText}\``);
+          // move selection back to just the inner text
           ctx.onChangeValue(instance.getValue());
           return;
         }
+
+        const sc = range.startContainer;
+        const beforeText =
+          sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(0, range.startOffset) : '';
+        const afterText =
+          sc.nodeType === Node.TEXT_NODE ? (sc.nodeValue || '').slice(range.startOffset) : '';
+
+        // If cursor is right before a closing backtick, step over it
+        if (afterText.startsWith('`') && !beforeText.endsWith('`')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          const nextRange = document.createRange();
+          nextRange.setStart(sc, range.startOffset + 1);
+          nextRange.collapse(true);
+          selNow.removeAllRanges();
+          selNow.addRange(nextRange);
+          return;
+        }
+
+        // If typing 3rd backtick (already has two backticks before cursor): expand to code block
+        if (beforeText.endsWith('``')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          // Delete the two backtick chars before cursor using execCommand
+          document.execCommand('delete', false);
+          document.execCommand('delete', false);
+          ctx.pushVditorUndo();
+          instance.insertMD('```ts\n\n```\n');
+          setTimeout(() => {
+            ctx.ensureCodeBlockInfoMarkers?.();
+            const codeBlocks = Array.from(el.querySelectorAll('.vditor-ir__node[data-type="code-block"]'));
+            const lastCb = codeBlocks.pop() as HTMLElement | undefined;
+            const infoSpan = lastCb?.querySelector('.vditor-ir__marker--info') as HTMLElement | null;
+            if (lastCb && infoSpan) {
+              lastCb.classList.add('vditor-ir__node--expand');
+              ctx.lastActiveInfoMarkerRef.current = infoSpan;
+              const r = document.createRange();
+              r.selectNodeContents(infoSpan);
+              r.collapse(false);
+              const s = window.getSelection();
+              s?.removeAllRanges();
+              s?.addRange(r);
+            }
+          }, 80);
+          return;
+        }
+
+        // Otherwise, insert paired `` with cursor in middle via execCommand
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        document.execCommand('insertText', false, '``');
+        // Move cursor back one position (between the two backticks)
+        const selAfter = window.getSelection();
+        if (selAfter && selAfter.rangeCount > 0) {
+          const r = selAfter.getRangeAt(0);
+          const sc2 = r.startContainer;
+          if (sc2.nodeType === Node.TEXT_NODE && r.startOffset > 0) {
+            const nr = document.createRange();
+            nr.setStart(sc2, r.startOffset - 1);
+            nr.collapse(true);
+            selAfter.removeAllRanges();
+            selAfter.addRange(nr);
+          }
+        }
+        ctx.onChangeValue(instance.getValue());
+        return;
       }
     }
   }
 
+  // ─── Bracket auto-pair (excluding backtick, handled above) ────────────────
   if (
     ctx.autoPairBrackets &&
     !e.metaKey &&

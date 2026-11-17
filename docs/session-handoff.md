@@ -1,181 +1,73 @@
 # Session Handoff（会话交接记录）
 
 - **日期**：2026-11-17
-- **当前阶段**：**Phase 1.5 深度精修与工程化规范落地**
-- **最新基线提交**：`Round 35`（全量功能均已完成，经 `typecheck` / `test` / `build` 全绿验证）
+- **当前阶段**：**Round 36 修复 — Round 35 未真正工作的部分**
+- **最新基线提交**：`0cf0225`（Round 35，全量 typecheck / test / build 绿色）
 
 ---
 
-## 零、本轮（Round 35）交付成果（图 1 至图 9 全量覆盖）
+## 零、Round 36 任务清单（本轮必须完成）
 
-1. ✅ **搜索点击精准跳转定位点（图一）**：
-   - 侧边栏正文搜索结果点击时，将搜索词传递至 `onOpenArticle(art, query)`；
-   - 文档加载后自动调用 `editorRef.current.jumpToMatch(query, 0, { caseSensitive: false })` 高亮并平滑滚动到首个匹配点。
-2. ✅ **跨块删除隔离（图二）**：
-   - 光标位于 Callout / 引用框下方的标题或段落行首时，按 `Backspace` 阻止将下方内容拉入上方块，保持两个独立块的物理隔离。
-3. ✅ **代码块语言选择与中文输入法 / 斜杠命令冲突修复（图三、四、五）**：
-   - `vditorKeyboard.ts` 与 `VditorEditor.tsx` `onSlashKeyDown` 增加 `e.isComposing || e.keyCode === 229` 守卫，拼音输入未确认前严禁拦截 Enter 提交；
-   - 修复代码块语言下拉弹窗的 `ArrowUp` / `ArrowDown` 键盘切换与高亮选词，按 Enter / Tab 提交目标语言。
-4. ✅ **空格触发即时渲染与多级/嵌套列表（图六）**：
-   - 敲击 `1. `、`- `、`* `、`> `、`[] ` 或 `- [ ] ` 后立即在空格键触发转换为对应富文本块，无需等待回车；
-   - 支持引用内嵌套有序列表 `> 1. `，支持 Tab / Shift-Tab 缩进；
-   - 空加粗 `****` 保护：中间无内容时保留双星号，光标稳定居中（`cleanEmptyInlineNodes` 保护当前光标聚焦空节点）。
-5. ✅ **反引号智能补齐（图七）**：
-   - 键入单个 ` 自动补全为一对反引号 `` `|` `` 并将光标居中；光标在后反引号前按 ` 跳过；键入第三个 ` 时直接转换为代码块容器并自动聚焦语言输入区。
-6. ✅ **侧边栏多余原生滚动条与顶帽清理（图八）**：
-   - 移除侧边栏默认出现的原生 WebKit 滚动条方块与顶帽，全局配置 `.vcat-no-scrollbar` 配合无滚动条平滑滚动。
-7. ✅ **表格规格明确与删除保护 + 列表插入光标纠正（图九）**：
-   - `/table` 生成标准的 4 行 3 列（1 行表头 + 3 行数据 = 4 行），消除 5 行歧义；
-   - 表格内禁止通过按 `Delete` / `Backspace` 误删整张表格，必须通过右键「表格操作 → 删除表格」；
-   - 斜杠命令插入列表后光标直接定位至列表项文字开头。
-8. ✅ **开源仓库整理与 CI/CD**：
-   - 配置 `.github/workflows/ci.yml` 支持 Typecheck、Unit Tests、Electron 构建流水线。
+| # | 任务 | 状态 |
+|---|------|------|
+| R36-1 | 块删除隔离：Backspace 在段落/标题行首，上方有 blockquote/callout/code/table 时阻止合并 | ❌ 未完成 |
+| R36-2 | 空格即时渲染：`1. ` `-` `>` `[]` 空格后立即转块；引用内嵌套 `> 1. ` | ❌ 未完成 |
+| R36-3 | 反引号：单个 `` ` `` 补成 ` `` ` 光标居中；已有两个时第三个 `` ` `` 展开代码块 | ❌ 未完成 |
+| R36-4 | 空加粗 `****` 保护：光标在中间时不剥离双星号 | ❌ 未完成 |
+| R36-5 | 表格结构保护：在 td/th 内 Delete/Backspace 不得删掉整张表格 | ❌ 未完成 |
+| R36-6 | `/table` 显示行列选择 UI（Typora 风格 grid picker，最大 8×8） | ❌ 未完成 |
 
 ---
 
-## 一、已完成的核心能力与修复基线
+## 一、根因分析（Round 35 为什么没有生效）
 
-1. **编辑区核心交互（单层无闪烁 + 表格/图片/灯箱/代码着色）**
-   - **普通代码块单层直编**：永久隐藏普通代码块（非 Mermaid / 非 Math）只读预览层 `pre.vditor-ir__preview`，常驻单一可编辑 `pre.vditor-ir__marker--pre`，首次点击直接落光标、零闪烁、不跳回首行；统一移除尾部 `::after` 占位并固定底部 `20px` 留白，点击前后高度完全一致。
-   - **原生 `CSS.highlights` 实时语法着色**：在不插入任何 `<span>` 标签的前提下实现关键字、字符串、注释、函数名、数字、内置类型六类高亮，并接入 `HIGHLIGHTABLE_LANGS` 语言白名单——`txt` / `text` / `plain` / `log` 与未标注语言保持纯文本不着色。
-   - **行内格式与表格防护**：`Cmd+B` / `Cmd+I` 等在选区内直接包裹/剥离、带表格单元格选区钳制；表格内粘贴图片生成内联 Lute IR 节点不断行，支持 `Backspace` / `Delete` 直接删图；支持 `Ctrl+Z` 撤销后自动重绘损坏的 Mermaid。
-   - **高清画布灯箱（`MediaLightbox`）**：单击图片或 Mermaid 流程图直接弹出窗口自适应灯箱（74vw × 74vh），支持连续按 `Space` 开关灯箱不滚屏、`ESC` 关闭、灯箱内滚轮缩放、360° 顺时针递增平滑旋转回正；快速双击 Mermaid 切换原位代码编辑；移除正文内滚轮缩放拦截。
-   - **暗黑模式深度适配**：修复暗黑模式下 Mermaid v11 `<foreignObject>` 连线标签因内联 `padding` 被挤出视口的问题；移除 Mermaid 内部多层嵌套悬停/选中边框，统一高亮唯一外层卡片；超链接采用柔和冰蓝 `#78aee8`。
-   - **图片右键专属菜单**：右键正文图片仅展示「放大预览 (空格)」「显示比例（25% / 50% / 75% / 100%）」「删除图片」，移除多余文字格式菜单。
+### R36-1 块删除隔离失效原因
+- **失效**：`curBlock.previousElementSibling.getAttribute('data-type')` 拿不到正确值，因为 callout/blockquote 在 DOM 里直接是 `<blockquote>` 子元素，`data-type` 在其外层 `.vditor-ir__node` 包裹上，层级不对齐。
+- **正确修法**：直接找 `.vditor-reset` 的**直接子元素** `topBlock`（`while(topBlock.parentElement !== resetEl) topBlock = topBlock.parentElement`），检查 `topBlock.previousElementSibling` 的 `tagName`（blockquote/pre/table/hr）或 `data-type`。
 
-2. **侧边栏文件树与交互**
-   - 支持空白处右键新建文件/文件夹、重命名、复制、移到废纸篓、在 Finder 中显示、文档列表/文档树切换、正文全文搜索、拖拽移动文件与文件夹。
-   - 支持 `Shift` 区间连选与右键批量删除；右键菜单自动检测视口边界（靠近底边自动向上翻转，多选时切换精简批量菜单）防止遮挡。
-   - 单选态严格随 `activeArticle.relativePath` 同步，新建空白文档或从管理台点「编辑」时绝不出现双高亮；切换文章时后台异步保存上一篇并立即读取目标文件，消除切换延迟。
+### R36-2 空格触发渲染失效原因
+- **失效**：`instance.insertValue('1. ')` 插入的是**原始文本**，不触发 Lute 重新解析，无法生成 `<ol><li>` IR 节点。
+- **正确修法**：删除 Round 35 的 keydown Space 拦截代码，让 Space 正常传递给 Vditor 的 `input` 处理器（Vditor 原生已支持 `1. ` / `- ` / `> ` 转换）。若需自定义，使用 `instance.insertMD()` 而非 `insertValue()`。
 
-3. **工程化规范与自定义 CSS 入口**
-   - **包管理器统一**：全仓唯一使用 **`pnpm`**，严禁混用 `npm` / `yarn`。
-   - **500–600 行单文件解耦红线**：已拆出 `src/renderer/src/editor/`（`codeHighlight.ts`、`tableActions.ts`、`inlineFormat.ts`）、`src/renderer/src/components/sidebar/SidebarContextMenus.tsx`、`src/renderer/src/styles/`（`themes.css`、`editor.css`、`mermaid.css`）。
-   - **自定义 CSS 入口**：在「偏好设置 → 外观主题」提供导入自定义 `.css` 文件入口，支持覆盖 `--bg-main` / `--text-main` / `--accent` / `--side-bar-bg-color` 与 `.vditor-reset`。
-   - **命名与规划备注**：图标继续沿用「V + 横线」；防盗链云端图床方案保留至 Phase 3 规划；软件新命名待用户从 `Veline / Vellum / Verge / Velo / Vmark` 中最终确认（避开与小V猫重名）。
+### R36-3 反引号配对失效原因
+- **失效一**：`anchorNode.closest('pre, code, .vditor-ir__marker--info')` 判断太宽，导致大量正常场景被过滤。
+- **失效二**：用 `document.createTextNode('``')` 直接插入不通知 Vditor 状态，`getValue()` 看不到变化。
+- **正确修法**：用 `document.execCommand('insertText', false, '`')` 两次并移动光标；或 `instance.insertValue('\`\`')` 后调整光标位置；三连反引号直接 `instance.insertMD('```ts\n\n```')` + 100ms 后 focus infoMarker。
 
----
+### R36-4 空加粗 `****` 保护失效原因
+- **失效**：`node.contains(activeNode)` 中 `activeNode` 是 `sel.anchorNode`（通常是编辑器顶层 div），不是空 `<strong>` 节点，导致 `contains` 返回 false，空节点被错误清除。
+- **正确修法**：改用 `sel.getRangeAt(0).intersectsNode(node)` 或同时检查 `node.contains(sel.anchorNode) || node.contains(sel.focusNode)`。
 
-## 二、已完成与本轮改造记录
+### R36-5 表格删除保护失效原因
+- **失效**：只在 `activeCell != null`（光标在 td/th 内）时保护。用户说的"随便 del"指光标在 table 相邻块按 Delete 直接删掉整张表格块。
+- **正确修法**：在全局 Delete/Backspace 判断里，检查 `topBlock.nextElementSibling`（Delete）或 `topBlock.previousElementSibling`（Backspace）是否是 table，同样阻止。
 
-### Round 23（已完成）
-- `commitCodeBlockLanguage` 统一提交代码块语言；`mousedown`/`click` 双拦截 `.vditor-hint button` 解决点击失效；`ArrowUp/Down` + `Enter`/`Tab` 键盘选词；删空语言标签清除 `recentLanguage` 且不回填旧语言、消除空代码块内嵌蓝底框；`selectionchange` 自动收起并同步 KaTeX / Mermaid 预览；`PAIR_MAP` 补齐右括号 Overtype Skip。
-
-### Round 24（本轮立即执行，已通过 `/grill-me` 对齐设计决策）
-1. **禁止代码块内行内加粗（图 1）与重构嵌套/连续 `Ctrl+B` 加粗剥离（图 3）**：
-   - `inlineFormat.ts`：检测到选区位于 `pre, .vditor-ir__node[data-type="code-block"], .vditor-ir__marker--info` 时直接返回，绝不在代码块内注入 `**` 或 `<span data-type="strong">`；对于含局部已加粗子节点的混合选区，自动扩展起止边界至完整包裹节点，整体未全粗则剥离内部碎片 `**` 合并为唯一干净加粗，整体已全粗或二次连按则还原为纯净纯文本。
-   - `VditorEditor.tsx`：拦截 `Cmd/Ctrl+B` / `Cmd/Ctrl+I` 的 `e.repeat` 并调用 `e.stopImmediatePropagation()`。
-2. **LaTeX / Mermaid 单击零闪烁（图 2）**：
-   - 单击 `pre.vditor-ir__preview`（LaTeX / Math / Mermaid）绝不展开源码（LaTeX 静默高亮卡片、Mermaid 打开灯箱）；仅**双击卡片**或**点击左上角语言徽章/三圆点**才展开源码编辑。
-3. **`.vditor-hint` 防穿透遮挡与前缀优先排序（图 4）**：
-   - `editor.css` 将 `.vditor-ir .vditor-hint` 修正为 `.vditor .vditor-hint, .vditor-hint` 并提高至 `z-index: 9999`，确保绝不被下方代码块的 `z-index: 5` 语言徽章穿透；`positionLanguageHint()` 对输入前缀（如 `c`）按「完全相等 → 前缀匹配 → 子串」重排。
-4. **`echarts` / `mindmap` 紧凑高度自适应（图 5）**：
-   - 覆盖 Vditor 默认 `height: 420px`，空编辑态保持单行自适应高度，已渲染出实例时采用紧凑 `260px`。
-5. **侧边栏新建文件回车不触发二次重命名（图 6 & 图 7）**：
-   - `Sidebar.tsx` 新建输入框 `onKeyDown` 调用 `e.stopPropagation()`，列表容器守卫增加 `|| creatingItem`，并使用防重入标记防止 `onBlur` 与 `Enter` 双重触发。
-6. **超链接默认无下划线，仅 `:hover` 显示（图 8）** 与 **黑白符号升级为 Apple Color Emoji + 舒适间距（图 9）**：
-   - 默认移除超链接下划线，悬停时显示 3px 偏移下划线；自动为缺 `\uFE0F` 的黑白符号（如 `⚠` `⏱` `⚙` `⚖` `✍` 等）补齐彩色变体符并拉开图标与正文字符间距。
-7. **自动化校验强制规范**：
-   - 此后所有 UI 与交互改动必须编写 Playwright JS 自动化脚本在真机 Electron 窗口中跑通断言，再提交 Git 稳态基线。
-
-### Round 26（已完成，真机 Playwright + 打包全通过）
-1. **侧边栏文件创建撤销 / 重做（按钮 + 快捷键）**：
-   - `App.tsx` 与 `Sidebar.tsx` 新增 `fileUndoStack` / `fileRedoStack`，在侧边栏底部工具栏 `+` 按钮旁新增 `Undo2` / `Redo2` 按钮，并绑定 `Cmd/Ctrl+Z` 撤销新建文件（移入废纸篓并切回上一篇）与 `Cmd/Ctrl+Shift+Z` / `Ctrl+Y` 恢复新建文件。
-2. **输入法切换后代码块语言角标（`.vditor-ir__marker--info`）自动兜底恢复**：
-   - `VditorEditor.tsx` 新增 `ensureCodeBlockInfoMarkers()`，在 `enhanceDom()` 与 `compositionend` 捕获/帧回调中同步 `data-CodeLang`，当语言角标因中英文输入法切换被清除或置空时自动从 `language-*` / `data-CodeLang` 恢复（不干扰用户主动删空角标）。
-3. **跨段落快速连续 `Ctrl+B` / `Ctrl+I` 保留选区且不残留 `*`**：
-   - `inlineFormat.ts` 在按段落拆分子选区后调用 `expandRangeToEnclosingWrappers(..., INLINE_IR_NODE)`，避免将 `<span data-type="strong">` / `<span data-type="em">` 从中间劈开，并保留非目标行内节点结构及精准匹配单星号 `(?<!\*)\*(?!\*)`，确保多段落连续叠加/剥离加粗与斜体时选区不塌缩、无残留 `*`。
-4. **macOS 桌面端打包（`electron-builder`）**：
-   - `apps/desktop/package.json` 新增 `electron-builder` 配置与 `package:mac` 脚本，生成 `.app` 与 `.dmg` 桌面安装包（`apps/desktop/release/` 已加入 `.gitignore`）。
-
-### Round 27（已完成代码修复与真机 Playwright 校验；双端打包待你确认后执行）
-1. **LaTeX / Mermaid 双击进入源码编辑零闪烁**：
-   - `VditorEditor.tsx` 捕获阶段拦截 `dblclick` 阻止 Vditor 二次重绘；`renderLatexBlocks()` / `rerenderBrokenMermaid()` 跳过 `.vditor-ir__node--expand` 节点；双击切入时同步隐藏 `previewPre` 并稳定焦点选区。
-2. **块间缝隙临时空行未编辑自动回收**：
-   - 为缝隙点击插入的临时 `<p>` 打上 `data-vcat-temp-gap="1"`；有真实输入则转为正式段落；光标移走且内容仍为空时自动清理该临时 `<p>`，恢复紧凑排版。
-3. **隐藏侧边栏时顶部左上角按钮贴左对齐**：
-   - 主进程（`main/index.ts`）同步窗口全屏状态（`enter-full-screen` / `leave-full-screen`）至渲染进程；`TopBar.tsx` 仅在「macOS 非全屏且 `!sidebarOpen`」时保留红绿灯避让边距（`pl-[76px]`），全屏或非 macOS 统一贴左 `pl-3`。
-4. **整行按 `Ctrl+B` 加粗出现额外空行修复**：
-   - `inlineFormat.ts` 在包裹前剥离三击/整行选区尾随 `<br>` 与纯换行节点，并移除内联 `data-newline="1"`，确保加粗标记只包裹文字本身，不产生额外空行。
-5. **侧边栏撤销/重做提速、防卡顿及回到最后打开的文件**：
-   - `App.tsx` 为 `FileHistoryOp` 记录 `previousArticlePath`，撤销新建文件时优先切回用户此前最后浏览的文件（而非 `list[0]`），并增加 `fileOpBusyRef` 并发锁与乐观列表更新，消除反复撤销/重做带来的卡顿；`Sidebar.tsx` 将 `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` / `Ctrl+Y`（含 `e.repeat` 防抖）提升至 `<aside>` 层级，侧边栏内任意焦点均可触发。
-6. **macOS（带图标拖拽安装 DMG）+ Windows（NSIS 安装包）打包规划**：
-   - **待你确认上述体验全部满意后再统一执行双端打包**（生成 `icon.icns` + DMG `Applications` 拖拽布局与 `icon.ico` + Windows NSIS）。
-
-### Round 28（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **「快速打开... (`Cmd+Shift+O`)」与「打开最近的文件（最多 5 篇）」**：
-   - 新增 [QuickOpenModal.tsx](file:///Users/leileigwl/Desktop/aa/vcat-publisher-desktop/apps/desktop/src/renderer/src/components/QuickOpenModal.tsx)，支持快捷键 `Cmd/Ctrl+Shift+O`、顶部栏时钟按钮与系统菜单「快速打开...」唤起，顶部展示最近打开的 5 篇文章。
-   - `main/index.ts` 动态同步「文件 → 打开最近的文件」子菜单（最多保留 5 篇 + 清除最近记录）。
-2. **LaTeX / Mermaid 双击防闪彻底根治**：
-   - `VditorEditor.tsx` 新增 `suppressPreviewClickUntil` 窗口期，解决 `mousedown (detail=2)` 隐藏预览层后紧随的 `click`/`dblclick` 落到源码层被 Vditor 再次重绘的问题。
-3. **组件与工程解耦 + IDE TS 报错修复**：
-   - `Sidebar.tsx` 拆出 `sidebar/sidebarTreeUtils.ts`、`sidebar/SidebarTreeNodes.tsx`、`sidebar/SidebarPopoverMenu.tsx`；`VditorEditor.tsx` 拆出 `editor/vditorDomEnhancer.ts`、`editor/languageHint.ts`。
-   - 新增 `apps/desktop/tsconfig.json` 并显式标注回调类型，消除 IDE 中 `Window.electronAPI` 与隐式 `any` 报错。
-
-### Round 29（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **LaTeX / Mermaid 双击零闪烁再加固**：
-   - `VditorEditor.tsx` 新增 `handleMouseUpCapture` 拦截 `suppressPreviewClickUntilRef` 窗口期，并移除内联 `previewPre.style.display = 'none'`（纯 CSS 切换 + `enhanceDom` 抑制），彻底消除双击时 Vditor `mouseup` 与 `MutationObserver` 导致的重绘闪跳。
-2. **输入 `### fjsl` 等实时输入零卡顿**：
-   - 将 `enhanceDom()` 拆分为轻量即时同步与 140ms 防抖重增强（`runHeavyEnhance`），消除 68KB 长文档下每敲一个字符触发全量高亮/Emoji 遍历造成的数秒卡顿。
-3. **左侧边栏删除撤销（单删 & 批量删除）+ 鼠标左键拖拽框选批量文件**：
-   - `App.tsx` 的 `FileHistoryOp` 新增 `kind: 'delete'`，删除/批量删除前自动快照文件内容，支持 `Cmd/Ctrl+Z` 一键还原及 `Cmd/Ctrl+Shift+Z` 重做。
-   - `Sidebar.tsx` 文件列表支持鼠标左键在空白区拖拽拉出蓝色框选矩形，实时选中多篇文件。
-4. **`/` 斜杠命令（拼音/拼音首字母/中文/英文搜索 + `↑↓ Enter/Tab`）**：
-   - 新增 `slashCommands.ts` 与 `SlashCommandMenu.tsx`，支持标题、表格、公式块、代码块、Mermaid、警告框、提示框、引用、有序/无序/任务列表、分割线等，打 `/bg` / `/biaoge` / `/表格` 均可快速筛选插入。
-5. **代码块多语言智能缩进 + 只读/编辑模式切换**：
-   - 新增 `codeBlockIndent.ts`，支持按语言切换 2/4 空格的 `Tab` / `Shift+Tab` 缩进与 `Enter` 自动缩进。
-   - `TopBar.tsx` 新增「编辑 / 只读」切换按钮，只读模式下锁定编辑区但保留图片/Mermaid 灯箱预览。
-6. **`VditorEditor.tsx` 与 `Sidebar.tsx` 持续解耦**：
-   - 新增 `vditorFindHelpers.ts`、`editorHelpers.ts`、`vditorKeyboard.ts`、`vditorPointerEvents.ts`、`vditorCommands.ts`，`Sidebar.tsx` 784 行、`VditorEditor.tsx` 846 行。
-
-### Round 30（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **左侧边栏 `Ctrl+Z` / `Cmd+Z` 绑定彻底打通**：
-   - `main/index.ts` 将「编辑 → 撤销/重做」由原生 `role: 'undo'/'redo'` 改为分发 `edit:undo` / `edit:redo`，并在 `App.tsx` 按当前焦点（输入框 / `.vditor-reset` / 侧边栏及非编辑区）智能路由至对应撤销栈，同时补齐 `Ctrl+Z`/`Ctrl+Y` 全局捕获快捷键。
-2. **系统菜单「关闭窗口」移除多余 `×` 图标对齐文字视觉**：
-   - `main/index.ts` 将「关闭窗口」改为 `click: () => BrowserWindow.getFocusedWindow()?.close()`，去除 macOS 系统自动注入的 `×` 符号，文字与其他菜单项完全左对齐。
-3. **`/` 斜杠命令光标精准跟随 + 打字即时响应**：
-   - `VditorEditor.tsx` 改用原生 `input` + `keyup` 捕获即时检测 `/query`（不再等待 68KB `html2md`），并精确测量 `/` 字符边界矩形定位弹窗，彻底告别左上角错位与打字卡顿。
-4. **左侧边栏中间区域左键直接拖拽框选**：
-   - 将文件拖拽移动的 `draggable` 收敛到左侧 `<FileText>` 图标上，文件列表 `onMouseDown` 不再被整行 `<button>` 拦截，直接在文件列表中间按住左键拖拽即可拉出蓝框批量选中，松手不误触取消选区。
-5. **只读模式保持原色无滤镜，支持正常下滑**：
-   - 移除任何额外色彩滤镜，仅设置 `.vcat-readonly .vditor-reset { cursor: default !important; }`，正常滚轮滑动、不可鼠标编辑。
-
-### Round 31（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **只读模式恢复正常滚动与 100% 原色**：
-   - `editor.css` 为 `.vditor-content` / `.vditor-ir` / `pre.vditor-reset` 补齐 `height: 100%` 与 `overflow-y: auto`，同时显式覆盖 Vditor 内置 `[contenteditable="false"]` 的 `opacity: 0.3` 暗淡滤镜，只读状态下原色展示、顺畅滚轮下滑、非编辑指针。
-2. **侧边栏批量框选加深高亮 + 点击别处自动取消**：
-   - 多选态（`selectedPaths.length > 1`）改用更深的 `bg-[var(--accent)]/30` + `ring-1` 边框以区别于当前打开文档的浅底；点击侧边栏空白处或点击编辑器/顶部栏等 `<aside>` 外部区域时自动清空批量选区。
-3. **移除 `/` 斜杠命令中的「警告框」条目**：
-   - 从 `slashCommands.ts` 删除 `callout-warn`（警告框）。
-4. **正文编辑区 `Ctrl+Z` / `Cmd+Z` 单次按键立即撤销**：
-   - `VditorEditor.tsx` 的 `undo()` 在执行 `vditor.undo.undo()` 前先同步 `addToUndoStack()` 并跳过重复栈顶快照，确保在文本区输入后按一次 `Ctrl+Z` / `Cmd+Z` 立即撤销。
-
-### Round 32（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **所有代码块右上角新增「复制」按钮（普通与只读模式均可用）**：
-   - `vditorDomEnhancer.ts` 新增 `ensureCodeBlockCopyButtons()`，在每个 `.vditor-ir__node[data-type="code-block"]` 右上角注入 `<button class="vcat-code-copy" contenteditable="false">`；通过 CSS `::after` 渲染 `"复制"` / `"已复制 ✓"` 文案，保证 `button.textContent === ""`，绝不污染 `vditor.getValue()` 保存的 Markdown。
-2. **只读模式点击标题/行内代码不露出 `#` / `` ` `` 记号**：
-   - `editor.css` 在 `.vcat-readonly` 下强制隐藏 `.vditor-ir__marker--heading`、`--bi`、`--bracket`、`--paren`、`--link` 及 `code` / `code-span` / `strong` / `em` / `s` / `a` 的 `.vditor-ir__marker`（保留代码块语言标签 `--info`）。
-3. **新建文件夹防重名 + 文件夹创建与文件/文件夹移动支持撤销/重做**：
-   - `Sidebar.tsx` 与 `main/index.ts`（`folders:create`）均支持重名自动递增编号（`新建文件夹 2`、`新建文件夹 3` ...），新增 `folders:delete`（`deleteFolder`）IPC。
-   - `App.tsx` 的 `FileHistoryOp` 扩展支持 `create-folder`、`move-article`、`move-folder`，与 `Cmd/Ctrl+Z` / `Cmd/Ctrl+Shift+Z` 彻底打通。
-4. **还原侧边栏柔和选中高亮**：
-   - `SidebarTreeNodes.tsx` 将批量选中高亮恢复为柔和的 `bg-[var(--accent)]/15 font-medium text-[var(--accent)]`。
-
-### Round 33（已完成，真机 Playwright + typecheck + 单测全通过）
-1. **顶部栏与侧边栏高度及按钮对齐**：
-   - `Sidebar.tsx` 顶部占位区统一为 `h-[36px]`（对齐 `TopBar.tsx` `h-[36px]` 与 `trafficLightPosition`），`TopBar.tsx` 左右两侧所有按钮统一 `h-7`（`28px`）并垂直居中。
-2. **彻底根治代码块 `<button>` 泄漏 + 复制 1.5s 缓冲冷却 + `/代码块` 默认聚焦语言框**：
-   - 移除 Vditor DOM 内部注入，改用 `VditorEditor.tsx` 独立 React 浮层 `.vcat-code-copy-btn` 定位到每个代码块右上角，从根本上杜绝编辑代码块时序列化出 `<button>`；点击复制后进入 `1500ms` 禁用冷却防连点。
-   - `/代码块`（`slashCommands.ts` `id: 'code'`）插入后自动展开代码块并选中 `.vditor-ir__marker--info`，光标直接停在语言输入框。
-3. **文件菜单名称优化**：
-   - `main/index.ts` 将「新建空白文章」改为「新建文章」，「打开最近的文件」改为「打开最近文件」。
-4. **图片右键新增「复制图片」与「另存为图片...」（普通与只读模式均可用）**：
-   - `vditorPointerEvents.ts` 允许只读模式下对图片呼出右键菜单；`main/index.ts` 新增 `image:copy`、`image:saveAs` IPC 支持本地 `vcat-asset://`、`file://`、`data:` 及远程 `http(s)://` 图片。
-5. **无法定位本地文件链接时的简洁横幅提示**：
-   - `main/index.ts` 新增 `workspace:openLink` IPC，`VditorEditor.tsx` 在只读点击或 `Cmd/Ctrl+Click` 链接时调用；若文件不存在，在 `App.tsx` 顶部展示简洁横幅 `无法打开「xxx」，未在工作区找到该文件` 与「关闭」按钮。
+### R36-6 `/table` 大小选择 UI
+- **目前**：直接插入固定 `4行3列` 文本。
+- **需要**：点击后弹出 Typora 风格网格选择器（8×8 格，hover 预览，点击确认），动态生成对应行列 Markdown 表格。
+- **实现**：新建 `TableSizePicker.tsx`；`applySlashCommand` 检测 `item.id === 'table'` 时显示 picker；确认后调 `insertTableWithSizeAction(cols, rows, instance, el)`。
 
 ---
 
-## 三、后续规划（Phase 2 / Phase 3）
+## 二、关键文件位置
 
-- 接入 `better-sqlite3` 持久化 `sync_records` 与 `image_cache`，落地云端防盗链存储方案及 30+ 平台适配器与 5 步送达检测。
+| 文件 | 作用 | 行数 |
+|------|------|------|
+| `apps/desktop/src/renderer/src/editor/vditorKeyboard.ts` | 键盘捕获（块隔离、空格触发、反引号配对、表格保护） | ~565 |
+| `apps/desktop/src/renderer/src/components/VditorEditor.tsx` | 主编辑器组件（slash 命令、undo/redo、图片处理） | ~1075 |
+| `apps/desktop/src/renderer/src/editor/slashCommands.ts` | slash 命令定义 | 124 |
+| `apps/desktop/src/renderer/src/editor/vditorCommands.ts` | `insertTableWithSizeAction` | 185 |
+| `apps/desktop/src/renderer/src/editor/vditorDomEnhancer.ts` | `cleanEmptyInlineNodes`（空加粗保护） | ~200 |
+
+---
+
+## 三、架构约束
+
+- **包管理**：统一 `pnpm`，严禁 npm / yarn
+- **文件行数红线**：单文件 ≤ 800 行，超出须拆分
+- **Git 规范**：每轮改动通过 `typecheck` / `test` / `build` 后 `git commit`，不主动 `git push`
+- **Vditor IR 要点**：
+  - `instance.insertValue(text)` → 原始文本（不触发 Lute 解析）
+  - `instance.insertMD(md)` → 插入并触发 Markdown 解析为 IR 节点
+  - 空格触发块转换交给 Vditor 原生 `input` 处理器（keydown 中不要 `preventDefault`）
+- **IME 守卫**：所有 keydown 处理器开头必须 `const isImeComposing = e.isComposing || e.keyCode === 229`
