@@ -30,14 +30,29 @@ export async function readAccountDatabase(): Promise<AccountDatabase> {
   }
 }
 
+let writeQueue = Promise.resolve();
+
 /** Saves all platform account records to disk atomically. */
 export async function writeAccountDatabase(db: AccountDatabase): Promise<void> {
-  const targetPath = getAccountStorePath();
-  const dir = path.dirname(targetPath);
-  await fs.mkdir(dir, { recursive: true });
-  const tempPath = `${targetPath}.${Date.now()}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(db, null, 2), 'utf-8');
-  await fs.rename(tempPath, targetPath);
+  const op = writeQueue.then(async () => {
+    const targetPath = getAccountStorePath();
+    const dir = path.dirname(targetPath);
+    await fs.mkdir(dir, { recursive: true });
+    const tempPath = `${targetPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+    try {
+      await fs.writeFile(tempPath, JSON.stringify(db, null, 2), 'utf-8');
+      await fs.rename(tempPath, targetPath);
+    } catch (err) {
+      try {
+        await fs.unlink(tempPath);
+      } catch {
+        // ignore unlink cleanup error
+      }
+      throw err;
+    }
+  });
+  writeQueue = op.catch(() => {});
+  return op;
 }
 
 /** Upserts a single platform account record. */
