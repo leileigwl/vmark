@@ -794,7 +794,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
 
       const inCodeBody = Boolean(anchorNode?.closest('pre.vditor-ir__marker--pre > code, pre.vditor-ir__preview > code'));
       const inInfoMk = Boolean(anchorNode?.closest('.vditor-ir__marker--info'));
-      if (!inCodeBody && !inInfoMk && anchorNode && el.contains(anchorNode)) {
+      const inTable = Boolean(anchorNode?.closest('table'));
+      if (!inCodeBody && !inInfoMk && !inTable && anchorNode && el.contains(anchorNode)) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();

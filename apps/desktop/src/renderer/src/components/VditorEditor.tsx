@@ -616,6 +616,15 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         }
         setSlashState((s) => ({ ...s, open: false, query: '', selectedIndex: 0 }));
 
+        const slashAnchorEl =
+          sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+        if (
+          slashAnchorEl?.closest('table') &&
+          ['table', 'code', 'quote', 'callout-tip', 'hr', 'mermaid', 'math'].includes(item.id)
+        ) {
+          return;
+        }
+
         // Table: show size picker instead of inserting fixed-size table
         if (item.id === 'table') {
           savedTableRangeRef.current = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;

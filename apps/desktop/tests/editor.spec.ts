@@ -358,4 +358,94 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     });
     expect(focusedInFirstCb).toBe(true);
   });
+
+  test('12. 表格单元格内禁止 ``` 展开代码块及多行粘贴不炸表', async ({ page }) => {
+    await setupApp(page, '| A | B |\n| --- | --- |\n| 1 | 2 |\n');
+    const firstTd = page.locator('.vditor-ir .vditor-reset table td').first();
+    await firstTd.click();
+    await page.waitForTimeout(80);
+    await page.keyboard.type('```ts');
+    await page.waitForTimeout(150);
+
+    // Table must remain intact (1 table, 0 code blocks)
+    await expect(page.locator('.vditor-ir .vditor-reset table')).toHaveCount(1);
+    await expect(page.locator('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]')).toHaveCount(0);
+
+    // Simulate multi-line paste inside table cell -> must not split table
+    await page.evaluate(() => {
+      const td = document.querySelector('.vditor-ir .vditor-reset table td')!;
+      const r = document.createRange();
+      r.selectNodeContents(td);
+      r.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'line1\nline2\n| broken |');
+      const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+      td.dispatchEvent(ev);
+    });
+    await page.waitForTimeout(150);
+    await expect(page.locator('.vditor-ir .vditor-reset table')).toHaveCount(1);
+  });
+
+  test('13. 引用内单行局部复制为纯文本 + 粘贴进引用不产生嵌套竖线', async ({ page }) => {
+    await setupApp(page, '> 第一行测试文字\n>\n> 第二行\n');
+    const quoteP = page.locator('.vditor-ir .vditor-reset blockquote p').first();
+    await quoteP.click();
+
+    // Partial selection inside single quote paragraph -> copy must NOT prepend '> '
+    const copiedPartial = await page.evaluate(() => {
+      const p = document.querySelector('.vditor-ir .vditor-reset blockquote p')!;
+      const textNode = p.firstChild!;
+      const r = document.createRange();
+      r.setStart(textNode, 0);
+      r.setEnd(textNode, 3);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      const dt = new DataTransfer();
+      const ev = new ClipboardEvent('copy', { clipboardData: dt, bubbles: true, cancelable: true });
+      p.dispatchEvent(ev);
+      return dt.getData('text/plain');
+    });
+    expect(copiedPartial).not.toMatch(/^>\s/);
+
+    // Pasting '> 嵌套文本' inside existing blockquote must NOT create blockquote > blockquote
+    await page.evaluate(() => {
+      const p = document.querySelector('.vditor-ir .vditor-reset blockquote p')!;
+      const r = document.createRange();
+      r.selectNodeContents(p);
+      r.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(r);
+      const dt = new DataTransfer();
+      dt.setData('text/plain', '> 嵌套文本');
+      const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+      p.dispatchEvent(ev);
+    });
+    await page.waitForTimeout(150);
+    await expect(page.locator('.vditor-ir .vditor-reset blockquote blockquote')).toHaveCount(0);
+  });
+
+  test('14. 代码块语言框内粘贴多行文本不夹断代码块', async ({ page }) => {
+    await setupApp(page, '```ts\nconst a = 1;\n```\n');
+    const infoMarker = page.locator('.vditor-ir .vditor-reset .vditor-ir__marker--info').first();
+    await infoMarker.click();
+    await page.waitForTimeout(100);
+
+    await page.evaluate(() => {
+      const info = document.querySelector('.vditor-ir .vditor-reset .vditor-ir__marker--info')!;
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'python\n# extra line\nmore text');
+      const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+      info.dispatchEvent(ev);
+    });
+    await page.waitForTimeout(150);
+
+    await expect(page.locator('.vditor-ir .vditor-reset .vditor-ir__node[data-type="code-block"]')).toHaveCount(1);
+    const infoText = (await infoMarker.textContent())?.replace(/\u200b/g, '').trim() || '';
+    expect(infoText).not.toContain('\n');
+  });
 });

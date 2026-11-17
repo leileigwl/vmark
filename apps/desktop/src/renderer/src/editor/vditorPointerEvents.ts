@@ -247,6 +247,42 @@ export function handleEditorContextMenu(e: MouseEvent, ctx: PointerEventContext)
 export function handleEditorPasteCapture(e: ClipboardEvent, instance: Vditor): void {
   const html = e.clipboardData?.getData('text/html') ?? '';
   const plain = e.clipboardData?.getData('text/plain') ?? '';
+  const sel = window.getSelection();
+  const anchorEl =
+    sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
+
+  // 1. 语言标签框内粘贴：强制清洗换行为单行纯文本，绝不撕裂代码块
+  if (anchorEl?.closest('.vditor-ir__marker--info')) {
+    if (plain) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      const singleLine = plain.replace(/[\r\n]+/g, ' ').trim();
+      document.execCommand('insertText', false, singleLine);
+    }
+    return;
+  }
+
+  // 2. 表格单元格内粘贴：清洗换行与管道符，防止多行文本/Markdown 块炸毁表格
+  if (anchorEl?.closest('td, th') && plain && (/[\r\n]/.test(plain) || /(?:^|\s)```/.test(plain))) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const safeCellText = plain.replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|');
+    document.execCommand('insertText', false, safeCellText);
+    return;
+  }
+
+  // 3. 引用块内粘贴带有 '> ' 前缀的内容：剥离外层 '> '，杜绝出现嵌套 blockquote 左竖线
+  if (anchorEl?.closest('blockquote') && !anchorEl.closest('pre:not(.vditor-reset), code') && plain && /^>\s?/m.test(plain)) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const stripped = plain.replace(/^>\s?/gm, '');
+    document.execCommand('insertText', false, stripped);
+    return;
+  }
+
   if (plain && /(md-fences|md-diagram|mdtype=|<svg\b)/i.test(html)) {
     e.preventDefault();
     e.stopPropagation();
@@ -301,9 +337,16 @@ export function handleEditorCopyCapture(
 
       const quoteAncestor = commonEl.closest('blockquote');
       if (quoteAncestor && !tmp.querySelector('blockquote')) {
-        const quoteWrap = document.createElement('blockquote');
-        while (tmp.firstChild) quoteWrap.appendChild(tmp.firstChild);
-        tmp.appendChild(quoteWrap);
+        // 仅当选区跨多段或完整选中引用块内容时才保留 > 前缀；单行局部文字复制保留纯文本
+        const quoteBlocks = tmp.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6');
+        const fullQuoteClean = (quoteAncestor.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+        const selClean = plain.replace(/[\u200b\ufeff\s]/g, '');
+        const isWholeQuote = fullQuoteClean.length > 0 && selClean === fullQuoteClean;
+        if (quoteBlocks.length > 1 || isWholeQuote) {
+          const quoteWrap = document.createElement('blockquote');
+          while (tmp.firstChild) quoteWrap.appendChild(tmp.firstChild);
+          tmp.appendChild(quoteWrap);
+        }
       }
     }
 
