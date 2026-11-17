@@ -38,6 +38,17 @@ export interface PublishAppConfig {
 
 const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
 
+const PLATFORM_AUTH_COOKIE_RULES: Partial<Record<PlatformId, string[]>> = {
+  zhihu: ['z_c0'],
+  cnblogs: ['.CNBlogsCookie', 'Cnblogs.AspNetCore.Cookies', '.Cnblogs.AspNetCore.Cookies'],
+  juejin: ['sessionid'],
+  bilibili: ['SESSDATA'],
+  csdn: ['UserName', 'UserToken'],
+  xiaohongshu: ['web_session'],
+  weibo: ['SUB', 'SUBP'],
+  douyin: ['sessionid'],
+};
+
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
 function createSessionFetch(targetSession: Electron.Session): FetchLike {
   return async (input, init) => {
@@ -51,12 +62,16 @@ function createSessionFetch(targetSession: Electron.Session): FetchLike {
   };
 }
 
-/** Filters out analytics-only cookies so unauthenticated tracking visits do not look logged in. */
+/** Filters out analytics-only cookies and verifies exact platform auth tickets when available. */
 async function hasSessionAuthCookies(
   session: typeof Electron.session,
   platformId: PlatformId
 ): Promise<boolean> {
   const cookies = await session.fromPartition(`persist:platform_${platformId}`).cookies.get({});
+  const specificRules = PLATFORM_AUTH_COOKIE_RULES[platformId];
+  if (specificRules && specificRules.length > 0) {
+    return cookies.some((c) => specificRules.some((rule) => c.name.includes(rule)));
+  }
   return cookies.some(
     (c) => !ANALYTICS_COOKIE_PREFIXES.some((prefix) => c.name.startsWith(prefix))
   );
