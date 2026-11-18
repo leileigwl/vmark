@@ -144,6 +144,13 @@ function createWindow(): void {
     mainWindow.webContents.send('menu:action', 'window:unfullscreen');
   });
 
+  mainWindow.on('focus', () => {
+    void checkPlatformAuthStates({ session, getAppConfig: readAppConfig }).then(async (states) => {
+      await batchSyncHeartbeatResults(states);
+      activeMainWindow?.webContents.send('platform:authStatesUpdated', states);
+    });
+  });
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return { action: 'deny' };

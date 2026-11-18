@@ -90,10 +90,14 @@ test('Benchmark Publishing: verifies draft payload structures across authorized 
     if (url.includes('articles/drafts')) {
       const body = JSON.parse(String(init?.body || '{}')) as { title: string; content: string };
       assert.equal(body.title, BENCHMARK_PAYLOAD.title);
-      assert.ok(body.content.length > 0);
       return { ok: true, status: 200, text: async () => '', json: async () => ({ id: 'zh_draft_99' }) };
     }
     if (url.includes('articles/zh_draft_99/draft')) {
+      if (init?.method === 'PATCH') {
+        const body = JSON.parse(String(init?.body || '{}')) as { title: string; content: string };
+        assert.equal(body.title, BENCHMARK_PAYLOAD.title);
+        assert.ok(body.content.length > 0);
+      }
       return { ok: true, status: 200, text: async () => '', json: async () => ({ id: 'zh_draft_99' }) };
     }
     throw new Error(`Unexpected zhihu url: ${url}`);
