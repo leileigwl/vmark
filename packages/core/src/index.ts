@@ -146,3 +146,9 @@ export function transformTableMatrix(
 
   return next;
 }
+
+export * from './weixinRenderer.ts';
+export * from './zhihuRenderer.ts';
+export * from './csdnRenderer.ts';
+export * from './baijiahaoRenderer.ts';
+export * from './xiaohongshuRenderer.ts';

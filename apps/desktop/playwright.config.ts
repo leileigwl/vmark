@@ -1,4 +1,8 @@
+import { existsSync } from 'node:fs';
 import { defineConfig } from '@playwright/test';
+
+const defaultMacChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const localChromium = process.env.PW_CHROMIUM_PATH || (existsSync(defaultMacChrome) ? defaultMacChrome : undefined);
 
 export default defineConfig({
   testDir: './tests',
@@ -7,10 +11,7 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1280, height: 860 },
-    launchOptions: {
-      executablePath:
-        '/Users/leileigwl/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell',
-    },
+    launchOptions: localChromium ? { executablePath: localChromium } : {},
   },
   webServer: {
     command: 'npx vite preview --outDir out/renderer --port 4173 --strictPort',

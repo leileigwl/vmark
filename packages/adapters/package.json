@@ -6,12 +6,14 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
   },
   "dependencies": {
     "@vcat/shared": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22.20.5",
     "typescript": "^5.7.2"
   }
 }

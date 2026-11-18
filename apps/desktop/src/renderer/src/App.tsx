@@ -52,10 +52,10 @@ const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
   cnblogs: 'https://account.cnblogs.com/signin',
   linuxdo: 'https://linux.do/login',
-  juejin: 'https://juejin.cn/',
+  juejin: 'https://juejin.cn/login',
   csdn: 'https://passport.csdn.net/login',
   zhihu: 'https://www.zhihu.com/signin',
-  baijiahao: 'https://baijiahao.baidu.com/',
+  baijiahao: 'https://baijiahao.baidu.com/builder/theme/bjh/login',
   weibo: 'https://weibo.com/login.php',
   bilibili: 'https://passport.bilibili.com/login',
   douyin: 'https://creator.douyin.com/',
@@ -135,12 +135,19 @@ export default function App() {
   const [loadSeq, setLoadSeq] = useState<number>(0);
   const openRequestIdRef = useRef<number>(0);
   const editorRef = useRef<VditorEditorHandle>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showToast(errOrMsg: unknown) {
     const raw = errOrMsg instanceof Error ? errOrMsg.message : String(errOrMsg);
     const clean = raw.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i, '');
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMsg(clean);
-    setTimeout(() => setToastMsg((prev) => (prev === clean ? null : prev)), 3200);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMsg(null);
+      toastTimerRef.current = null;
+    }, 3200);
   }
 
   useEffect(() => {
@@ -241,6 +248,16 @@ export default function App() {
   useEffect(() => {
     window.electronAPI?.setRecentFiles?.(recentArticlePaths);
   }, [recentArticlePaths]);
+
+  useEffect(() => {
+    void window.electronAPI?.getPlatformAuthStates?.().then((states) => {
+      if (states) setAuthStates(states);
+    });
+    const unsub = window.electronAPI?.onPlatformAuthUpdated?.((states) => {
+      setAuthStates((prev) => ({ ...prev, ...states }));
+    });
+    return () => unsub?.();
+  }, []);
 
   useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
@@ -360,10 +377,6 @@ export default function App() {
       }
     });
   }, [activeArticle, markdown, articles]);
-
-  useEffect(() => {
-    window.electronAPI?.setRecentFiles?.(recentArticlePaths);
-  }, [recentArticlePaths]);
 
   useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
@@ -754,7 +767,19 @@ export default function App() {
       )}
 
       {toastMsg && (
-        <div className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--border-color)] bg-[#1d1d1f]/92 px-5 py-3 text-center text-[13px] text-white shadow-2xl backdrop-blur-md">
+        <div
+          onClick={() => {
+            if (toastTimerRef.current) {
+              clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = null;
+            }
+            setToastMsg(null);
+          }}
+          role="button"
+          tabIndex={0}
+          title="点击关闭"
+          className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 cursor-pointer select-none rounded-xl border border-[var(--border-color)] bg-[#1d1d1f]/92 px-5 py-3 text-center text-[13px] text-white shadow-2xl backdrop-blur-md transition-opacity hover:opacity-90"
+        >
           {toastMsg}
         </div>
       )}
@@ -1243,7 +1268,21 @@ export default function App() {
               onPlatformLogin={async (pid) => {
                 const url = PLATFORM_LOGIN_URLS[pid] ?? 'https://www.cnblogs.com';
                 const ok = await window.electronAPI.openPlatformLogin(pid, url);
-                setAuthStates((prev) => ({ ...prev, [pid]: ok }));
+                const refreshed = await window.electronAPI.getPlatformAuthStates();
+                setAuthStates(refreshed);
+                if (ok) {
+                  showToast(`平台授权已完成并同步`);
+                } else {
+                  showToast(`未检测到登录授权票据，已保持未授权状态`);
+                }
+              }}
+              onPlatformLogout={async (pid) => {
+                const ok = await window.electronAPI.logoutPlatform(pid);
+                const refreshed = await window.electronAPI.getPlatformAuthStates();
+                setAuthStates(refreshed);
+                if (ok) {
+                  showToast(`已退出平台授权并清除会话 Cookie`);
+                }
               }}
               workspacePath={workspacePath}
               gitStatus={gitStatus}

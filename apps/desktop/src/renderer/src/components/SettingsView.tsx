@@ -14,7 +14,6 @@ export type SettingCategory = 'startup' | 'editor' | 'image' | 'theme' | 'platfo
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
-  { id: 'typora-white', name: 'Typora White', desc: '经典 GitHub 纯白' },
   { id: 'bloom-lapis', name: 'Bloom Lapis', desc: '文档蓝 · 护眼浅蓝' },
   { id: 'bloom-lapis-dark', name: 'Bloom Lapis Dark', desc: '文档蓝 · 深邃夜蓝' },
   { id: 'bloom-wheat', name: 'Bloom Wheat', desc: '象牙纸张 · 暖白' },
@@ -60,6 +59,7 @@ interface SettingsViewProps {
   onImportTyporaTheme: () => void;
   authStates: Partial<Record<PlatformId, boolean>>;
   onPlatformLogin: (platformId: PlatformId) => void;
+  onPlatformLogout?: (platformId: PlatformId) => void;
   workspacePath: string | null;
   gitStatus: GitStatusInfo;
   gitPushLog: string;
@@ -86,6 +86,7 @@ export function SettingsView({
   onImportTyporaTheme,
   authStates,
   onPlatformLogin,
+  onPlatformLogout,
   workspacePath,
   gitStatus,
   gitPushLog,
@@ -569,13 +570,25 @@ export function SettingsView({
                         默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onPlatformLogin(p.id)}
-                      className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      {online ? '更新授权' : '打开登录窗授权'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {online && (
+                        <button
+                          type="button"
+                          onClick={() => onPlatformLogout?.(p.id)}
+                          title="清除该平台沙箱内所有持久化 Cookie 并退出登录"
+                          className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10 cursor-pointer"
+                        >
+                          退出授权
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onPlatformLogin(p.id)}
+                        className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                      >
+                        {online ? '更新/切换账号' : '打开登录窗授权'}
+                      </button>
+                    </div>
                   </div>
                 );
               })}

@@ -102,7 +102,6 @@ export interface GitStatusInfo {
 
 export type ThemeId =
   | 'apple-light'
-  | 'typora-white'
   | 'custom-typora'
   | 'bloom-amber'
   | 'bloom-amber-dark'
@@ -157,6 +156,35 @@ export interface ArticleSearchResult {
   matchCount: number;
 }
 
+export interface MultiPlatformPublishTarget {
+  platformId: PlatformId;
+  mode: PublishMode;
+}
+
+export interface MultiPlatformPublishPayload {
+  title: string;
+  markdown: string;
+  author?: string;
+  digest?: string;
+  coverImageUrl?: string;
+  showCoverInBody?: boolean;
+  sourceUrl?: string;
+  tags?: string[];
+  includeRemoteImages?: boolean;
+  targets: MultiPlatformPublishTarget[];
+}
+
+export interface MultiPlatformPublishResultItem {
+  platformId: PlatformId;
+  ok: boolean;
+  mode: PublishMode;
+  postId?: string;
+  url?: string;
+  verified?: boolean;
+  uploadedImagesCount?: number;
+  message: string;
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -180,12 +208,14 @@ export interface ElectronAPI {
     base64Data: string,
     ext: string
   ) => Promise<{ relativeMarkdownPath: string; fullPath: string }>;
+  uploadRemoteImage?: (base64Data: string, fileName: string) => Promise<{ url: string }>;
   getImageBedConfig: () => Promise<ImageBedConfig>;
   saveImageBedConfig: (config: ImageBedConfig) => Promise<void>;
   testImageBedUpload: (config: ImageBedConfig) => Promise<{ ok: boolean; url?: string; message: string }>;
   getStartupConfig: () => Promise<StartupConfig>;
   saveStartupConfig: (config: StartupConfig) => Promise<void>;
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
+  logoutPlatform: (platformId: PlatformId) => Promise<boolean>;
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
   getGitStatus: () => Promise<GitStatusInfo>;
   pushGitWorkspace: (commitMessage: string) => Promise<{ ok: boolean; message: string }>;
@@ -200,4 +230,20 @@ export interface ElectronAPI {
     href: string,
     currentRelativePath?: string
   ) => Promise<{ ok: boolean; kind?: 'article' | 'external'; relativePath?: string; target?: string }>;
+  publishWeixinDraft?: (payload: {
+    title: string;
+    markdown: string;
+    author?: string;
+    digest?: string;
+    coverImageUrl?: string;
+    showCoverInBody?: boolean;
+    sourceUrl?: string;
+  }) => Promise<{ ok: true; postId: string; url: string; verified: boolean } | { ok: false; message: string }>;
+  publishMultiPlatform?: (
+    payload: MultiPlatformPublishPayload
+  ) => Promise<{ results: MultiPlatformPublishResultItem[] }>;
+  getPlatformAccounts?: () => Promise<Record<string, unknown>>;
+  onPlatformAuthUpdated?: (
+    callback: (states: Partial<Record<PlatformId, boolean>>) => void
+  ) => () => void;
 }

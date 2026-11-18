@@ -59,3 +59,17 @@ export function replaceImagesInMemory(
     return mapped ? `![${alt}](${mapped})` : full;
   });
 }
+
+export {
+  resolveRefererForUrl,
+  uploadLocalImagesForPublish,
+  type ImageUploadFn,
+  type PublishImageUploadResult,
+} from './uploader.ts';
+export {
+  buildPicgoEnv,
+  createImageBedUploader,
+  resolvePicgoBinary,
+  type ExecFileFn,
+  type FetchFn,
+} from './providers.ts';

@@ -33,6 +33,8 @@ const api: ElectronAPI = {
   searchArticlesContent: (query: string) => ipcRenderer.invoke('articles:search', query),
   saveLocalImage: (base64Data: string, ext: string) =>
     ipcRenderer.invoke('image:saveLocal', base64Data, ext),
+  uploadRemoteImage: (base64Data: string, fileName: string) =>
+    ipcRenderer.invoke('image:uploadRemote', base64Data, fileName),
   getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),
   saveImageBedConfig: (config: ImageBedConfig) =>
     ipcRenderer.invoke('config:saveImageBed', config),
@@ -42,6 +44,8 @@ const api: ElectronAPI = {
   saveStartupConfig: (config: StartupConfig) => ipcRenderer.invoke('config:saveStartup', config),
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
     ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
+  logoutPlatform: (platformId: PlatformId) =>
+    ipcRenderer.invoke('platform:logout', platformId),
   getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),
   getGitStatus: () => ipcRenderer.invoke('git:status'),
   pushGitWorkspace: (commitMessage: string) =>
@@ -65,6 +69,19 @@ const api: ElectronAPI = {
     ipcRenderer.invoke('image:saveAs', src),
   openWorkspaceLink: (href: string, currentRelativePath?: string) =>
     ipcRenderer.invoke('workspace:openLink', href, currentRelativePath),
+  publishWeixinDraft: (payload: Parameters<NonNullable<ElectronAPI['publishWeixinDraft']>>[0]) =>
+    ipcRenderer.invoke('publish:weixinDraft', payload),
+  publishMultiPlatform: (payload: Parameters<NonNullable<ElectronAPI['publishMultiPlatform']>>[0]) =>
+    ipcRenderer.invoke('publish:multiPlatform', payload),
+  getPlatformAccounts: () => ipcRenderer.invoke('platform:getAccounts'),
+  onPlatformAuthUpdated: (callback: (states: Partial<Record<PlatformId, boolean>>) => void) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      states: Partial<Record<PlatformId, boolean>>
+    ) => callback(states);
+    ipcRenderer.on('platform:authStatesUpdated', handler);
+    return () => ipcRenderer.removeListener('platform:authStatesUpdated', handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
