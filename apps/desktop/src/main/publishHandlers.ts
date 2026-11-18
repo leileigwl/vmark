@@ -275,7 +275,7 @@ export async function verifyPlatformAuth(params: {
       const adapter = new BaijiahaoAdapter({ fetchFn: createSessionFetch(bSession) });
       return await Promise.race([
         adapter.checkAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
