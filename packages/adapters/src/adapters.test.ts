@@ -536,3 +536,76 @@ test('Platform adapters return false on authentication failure or expired sessio
   const bjh = new BaijiahaoAdapter({ fetchFn: unauthFetch });
   assert.equal(await bjh.checkAuth(), false);
 });
+
+test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image upload -> tokenized pcui draft save', async () => {
+  const mockFetch: FetchLike = async (url, init) => {
+    if (url.includes('builder/app/appinfo')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({
+          errno: 0,
+          errmsg: 'success',
+          data: { user: { userid: 'bjh_user_01', name: '技术创作者' }, app_id: '1589639493090963' },
+        }),
+      };
+    }
+    if (url.includes('pcui/picture/uploadproxy')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({
+          errno: 0,
+          errmsg: 'success',
+          ret: { https_url: 'https://bjh-pic.baidu.com/pcui_uploaded.png' },
+        }),
+      };
+    }
+    if (url === 'https://baijiahao.baidu.com/builder/rc/edit') {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `<!DOCTYPE html><html><body><script>window.__BJH__INIT__AUTH__ = "mock_bjh_token_xyz";</script></body></html>`,
+        json: async () => ({}),
+      };
+    }
+    if (url.includes('pcui/article/save')) {
+      const headers = (init?.headers as Record<string, string>) || {};
+      assert.equal(headers['token'], 'mock_bjh_token_xyz');
+      return {
+        ok: true,
+        status: 200,
+        text: async () => `bjhdraft({"errno":0,"errmsg":"success","ret":{"article_id":"bjh_pcui_999"}})`,
+        json: async () => ({}),
+      };
+    }
+    if (url.includes('builder/rc/edit?type=news&article_id=bjh_pcui_999')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '<html>Editor loaded</html>',
+        json: async () => ({}),
+      };
+    }
+    throw new Error(`Unexpected url: ${url}`);
+  };
+
+  const adapter = new BaijiahaoAdapter({ fetchFn: mockFetch });
+  assert.equal(await adapter.checkAuth(), true);
+
+  const img = await adapter.uploadImage(Buffer.from('mock-bytes'), 'test.png');
+  assert.equal(img, 'https://bjh-pic.baidu.com/pcui_uploaded.png');
+
+  const pushRes = await adapter.push({
+    title: '现代化微前端架构实践',
+    markdown: '# 正文',
+    html: '<p>正文内容</p>',
+    tags: ['前端'],
+    mode: 'draft',
+  });
+  assert.equal(pushRes.postId, 'bjh_pcui_999');
+  assert.equal(pushRes.url, 'https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=bjh_pcui_999');
+  assert.equal(await adapter.verifyDelivery('bjh_pcui_999'), true);
+});

@@ -55,7 +55,7 @@ const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   juejin: 'https://juejin.cn/login',
   csdn: 'https://passport.csdn.net/login',
   zhihu: 'https://www.zhihu.com/signin',
-  baijiahao: 'https://baijiahao.baidu.com/',
+  baijiahao: 'https://baijiahao.baidu.com/builder/theme/bjh/login',
   weibo: 'https://weibo.com/login.php',
   bilibili: 'https://passport.bilibili.com/login',
   douyin: 'https://creator.douyin.com/',

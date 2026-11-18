@@ -59,7 +59,7 @@ export const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
   juejin: ['sessionid', 'sessionid_ss'],
   bilibili: ['SESSDATA'],
   csdn: ['UserName', 'UserToken'],
-  baijiahao: ['BDUSS', 'BDUSS_BFESS'],
+  baijiahao: ['BDUSS', 'BDUSS_BFESS', 'BAIDUID', 'BAIDUID_BFESS'],
   linuxdo: ['_t', '_forum_session'],
   xiaohongshu: ['web_session'],
   weibo: ['SUB'],
