@@ -58,6 +58,7 @@
     "linux": {
       "executableName": "vmark",
       "maintainer": "leileigwl <leileigwl@github.com>",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "icon": "build/icon.png",
       "category": "Office",
       "target": [
