@@ -10,20 +10,73 @@ import {
   type FetchLike,
 } from './index.ts';
 
+const BENCHMARK_MARKDOWN = `---
+title: "深入解析现代前端富文本与 AST 渲染管线"
+tags: [前端架构, TypeScript, Markdown, 富文本]
+categories: [前端工程]
+author: "Vmark Studio"
+digest: "本文从 Markdown 抽象语法树（AST）出发，深度解析现代富文本排版引擎如何打通各平台高保真渲染管线。"
+coverImageUrl: "./assets/pipeline-architecture.png"
+showCoverInBody: true
+---
+
+# 深入解析现代前端富文本与 AST 渲染管线
+
+现代技术创作者通常面临严峻的内容分发割裂困境。
+
+![AST 渲染与分发架构](./assets/pipeline-architecture.png)
+
+> [!NOTE]
+> 本文介绍的 AST 转换引擎遵循 **「单向不可逆只读渲染」** 哲学。
+
+---
+
+## 1. 异构平台分发的核心差异矩阵
+
+| 平台属性 | 微信公众号 | 知乎专栏 | 博客园 (Cnblogs) | 稀土掘金 |
+| :--- | :--- | :--- | :--- | :--- |
+| **底层内容载体** | 全内联 CSS HTML | 专栏 HTML 片段 | 标准 GFM Markdown | 纯净 Markdown (mark_content) |
+| **代码块风格** | Mac 拟态三色胶囊圆点 | 原生 Prism \`<pre><code>\` | 用户高亮主题接管 | 平台原生主题 |
+
+---
+
+## 2. 转换器核心实现：基于 AST 的平台分支派生
+
+\`\`\`typescript
+export interface CodeBlockNode {
+  language: string;
+  code: string;
+}
+
+export function transformCodeBlock(node: CodeBlockNode): string {
+  return node.code.trim();
+}
+\`\`\`
+
+---
+
+## 3. 防盗链图片转存与 Referer 伪装管线
+
+\`\`\`rust
+pub async fn fetch_with_safe_referer(image_url: &str) -> Result<Vec<u8>, DownloadError> {
+    Ok(vec![])
+}
+\`\`\`
+
+---
+
+## 4. 引用与相关资料
+
+在微信公众号排版引擎中，以下外链将被自动转换为文末带序号的脚注：
+- TypeScript 官方 AST 规范文档：[TypeScript AST Docs](https://www.typescriptlang.org/docs/)
+- Vditor 现代 Markdown 编辑器内核：[Vditor GitHub](https://github.com/Vanessa219/vditor)
+`;
+
 const BENCHMARK_PAYLOAD = {
   title: '深入解析现代前端富文本与 AST 渲染管线',
-  markdown: `---
-title: "深入解析现代前端富文本与 AST 渲染管线"
-tags: [前端架构, TypeScript, Markdown]
----
-# 深入解析现代前端富文本与 AST 渲染管线
-现代技术创作者通常面临严峻的内容分发割裂困境。
-\`\`\`typescript
-export function transform(): string { return 'ok'; }
-\`\`\`
-`,
+  markdown: BENCHMARK_MARKDOWN,
   html: '<p>深入解析现代前端富文本与 AST 渲染管线</p>',
-  tags: ['前端架构', 'TypeScript', 'Markdown'],
+  tags: ['前端架构', 'TypeScript', 'Markdown', '富文本'],
 };
 
 test('Benchmark Publishing: verifies draft payload structures across authorized platforms', async () => {

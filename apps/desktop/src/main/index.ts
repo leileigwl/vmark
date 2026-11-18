@@ -867,13 +867,19 @@ function registerIpcHandlers(): void {
   ipcMain.handle('platform:logout', async (_event, platformId: PlatformId) => {
     const partition = `persist:platform_${platformId}`;
     const targetSession = session.fromPartition(partition);
-    await targetSession.clearStorageData({ storages: ['cookies', 'localstorage'] });
+    await targetSession.clearStorageData({
+      storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage'],
+    });
+    await targetSession.clearCache();
+    await targetSession.clearAuthCache();
+    await targetSession.cookies.flushStore();
     await upsertAccountRecord(platformId, {
       authorized: false,
       statusMessage: '未授权或已退出登录',
     });
     const states = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
-    await batchSyncHeartbeatResults(states);
+    states[platformId] = false;
+    await batchSyncHeartbeatResults(states, { [platformId]: '未授权或已退出登录' });
     activeMainWindow?.webContents.send('platform:authStatesUpdated', states);
     return true;
   });
