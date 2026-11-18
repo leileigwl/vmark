@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Local-First desktop Markdown writing, image pipeline & multi-platform publisher",
   "author": "leileigwl <leileigwl@github.com>",
+  "homepage": "https://github.com/leileigwl/vmark",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
@@ -63,6 +64,9 @@
         "AppImage",
         "deb"
       ]
+    },
+    "deb": {
+      "packageName": "vmark"
     }
   },
   "dependencies": {
