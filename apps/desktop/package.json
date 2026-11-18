@@ -18,6 +18,7 @@
   "build": {
     "appId": "com.vmark.desktop",
     "productName": "Vmark",
+    "executableName": "vmark",
     "publish": [],
     "directories": {
       "buildResources": "build",
@@ -52,6 +53,8 @@
       "allowToChangeInstallationDirectory": true
     },
     "linux": {
+      "executableName": "vmark",
+      "desktopName": "vmark",
       "icon": "build/icon.png",
       "category": "Office",
       "target": [
