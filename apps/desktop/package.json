@@ -54,7 +54,6 @@
     },
     "linux": {
       "executableName": "vmark",
-      "desktopName": "vmark",
       "icon": "build/icon.png",
       "category": "Office",
       "target": [
