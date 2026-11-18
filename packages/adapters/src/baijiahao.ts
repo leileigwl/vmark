@@ -1,6 +1,13 @@
 import type { AdapterPushPayload, AdapterPushResult, PlatformAdapter, PlatformDescriptor } from './index.ts';
 import type { FetchLike } from './weixin.ts';
 
+export interface BaijiahaoUserInfo {
+  userid: string;
+  name: string;
+  avatar?: string;
+  app_id?: string;
+}
+
 export interface BaijiahaoOptions {
   fetchFn?: FetchLike;
 }
@@ -18,9 +25,19 @@ export class BaijiahaoAdapter implements PlatformAdapter {
   };
 
   private readonly fetchFn: FetchLike;
+  private appId: string = '';
+  private userInfo: BaijiahaoUserInfo | null = null;
 
   constructor(options: BaijiahaoOptions = {}) {
     this.fetchFn = options.fetchFn ?? (globalThis.fetch as unknown as FetchLike);
+  }
+
+  getAppId(): string {
+    return this.appId;
+  }
+
+  getUserInfo(): BaijiahaoUserInfo | null {
+    return this.userInfo;
   }
 
   async checkAuth(): Promise<boolean> {
@@ -46,8 +63,21 @@ export class BaijiahaoAdapter implements PlatformAdapter {
           } | null;
         };
         const isSuccess = data.errno === 0 || data.errmsg === 'success';
-        const hasAuthor = Boolean(data.data?.user || data.data?.app_id || data.data?.userid || data.data?.name);
+        const userObj = data.data?.user;
+        const appId = data.data?.app_id ? String(data.data.app_id) : '';
+        const name = userObj?.name || (typeof data.data?.name === 'string' ? data.data.name : '');
+        const userid = userObj?.userid || (typeof data.data?.userid === 'string' ? data.data.userid : '');
+        const avatar = userObj?.avatar;
+
+        const hasAuthor = Boolean(appId || (userObj && (userid || name)) || userid || name);
         if (isSuccess && hasAuthor) {
+          this.appId = appId;
+          this.userInfo = {
+            userid: userid || appId,
+            name: name || '百家号创作者',
+            avatar,
+            app_id: appId,
+          };
           return true;
         }
       }
@@ -61,9 +91,24 @@ export class BaijiahaoAdapter implements PlatformAdapter {
         headers: defaultHeaders,
       });
       if (res.ok) {
-        const data = (await res.json()) as { errno?: number; errmsg?: string; data?: unknown };
-        if ((data.errno === 0 || data.errmsg === 'success') && Boolean(data.data)) {
-          return true;
+        const data = (await res.json()) as {
+          errno?: number;
+          errmsg?: string;
+          data?: { app_id?: string | number; user?: { userid?: string; name?: string }; name?: string } | null;
+        };
+        if ((data.errno === 0 || data.errmsg === 'success') && data.data) {
+          const appId = data.data.app_id ? String(data.data.app_id) : '';
+          const name = data.data.user?.name || data.data.name || '';
+          const userid = data.data.user?.userid || appId || '';
+          if (appId || name || userid) {
+            this.appId = appId;
+            this.userInfo = {
+              userid: userid || appId,
+              name: name || '百家号创作者',
+              app_id: appId,
+            };
+            return true;
+          }
         }
       }
     } catch {
@@ -76,8 +121,19 @@ export class BaijiahaoAdapter implements PlatformAdapter {
         headers: defaultHeaders,
       });
       if (res.ok) {
-        const data = (await res.json()) as { errno?: number; data?: { app_id?: string; user?: unknown } };
-        if (data.errno === 0 && (Boolean(data.data?.app_id) || Boolean(data.data?.user))) {
+        const data = (await res.json()) as {
+          errno?: number;
+          data?: { app_id?: string | number; user?: { userid?: string; name?: string } } | null;
+        };
+        const appId = data.data?.app_id ? String(data.data.app_id) : '';
+        const hasUser = Boolean(data.data?.user?.userid || data.data?.user?.name);
+        if (data.errno === 0 && (Boolean(appId) || hasUser)) {
+          this.appId = appId;
+          this.userInfo = {
+            userid: data.data?.user?.userid || appId,
+            name: data.data?.user?.name || '百家号创作者',
+            app_id: appId,
+          };
           return true;
         }
       }
@@ -96,7 +152,7 @@ export class BaijiahaoAdapter implements PlatformAdapter {
         },
       });
       const html = await response.text();
-      const match = html.match(/window\.__BJH__INIT__AUTH__\s*=\s*['"]([^'"]+)['"]/);
+      const match = html.match(/(?:window\.__BJH__INIT__AUTH__|["']?__BJH__INIT__AUTH__["']?)\s*[:=]\s*['"]([^'"]+)['"]/);
       return match ? match[1] : '';
     } catch {
       return '';
@@ -104,13 +160,16 @@ export class BaijiahaoAdapter implements PlatformAdapter {
   }
 
   async uploadImage(buffer: Buffer, fileName: string): Promise<string> {
+    const effectiveAppId = this.appId || '1589639493090963';
     const formData = new FormData();
     const blob = new Blob([new Uint8Array(buffer)]);
     formData.append('media', blob, fileName);
     formData.append('type', 'image');
+    formData.append('app_id', effectiveAppId);
     formData.append('is_waterlog', '1');
     formData.append('save_material', '1');
     formData.append('no_compress', '0');
+    formData.append('is_events', '');
     formData.append('article_type', 'news');
 
     // 1. Try modern pcui picture upload proxy
@@ -194,7 +253,7 @@ export class BaijiahaoAdapter implements PlatformAdapter {
 
       if (res.ok) {
         const text = await res.text();
-        const jsonStr = text.replace(/^bjhdraft\(/, '').replace(/\)$/, '').trim();
+        const jsonStr = text.trim().replace(/^bjhdraft\s*\(/, '').replace(/\);?\s*$/, '').trim();
         const data = JSON.parse(jsonStr) as {
           errno?: number;
           errmsg?: string;

@@ -538,6 +538,7 @@ test('Platform adapters return false on authentication failure or expired sessio
 });
 
 test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image upload -> tokenized pcui draft save', async () => {
+  let capturedFormData: FormData | null = null;
   const mockFetch: FetchLike = async (url, init) => {
     if (url.includes('builder/app/appinfo')) {
       return {
@@ -552,6 +553,7 @@ test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image up
       };
     }
     if (url.includes('pcui/picture/uploadproxy')) {
+      capturedFormData = init?.body as FormData;
       return {
         ok: true,
         status: 200,
@@ -574,10 +576,11 @@ test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image up
     if (url.includes('pcui/article/save')) {
       const headers = (init?.headers as Record<string, string>) || {};
       assert.equal(headers['token'], 'mock_bjh_token_xyz');
+      // Standard Baidu JSONP callback with terminating semicolon and whitespace
       return {
         ok: true,
         status: 200,
-        text: async () => `bjhdraft({"errno":0,"errmsg":"success","ret":{"article_id":"bjh_pcui_999"}})`,
+        text: async () => `bjhdraft({"errno":0,"errmsg":"success","ret":{"article_id":"bjh_pcui_999"}});\n`,
         json: async () => ({}),
       };
     }
@@ -594,9 +597,16 @@ test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image up
 
   const adapter = new BaijiahaoAdapter({ fetchFn: mockFetch });
   assert.equal(await adapter.checkAuth(), true);
+  assert.equal(adapter.getAppId(), '1589639493090963');
+  assert.equal(adapter.getUserInfo()?.name, '技术创作者');
+  assert.equal(adapter.getUserInfo()?.userid, 'bjh_user_01');
 
   const img = await adapter.uploadImage(Buffer.from('mock-bytes'), 'test.png');
   assert.equal(img, 'https://bjh-pic.baidu.com/pcui_uploaded.png');
+  assert.ok(capturedFormData, 'FormData must be passed to pcui/picture/uploadproxy');
+  const fd = capturedFormData as FormData;
+  assert.equal(fd.get('app_id'), '1589639493090963');
+  assert.equal(fd.get('is_events'), '');
 
   const pushRes = await adapter.push({
     title: '现代化微前端架构实践',
@@ -608,4 +618,14 @@ test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image up
   assert.equal(pushRes.postId, 'bjh_pcui_999');
   assert.equal(pushRes.url, 'https://baijiahao.baidu.com/builder/rc/edit?type=news&article_id=bjh_pcui_999');
   assert.equal(await adapter.verifyDelivery('bjh_pcui_999'), true);
+
+  // Probe edge cases: empty user object or missing author qualifications returns false
+  const emptyUserFetch: FetchLike = async () => ({
+    ok: true,
+    status: 200,
+    text: async () => '',
+    json: async () => ({ errno: 0, errmsg: 'success', data: { user: {} } }),
+  });
+  const emptyUserAdapter = new BaijiahaoAdapter({ fetchFn: emptyUserFetch });
+  assert.equal(await emptyUserAdapter.checkAuth(), false);
 });
