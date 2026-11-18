@@ -68,10 +68,23 @@ export const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
   github_static: ['ghp_', 'github_pat_'],
 };
 
+const CHROME_DESKTOP_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
 export function createSessionFetch(targetSession: Electron.Session): FetchLike {
+  try {
+    targetSession.setUserAgent(CHROME_DESKTOP_UA);
+  } catch {
+    // ignore
+  }
   return async (input, init) => {
-    const res = await targetSession.fetch(input, init as Parameters<typeof targetSession.fetch>[1]);
+    const customInit = ({ ...init }) as Parameters<typeof targetSession.fetch>[1];
+    const headers = new Headers(customInit?.headers || {});
+    if (!headers.has('User-Agent')) {
+      headers.set('User-Agent', CHROME_DESKTOP_UA);
+    }
+    const res = await targetSession.fetch(input, { ...customInit, headers });
     return {
       ok: res.ok,
       status: res.status,

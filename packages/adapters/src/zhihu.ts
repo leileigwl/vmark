@@ -28,6 +28,7 @@ export class ZhihuAdapter implements PlatformAdapter {
       const res = await this.fetchFn('https://www.zhihu.com/api/v4/me', {
         headers: {
           'x-requested-with': 'fetch',
+          'referer': 'https://www.zhihu.com/',
         },
       });
       if (!res.ok) return false;
@@ -46,6 +47,11 @@ export class ZhihuAdapter implements PlatformAdapter {
 
     const res = await this.fetchFn('https://zhuanlan.zhihu.com/api/uploaded_images', {
       method: 'POST',
+      headers: {
+        'x-requested-with': 'fetch',
+        'referer': 'https://zhuanlan.zhihu.com/write',
+        'origin': 'https://zhuanlan.zhihu.com',
+      },
       body: formData,
     });
 
@@ -61,25 +67,49 @@ export class ZhihuAdapter implements PlatformAdapter {
   }
 
   async push(payload: AdapterPushPayload): Promise<AdapterPushResult> {
-    const res = await this.fetchFn('https://zhuanlan.zhihu.com/api/articles/drafts', {
+    // 步骤 1：创建知乎专栏草稿容器（获取草稿 ID）
+    const createRes = await this.fetchFn('https://zhuanlan.zhihu.com/api/articles/drafts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-requested-with': 'fetch',
+        'referer': 'https://zhuanlan.zhihu.com/write',
+        'origin': 'https://zhuanlan.zhihu.com',
       },
       body: JSON.stringify({
         title: payload.title,
-        content: payload.html,
+        content: '',
         delta_time: 0,
       }),
     });
 
-    if (!res.ok) {
-      throw new Error(`知乎草稿创建失败: HTTP ${res.status}`);
+    if (!createRes.ok) {
+      throw new Error(`知乎草稿创建失败: HTTP ${createRes.status}`);
     }
 
-    const data = (await res.json()) as { id: string | number; url?: string };
-    const postId = String(data.id);
-    const draftUrl = data.url || `https://zhuanlan.zhihu.com/p/${postId}/edit`;
+    const createData = (await createRes.json()) as { id: string | number; url?: string };
+    const postId = String(createData.id);
+
+    // 步骤 2：对知乎草稿执行 PATCH 更新富文本内容（知乎后台要求二次 PATCH 才能落盘正文）
+    const updateRes = await this.fetchFn(`https://zhuanlan.zhihu.com/api/articles/${postId}/draft`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-requested-with': 'fetch',
+        'referer': `https://zhuanlan.zhihu.com/p/${postId}/edit`,
+        'origin': 'https://zhuanlan.zhihu.com',
+      },
+      body: JSON.stringify({
+        title: payload.title,
+        content: payload.html,
+      }),
+    });
+
+    if (!updateRes.ok) {
+      throw new Error(`知乎草稿内容保存失败: HTTP ${updateRes.status}`);
+    }
+
+    const draftUrl = `https://zhuanlan.zhihu.com/p/${postId}/edit`;
 
     return {
       postId,
@@ -91,7 +121,12 @@ export class ZhihuAdapter implements PlatformAdapter {
 
   async verifyDelivery(postId: string): Promise<boolean> {
     try {
-      const res = await this.fetchFn(`https://zhuanlan.zhihu.com/api/articles/${postId}/draft`);
+      const res = await this.fetchFn(`https://zhuanlan.zhihu.com/api/articles/${postId}/draft`, {
+        headers: {
+          'x-requested-with': 'fetch',
+          'referer': `https://zhuanlan.zhihu.com/p/${postId}/edit`,
+        },
+      });
       return res.ok;
     } catch {
       return false;
