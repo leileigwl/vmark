@@ -215,6 +215,7 @@ export interface ElectronAPI {
   getStartupConfig: () => Promise<StartupConfig>;
   saveStartupConfig: (config: StartupConfig) => Promise<void>;
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) => Promise<boolean>;
+  logoutPlatform: (platformId: PlatformId) => Promise<boolean>;
   getPlatformAuthStates: () => Promise<Partial<Record<PlatformId, boolean>>>;
   getGitStatus: () => Promise<GitStatusInfo>;
   pushGitWorkspace: (commitMessage: string) => Promise<{ ok: boolean; message: string }>;

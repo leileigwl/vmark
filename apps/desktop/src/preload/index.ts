@@ -44,6 +44,8 @@ const api: ElectronAPI = {
   saveStartupConfig: (config: StartupConfig) => ipcRenderer.invoke('config:saveStartup', config),
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
     ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
+  logoutPlatform: (platformId: PlatformId) =>
+    ipcRenderer.invoke('platform:logout', platformId),
   getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),
   getGitStatus: () => ipcRenderer.invoke('git:status'),
   pushGitWorkspace: (commitMessage: string) =>
