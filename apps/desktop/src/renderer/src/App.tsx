@@ -760,7 +760,13 @@ export default function App() {
       )}
 
       {toastMsg && (
-        <div className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--border-color)] bg-[#1d1d1f]/92 px-5 py-3 text-center text-[13px] text-white shadow-2xl backdrop-blur-md">
+        <div
+          onClick={() => setToastMsg(null)}
+          role="button"
+          tabIndex={0}
+          title="点击关闭"
+          className="fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 cursor-pointer select-none rounded-xl border border-[var(--border-color)] bg-[#1d1d1f]/92 px-5 py-3 text-center text-[13px] text-white shadow-2xl backdrop-blur-md transition-opacity hover:opacity-90"
+        >
           {toastMsg}
         </div>
       )}
@@ -1252,9 +1258,17 @@ export default function App() {
                 const refreshed = await window.electronAPI.getPlatformAuthStates();
                 setAuthStates(refreshed);
                 if (ok) {
-                  setToastMsg(`平台授权已完成并同步`);
+                  showToast(`平台授权已完成并同步`);
                 } else {
-                  setToastMsg(`未检测到登录授权票据，已保持未授权状态`);
+                  showToast(`未检测到登录授权票据，已保持未授权状态`);
+                }
+              }}
+              onPlatformLogout={async (pid) => {
+                const ok = await window.electronAPI.logoutPlatform(pid);
+                const refreshed = await window.electronAPI.getPlatformAuthStates();
+                setAuthStates(refreshed);
+                if (ok) {
+                  showToast(`已退出平台授权并清除会话 Cookie`);
                 }
               }}
               workspacePath={workspacePath}

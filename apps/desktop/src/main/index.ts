@@ -864,6 +864,20 @@ function registerIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle('platform:logout', async (_event, platformId: PlatformId) => {
+    const partition = `persist:platform_${platformId}`;
+    const targetSession = session.fromPartition(partition);
+    await targetSession.clearStorageData({ storages: ['cookies', 'localstorage'] });
+    await upsertAccountRecord(platformId, {
+      authorized: false,
+      statusMessage: '未授权或已退出登录',
+    });
+    const states = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
+    await batchSyncHeartbeatResults(states);
+    activeMainWindow?.webContents.send('platform:authStatesUpdated', states);
+    return true;
+  });
+
   ipcMain.handle('platform:authStates', async () => {
     const states = await checkPlatformAuthStates({ session, getAppConfig: readAppConfig });
     await batchSyncHeartbeatResults(states);
