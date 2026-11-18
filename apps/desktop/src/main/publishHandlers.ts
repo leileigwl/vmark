@@ -92,49 +92,73 @@ export async function hasSessionAuthCookies(
     return false;
   }
 
-  const hasCookie = (matcher: (name: string, value: string) => boolean) =>
-    cookies.some((c) => matcher(c.name, c.value || '') && typeof c.value === 'string' && c.value.trim().length > 0);
+  const hasCookie = (matcher: (name: string, value: string, domain?: string) => boolean) =>
+    cookies.some(
+      (c) =>
+        matcher(c.name, c.value || '', c.domain) &&
+        typeof c.value === 'string' &&
+        c.value.trim().length > 0
+    );
 
   switch (platformId) {
     case 'weixin':
-      // Weixin Official Account requires BOTH slave_user and slave_sid
-      return hasCookie((n) => n === 'slave_user') && hasCookie((n) => n === 'slave_sid');
+      // Weixin Official Account requires BOTH slave_user and slave_sid on weixin.qq.com
+      return (
+        hasCookie((n, _, d) => n === 'slave_user' && (!d || d.includes('weixin.qq.com'))) &&
+        hasCookie((n, _, d) => n === 'slave_sid' && (!d || d.includes('weixin.qq.com')))
+      );
 
     case 'csdn':
-      // CSDN requires BOTH UserName and UserToken
-      return hasCookie((n) => n === 'UserName') && hasCookie((n) => n.startsWith('UserToken'));
+      // CSDN requires BOTH UserName and UserToken on csdn.net
+      return (
+        hasCookie((n, _, d) => n === 'UserName' && (!d || d.includes('csdn.net'))) &&
+        hasCookie((n, _, d) => n.startsWith('UserToken') && (!d || d.includes('csdn.net')))
+      );
 
     case 'zhihu':
-      return hasCookie((n) => n === 'z_c0');
+      return hasCookie((n, _, d) => n === 'z_c0' && (!d || d.includes('zhihu.com')));
 
     case 'cnblogs':
       return hasCookie(
-        (n) => n === '.CNBlogsCookie' || n === '.Cnblogs.AspNetCore.Cookies' || n === 'Cnblogs.AspNetCore.Cookies'
+        (n, _, d) =>
+          (n === '.CNBlogsCookie' ||
+            n === '.Cnblogs.AspNetCore.Cookies' ||
+            n === 'Cnblogs.AspNetCore.Cookies') &&
+          (!d || d.includes('cnblogs.com'))
       );
 
     case 'juejin':
-      return hasCookie((n) => n === 'sessionid' || n === 'sessionid_ss');
+      return hasCookie((n, _, d) => (n === 'sessionid' || n === 'sessionid_ss') && (!d || d.includes('juejin.cn')));
 
     case 'bilibili':
-      return hasCookie((n) => n === 'SESSDATA');
+      return hasCookie(
+        (n, _, d) =>
+          n === 'SESSDATA' && (!d || d.includes('bilibili.com') || d.includes('bilibili.cn'))
+      );
 
     case 'baijiahao':
-      return hasCookie((n) => n === 'BDUSS' || n === 'BDUSS_BFESS');
+      return hasCookie(
+        (n, _, d) => (n === 'BDUSS' || n === 'BDUSS_BFESS') && (!d || d.includes('baidu.com'))
+      );
 
     case 'xiaohongshu':
-      return hasCookie((n) => n === 'web_session');
+      return hasCookie((n, _, d) => n === 'web_session' && (!d || d.includes('xiaohongshu.com')));
 
     case 'weibo':
-      return hasCookie((n) => n === 'SUB');
+      return hasCookie(
+        (n, _, d) => n === 'SUB' && (!d || d.includes('weibo.com') || d.includes('weibo.cn'))
+      );
 
     case 'douyin':
-      return hasCookie((n) => n === 'sessionid' || n === 'sessionid_ss');
+      return hasCookie((n, _, d) => (n === 'sessionid' || n === 'sessionid_ss') && (!d || d.includes('douyin.com')));
 
     case 'linuxdo':
-      return hasCookie((n) => n === '_t' || n === '_forum_session');
+      return hasCookie((n, _, d) => (n === '_t' || n === '_forum_session') && (!d || d.includes('linux.do')));
 
     case 'x':
-      return hasCookie((n) => n === 'auth_token');
+      return hasCookie(
+        (n, _, d) => n === 'auth_token' && (!d || d.includes('x.com') || d.includes('twitter.com'))
+      );
 
     case 'github_static':
       return hasCookie((n) => n.startsWith('ghp_') || n.startsWith('github_pat_'));
@@ -179,7 +203,16 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         sFetch('https://i.cnblogs.com/api/user', {
           headers: { Referer: 'https://i.cnblogs.com/' },
-        }).then((res) => res.ok),
+        }).then(async (res) => {
+          if (res.ok) return true;
+          if (res.status === 403) {
+            try {
+              const data = (await res.json()) as { errors?: string[] };
+              if (data.errors?.some((e) => e.includes('您没有开通博客'))) return true;
+            } catch {}
+          }
+          return false;
+        }),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
@@ -530,6 +563,9 @@ async function publishToSingleTarget(params: {
           const json = JSON.parse(errText);
           if (json.errors && json.errors.length > 0) errMsg = json.errors.join(', ');
         } catch {}
+        if (errMsg.includes('您没有开通博客')) {
+          errMsg = '博客园账号尚未开通个人博客空间，请访问 https://i.cnblogs.com/ 申请开通后重试';
+        }
         return {
           platformId,
           ok: false,
@@ -658,23 +694,31 @@ async function publishToSingleTarget(params: {
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
-      const pushed = await adapter.push({
-        title: payload.title || parsed.title,
-        markdown: uploadResult.markdown,
-        html: '',
-        tags: payload.tags && payload.tags.length > 0 ? payload.tags : parsed.tags,
-        mode: 'draft',
-      });
-      return {
-        platformId,
-        ok: true,
-        mode: 'draft',
-        postId: pushed.postId,
-        url: pushed.url,
-        verified: pushed.verified,
-        uploadedImagesCount: uploadResult.uploadedCount,
-        message: `已推送到 CSDN 草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
-      };
+      try {
+        const pushed = await adapter.push({
+          title: payload.title || parsed.title,
+          markdown: uploadResult.markdown,
+          html: '',
+          tags: payload.tags && payload.tags.length > 0 ? payload.tags : parsed.tags,
+          mode: 'draft',
+        });
+        return {
+          platformId,
+          ok: true,
+          mode: 'draft',
+          postId: pushed.postId,
+          url: pushed.url,
+          verified: pushed.verified,
+          uploadedImagesCount: uploadResult.uploadedCount,
+          message: `已推送到 CSDN 草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+        };
+      } catch (err) {
+        let msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('博主不存在')) {
+          msg = 'CSDN 账号尚未激活博主身份，请访问 https://mp.csdn.net/ 完善博主昵称与博客开通后重试';
+        }
+        return { platformId, ok: false, mode: 'draft', message: msg };
+      }
     }
 
     if (platformId === 'baijiahao') {

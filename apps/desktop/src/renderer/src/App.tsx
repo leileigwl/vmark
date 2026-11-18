@@ -135,12 +135,19 @@ export default function App() {
   const [loadSeq, setLoadSeq] = useState<number>(0);
   const openRequestIdRef = useRef<number>(0);
   const editorRef = useRef<VditorEditorHandle>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showToast(errOrMsg: unknown) {
     const raw = errOrMsg instanceof Error ? errOrMsg.message : String(errOrMsg);
     const clean = raw.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i, '');
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMsg(clean);
-    setTimeout(() => setToastMsg((prev) => (prev === clean ? null : prev)), 3200);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMsg(null);
+      toastTimerRef.current = null;
+    }, 3200);
   }
 
   useEffect(() => {
@@ -761,7 +768,13 @@ export default function App() {
 
       {toastMsg && (
         <div
-          onClick={() => setToastMsg(null)}
+          onClick={() => {
+            if (toastTimerRef.current) {
+              clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = null;
+            }
+            setToastMsg(null);
+          }}
           role="button"
           tabIndex={0}
           title="点击关闭"

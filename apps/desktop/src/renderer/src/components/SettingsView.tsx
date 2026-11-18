@@ -575,7 +575,8 @@ export function SettingsView({
                         <button
                           type="button"
                           onClick={() => onPlatformLogout?.(p.id)}
-                          className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10"
+                          title="清除该平台沙箱内所有持久化 Cookie 并退出登录"
+                          className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10 cursor-pointer"
                         >
                           退出授权
                         </button>
