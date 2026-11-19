@@ -3,7 +3,7 @@
   "defaultNewFileMaxLines": 500,
   "files": {
     "apps/desktop/src/renderer/src/App.tsx": { "maxLines": 1393, "targetLines": 500 },
-    "apps/desktop/src/main/index.ts": { "maxLines": 1303, "targetLines": 500 },
+    "apps/desktop/src/main/index.ts": { "maxLines": 317, "targetLines": 500 },
     "apps/desktop/src/renderer/src/components/VditorEditor.tsx": { "maxLines": 1157, "targetLines": 500 },
     "apps/desktop/src/renderer/src/editor/vditorKeyboard.ts": { "maxLines": 991, "targetLines": 500 },
     "apps/desktop/src/main/publishHandlers.ts": { "maxLines": 871, "targetLines": 500 },

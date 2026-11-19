@@ -200,16 +200,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Electron L3 Smoke (when script is registered in Phase 3)
+      - name: Run Electron L3 Smoke (xvfb-run)
         run: |
-          HAS_L3=$(node -e "const p=require('./apps/desktop/package.json'); console.log(Boolean(p.scripts && p.scripts['test:electron-smoke']))")
-          if [ "$HAS_L3" = "true" ]; then
-            sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2t64 || sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2
-            pnpm --filter @vcat/desktop build
-            xvfb-run -a pnpm --filter @vcat/desktop run test:electron-smoke
-          else
-            echo "L3 test:electron-smoke pending Phase 3 Task 4.3; skipping cleanly."
-          fi
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          pnpm --filter @vcat/desktop exec playwright install-deps chromium
+          pnpm --filter @vcat/desktop build
+          xvfb-run -a pnpm --filter @vcat/desktop run test:electron-smoke
+
+      - name: Upload L3 failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3-electron-smoke-failure
+          path: apps/desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
   ci-gate:
     name: ci-gate

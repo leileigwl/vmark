@@ -26,10 +26,10 @@
 
 ## 4. Phase 3：五层测试金字塔、模块岛解耦与 Stage B 底座封板
 
-- [ ] 4.1 建立 `packages/shared/src/ipcContract.ts` 与 `apps/desktop/tests/ipcContract.test.ts`，自动校验 `main`、`preload`（`apps/desktop/src/preload/index.ts`）与 `ElectronAPI` 三端频道名称及签名一致性，确保 L1 执行耗时 `<10s` 且故意制造不匹配时红灯拦截
-- [ ] 4.2 改造 [apps/desktop/playwright.config.ts](apps/desktop/playwright.config.ts) 支持空闲随机端口分配与独立临时目录，允许多个 `git worktree` 并发执行 `playwright test` 零冲突全绿
-- [ ] 4.3 新增 L3 真实 Electron 冒烟测试（`apps/desktop/tests/electron-smoke.spec.ts` + `package.json` `test:electron-smoke`）并在 `ubuntu-latest` CI 上接入 `xvfb-run`，验证真实打包后主进程窗口无白屏崩溃、SQLite 读写与基础 IPC 往返全绿
-- [ ] 4.4 按垂直物理模块岛拆解 `apps/desktop/src/main/index.ts`（拆出 `src/main/ipc/registry.ts` 及工作区/文章/图床/平台鉴权子域岛与单测），将 `main/index.ts` 降至 500 行以下、下调 `.harness/ratchet.json` 基线并通过 `arch-graph` 校验
+- [x] 4.1 建立 `packages/shared/src/ipcContract.ts` 与 `apps/desktop/tests/ipcContract.test.ts`，自动校验 `main`、`preload`（`apps/desktop/src/preload/index.ts`）与 `ElectronAPI` 三端频道名称及签名一致性，确保 L1 执行耗时 `<10s` 且故意制造不匹配时红灯拦截
+- [x] 4.2 改造 [apps/desktop/playwright.config.ts](apps/desktop/playwright.config.ts) 支持空闲随机端口分配与独立临时目录，允许多个 `git worktree` 并发执行 `playwright test` 零冲突全绿
+- [x] 4.3 新增 L3 真实 Electron 冒烟测试（`apps/desktop/tests/electron-smoke.spec.ts` + `package.json` `test:electron-smoke`）并在 `ubuntu-latest` CI 上接入 `xvfb-run`，验证真实打包后主进程窗口无白屏崩溃、SQLite 读写与基础 IPC 往返全绿
+- [x] 4.4 按垂直物理模块岛拆解 `apps/desktop/src/main/index.ts`（拆出 `src/main/ipc/registry.ts` 及工作区/文章/图床/平台鉴权子域岛与单测），将 `main/index.ts` 降至 500 行以下、下调 `.harness/ratchet.json` 基线并通过 `arch-graph` 校验
 - [ ] 4.5 按垂直物理模块岛拆解 `apps/desktop/src/renderer/src/App.tsx`（拆出 `src/renderer/src/features/<domain>/index.ts` 领域岛 Hooks 与壳组件），将 `App.tsx` 降至 500 行以下并下调 `.harness/ratchet.json` 基线；待全量 `typecheck`、单测、Playwright E2E 与 `arch-graph` 全绿后，将 `.harness/project.json` 置为 `"bootstrapLocked": true` 完成 Stage A 封板并验证日常态底座修改被 Hook 拦下
 
 ## 5. Phase 4：每周 Cron Slop 流水线与可执行跨项目 Harness Kit
