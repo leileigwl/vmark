@@ -95,6 +95,10 @@ export class WeixinAdapter implements PlatformAdapter {
     const response = await this.fetchFn(url, {
       method: 'POST',
       credentials: 'include',
+      headers: {
+        Origin: 'https://mp.weixin.qq.com',
+        Referer: `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=77&token=${encodeURIComponent(token)}&lang=zh_CN`,
+      },
       body: form,
     });
     const json = (await response.json()) as {
@@ -144,7 +148,11 @@ export class WeixinAdapter implements PlatformAdapter {
       {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Origin: 'https://mp.weixin.qq.com',
+          Referer: `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&isNew=1&type=77&token=${encodeURIComponent(this.meta.token)}&lang=zh_CN`,
+        },
         body,
       }
     );
