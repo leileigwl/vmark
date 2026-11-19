@@ -136,11 +136,34 @@ export function runAntiCheatChecks(options: {
   const todayIso = options.todayIso ?? new Date().toISOString().slice(0, 10);
   const violations: HarnessViolation[] = [];
 
+  // Allow the initial Stage A -> Stage B lock-in PR (no base config or base bootstrapLocked=false -> HEAD true)
+  const touchedProjectConfig = diffFiles.some((d) => toPosixPath(d.file) === '.harness/project.json');
+  let isInitialLockInTransition = false;
+  if (project.bootstrapLocked && touchedProjectConfig) {
+    const baseProjRaw = getBaseContent('.harness/project.json');
+    if (baseProjRaw === null) {
+      isInitialLockInTransition = true;
+    } else {
+      try {
+        const parsed = JSON.parse(baseProjRaw) as { bootstrapLocked?: boolean };
+        if (parsed.bootstrapLocked === false) {
+          isInitialLockInTransition = true;
+        }
+      } catch {
+        isInitialLockInTransition = false;
+      }
+    }
+  }
+
   for (const diff of diffFiles) {
     const relPath = toPosixPath(diff.file);
 
     // 1. Bootstrap Lock Guard
-    if (project.bootstrapLocked && matchesAnyGlob(relPath, project.bootstrapLockProtectedPaths)) {
+    if (
+      project.bootstrapLocked &&
+      !isInitialLockInTransition &&
+      matchesAnyGlob(relPath, project.bootstrapLockProtectedPaths)
+    ) {
       violations.push({
         file: relPath,
         line: 1,

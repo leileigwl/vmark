@@ -19,10 +19,10 @@
 ## 3. Phase 2：GitHub 治理、风险分级 CI/CD 与邮件反推闭环
 
 - [x] 3.1 通过 `gh` CLI 在 `leileigwl/vmark` 配置标签体系（`risk:low`、`risk:mid`、`risk:high`、`slop:cleanup`、`freeze:release-window`、`circuit:paused`），开启 `delete_branch_on_merge` 与 `allow_auto_merge`，设置 `master`/`test` 分支保护并校验 API 返回符合预期
-- [ ] 3.2 创建 `.github/risk-rules.yml` 并接入 `risk-classifier.ts` 统一判定，重构 [.github/workflows/ci.yml](.github/workflows/ci.yml) 为 `ubuntu-latest` 并行矩阵（拆分 L0 门禁、L1 单测+IPC 契约、L2 Playwright 并行，纯文档改动自动跳过 E2E），通过触发测试 PR 验证 `macos-latest` 不再在日常 PR 启动且跑通全绿
-- [ ] 3.3 实现 `.github/workflows/risk-gate.yml`：校验信任来源、`concurrency: merge-test` 串行合流、合前同步 `test`、冻结锁退避、`risk:low`/`risk:mid` 自动 Squash 合入 `test`、`risk:high`（含 AST/语义/锁定底座升级）等待 `leileigwl` `/approve` 指令才放行，并验证内部 PR 与外部 Fork PR 行为完全符合 Spec
-- [ ] 3.4 实现 `.github/workflows/daily-release-pr.yml`（每日 21:00 CST 与手动触发 Drain & Freeze，生成零冲突 `test -> master` 汇总 PR 并嵌入每日 5 大指标仪表盘及 `@leileigwl` 触发邮件通知，Merge Commit 合入后同步回 `test` 解锁）与 `.github/workflows/auto-revert.yml`（`test` 回归变红打熔断标记并生成唯一 1 个 Revert PR 与告警 `@leileigwl`），用测试分支演练同步与防雪崩回滚成功
-- [ ] 3.5 实现 Fork 安全隔离两段式 `.github/workflows/ai-review.yml`（无密钥 `pull_request` 生成 diff Artifact + 受控 `workflow_run` 仅读 diff 调 DeepSeek/OpenAI API，仅允许单向调高风险且未配密钥时优雅降级）及外部 Fork PR CLA/DCO 与 `.github/PULL_REQUEST_TEMPLATE.md` 检查，验证零密钥暴露且降级运行正常
+- [x] 3.2 创建 `.github/risk-rules.yml` 并接入 `risk-classifier.ts` 统一判定，重构 [.github/workflows/ci.yml](.github/workflows/ci.yml) 为 `ubuntu-latest` 并行矩阵（拆分 L0 门禁、L1 单测+IPC 契约、L2 Playwright 并行，纯文档改动自动跳过 E2E），通过触发测试 PR 验证 `macos-latest` 不再在日常 PR 启动且跑通全绿
+- [x] 3.3 实现 `.github/workflows/risk-gate.yml`：校验信任来源、`concurrency: merge-test` 串行合流、合前同步 `test`、冻结锁退避、`risk:low`/`risk:mid` 自动 Squash 合入 `test`、`risk:high`（含 AST/语义/锁定底座升级）等待 `leileigwl` `/approve` 指令才放行，并验证内部 PR 与外部 Fork PR 行为完全符合 Spec
+- [x] 3.4 实现 `.github/workflows/daily-release-pr.yml`（每日 21:00 CST 与手动触发 Drain & Freeze，生成零冲突 `test -> master` 汇总 PR 并嵌入每日 5 大指标仪表盘及 `@leileigwl` 触发邮件通知，Merge Commit 合入后同步回 `test` 解锁）与 `.github/workflows/auto-revert.yml`（`test` 回归变红打熔断标记并生成唯一 1 个 Revert PR 与告警 `@leileigwl`），用测试分支演练同步与防雪崩回滚成功
+- [x] 3.5 实现 Fork 安全隔离两段式 `.github/workflows/ai-review.yml`（无密钥 `pull_request` 生成 diff Artifact + 受控 `workflow_run` 仅读 diff 调 DeepSeek/OpenAI API，仅允许单向调高风险且未配密钥时优雅降级）及外部 Fork PR CLA/DCO 与 `.github/PULL_REQUEST_TEMPLATE.md` 检查，验证零密钥暴露且降级运行正常
 
 ## 4. Phase 3：五层测试金字塔、模块岛解耦与 Stage B 底座封板
 
@@ -30,12 +30,12 @@
 - [x] 4.2 改造 [apps/desktop/playwright.config.ts](apps/desktop/playwright.config.ts) 支持空闲随机端口分配与独立临时目录，允许多个 `git worktree` 并发执行 `playwright test` 零冲突全绿
 - [x] 4.3 新增 L3 真实 Electron 冒烟测试（`apps/desktop/tests/electron-smoke.spec.ts` + `package.json` `test:electron-smoke`）并在 `ubuntu-latest` CI 上接入 `xvfb-run`，验证真实打包后主进程窗口无白屏崩溃、SQLite 读写与基础 IPC 往返全绿
 - [x] 4.4 按垂直物理模块岛拆解 `apps/desktop/src/main/index.ts`（拆出 `src/main/ipc/registry.ts` 及工作区/文章/图床/平台鉴权子域岛与单测），将 `main/index.ts` 降至 500 行以下、下调 `.harness/ratchet.json` 基线并通过 `arch-graph` 校验
-- [ ] 4.5 按垂直物理模块岛拆解 `apps/desktop/src/renderer/src/App.tsx`（拆出 `src/renderer/src/features/<domain>/index.ts` 领域岛 Hooks 与壳组件），将 `App.tsx` 降至 500 行以下并下调 `.harness/ratchet.json` 基线；待全量 `typecheck`、单测、Playwright E2E 与 `arch-graph` 全绿后，将 `.harness/project.json` 置为 `"bootstrapLocked": true` 完成 Stage A 封板并验证日常态底座修改被 Hook 拦下
+- [x] 4.5 按垂直物理模块岛拆解 `apps/desktop/src/renderer/src/App.tsx`（拆出 `src/renderer/src/features/<domain>/index.ts` 领域岛 Hooks 与壳组件），将 `App.tsx` 降至 500 行以下并下调 `.harness/ratchet.json` 基线；待全量 `typecheck`、单测、Playwright E2E 与 `arch-graph` 全绿后，将 `.harness/project.json` 置为 `"bootstrapLocked": true` 完成 Stage A 封板并验证日常态底座修改被 Hook 拦下
 
 ## 5. Phase 4：每周 Cron Slop 流水线与可执行跨项目 Harness Kit
 
-- [ ] 5.1 引入 `knip` 并实现 `scripts/harness/slop.ts`（完整审计 5 类 AI Slop 与 `.harness` 过期豁免）及 `.github/workflows/slop-audit.yml`（每周定时扫描并创建带 `@leileigwl` 与互斥 `<300` 行建议清理切片的《AI Slop 周报体检》Issue），本地运行确认产出有效分类账本
-- [ ] 5.2 交付可执行跨项目初始化工具 `scripts/harness/init-project.ts` 与 `.harness/profiles/` 可执行套件（`desktop-electron.json`、`web-service.json`、容器 `compose.smoke.yml`、DB 迁移回滚 `migration-check.sh` 与含 P95/错误率/内存阈值校验的 `k6-smoke.js`），并在临时目录执行一次 `init-project --profile web-service` 端到端冒烟验证生成结果可直接通过基础校验
+- [x] 5.1 引入 `knip` 并实现 `scripts/harness/slop.ts`（完整审计 5 类 AI Slop 与 `.harness` 过期豁免）及 `.github/workflows/slop-audit.yml`（每周定时扫描并创建带 `@leileigwl` 与互斥 `<300` 行建议清理切片的《AI Slop 周报体检》Issue），本地运行确认产出有效分类账本
+- [x] 5.2 交付可执行跨项目初始化工具 `scripts/harness/init-project.ts` 与 `.harness/profiles/` 可执行套件（`desktop-electron.json`、`web-service.json`、容器 `compose.smoke.yml`、DB 迁移回滚 `migration-check.sh` 与含 P95/错误率/内存阈值校验的 `k6-smoke.js`），并在临时目录执行一次 `init-project --profile web-service` 端到端冒烟验证生成结果可直接通过基础校验
 
 ## Workflow follow-up
 

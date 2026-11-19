@@ -5,6 +5,7 @@ import { runArchGraphChecks } from './arch-graph.ts';
 import { runRatchetAndDocChecks } from './ratchet.ts';
 import { classifyRisk, parseRiskRulesYaml } from './risk-classifier.ts';
 import { planSlices, validateDisjointOwnership, verifySliceExecution } from './slice-lock.ts';
+import { formatSlopMarkdown, runSlopAudit } from './slop.ts';
 import type { HarnessState, HarnessViolation, ParsedDiffFile, PhaseType } from './types.ts';
 import {
   loadProjectConfig,
@@ -332,6 +333,19 @@ function main(): void {
     project.bootstrapUnlockReason = null;
     writeJson(projPath, project);
     console.log('Locked bootstrap protections (`bootstrapLocked: true`).');
+    return;
+  }
+
+  if (cmd === 'slop') {
+    const project = loadProjectConfig(rootDir);
+    const ratchet = loadRatchetConfig(rootDir);
+    const skipKnip = args.includes('--no-knip');
+    const report = runSlopAudit({ rootDir, project, ratchet, runKnip: !skipKnip });
+    if (args.includes('--markdown')) {
+      console.log(formatSlopMarkdown(report, project.githubNotifyUser ?? project.owner));
+    } else {
+      console.log(JSON.stringify(report, null, useJson ? 0 : 2));
+    }
     return;
   }
 

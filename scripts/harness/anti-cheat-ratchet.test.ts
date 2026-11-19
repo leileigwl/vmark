@@ -120,3 +120,36 @@ test('ratchet blocks oversized new file, blocks ratchet growth, and detects dead
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('anti-cheat permits Stage A -> B initial lock-in transition but blocks post-lock edits', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-lockin-'));
+  try {
+    fs.mkdirSync(path.join(tmpDir, '.harness'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.harness/project.json'), JSON.stringify({ bootstrapLocked: true }), 'utf8');
+    fs.mkdirSync(path.join(tmpDir, '.github/workflows'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.github/workflows/ci.yml'), 'name: ci\n', 'utf8');
+
+    const diffFiles: ParsedDiffFile[] = [
+      { file: '.harness/project.json', isNew: false, isDeleted: false, addedLines: [], removedLines: [], addedCount: 1, removedCount: 1 },
+      { file: '.github/workflows/ci.yml', isNew: false, isDeleted: false, addedLines: [], removedLines: [], addedCount: 1, removedCount: 0 },
+    ];
+
+    const stageATransition = runAntiCheatChecks({
+      rootDir: tmpDir,
+      project: createProject(true),
+      diffFiles,
+      getBaseContent: (f) => (f === '.harness/project.json' ? JSON.stringify({ bootstrapLocked: false }) : ''),
+    });
+    assert.equal(stageATransition.length, 0);
+
+    const postLockViolation = runAntiCheatChecks({
+      rootDir: tmpDir,
+      project: createProject(true),
+      diffFiles,
+      getBaseContent: (f) => (f === '.harness/project.json' ? JSON.stringify({ bootstrapLocked: true }) : ''),
+    });
+    assert.ok(postLockViolation.some((v) => v.rule_id === 'ANTI_CHEAT_BOOTSTRAP_LOCKED'));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});

@@ -1,0 +1,23 @@
+{
+  "profile": "web-service",
+  "description": "Backend / HTTP API service with container smoke orchestration, reversible DB migrations, and k6 load thresholds.",
+  "layerBoundaries": [
+    {
+      "from": "src/routes/**",
+      "forbidImportFrom": ["src/db/raw**"]
+    }
+  ],
+  "commands": {
+    "typecheck": "pnpm run typecheck",
+    "unit": "pnpm test",
+    "integration": "docker compose -f .harness/profiles/web-service/compose.smoke.yml up --abort-on-container-exit --exit-code-from smoke-runner",
+    "migrationCheck": "bash .harness/profiles/web-service/migration-check.sh",
+    "loadSmoke": "k6 run .harness/profiles/web-service/k6-smoke.js"
+  },
+  "assets": [
+    ".harness/profiles/web-service/compose.smoke.yml",
+    ".harness/profiles/web-service/migration-check.sh",
+    ".harness/profiles/web-service/thresholds.json",
+    ".harness/profiles/web-service/k6-smoke.js"
+  ]
+}

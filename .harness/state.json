@@ -2,15 +2,15 @@
   "$schema": "./schemas/state.schema.json",
   "changeName": "agent-harness-cicd-redesign",
   "track": "fast",
-  "phase": "SLICE_TDD",
+  "phase": "MERGE_GATE",
   "prototypeApproved": false,
   "contractFrozen": true,
   "activeFreezeLock": false,
   "gates": {
     "specValidated": true,
-    "frontendTddPassed": false,
-    "ipcContractPassed": false,
-    "backendTddPassed": false
+    "frontendTddPassed": true,
+    "ipcContractPassed": true,
+    "backendTddPassed": true
   },
-  "updatedAt": "2026-11-19T15:20:00+08:00"
+  "updatedAt": "2026-11-19T08:01:12.504Z"
 }
