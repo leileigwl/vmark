@@ -1,0 +1,23 @@
+{
+  "profile": "desktop-electron",
+  "description": "Local-first Electron desktop application with Main/Preload/Renderer isolation and L0-L3 gates.",
+  "layerBoundaries": [
+    {
+      "from": "apps/desktop/src/renderer/**",
+      "forbidImportFrom": [
+        "apps/desktop/src/main/**",
+        "node:fs",
+        "node:fs/promises",
+        "better-sqlite3",
+        "electron"
+      ]
+    }
+  ],
+  "commands": {
+    "typecheck": "pnpm run typecheck",
+    "unit": "pnpm turbo run test",
+    "ipcContract": "pnpm --filter @vcat/desktop test:ipc",
+    "e2e": "pnpm --filter @vcat/desktop exec playwright test --reporter=list",
+    "l3Smoke": "xvfb-run -a pnpm --filter @vcat/desktop run test:electron-smoke"
+  }
+}

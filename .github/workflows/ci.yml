@@ -2,18 +2,117 @@ name: CI / Build, Unit & E2E Verification
 
 on:
   push:
-    branches: [ master, test, 'feature-*' ]
+    branches: [ master, test, 'feature-*', 'slice/*' ]
   pull_request:
     branches: [ master, test ]
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  verify:
-    name: Typecheck, Unit Tests, Build & Playwright E2E
-    runs-on: macos-latest
+  classify:
+    name: L0 Classify Risk (Path + AST + Semantic)
+    runs-on: ubuntu-latest
+    outputs:
+      level: ${{ steps.risk.outputs.level }}
+      skip_e2e: ${{ steps.risk.outputs.skip_e2e }}
+      run_l3: ${{ steps.risk.outputs.run_l3 }}
+      base_ref: ${{ steps.risk.outputs.base_ref }}
+      pr_number: ${{ github.event.pull_request.number || '' }}
+    steps:
+      - name: Checkout repository (full history for AST baseline)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run 3-layer deterministic risk classifier
+        id: risk
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_BRANCH" ]; then
+            BASE_REF="origin/${BASE_BRANCH}"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            BASE_REF="$BEFORE_SHA"
+          else
+            BASE_REF="HEAD~1"
+          fi
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+          node --experimental-strip-types scripts/harness/cli.ts risk --base "$BASE_REF" --json > risk.json
+          cat risk.json
+          LEVEL=$(node -e "const r=JSON.parse(require('fs').readFileSync('risk.json','utf8')); console.log(r.level)")
+          SKIP_E2E=$(node -e "const r=JSON.parse(require('fs').readFileSync('risk.json','utf8')); console.log(String(r.skipE2e))")
+          RUN_L3=$(node -e "const r=JSON.parse(require('fs').readFileSync('risk.json','utf8')); console.log(String(r.runL3))")
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+          echo "skip_e2e=$SKIP_E2E" >> "$GITHUB_OUTPUT"
+          echo "run_l3=$RUN_L3" >> "$GITHUB_OUTPUT"
+
+      - name: Upload classification result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-classification
+          path: risk.json
+          retention-days: 7
+
+  l0-guard-and-typecheck:
+    name: L0 Harness Guardrails & Typecheck
+    needs: classify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Harness checks & tests
+        run: |
+          pnpm harness:check --base "${{ needs.classify.outputs.base_ref }}"
+          pnpm harness:test
+
+      - name: Run Workspace Typecheck
+        if: needs.classify.outputs.skip_e2e != 'true'
+        run: pnpm run typecheck
+
+  l1-unit-and-build:
+    name: L1 Unit, IPC Contract & Build
+    needs: [ classify, l0-guard-and-typecheck ]
+    if: needs.classify.outputs.skip_e2e != 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,19 +131,118 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Typecheck
-        run: pnpm typecheck
+      - name: Run Package Unit & IPC Contract Tests
+        run: pnpm turbo run test
 
-      - name: Run Unit Tests
-        run: pnpm test
+      - name: Build Desktop Bundle
+        run: pnpm --filter @vcat/desktop build
 
-      - name: Build Desktop Application
+  l2-e2e:
+    name: L2 Playwright Web E2E (Ubuntu Shard ${{ matrix.shard }})
+    needs: [ classify, l1-unit-and-build ]
+    if: needs.classify.outputs.skip_e2e != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ '1/2', '2/2' ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Renderer Bundle
         run: pnpm --filter @vcat/desktop build
 
       - name: Install Playwright Chromium
         run: pnpm --filter @vcat/desktop exec playwright install chromium
 
-      - name: Run Editor Playwright E2E Suite
-        run: pnpm --filter @vcat/desktop exec playwright test --reporter=list
+      - name: Run Playwright E2E Suite
+        run: pnpm --filter @vcat/desktop exec playwright test --shard=${{ matrix.shard }} --reporter=list
         env:
           CI: true
+
+  l3-electron-smoke:
+    name: L3 Real Electron Smoke (xvfb-run)
+    needs: [ classify, l1-unit-and-build ]
+    if: >
+      needs.classify.outputs.skip_e2e != 'true' &&
+      (needs.classify.outputs.run_l3 == 'true' || github.ref == 'refs/heads/test' || github.base_ref == 'master')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Electron L3 Smoke (xvfb-run)
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          pnpm --filter @vcat/desktop exec playwright install-deps chromium
+          pnpm --filter @vcat/desktop build
+          xvfb-run -a pnpm --filter @vcat/desktop run test:electron-smoke
+
+      - name: Upload L3 failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l3-electron-smoke-failure
+          path: apps/desktop/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ci-gate:
+    name: ci-gate
+    needs: [ classify, l0-guard-and-typecheck, l1-unit-and-build, l2-e2e, l3-electron-smoke ]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate required tier results
+        run: |
+          if [ "${{ needs.classify.result }}" != "success" ] || [ "${{ needs.l0-guard-and-typecheck.result }}" != "success" ]; then
+            echo "L0 classify or guardrails failed."
+            exit 1
+          fi
+          if [ "${{ needs.classify.outputs.skip_e2e }}" != "true" ]; then
+            for res in "${{ needs.l1-unit-and-build.result }}" "${{ needs.l2-e2e.result }}"; do
+              if [ "$res" != "success" ]; then
+                echo "Required L1/L2 verification failed: $res"
+                exit 1
+              fi
+            done
+            if [ "${{ needs.l3-electron-smoke.result }}" = "failure" ]; then
+              echo "L3 Electron smoke failed."
+              exit 1
+            fi
+          fi
+          echo "CI verification gate passed (risk=${{ needs.classify.outputs.level }}, skip_e2e=${{ needs.classify.outputs.skip_e2e }})."

@@ -1,0 +1,43 @@
+{
+  "harness-orchestrator-guard": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event SessionStart",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "edit_file|write_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PostToolUse",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event Stop",
+        "timeout": 30
+      }
+    ]
+  }
+}

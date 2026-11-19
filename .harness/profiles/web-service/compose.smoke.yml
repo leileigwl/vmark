@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_smoke_password
+      POSTGRES_DB: app_smoke
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app_smoke"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  app:
+    build:
+      context: ../../..
+    environment:
+      NODE_ENV: test
+      PORT: "3000"
+      DATABASE_URL: postgres://app:app_smoke_password@postgres:5432/app_smoke
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  smoke-runner:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      app:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        curl -fsS http://app:3000/healthz
+        echo "Container smoke health probe passed."

@@ -1,3 +1,5 @@
+export * from './ipcContract.ts';
+
 /** Core platform identifiers supported by VCat Publisher. */
 export type PlatformId =
   | 'weixin'

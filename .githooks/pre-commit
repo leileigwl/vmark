@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[harness:pre-commit] Running deterministic L0 guardrails..."
+pnpm harness:check --json
