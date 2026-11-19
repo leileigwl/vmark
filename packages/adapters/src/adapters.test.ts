@@ -694,5 +694,21 @@ test('BilibiliAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> ver
   assert.equal(img, 'https://i0.hdslb.com/bfs/article/1.png');
   const pushed = await adapter.push({ title: 'B站测试', markdown: '正文', html: '<p>正文</p>', tags: [], mode: 'draft' });
   assert.equal(pushed.postId, '9527');
+  assert.equal(pushed.url, 'https://member.bilibili.com/platform/upload/text/new-edit?aid=9527');
   assert.equal(pushed.verified, true);
+});
+
+test('CsdnAdapter surfaces actionable blog-activation error when saveArticle returns 400 博主不存在', async () => {
+  const adapter = new CsdnAdapter({
+    fetchFn: async () => ({
+      ok: false,
+      status: 400,
+      text: async () => '',
+      json: async () => ({ code: 400, msg: '博主不存在' }),
+    }),
+  });
+  await assert.rejects(
+    () => adapter.push({ title: 't', markdown: 'm', html: '<p>m</p>', tags: [], mode: 'draft' }),
+    /CSDN 账号尚未开通博客空间/
+  );
 });
