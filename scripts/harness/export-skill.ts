@@ -1,27 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-
-function copyTree(src: string, dest: string): void {
-  if (!fs.existsSync(src)) return;
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    fs.mkdirSync(dest, { recursive: true });
-    for (const entry of fs.readdirSync(src)) {
-      copyTree(path.join(src, entry), path.join(dest, entry));
-    }
-    return;
-  }
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(src, dest);
-  if (src.endsWith('.sh') || src.includes('.githooks/')) {
-    fs.chmodSync(dest, 0o755);
-  }
-}
-
-function parseFlag(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag);
-  return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : undefined;
-}
+import { copyTree, parseFlag } from './utils.ts';
 
 /**
  * Exports a self-contained, publish-ready GitHub repository bundle containing the

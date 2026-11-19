@@ -54,3 +54,22 @@ export function buildFileTree(articles: ArticleMeta[], folders: string[] = []): 
       .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
   return sortNodes(root);
 }
+
+/** Collects visible articles in top-to-bottom display order across expanded tree directories. */
+export function flattenVisibleTreeArticles(
+  nodes: TreeNode[],
+  expandedDirs: Record<string, boolean>
+): ArticleMeta[] {
+  const acc: ArticleMeta[] = [];
+  const walk = (items: TreeNode[]) => {
+    for (const n of items) {
+      if (n.isDir) {
+        if (expandedDirs[n.path] ?? true) walk(n.children);
+      } else if (n.article) {
+        acc.push(n.article);
+      }
+    }
+  };
+  walk(nodes);
+  return acc;
+}

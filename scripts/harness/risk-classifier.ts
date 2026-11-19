@@ -105,7 +105,7 @@ function hasExportModifier(node: ts.Node): boolean {
 /**
  * Extract exported public signatures via TypeScript AST (ignoring internal function bodies).
  */
-export function extractExportSignatures(filePath: string, sourceText: string): string[] {
+function extractExportSignatures(filePath: string, sourceText: string): string[] {
   const sf = ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true);
   const printer = ts.createPrinter({ removeComments: true });
   const signatures: string[] = [];

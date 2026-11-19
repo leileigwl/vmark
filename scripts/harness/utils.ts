@@ -14,7 +14,7 @@ export function toPosixPath(inputPath: string, rootDir?: string): string {
 /**
  * Compile a simplified glob pattern supporting **, *, and ? into a strict RegExp.
  */
-export function globToRegExp(pattern: string): RegExp {
+function globToRegExp(pattern: string): RegExp {
   const normalized = toPosixPath(pattern);
   let out = '^';
   let i = 0;
@@ -224,4 +224,28 @@ export function walkSourceFiles(dir: string, rootDir: string, exts = ['.ts', '.t
     }
   }
   return results;
+}
+
+/** Recursively copy a template directory or file tree, marking shell scripts and git hooks executable. */
+export function copyTree(src: string, dest: string): void {
+  if (!fs.existsSync(src)) return;
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(src)) {
+      copyTree(path.join(src, entry), path.join(dest, entry));
+    }
+    return;
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+  if (src.endsWith('.sh') || src.includes('.githooks/')) {
+    fs.chmodSync(dest, 0o755);
+  }
+}
+
+/** Extract a CLI `--flag value` argument if present. */
+export function parseFlag(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : undefined;
 }
