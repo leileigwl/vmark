@@ -21,6 +21,18 @@ interface PlatformPreviewPaneProps {
   weixinRendered: WeixinRenderedResult;
 }
 
+/** Rewrites relative workspace image paths to `vcat-asset://local/...` for renderer preview only. */
+function rewritePreviewLocalImages(html: string): string {
+  return html.replace(/<img([^>]*?)\ssrc=(["'])([^"']+)\2/gi, (full, attrs, quote, rawSrc) => {
+    const trimmed = String(rawSrc).trim();
+    if (!trimmed || /^(https?:|data:|vcat-asset:|blob:|#|\/)/i.test(trimmed)) {
+      return full;
+    }
+    const cleanRel = trimmed.replace(/^\.\//, '');
+    return `<img${attrs} src=${quote}vcat-asset://local/${cleanRel}${quote}`;
+  });
+}
+
 /** Multi-platform pre-publish layout preview pane (WeChat, Zhihu, Baijiahao, Xiaohongshu 3:4 cards). */
 export function PlatformPreviewPane({
   markdown,
@@ -69,7 +81,7 @@ export function PlatformPreviewPane({
           <div
             data-testid="weixin-preview"
             className="flex-1 overflow-y-auto p-3"
-            dangerouslySetInnerHTML={{ __html: weixinRendered.html }}
+            dangerouslySetInnerHTML={{ __html: rewritePreviewLocalImages(weixinRendered.html) }}
           />
         </>
       )}
@@ -82,7 +94,7 @@ export function PlatformPreviewPane({
           <div
             data-testid="zhihu-preview"
             className="flex-1 space-y-2 overflow-y-auto p-3 text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: zhihuRendered.html }}
+            dangerouslySetInnerHTML={{ __html: rewritePreviewLocalImages(zhihuRendered.html) }}
           />
         </>
       )}
@@ -95,7 +107,7 @@ export function PlatformPreviewPane({
           <div
             data-testid="baijiahao-preview"
             className="flex-1 space-y-2 overflow-y-auto p-3 text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: baijiahaoRendered.html }}
+            dangerouslySetInnerHTML={{ __html: rewritePreviewLocalImages(baijiahaoRendered.html) }}
           />
         </>
       )}
