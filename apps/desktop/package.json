@@ -1,6 +1,7 @@
 {
   "name": "@vcat/desktop",
   "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Local-First desktop Markdown writing, image pipeline & multi-platform publisher",
   "author": "leileigwl <leileigwl@github.com>",
   "homepage": "https://github.com/leileigwl/vmark",

@@ -62,7 +62,7 @@ flowchart LR
 ## 三、 极简沉浸 UI 规划与 Bloom 视觉样式规范
 
 ### 1. 核心界面布局与 Typora 原版经典白色风格
-直接学习并复用本地 Typora 原版 [`github.css`](file:///Users/leileigwl/Library/Application Support/abnerworks.Typora/themes/github.css) 的清爽白色风格，**提供完整的内容管理平台视图 + 极简写作台**：
+直接学习并复用本地 Typora 原版 [`github.css`](#typora-github-theme) 的清爽白色风格，**提供完整的内容管理平台视图 + 极简写作台**：
 1. **三大顶层视图切换（顶部极简标签）**：
    - **「写作台」**：纯白画布（`#ffffff`）+ 可收缩左侧栏（`#fafafa`，文件树/模板/素材/+一键导入），极致专注写文章。
    - **「文章管理」**：**完整的管理平台表格视图（Table）**，集中管理工作区内所有本地文章、字数、标签，以及每个平台（博客园/掘金/知乎/CSDN）的同步状态、草稿直达链接与一键分发/批量检查。
