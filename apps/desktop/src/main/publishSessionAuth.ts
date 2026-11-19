@@ -244,6 +244,8 @@ export async function verifyPlatformAuth(params: {
         sFetch('https://linux.do/session/current.json', {
           headers: { Referer: 'https://linux.do/' },
         }).then(async (res) => {
+          // Cloudflare JS challenge (403/503) on net.fetch should not invalidate a verified _t session cookie
+          if (res.status === 403 || res.status === 503) return true;
           if (!res.ok) return false;
           const data = (await res.json()) as { current_user?: { id?: number } };
           return Boolean(data.current_user?.id);

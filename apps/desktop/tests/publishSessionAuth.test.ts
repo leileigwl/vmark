@@ -121,4 +121,10 @@ test('verifyPlatformAuth validates live API for linuxdo, weibo, xiaohongshu, and
   assert.equal(await verifyPlatformAuth({ session: sessionWithAuthedResponses, platformId: 'linuxdo', getAppConfig: dummyConfig }), true);
   assert.equal(await verifyPlatformAuth({ session: sessionWithAuthedResponses, platformId: 'weibo', getAppConfig: dummyConfig }), true);
   assert.equal(await verifyPlatformAuth({ session: sessionWithAuthedResponses, platformId: 'xiaohongshu', getAppConfig: dummyConfig }), true);
+
+  const linuxdoCloudflareSession = createMockSession(
+    { 'persist:platform_linuxdo': [{ name: '_t', value: 'valid', domain: 'linux.do' }] },
+    async () => ({ ok: false, status: 403, json: async () => ({}) })
+  );
+  assert.equal(await verifyPlatformAuth({ session: linuxdoCloudflareSession, platformId: 'linuxdo', getAppConfig: dummyConfig }), true);
 });
