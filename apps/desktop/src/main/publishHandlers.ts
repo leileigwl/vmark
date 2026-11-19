@@ -30,7 +30,7 @@ import type {
   PublishMode,
 } from '@vcat/shared';
 
-export interface WeixinDraftIpcPayload {
+interface WeixinDraftIpcPayload {
   title: string;
   markdown: string;
   author?: string;
@@ -41,7 +41,7 @@ export interface WeixinDraftIpcPayload {
   includeRemoteImages?: boolean;
 }
 
-export type WeixinDraftIpcResult =
+type WeixinDraftIpcResult =
   | { ok: true; postId: string; url: string; verified: boolean; uploadedImagesCount?: number }
   | { ok: false; message: string };
 
@@ -52,7 +52,7 @@ export interface PublishAppConfig {
 
 const ANALYTICS_COOKIE_PREFIXES = ['_ga', '_gid', 'Hm_', 'sensorsdata', '__utm'];
 
-export const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
+const PLATFORM_AUTH_COOKIE_RULES: Record<PlatformId, string[]> = {
   weixin: ['slave_user', 'slave_sid'],
   zhihu: ['z_c0'],
   cnblogs: ['.CNBlogsCookie', '.Cnblogs.AspNetCore.Cookies', 'Cnblogs.AspNetCore.Cookies'],
@@ -72,7 +72,7 @@ const CHROME_DESKTOP_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
-export function createSessionFetch(targetSession: Electron.Session): FetchLike {
+function createSessionFetch(targetSession: Electron.Session): FetchLike {
   try {
     targetSession.setUserAgent(CHROME_DESKTOP_UA);
   } catch {
@@ -96,7 +96,7 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
 }
 
 /** Verifies exact platform auth tickets when available. Returns false if no ticket is found. */
-export async function hasSessionAuthCookies(
+async function hasSessionAuthCookies(
   session: typeof Electron.session,
   platformId: PlatformId
 ): Promise<boolean> {
@@ -222,7 +222,7 @@ export async function verifyPlatformAuth(params: {
             try {
               const data = (await res.json()) as { errors?: string[] };
               if (data.errors?.some((e) => e.includes('您没有开通博客'))) return true;
-            } catch {}
+            } catch (parseErr) { void parseErr; /* Non-JSON 403 payload from cnblogs */ }
           }
           return false;
         }),
@@ -575,7 +575,7 @@ async function publishToSingleTarget(params: {
         try {
           const json = JSON.parse(errText);
           if (json.errors && json.errors.length > 0) errMsg = json.errors.join(', ');
-        } catch {}
+        } catch (parseErr) { void parseErr; /* Non-JSON cnblogs error response */ }
         if (errMsg.includes('您没有开通博客')) {
           errMsg = '博客园账号尚未开通个人博客空间，请访问 https://i.cnblogs.com/ 申请开通后重试';
         }
