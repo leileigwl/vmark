@@ -6,7 +6,7 @@
 - **当前阶段**：**`master` 与 `test` 已同步基线 `e3a25a7`（PR #2 与 Release PR #3 已合入，去重与 `ci-gate` 轮询加固后全套工作流已在 `master` 激活）**
 - **最新基线版本**：`v0.1.0`（`master` @ `e3a25a7` / `test` @ `e3a25a7`）
 - **当前底座锁状态**：`bootstrapLocked: true`（底座框架已硬锁定，日常仅按垂直物理模块岛并发开发；如需改框架须先执行 `pnpm harness:unlock-bootstrap`）
-- **最近 Slop 巡检记录**：`slop-audit.yml`（Run `44492362530`）已生成/更新周报 Issue #4（标签 `slop:cleanup`，29 项历史待消化债务 + 6 个互斥清理切片）。
+- **最近 Slop 巡检记录**：`slop-audit.yml`（Run `44492362530`）已生成/更新周报 Issue #4（标签 `slop:cleanup`，29 项历史待消化债务 + 6 个互斥清理切片）；已启用 GitHub Actions 创建/审批 PR 权限并实测 `circuit:paused` 熔断闭环。
 
 ## 已完成里程碑
 
