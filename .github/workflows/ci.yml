@@ -2,7 +2,7 @@ name: CI / Build, Unit & E2E Verification
 
 on:
   push:
-    branches: [ master, test, 'feature-*', 'slice/*' ]
+    branches: [ master, test ]
   pull_request:
     branches: [ master, test ]
   workflow_dispatch:
