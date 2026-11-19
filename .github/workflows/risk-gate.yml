@@ -1,0 +1,198 @@
+name: Risk-Gated Auto Merge (test)
+
+on:
+  workflow_run:
+    workflows: [ "CI / Build, Unit & E2E Verification" ]
+    types: [ completed ]
+  issue_comment:
+    types: [ created ]
+
+concurrency:
+  group: merge-test
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  evaluate-and-merge:
+    name: Evaluate Risk Tier & Auto-Merge to test
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '/approve'))
+    steps:
+      - name: Download risk-classification artifact (when triggered by workflow_run)
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            const found = artifacts.data.artifacts.find((a) => a.name === 'risk-classification');
+            if (!found) {
+              fs.writeFileSync('risk-from-ci.json', JSON.stringify({ missing: true }));
+              return;
+            }
+            const zip = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: found.id,
+              archive_format: 'zip',
+            });
+            fs.writeFileSync('risk.zip', Buffer.from(zip.data));
+
+      - name: Unpack risk artifact if present
+        if: github.event_name == 'workflow_run'
+        run: |
+          if [ -f risk.zip ]; then
+            unzip -o risk.zip
+            mv risk.json risk-from-ci.json
+          fi
+
+      - name: Run risk gate and controlled merge decision
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { owner, repo } = context.repo;
+
+            let prNumber = null;
+            if (context.eventName === 'issue_comment') {
+              if (context.payload.sender.login !== owner) {
+                console.log(`Ignoring /approve from non-owner user: ${context.payload.sender.login}`);
+                return;
+              }
+              if (!/(^|\n)\s*\/approve\s*($|\n)/.test(context.payload.comment.body)) {
+                console.log('Comment does not contain standalone /approve directive.');
+                return;
+              }
+              prNumber = context.payload.issue.number;
+            } else {
+              const prs = context.payload.workflow_run.pull_requests || [];
+              if (prs.length === 0) {
+                console.log('No pull_requests attached to workflow_run.');
+                return;
+              }
+              prNumber = prs[0].number;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });
+            if (pr.state !== 'open' || pr.draft) {
+              console.log(`PR #${prNumber} is state=${pr.state}, draft=${pr.draft}; skipping.`);
+              return;
+            }
+
+            // Read CI risk classification or derive conservatively from PR labels/metrics
+            let risk = { level: 'high', diffLines: pr.additions + pr.deletions };
+            if (fs.existsSync('risk-from-ci.json')) {
+              const parsed = JSON.parse(fs.readFileSync('risk-from-ci.json', 'utf8'));
+              if (parsed.level) risk = parsed;
+            } else {
+              const existingLabels = new Set(pr.labels.map((l) => l.name));
+              if (existingLabels.has('risk:high')) risk.level = 'high';
+              else if (existingLabels.has('risk:mid')) risk.level = 'mid';
+              else if (existingLabels.has('risk:low')) risk.level = 'low';
+            }
+
+            // Monotonic risk label enforcement: risk:high is sticky
+            const existingLabelNames = new Set(pr.labels.map((l) => l.name));
+            const effectiveLevel = existingLabelNames.has('risk:high') ? 'high' : risk.level;
+            const targetLabel = `risk:${effectiveLevel}`;
+
+            for (const lbl of ['risk:low', 'risk:mid', 'risk:high']) {
+              if (lbl !== targetLabel && existingLabelNames.has(lbl)) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: lbl }).catch(() => {});
+              }
+            }
+            if (!existingLabelNames.has(targetLabel)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number: prNumber, labels: [targetLabel] });
+            }
+
+            const isTrustedOrigin =
+              pr.head.repo &&
+              pr.head.repo.full_name === `${owner}/${repo}` &&
+              pr.user.login === owner;
+
+            // Fork / External contributor PRs get full checks + CLA reminder, NEVER auto-merged
+            if (!isTrustedOrigin) {
+              const comments = await github.rest.issues.listComments({ owner, repo, issue_number: prNumber });
+              const marker = '<!-- vmark-external-pr-notice -->';
+              if (!comments.data.some((c) => c.body && c.body.includes(marker))) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: prNumber,
+                  body: `${marker}\n感谢贡献！本 PR 已完成风险评估（\`${targetLabel}\`）与自动化检查。\n\n- 外部贡献 PR 不会自动合入，将由 @${owner} 人工审阅确认。\n- 请确认您已阅读并同意 [LICENSE-COMMERCIAL.md](https://github.com/${owner}/${repo}/blob/master/LICENSE-COMMERCIAL.md) 中的 **AGPL-3.0 + 商业双授权 CLA/DCO 条款**。`,
+                });
+              }
+              return;
+            }
+
+            if (pr.base.ref !== 'test') {
+              console.log(`PR #${prNumber} targets \`${pr.base.ref}\` instead of \`test\`; skipping auto-merge.`);
+              return;
+            }
+
+            // Verify CI status check (`ci-gate`) passed
+            let ciPassed = context.eventName === 'workflow_run' && context.payload.workflow_run.conclusion === 'success';
+            if (context.eventName === 'issue_comment') {
+              const checks = await github.rest.checks.listForRef({ owner, repo, ref: pr.head.sha });
+              const gate = checks.data.check_runs.find((c) => c.name === 'ci-gate');
+              ciPassed = Boolean(gate && gate.status === 'completed' && gate.conclusion === 'success');
+            }
+            if (!ciPassed) {
+              console.log(`CI gate not yet green on PR #${prNumber}; skipping.`);
+              return;
+            }
+
+            // Check Drain & Freeze / Auto-Revert circuit breaker issues
+            const freezeIssues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'freeze:release-window' });
+            const pausedIssues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'circuit:paused' });
+            if (freezeIssues.data.length > 0 || pausedIssues.data.length > 0) {
+              console.log('Repository is currently in freeze:release-window or circuit:paused state; deferring auto-merge.');
+              return;
+            }
+
+            // risk:high gate requires explicit `/approve` from owner
+            if (effectiveLevel === 'high') {
+              const comments = await github.rest.issues.listComments({ owner, repo, issue_number: prNumber });
+              const approved = comments.data.some(
+                (c) => c.user && c.user.login === owner && /(^|\n)\s*\/approve\s*($|\n)/.test(c.body || '')
+              );
+              if (!approved) {
+                const noticeMarker = '<!-- vmark-high-risk-wait -->';
+                if (!comments.data.some((c) => c.body && c.body.includes(noticeMarker))) {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: prNumber,
+                    body: `${noticeMarker}\n@${owner} PR #${prNumber} 已判定为 **risk:high**（CI 全绿）。请在审阅 Diff 后回复 \`/approve\` 放行自动合入 \`test\`。`,
+                  });
+                }
+                return;
+              }
+            }
+
+            // Update branch first if behind `test` so checks rerun safely
+            if (pr.mergeable_state === 'behind') {
+              await github.rest.pulls.updateBranch({ owner, repo, pull_number: prNumber });
+              console.log(`PR #${prNumber} was behind \`test\`; updated branch and waiting for fresh CI run.`);
+              return;
+            }
+
+            await github.rest.pulls.merge({
+              owner,
+              repo,
+              pull_number: prNumber,
+              merge_method: 'squash',
+              commit_title: `${pr.title} (#${prNumber}) [${targetLabel}]`,
+            });
+            console.log(`Merged PR #${prNumber} (${targetLabel}) into test via squash.`);

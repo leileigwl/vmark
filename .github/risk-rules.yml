@@ -1,0 +1,43 @@
+version: 1
+max_auto_merge_lines: 300
+tiers:
+  high:
+    paths:
+      - "packages/core/**"
+      - "packages/adapters/**"
+      - "packages/image-pipeline/**"
+      - "packages/shared/**"
+      - "apps/desktop/src/main/**"
+      - "apps/desktop/src/preload/**"
+      - ".github/**"
+      - ".harness/**"
+      - ".agents/**"
+      - ".claude/**"
+      - ".githooks/**"
+      - "scripts/harness/**"
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - "LICENSE*"
+      - "**/*secret*"
+      - "**/*token*"
+      - "**/*auth*"
+    require_approve_comment: "/approve"
+    allow_auto_merge: false
+    run_l3_smoke: true
+  mid:
+    paths:
+      - "apps/desktop/src/renderer/**"
+      - "apps/desktop/scripts/**"
+    allow_auto_merge: true
+    allow_ai_escalation: true
+    run_e2e: true
+  low:
+    paths:
+      - "docs/**"
+      - "openspec/**"
+      - "*.md"
+      - "**/*.test.ts"
+      - "apps/desktop/tests/**"
+    allow_auto_merge: true
+    skip_e2e_when_docs_only: true

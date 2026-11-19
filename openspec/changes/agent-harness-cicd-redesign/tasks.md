@@ -18,7 +18,7 @@
 
 ## 3. Phase 2：GitHub 治理、风险分级 CI/CD 与邮件反推闭环
 
-- [ ] 3.1 通过 `gh` CLI 在 `leileigwl/vmark` 配置标签体系（`risk:low`、`risk:mid`、`risk:high`、`slop:cleanup`、`freeze:release-window`、`circuit:paused`），开启 `delete_branch_on_merge` 与 `allow_auto_merge`，设置 `master`/`test` 分支保护并校验 API 返回符合预期
+- [x] 3.1 通过 `gh` CLI 在 `leileigwl/vmark` 配置标签体系（`risk:low`、`risk:mid`、`risk:high`、`slop:cleanup`、`freeze:release-window`、`circuit:paused`），开启 `delete_branch_on_merge` 与 `allow_auto_merge`，设置 `master`/`test` 分支保护并校验 API 返回符合预期
 - [ ] 3.2 创建 `.github/risk-rules.yml` 并接入 `risk-classifier.ts` 统一判定，重构 [.github/workflows/ci.yml](.github/workflows/ci.yml) 为 `ubuntu-latest` 并行矩阵（拆分 L0 门禁、L1 单测+IPC 契约、L2 Playwright 并行，纯文档改动自动跳过 E2E），通过触发测试 PR 验证 `macos-latest` 不再在日常 PR 启动且跑通全绿
 - [ ] 3.3 实现 `.github/workflows/risk-gate.yml`：校验信任来源、`concurrency: merge-test` 串行合流、合前同步 `test`、冻结锁退避、`risk:low`/`risk:mid` 自动 Squash 合入 `test`、`risk:high`（含 AST/语义/锁定底座升级）等待 `leileigwl` `/approve` 指令才放行，并验证内部 PR 与外部 Fork PR 行为完全符合 Spec
 - [ ] 3.4 实现 `.github/workflows/daily-release-pr.yml`（每日 21:00 CST 与手动触发 Drain & Freeze，生成零冲突 `test -> master` 汇总 PR 并嵌入每日 5 大指标仪表盘及 `@leileigwl` 触发邮件通知，Merge Commit 合入后同步回 `test` 解锁）与 `.github/workflows/auto-revert.yml`（`test` 回归变红打熔断标记并生成唯一 1 个 Revert PR 与告警 `@leileigwl`），用测试分支演练同步与防雪崩回滚成功

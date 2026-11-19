@@ -1,0 +1,183 @@
+name: Daily Release PR & Post-Merge Syncback
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # Daily 21:00 CST (UTC+8)
+  workflow_dispatch:
+  pull_request:
+    branches: [ master ]
+    types: [ closed ]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  daily-summary:
+    name: Drain, Freeze & Create Daily test -> master PR
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    concurrency:
+      group: merge-test
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: test
+
+      - name: Compute 5 Daily KPIs & Create/Update Summary PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('node:child_process');
+            const fs = require('node:fs');
+            const { owner, repo } = context.repo;
+            execSync('git fetch origin master test', { stdio: 'inherit' });
+
+            // Ensure freeze lock issue exists to block new PR merges into `test` cleanly
+            const openFreeze = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: 'freeze:release-window',
+            });
+            let freezeIssueNumber = openFreeze.data[0]?.number ?? null;
+            if (!freezeIssueNumber) {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title: '[Freeze] Daily Release Drain Lock (test -> master)',
+                body: '每日 21:00 CST 汇总窗口锁：期间暂停向 `test` 自动合入新切片，待 `test -> master` 合入后自动关闭解锁。',
+                labels: ['freeze:release-window'],
+              });
+              freezeIssueNumber = created.data.number;
+            }
+
+            const commitsRaw = execSync('git log origin/master..origin/test --oneline', { encoding: 'utf8' }).trim();
+            if (!commitsRaw) {
+              console.log('No new commits on test ahead of master; releasing freeze lock.');
+              await github.rest.issues.update({ owner, repo, issue_number: freezeIssueNumber, state: 'closed' });
+              return;
+            }
+
+            const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const closedPrs = await github.rest.pulls.list({ owner, repo, state: 'closed', base: 'test', per_page: 50 });
+            const mergedLast24h = closedPrs.data.filter((p) => p.merged_at && p.merged_at >= sinceIso);
+            const autoMergedCount = mergedLast24h.filter((p) => !p.labels.some((l) => l.name === 'risk:high')).length;
+            const autoMergeRate = mergedLast24h.length > 0 ? `${Math.round((autoMergedCount / mergedLast24h.length) * 100)}% (${autoMergedCount}/${mergedLast24h.length})` : 'N/A (0 merged)';
+
+            let escalatedCount = 0;
+            if (fs.existsSync('.harness/slices')) {
+              for (const f of fs.readdirSync('.harness/slices')) {
+                if (!f.endsWith('.json')) continue;
+                const s = JSON.parse(fs.readFileSync(`.harness/slices/${f}`, 'utf8'));
+                if (s.status === 'escalated') escalatedCount += 1;
+              }
+            }
+
+            const revertPrs = closedPrs.data.concat(
+              (await github.rest.pulls.list({ owner, repo, state: 'open', base: 'test', per_page: 20 })).data
+            ).filter((p) => p.created_at >= sinceIso && p.title.startsWith('[Auto-Revert]'));
+
+            const ratchetLinesTotal = (() => {
+              if (!fs.existsSync('.harness/ratchet.json')) return 'N/A';
+              const r = JSON.parse(fs.readFileSync('.harness/ratchet.json', 'utf8'));
+              const maxSum = Object.values(r.files || {}).reduce((acc, v) => acc + (v.maxLines || 0), 0);
+              return `${maxSum} lines across ${Object.keys(r.files || {}).length} hubs`;
+            })();
+
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'ci.yml',
+              per_page: 20,
+            });
+            const completed24h = runs.data.workflow_runs.filter((r) => r.status === 'completed' && r.created_at >= sinceIso);
+            let avgCiSec = 'N/A';
+            if (completed24h.length > 0) {
+              const totalMs = completed24h.reduce((sum, r) => sum + (new Date(r.updated_at) - new Date(r.created_at)), 0);
+              avgCiSec = `${Math.round(totalMs / completed24h.length / 1000)}s`;
+            }
+
+            const dateStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+            const title = `[Daily Release] test -> master (${dateStr})`;
+            const body = [
+              `@${owner} 今日 \`test -> master\` 汇总验收单已开启 Drain & Freeze（冻结锁 Issue #${freezeIssueNumber}）。`,
+              '',
+              '### 📊 每日 5 项健康指标仪表盘',
+              '| 指标 | 今日观测值 | 说明 |',
+              '| :--- | :--- | :--- |',
+              `| **1. 自动合入率** | ${autoMergeRate} | 低/中风险免人工审批直接合入 \`test\` 占比 |`,
+              `| **2. 小模型熔断数** | ${escalatedCount} | 连续 2 次失败置 \`escalated\` 切片数 |`,
+              `| **3. 合流回归 Auto-Revert** | ${revertPrs.length} | \`test\` 回归触发回滚 PR 次数 |`,
+              `| **4. 历史巨型文件棘轮总基线** | ${ratchetLinesTotal} | 只减不增总行数上限 |`,
+              `| **5. Ubuntu CI 平均耗时** | ${avgCiSec} | 过去 24h CI 运行均时（${completed24h.length} 次） |`,
+              '',
+              '### 📝 待验收提交清单 (`master..test`)',
+              '```text',
+              commitsRaw,
+              '```',
+              '',
+              '> **操作提醒**：请在本地切至 `test` 上手验手感 3 分钟；确认无误后务必选择 **Create a merge commit** 合入 `master`（系统将自动同步回 `test` 并关闭冻结锁）。',
+            ].join('\n');
+
+            const existing = await github.rest.pulls.list({ owner, repo, state: 'open', base: 'master', head: `${owner}:test` });
+            if (existing.data.length > 0) {
+              await github.rest.pulls.update({ owner, repo, pull_number: existing.data[0].number, title, body });
+            } else {
+              await github.rest.pulls.create({ owner, repo, title, head: 'test', base: 'master', body });
+            }
+
+  post-merge-syncback:
+    name: Sync master back to test & Unlock Freeze
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'master' &&
+      github.event.pull_request.head.ref == 'test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: test
+
+      - name: Merge master back into test (with protected-branch fallback)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master test
+          git merge --no-ff origin/master -m "chore(release): sync master back to test after daily release [skip ci]" || git merge -X theirs origin/master -m "chore(release): sync master back to test [skip ci]"
+          if ! git push origin test; then
+            SYNC_BRANCH="sync/master-to-test-${{ github.run_id }}"
+            git push origin "HEAD:${SYNC_BRANCH}"
+            PR_URL=$(gh pr create --base test --head "${SYNC_BRANCH}" --title "chore(release): sync master back to test" --body "Auto-sync master back to test after daily release merge.")
+            gh pr merge "${PR_URL}" --merge --delete-branch || true
+          fi
+
+      - name: Close freeze:release-window issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const openFreeze = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: 'freeze:release-window',
+            });
+            for (const issue of openFreeze.data) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+            }
