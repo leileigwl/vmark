@@ -153,15 +153,22 @@ jobs:
               return;
             }
 
-            // Verify CI status check (`ci-gate`) passed
-            let ciPassed = context.eventName === 'workflow_run' && context.payload.workflow_run.conclusion === 'success';
-            if (context.eventName === 'issue_comment') {
+            // Verify all `ci-gate` check runs on pr.head.sha have completed and succeeded
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            let ciPassed = false;
+            for (let attempt = 1; attempt <= 12; attempt++) {
               const checks = await github.rest.checks.listForRef({ owner, repo, ref: pr.head.sha });
-              const gate = checks.data.check_runs.find((c) => c.name === 'ci-gate');
-              ciPassed = Boolean(gate && gate.status === 'completed' && gate.conclusion === 'success');
+              const gates = checks.data.check_runs.filter((c) => c.name === 'ci-gate');
+              const pending = gates.some((c) => c.status !== 'completed');
+              if (gates.length > 0 && !pending) {
+                ciPassed = gates.every((c) => c.conclusion === 'success');
+                break;
+              }
+              console.log(`Waiting for ci-gate check runs to settle (attempt ${attempt}/12, total=${gates.length}, pending=${pending})...`);
+              await sleep(5000);
             }
             if (!ciPassed) {
-              console.log(`CI gate not yet green on PR #${prNumber}; skipping.`);
+              console.log(`CI gate not green on PR #${prNumber}; skipping.`);
               return;
             }
 
@@ -200,11 +207,24 @@ jobs:
               return;
             }
 
-            await github.rest.pulls.merge({
-              owner,
-              repo,
-              pull_number: prNumber,
-              merge_method: 'squash',
-              commit_title: `${pr.title} (#${prNumber}) [${targetLabel}]`,
-            });
-            console.log(`Merged PR #${prNumber} (${targetLabel}) into test via squash.`);
+            for (let attempt = 1; attempt <= 4; attempt++) {
+              try {
+                await github.rest.pulls.merge({
+                  owner,
+                  repo,
+                  pull_number: prNumber,
+                  merge_method: 'squash',
+                  commit_title: `${pr.title} (#${prNumber}) [${targetLabel}]`,
+                });
+                console.log(`Merged PR #${prNumber} (${targetLabel}) into test via squash.`);
+                break;
+              } catch (err) {
+                const msg = String(err && err.message ? err.message : err);
+                if (attempt < 4 && (err.status === 405 || err.status === 409) && /queued|in progress|mergeable|try again/i.test(msg)) {
+                  console.log(`Merge attempt ${attempt}/4 deferred by GitHub (${msg}); retrying in 5s...`);
+                  await sleep(5000);
+                  continue;
+                }
+                throw err;
+              }
+            }

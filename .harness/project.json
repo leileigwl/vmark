@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": true,
-  "bootstrapUnlockReason": null,
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "Manual architecture upgrade",
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",
