@@ -54,7 +54,7 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
 
 test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
   test('打开发布弹窗：支持头图/作者/摘要设置、公众号行内样式预览与一键复制富文本', async ({ page }) => {
-    const md = '# 公众号标题\n\n正文包含 **加粗** 与 [外部资料](https://example.com/a)。\n\n> 重点提示卡片\n';
+    const md = '# 公众号标题\n\n正文包含 **加粗** 与 [外部资料](https://example.com/a)。\n\n![本地配图](./assets/demo.png)\n\n> [!NOTE]\n> 重点提示卡片\n';
     await openEditorWithArticle(page, md);
 
     await page.getByRole('button', { name: '分发' }).click();
@@ -62,6 +62,9 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await expect(preview).toBeVisible();
     await expect(preview).toContainText('公众号标题');
     await expect(preview).toContainText('参考链接');
+    await expect(preview).toContainText('ℹ️ 提示');
+    await expect(preview).not.toContainText('[!NOTE]');
+    await expect(preview.locator('img[src="vcat-asset://local/assets/demo.png"]')).toBeVisible();
 
     // Fill cover image & toggle showCoverInBody
     await page.getByPlaceholder('https://... 或 ./assets/cover.png').fill('https://mmbiz.qpic.cn/demo-cover.png');
