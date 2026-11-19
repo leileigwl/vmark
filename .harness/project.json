@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": true,
-  "bootstrapUnlockReason": null,
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "Fix .agents/hooks.json CWD path, clean 5 harness Slop items, and split 5 Ratchet files to <=500 lines",
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",

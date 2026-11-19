@@ -1,6 +1,6 @@
 export type ProfileKind = 'desktop-electron' | 'web-service';
 export type RiskLevel = 'low' | 'mid' | 'high';
-export type TrackType = 'full' | 'fast';
+type TrackType = 'full' | 'fast';
 export type PhaseType =
   | 'SPEC'
   | 'PROTOTYPE_APPROVED'
@@ -18,7 +18,7 @@ export interface HarnessViolation {
   fix_hint: string;
 }
 
-export interface LayerBoundaryRule {
+interface LayerBoundaryRule {
   from: string;
   forbidImportFrom: string[];
 }

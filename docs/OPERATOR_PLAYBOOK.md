@@ -78,3 +78,22 @@ pnpm harness:lock-bootstrap
 # 等全流程实测满意后，一键导出独立可发布的公开 Skill 仓库（含 publish-to-github.sh）：
 pnpm harness:export-skill --out dist/superpowers-harness-skill
 ```
+
+---
+
+## 五、红黄绿三色边界：哪些连你自己平时都不要直接改 & 防 AI 跑偏清单
+
+为了保证长期高速迭代不退化、小模型（如 3.8 Flash）绝不改坏底座，全仓严格按以下三色边界执行：
+
+| 级别 | 范围与动作 | 你和小模型平时能怎么动 |
+| :--- | :--- | :--- |
+| 🔴 **红区（底座硬锁，平时连你自己都不要手动改）** | `.harness/**`、`scripts/harness/**`、`.agents/hooks.json`、`.claude/settings.json`、`.githooks/**`、`.github/**`、`AGENTS.md`、`LICENSE*`；以及命令行直推 `master`、`git push --force`、`--no-verify` | **日常开发一律禁改**。即使你本人确需升级规则/CI，也必须由前沿强模型先执行 `pnpm harness:unlock-bootstrap` 并**分两次提交推送**（第 1 个 PR 解锁修改并合入 `test`，第 2 个提交再 `pnpm harness:lock-bootstrap` 重锁；严禁把解锁与重锁塞进同一次 push 触发误熔断）。 |
+| 🟡 **黄区（高风险接缝，只许强模型 + 必须 `/approve`）** | `packages/shared/src/ipcContract.ts`、`apps/desktop/src/preload/**`、`apps/desktop/src/main/index.ts`、`package.json` / `pnpm-lock.yaml` | 涉及跨端契约或依赖变更，系统会自动标为 `risk:high` 并跑齐 L0+L1+L2+L3。**务必使用前沿强模型处理**，并在 GitHub PR 页亲眼看过 Diff 后回复 `/approve` 放行。 |
+| 🟢 **绿区（日常业务孤岛，高频并发随便改）** | `apps/desktop/src/main/ipc/<domain>/`、`apps/desktop/src/main/publish*.ts`、`apps/desktop/src/renderer/src/features/<domain>/`、`components/`、`editor/`、`packages/adapters/`、`packages/core/`、`docs/`、`tests/` | **主力高频迭代区**：可安全拆分互斥切片交给小模型并发实现，自动跑对应层级校验后免审并入 `test`（单文件硬上限 ≤ 500 行，禁止跨岛深层引用或 `.skip`/`as any` 绕过）。 |
+
+### 最容易让 AI（尤其小模型）跑偏的 5 个操作习惯（请避开）
+1. **在长旧窗口硬塞全新需求**：上下文塞满过时代码后，小模型最容易漏看规则或改错分支。→ **新需求一律新开窗口**（或先 `/compact`），让 `SessionStart` Hook 重新注入干净快照。
+2. **用轻量小模型直接动黄区/红区文件**：修改 `ipcContract.ts`、`preload` 或架构底座时用小模型极易破坏三端契约。→ 先用 `pnpm harness:design-risk` 看风险标，标为 `high` 务必切强模型或先 `/grill-me`。
+3. **不走解锁流程或手工强行改 `.harness/*.json`**：手工硬改 `ratchet.json` / `project.json` 却不同步对应锁状态或代码，会导致后续每次 CI/Hook 连锁红灯。
+4. **把跨多个岛的大需求整坨丢给单个切片**：单切片 Diff 超过 300 行时，AI 注意力迅速衰减并开始产出重复代码。→ **先拆互斥切片再并发**。
+5. **只看聊天区回复不看 Git Diff 与 GitHub Checks**：养成每晚看一次 `test -> master` 汇总 PR 的 5 项健康指标 + 实机测 3 分钟的习惯，零星偏航当日就能兜住。

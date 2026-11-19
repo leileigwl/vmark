@@ -4,7 +4,7 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event SessionStart",
+        "command": "node --experimental-strip-types ../scripts/harness/hook-adapter.ts --event SessionStart",
         "timeout": 10
       }
     ],
@@ -14,7 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PreToolUse",
+            "command": "node --experimental-strip-types ../scripts/harness/hook-adapter.ts --event PreToolUse",
             "timeout": 10
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PostToolUse",
+            "command": "node --experimental-strip-types ../scripts/harness/hook-adapter.ts --event PostToolUse",
             "timeout": 15
           }
         ]
@@ -35,7 +35,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event Stop",
+        "command": "node --experimental-strip-types ../scripts/harness/hook-adapter.ts --event Stop",
         "timeout": 30
       }
     ]
