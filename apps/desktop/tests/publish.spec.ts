@@ -39,6 +39,7 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
           ok: true,
           mode: t.mode,
           postId: `post-${t.platformId}`,
+          url: `https://example.com/draft/${t.platformId}`,
           verified: true,
           uploadedImagesCount: 2,
           message: `已完成分发（转存 2 张防盗链图片）`,
@@ -79,6 +80,16 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
     await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
+    // Switch platform previews: Zhihu, Baijiahao, Xiaohongshu 3:4 cards
+    await page.getByRole('button', { name: '知乎专栏' }).click();
+    await expect(page.getByTestId('zhihu-preview')).toContainText('公众号标题');
+    await page.getByRole('button', { name: '百家号' }).click();
+    await expect(page.getByTestId('baijiahao-preview')).toContainText('公众号标题');
+    await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
+    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号分发测试文章');
+    await page.getByRole('button', { name: '微信公众号', exact: true }).click();
+    await expect(preview).toBeVisible();
+
     // Switch to 多平台分发 / Git tab, verify auth states and pre-flight interception
     await page.getByRole('button', { name: '多平台分发 / Git' }).click();
     await expect(page.getByRole('button', { name: '刷新账号检测状态' })).toBeVisible();
@@ -96,6 +107,10 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: /一键排除故障平台，继续发布健康平台 \(2\)/ }).click();
     await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-weixin）/)).toBeVisible();
     await expect(page.getByText(/已完成分发（转存 2 张防盗链图片）（ID: post-github_static）/)).toBeVisible();
+    const draftLink = page.locator('a[href="https://example.com/draft/weixin"]');
+    await expect(draftLink).toHaveText('打开草稿 / 查看链接');
+    await expect(draftLink).toHaveAttribute('target', '_blank');
+    await expect(draftLink).toHaveAttribute('rel', 'noreferrer');
     await page.getByRole('button', { name: '关闭' }).click();
     await expect(preview).toBeHidden();
   });

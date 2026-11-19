@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PLATFORM_CATALOG } from '@vcat/adapters';
 import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
-import type {
-  ArticleMeta,
-  GitStatusInfo,
-  MultiPlatformPublishResultItem,
-  PlatformId,
-  PublishMode,
-} from '@vcat/shared';
+import type { ArticleMeta, GitStatusInfo, MultiPlatformPublishResultItem, PlatformId, PublishMode } from '@vcat/shared';
+import { PlatformPreviewPane, PreflightBanner, PublishResultRow } from '../features/publish-drawer';
 
 interface PublishModalProps {
   activeArticle: ArticleMeta | null;
@@ -186,6 +181,11 @@ export function PublishModal({
     }
   };
 
+  const handleSaveAndClose = () => {
+    onSaveArticle(markdown);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-xs">
       <div className="flex max-h-[88vh] w-[820px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
@@ -302,10 +302,7 @@ export function PublishModal({
                 {activeArticle && (
                   <button
                     type="button"
-                    onClick={() => {
-                      onSaveArticle(markdown);
-                      onClose();
-                    }}
+                    onClick={handleSaveAndClose}
                     className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
                   >
                     保存本地文章
@@ -316,16 +313,11 @@ export function PublishModal({
               </div>
             </div>
 
-            <div className="flex min-h-[320px] flex-col overflow-hidden rounded-lg border border-[var(--border-color)] bg-white text-[#333]">
-              <div className="border-b border-black/10 bg-[#f7f7f7] px-3 py-2 text-[11px] font-medium text-[#555]">
-                公众号行内 CSS 排版预览（外链已转为文末脚注：{weixinRendered.footnotes.length} 条）
-              </div>
-              <div
-                data-testid="weixin-preview"
-                className="flex-1 overflow-y-auto p-3"
-                dangerouslySetInnerHTML={{ __html: weixinRendered.html }}
-              />
-            </div>
+            <PlatformPreviewPane
+              markdown={markdown}
+              title={activeArticle?.title}
+              weixinRendered={weixinRendered}
+            />
           </div>
         ) : (
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-[13px] text-[var(--control-text-color)]">
@@ -347,36 +339,13 @@ export function PublishModal({
               </div>
             )}
             {preflightBlocked && (
-              <div className="rounded-lg border border-[#cf222e] bg-[#ffebe9] p-3 text-xs text-[#cf222e]">
-                <div className="font-semibold">
-                  ⚠️ 前置强校验拦截：检测到以下已勾选平台尚未完成授权登录
-                </div>
-                <div className="mt-1 text-[11px] text-[#24292f]">
-                  已拦截本次分发，防止出现「部分平台成功、部分平台失败」的不一致脏状态：
-                  <span className="ml-1 font-medium text-[#cf222e]">
-                    {preflightBlocked.faultyPlatforms
-                      .map((id) => PLATFORM_CATALOG.find((p) => p.id === id)?.name || id)
-                      .join('、')}
-                  </span>
-                </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={preflightBlocked.healthyPlatforms.length === 0 || pushingMulti}
-                    onClick={() => void handleExcludeFaultyAndPublish()}
-                    className="rounded bg-[#cf222e] px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
-                  >
-                    一键排除故障平台，继续发布健康平台 ({preflightBlocked.healthyPlatforms.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreflightBlocked(null)}
-                    className="rounded border border-[#cf222e]/30 bg-white px-2 py-1 text-[11px] text-[#24292f] hover:bg-[#f6f8fa]"
-                  >
-                    暂缓发布，先去授权
-                  </button>
-                </div>
-              </div>
+              <PreflightBanner
+                faultyPlatforms={preflightBlocked.faultyPlatforms}
+                healthyCount={preflightBlocked.healthyPlatforms.length}
+                disabled={pushingMulti}
+                onExcludeAndPublish={() => void handleExcludeFaultyAndPublish()}
+                onDismiss={() => setPreflightBlocked(null)}
+              />
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2 text-xs">
@@ -440,17 +409,7 @@ export function PublishModal({
                         {p.supportedModes.includes('direct') && <option value="direct">直接发布</option>}
                       </select>
                     </div>
-                    {result && (
-                      <div
-                        className={`pl-6 text-[11px] ${
-                          result.ok ? 'text-[#116329]' : 'text-[#cf222e]'
-                        }`}
-                      >
-                        {result.ok ? '✓ ' : '✗ '}
-                        {result.message}
-                        {result.postId ? `（ID: ${result.postId}）` : ''}
-                      </div>
-                    )}
+                    {result && <PublishResultRow result={result} />}
                   </div>
                 );
               })}
@@ -470,10 +429,7 @@ export function PublishModal({
               {activeArticle && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onSaveArticle(markdown);
-                    onClose();
-                  }}
+                  onClick={handleSaveAndClose}
                   className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
                 >
                   保存本地文章
