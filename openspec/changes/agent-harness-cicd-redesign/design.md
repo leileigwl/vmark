@@ -2,104 +2,210 @@
 
 ## Context
 
-详见 [proposal.md](proposal.md) 中的 `## Why` 章节。本设计针对 `vmark` 当前 Monorepo（`pnpm workspace + Turborepo`：[`apps/desktop/`](apps/desktop)、[`packages/shared/`](packages/shared)、[`packages/core/`](packages/core)、[`packages/image-pipeline/`](packages/image-pipeline)、[`packages/adapters/`](packages/adapters)）与 GitHub 仓库（`leileigwl/vmark`，当前为 `private` 且 `master`/`test` 无保护规则），在保证每日高频稳定迭代的前提下，完成从“纯 Markdown 提示词约束”向“代码级确定性 Harness 引擎 + 风险分级自动合并 CI/CD + 可复用多形态模板”的架构升级。
+详见 [proposal.md](proposal.md) 中的 `## Why` 章节。本设计针对 `vmark` 当前 Monorepo（`pnpm workspace + Turborepo`：[`apps/desktop/`](apps/desktop)、[`packages/shared/`](packages/shared)、[`packages/core/`](packages/core)、[`packages/image-pipeline/`](packages/image-pipeline)、[`packages/adapters/`](packages/adapters)）与 GitHub 仓库（`leileigwl/vmark`，当前为 `private` 且 `master`/`test` 无保护规则），解决以下三项核心工程矛盾：
+1. 即使主控窗口直接运行 Gemini 3.8 Flash 等小模型并高速并发拆路线，也绝不跑偏或假完成；
+2. 当前 Stage A 允许一次性重构底座与模块岛拆分，但完成后通过 `bootstrapLocked: true` 硬锁定进入 Stage B 极简日常；
+3. 将全部规范、AST 风险检测与 `web-service` 后端冒烟/压测模板封装为跨项目可执行 Harness Kit（`init-project`），实现零散文迁移复用。
 
 ## Goals / Non-Goals
 
 **Goals:**
-- 用本地与 CI 共享同一份确定性脚本（`scripts/harness/` + `.harness/*.json`）替代低配/小模型极易遗忘与漂移的纯 Markdown 软约束。
-- 根治多 Agent 并行研发在“总合流路口”的跨模块语义冲突，并支持「先改前端测通 → 再加强后端」的接缝契约保护。
-- 在切换为 Public 仓库并采用 **AGPL-3.0 + 商业双授权**后，既能面向自有分支安全高效自动合入，又能面向外部 Fork PR 提供同等强度的自动化体检与 Fork 安全隔离 AI Review。
-- 形成「标准 Harness 内核 + Profile 适配器」二层结构，支持现有 `desktop-electron` 与后续互联网后端 `web-service`（含容器冒烟、`k6` 压测与 DB Migration 回滚）复用。
+- 用原生 Agent Hook（`.agents/hooks.json` / `.claude/settings.json`）+ Git Hook + GitHub Actions 三端同源执行 `scripts/harness/`，彻底摆脱纯 Markdown 软约束对小模型的失灵风险。
+- 通过 `bootstrapLocked` 两阶段开关，先在 Stage A 把 `vmark` 底座与 7 大超标文件彻底拆解为垂直物理模块岛（Barrel-Only + 无环 DAG），随后锁死框架层，日常只在业务岛内高并发敏捷迭代。
+- 用「Path + TypeScript AST + Diff 语义信号」三层确定性计算取代主观/纯文件名的风险分级。
+- 用每日 21:00 CST `test → master` 5 指标汇总邮件、每周 Cron Slop 体检 Issue 邮件与异常 Auto-Revert 邮件，实现“只开 1 个 Antigravity 窗口 + 看 GitHub 邮件”的异步反推工作流。
+- 通过 `init-project` 与可执行 Profile 资产，将体系直接复制到后续桌面或互联网后端项目。
 
 **Non-Goals:**
-- 不自建重型后端调度平台或 Kubernetes 集群，全部状态机与队列尽量原生存放在 Git 仓库（`.harness/`）与 GitHub 原生能力（Actions `concurrency` / Labels / PR）中。
-- 不在 CI 中跑真实第三方外部平台（微信公众号/知乎/百家号/CSDN 等）账号鉴权与线上发草稿测试（L4 始终保留在本地实机显式联调）。
-- 本提案实施前不推倒重写现有业务代码，对 7 个历史超标文件采取“棘轮锁死上限 + 增量按域渐进拆分”策略，零停机迁移。
+- 不自建重型后端调度平台或 Kubernetes 集群，全部状态机与队列原生存放在 Git 仓库（`.harness/`）与 GitHub 原生能力中。
+- 不在 CI 中跑真实第三方外部平台账号鉴权与线上发草稿测试（L4 始终保留在本地实机显式联调）。
+- 不依赖单一模型厂商（所有护栏通过标准 JSON stdin/stdout Hook 或 POSIX CLI 运行，兼容 Gemini 3.8 Flash、Claude、Codex 及本地/云端 OpenAI 兼容小模型）。
 
 ## 整体架构图
 
 ```mermaid
 flowchart TD
-    U["人类 / 主控大 AI (需求拆解与 OpenSpec)"] --> Track{"双轨分级判定"}
-    Track -->|"UI 大改版 / 完整轨"| Proto["交互原型输出并获确认"]
-    Track -->|"局部调整或 Bugfix / 快轨"| CF["大 AI 合入契约冻结 PR (shared + IPC契约 + 集成测试骨架)"]
+    Boot{"bootstrapLocked 开关"} -->|"Stage A false: 一次性底座建设"| Setup["改造模块岛 / CI / Harness 引擎后锁定为 true"]
+    Boot -->|"Stage B true: 极简日常期"| Win["单 Antigravity 主窗口 (兼容 Gemini 3.8 Flash)"]
+
+    Win --> SS["SessionStart Hook: 注入当前阶段 + 待处理 GitHub 邮件单号"]
+    SS --> Track{"双轨硬状态机判定"}
+    Track -->|"UI 大改版 / 完整轨"| Proto["交互原型确认"]
+    Track -->|"常规迭代或 Bugfix / 快轨"| CF["契约冻结 PR (shared + IPC契约 + 集成骨架)"]
     Proto --> CF
 
-    CF --> Split["大 AI 生成互斥 owned_paths 切片卡 (.harness/slices/*.json)"]
-    Split --> W1["小模型 Worker 1 (独立 Worktree + 随机端口)"]
-    Split --> W2["小模型 Worker 2 (独立 Worktree + 随机端口)"]
-    Split --> W3["Cleanup Agent (定期 AI Slop 清理切片)"]
+    CF --> Plan["pnpm harness:plan-slices (按物理模块岛生成互斥切片卡)"]
+    Plan --> W1["并发小模型 Worker 1 (Worktree + 随机端口)"]
+    Plan --> W2["并发小模型 Worker 2 (Worktree + 随机端口)"]
+    Plan --> W3["Cleanup Agent (Slop 清理切片)"]
 
-    W1 --> LocalGate["本地 Git Hook: pnpm harness:check --json"]
-    W2 --> LocalGate
-    W3 --> LocalGate
+    W1 --> Hooks["PreToolUse/PostToolUse/Stop Hook 物理拦截 (防越界/防篡改/防假完成)"]
+    W2 --> Hooks
+    W3 --> Hooks
 
-    LocalGate -->|"连续 2 次失败熔断"| Escalate["状态置为 escalated -> 退回大 AI 接管"]
-    LocalGate -->|"通过 L0/L1/L2"| PR["Push 分支创建 PR (Ubuntu 并行 CI)"]
+    Hooks -->|"连续 2 次失败熔断"| Esc["状态 escalated -> 释放循环交人工/大AI"]
+    Hooks -->|"L0+L1+L2 本地绿灯"| PR["推分支创建 PR (Ubuntu 并行 CI)"]
 
-    PR --> RiskEngine[".github/risk-rules.yml 风险判定"]
-    PR --> ForkIso["Fork PR 安全隔离路径: 无密钥提 Diff -> workflow_run 调 AI Review"]
+    PR --> Risk["risk-classifier.ts: Path + TS AST + 语义信号判定"]
+    PR --> ForkIso["Fork PR 隔离: 无密钥提 Diff -> workflow_run 调 AI Review"]
 
-    RiskEngine -->|"risk:low / 全绿 risk:mid (自有信任分支)"| Queue["concurrency: merge-test 串行锁合入 test"]
-    RiskEngine -->|"risk:high (或 AI 单向调高风险 / 外部 PR)"| WaitApprove["挂起等待 leileigwl /approve 审批"]
-    WaitApprove --> Queue
+    Risk -->|"risk:low / 全绿 mid (信任分支)"| Queue["concurrency: merge-test 串行合入 test"]
+    Risk -->|"risk:high 或底座改动或外部 PR"| Wait["挂起等待 leileigwl /approve"]
+    Wait --> Queue
 
-    Queue -->|"test 合流回归变红"| SafeRevert["熔断暂停自动合入 + 仅生成 1 个 Revert PR"]
-    Queue -->|"每日 21:00 Drain and Freeze"| DailyPR["零冲突生成 test 到 master 汇总 PR + L3 真机冒烟"]
-    DailyPR -->|"人工验手感 Merge Commit 入 master"| SyncBack["自动同步 master 回 test 并解锁"]
-    SyncBack -->|"打 v* Tag"| Release["触发 macOS / Windows / Linux 三端发版打包"]
+    Queue -->|"test 回归变红"| Rev["熔断 + 唯一 Revert PR + @leileigwl 发邮件"]
+    Queue -->|"每日 21:00 Drain and Freeze"| Daily["汇总 PR + 5项核心指标 + L3 冒烟 + @leileigwl 发邮件"]
+    Cron["每周 Cron Slop 巡检"] -->|"分类 Issue + @leileigwl 发邮件"| Win
+    Rev -->|"邮件反推单窗口输入单号处理"| Win
+    Daily -->|"人工验手感 Merge Commit 入 master"| Sync["自动同步 master 回 test 并解锁"]
+    Sync -->|"打 v* Tag"| Rel["macOS / Windows / Linux 三端发版"]
 ```
 
-## 目录结构与可复用标准边界
-
-为兼顾 `vmark` 标杆落地与未来快速复制到 `ai-study-workbench` 或后续互联网后端项目，仓库划分为**跨项目可复用标准层**与 **`vmark` 专属适配层**：
+## 目录结构与可执行跨项目工具包边界
 
 ```text
 vmark/
+├── .agents/
+│   ├── hooks.json                       # [原生生命周期硬锁] SessionStart / PreToolUse / PostToolUse / Stop
+│   ├── workflows/                       # OpenSpec 既有工作流
+│   └── skills/
+├── .claude/
+│   └── settings.json                    # [多 Agent 兼容] 映射至同一份 hook-adapter.ts
+├── .githooks/                           # [本地 Git 防线] pre-commit / pre-push 调用 harness:check
 ├── .harness/
-│   ├── schemas/                         # [标准层] 跨项目通用 JSON Schema（可整目录复用）
-│   │   ├── project.schema.json
-│   │   ├── state.schema.json
-│   │   ├── slice.schema.json
-│   │   └── ratchet.schema.json
-│   ├── templates/                       # [标准层] 可复用 GitHub Workflows / Hook / web-service 压测规范模板
-│   │   ├── workflows/                   # 标准 risk-gate / ai-review / daily-release / slop-audit 模板
-│   │   └── web-service-profile.md       # 互联网后端容器冒烟 / DB up-down / k6 压测基线规范
-│   ├── project.json                     # [项目适配层] 声明 profile="desktop-electron"、包依赖 DAG、命令映射
-│   ├── state.json                       # [运行时状态] 当前活跃 Change 的 Consort 硬状态机快照
+│   ├── schemas/                         # [标准层] project / state / slice / ratchet JSON Schema
+│   ├── profiles/                        # [标准层-可执行 Profile 套件，替代纯 MD]
+│   │   ├── desktop-electron.json        # Electron 桌面端命令/边界/L3 冒烟契约
+│   │   ├── web-service.json             # 互联网后端容器/迁移/压测契约
+│   │   └── web-service/
+│   │       ├── compose.smoke.yml        # 容器化 DB + Redis + App 集成编排模板
+│   │       ├── migration-check.sh       # up -> seed -> down -> up 可逆性校验脚本
+│   │       ├── k6-smoke.js              # 可执行 k6 压测脚本（P95/错误率/内存门禁）
+│   │       └── thresholds.json          # P95/P99 与错误率 <0.1% 阈值配置
+│   ├── project.json                     # [项目适配层] bootstrapLocked、moduleIslands、notifyUser
+│   ├── state.json                       # [运行时状态] Consort 双轨硬状态机快照
 │   ├── ratchet.json                     # [项目适配层] 既有 7 个超标文件行数棘轮基线
-│   └── slices/                          # [任务切片卡] 当前并行的互斥切片 JSON 文件
+│   └── slices/                          # [任务切片卡] 互斥切片 JSON 文件
 ├── scripts/
-│   └── harness/                         # [标准层] 零外部重依赖 TypeScript/Node CLI（本地与 CI 同源）
-│       ├── cli.ts                       # 统一入口：check / transition / risk / slop / slice-verify
-│       ├── anti-cheat.ts                # 反作弊 Diff 扫描（.skip/断言数/as any/护栏自改拦截）
-│       ├── ratchet.ts                   # 行数棘轮 & 新文件 <=500 行 & 单向依赖拓扑检查
-│       ├── slop.ts                      # 5 类 AI Slop 扫描器（联动 knip 与文档死链校验）
-│       └── slice-lock.ts                # owned_paths 互斥校验 & 2 次失败熔断计数管理
-├── .github/
-│   ├── risk-rules.yml                   # [项目适配层] 风险路径规则唯一配置源
-│   └── workflows/
-│       ├── ci.yml                       # 重构为 ubuntu-latest 并行（check / unit+ipc / e2e / l3-electron）
-│       ├── risk-gate.yml                # 信任校验 + 串行 merge-test 合流 + /approve + Freeze 检查
-│       ├── ai-review.yml                # Fork 安全隔离两段式 DeepSeek/OpenAI 自动审查
-│       ├── daily-release-pr.yml         # 每日 21:00 CST Drain & Freeze 生成 test -> master 汇总 PR
-│       ├── auto-revert.yml              # test 回归变红单次 Revert + 熔断保护
-│       ├── slop-audit.yml               # 每周 Cron AI Slop 分类体检单
-│       └── release.yml                  # 保持仅 v* Tag 触发三端打包（macOS/Windows/Linux）
+│   └── harness/                         # [标准层] 零重依赖 TypeScript/Node 引擎
+│       ├── cli.ts                       # 入口：check/transition/risk/slop/plan-slices/unlock-bootstrap
+│       ├── hook-adapter.ts              # 统一 stdin/stdout 适配 Antigravity / Claude / Git Hook
+│       ├── risk-classifier.ts           # Path + TS AST + Diff 语义三层风险判定
+│       ├── arch-graph.ts                # TS Compiler API 物理模块岛 Barrel-Only & 无环 DAG 守卫
+│       ├── anti-cheat.ts                # 反作弊 Diff 扫描（.skip/断言数/as any/护栏锁定检查）
+│       ├── ratchet.ts                   # 行数棘轮 & 新文件 <=500 行检查
+│       ├── slop.ts                      # 5 类 AI Slop 扫描器（联动 knip 与死链检查）
+│       ├── slice-lock.ts                # ownedPaths 互斥校验 & 2 次失败熔断计数管理
+│       └── init-project.ts              # 可执行脚手架：一键复制标准层并按 Profile 初始化新项目
+├── docs/
+│   ├── PRODUCT.md                       # [宪法层] 产品定位与边界
+│   ├── ARCHITECTURE.md                  # [宪法层] 单向依赖、模块岛与技术约束
+│   ├── OPERATOR_PLAYBOOK.md             # [操作手册] 一页式单窗口极简日常规范
+│   └── session-handoff.md               # [快照层] ≤120 行覆盖式交接快照
+├── AGENTS.md                            # [宪法入口] ≤100 行极简开机引导
 ├── LICENSE                              # GNU AGPL-3.0-only
-└── LICENSE-COMMERCIAL.md                # 商业付费双授权条款说明
+├── LICENSE-COMMERCIAL.md                # 商业付费双授权条款说明
+└── .github/
+    ├── risk-rules.yml                   # 风险路径基准配置
+    ├── PULL_REQUEST_TEMPLATE.md         # 外部贡献者 CLA/DCO 与自检清单
+    └── workflows/                       # ci / risk-gate / ai-review / daily-release-pr / auto-revert / slop-audit / release
 ```
+
+## 原生生命周期 Hook 契约（让 3.8 Flash 等小模型物理上跑不偏）
+
+为严格匹配 Antigravity Customization 规范（`.agents/hooks.json`，camelCase stdin/stdout JSON），各事件执行确定性逻辑如下：
+
+```json
+{
+  "harness-orchestrator-guard": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event SessionStart",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "edit_file|write_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PostToolUse",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event Stop",
+        "timeout": 30
+      }
+    ]
+  }
+}
+```
+
+`hook-adapter.ts` 在四个阶段的行为契约：
+1. **`SessionStart`**：输出 `injectSteps`（`systemMessage.systemMessage`），用 ≤300 Token 注入当前 `bootstrapLocked`、`state.json` 阶段、激活中的切片 `ownedPaths`、以及 `gh` 拉取的当前 `@leileigwl` 待处理 Issue/汇总 PR。
+2. **`PreToolUse`**：解析 `toolCall.name` 与 `toolCall.args`：
+   - 对 `edit_file` / `write_file`：检查目标路径是否在 `.harness/project.json` 锁定底座内（若 `bootstrapLocked === true` 直接返回 `{"decision":"deny","reason":"底座已锁定，仅允许 pnpm harness:unlock-bootstrap 后修改框架"}`）；若处于切片模式但目标不在 `ownedPaths` 或命中 `forbiddenPaths`，直接返回 `deny`；若 `state.json` 尚未达 `CONTRACT_FROZEN` 且改动源码而非 OpenSpec/契约文件，直接返回 `deny`。
+   - 对 `run_command`：拦截绕过 `pnpm` 的 `npm`/`yarn`、拦截直接 `git push --force`、拦截手工 `--no-verify` 跳过 Hook 等高危命令（返回 `deny` 或 `ask`）。
+3. **`PostToolUse`**：增量对刚写入的单个文件运行行数棘轮、跨模块岛 AST 导入及反作弊检查，若有违例即刻落盘至 `.harness/.last-violations.json` 供 `Stop` 读取。
+4. **`Stop`**：读取 `continuationActive` 与 `terminationReason`：若切片处于 `status: "escalated"`（连续 2 次熔断），允许立即终止以便人类或大 AI 接管；若未过 `pnpm harness:check --json` 且 `!continuationActive`，返回 `{"decision":"continue","reason":"<精简JSON四元组 fix_hint>"}` 阻止小模型假完成。同时在 `.claude/settings.json` 挂载同等命令，实现多 Agent 工具链零差异护栏。
+
+## Path + TypeScript AST + 语义三层风险与物理模块岛架构
+
+### 1. `scripts/harness/risk-classifier.ts`（去纯 MD / 去纯路径欺骗）
+使用仓库自带 `typescript` 依赖的 `ts.createSourceFile` 进行轻量化 AST 解析（耗时 `<1s`），与 `.github/risk-rules.yml` 组合输出最终风险：
+- **第 1 层（路径与规模）**：`.github/risk-rules.yml` 路径集 + 改动行数 > 300 行。
+- **第 2 层（TypeScript AST 结构信号）**：解析每个改动的 `.ts`/`.tsx` 文件旧版与新版 AST：
+  - 若模块岛 Barrel `index.ts` 或 `packages/shared` 中的 `export type` / `export interface` / `export function` 参数与返回值签名发生变化，立即判定 `risk:high`；
+  - 若文件 `importDeclaration` 跨越了 `project.json` 声明的层边界或引用非 Barrel 内部文件，直接报错并升至 `risk:high`。
+- **第 3 层（Diff 语义信号）**：扫描新增 `+` 行中是否包含敏感运行原语（`ipcMain`、`ipcRenderer`、`safeStorage`、`child_process`、`eval(`、`new Function`、SQL DDL/DML 模板、`process.env`、`Cookie` 写入），一旦命中即自动标记为 `risk:high` 并附精确行号理由。
+
+### 2. `scripts/harness/arch-graph.ts` & `vmark` 物理模块岛拆分
+为使多个 3.8 Flash Worker 并发拆路线开发时物理上零冲突，强制实施**垂直物理模块岛（Vertical Feature Islands）**：
+- **主进程按域模块岛**（`apps/desktop/src/main/ipc/<domain>/index.ts`）：拆分为 `workspace`、`article`、`image-config`、`platform-auth`、`publish` 与 `windowLifecycle`，由极薄的总装表 `src/main/ipc/registry.ts`（≤80 行）汇入，消灭 1303 行 `main/index.ts` 冲突点。
+- **渲染层按域模块岛**（`apps/desktop/src/renderer/src/features/<domain>/index.ts`）：拆分为 `workspace-tree`、`editor-ir`、`publish-drawer`、`auth-settings`、`theme-bloom`，仅暴露公共 Hooks/组件于 `index.ts`，禁止岛与岛之间 `import` 内部子文件，`App.tsx`（现 1393 行）收敛为 ≤300 行纯布局壳。
+- **适配器岛**（`packages/adapters/src/platforms/<platform>.ts`）：一平台一文件并自动向 `registry.ts` 注册，并发新增平台适配器零互相踩踏。
 
 ## 核心 Schema 精确结构示例
 
-### 1. `.harness/project.json`（项目画像与 Profile 配置）
+### 1. `.harness/project.json`（含 `bootstrapLocked`、物理模块岛与通知配置）
 ```json
 {
   "$schema": "./schemas/project.schema.json",
   "projectId": "vmark",
   "profile": "desktop-electron",
   "owner": "leileigwl",
+  "githubNotifyUser": "leileigwl",
+  "bootstrapLocked": false,
+  "bootstrapLockProtectedPaths": [
+    ".harness/**",
+    "scripts/harness/**",
+    ".agents/hooks.json",
+    ".claude/settings.json",
+    ".githooks/**",
+    ".github/**",
+    "AGENTS.md",
+    "LICENSE*"
+  ],
   "licenseMode": "AGPL-3.0-or-commercial",
   "limits": {
     "newFileMaxLines": 500,
@@ -107,6 +213,13 @@ vmark/
     "agentsMdMaxLines": 100,
     "handoffMaxLines": 120,
     "circuitBreakerMaxRetries": 2
+  },
+  "moduleIslands": {
+    "rendererRoot": "apps/desktop/src/renderer/src/features",
+    "mainIpcRoot": "apps/desktop/src/main/ipc",
+    "barrelFile": "index.ts",
+    "forbidCrossIslandDeepImport": true,
+    "forbidCycles": true
   },
   "layerBoundaries": [
     {
@@ -146,7 +259,7 @@ vmark/
     "ipcContractPassed": false,
     "backendTddPassed": false
   },
-  "updatedAt": "2026-11-19T14:50:00+08:00"
+  "updatedAt": "2026-11-19T15:00:00+08:00"
 }
 ```
 
@@ -154,17 +267,17 @@ vmark/
 ```json
 {
   "$schema": "./schemas/slice.schema.json",
-  "sliceId": "decouple-main-ipc-auth",
+  "sliceId": "island-auth-settings",
   "changeName": "agent-harness-cicd-redesign",
   "assigneeTier": "small-model",
-  "worktreeBranch": "slice/decouple-main-ipc-auth",
+  "worktreeBranch": "slice/island-auth-settings",
   "status": "in_progress",
   "retryCount": 0,
   "maxRetries": 2,
   "maxDiffLines": 300,
   "ownedPaths": [
-    "apps/desktop/src/main/ipc/authHandlers.ts",
-    "apps/desktop/src/main/ipc/authHandlers.test.ts"
+    "apps/desktop/src/renderer/src/features/auth-settings/**",
+    "apps/desktop/tests/settings.spec.ts"
   ],
   "forbiddenPaths": [
     ".harness/**",
@@ -172,7 +285,7 @@ vmark/
     "scripts/harness/**",
     "packages/shared/**"
   ],
-  "requiredChecks": ["L0", "L1"],
+  "requiredChecks": ["L0", "L1", "L2"],
   "lastFailureSummary": null
 }
 ```
@@ -194,7 +307,7 @@ vmark/
 }
 ```
 
-### 5. `.github/risk-rules.yml`（风险分级唯一配置源）
+### 5. `.github/risk-rules.yml`（路径与阈值配置，配合 AST/语义三层使用）
 ```yaml
 version: 1
 max_auto_merge_lines: 300
@@ -209,6 +322,9 @@ tiers:
       - "apps/desktop/src/preload/**"
       - ".github/**"
       - ".harness/**"
+      - ".agents/**"
+      - ".claude/**"
+      - ".githooks/**"
       - "scripts/harness/**"
       - "package.json"
       - "pnpm-workspace.yaml"
@@ -238,76 +354,64 @@ tiers:
     skip_e2e_when_docs_only: true
 ```
 
-## `vmark` 巨型枢纽文件渐进式解耦方案
+## 单窗口极简日常操作蓝图（Operator Playbook Blueprint）
 
-为彻底消除并行切片在 `main/index.ts`（1303 行）与 `App.tsx`（1393 行）处的合流磁铁效应，Phase 3 将引入**“只增插件、不改总线”**的注册表架构，并每拆一块同步下调 `.harness/ratchet.json` 基线：
+当 Stage A 执行完毕并将 `.harness/project.json` 锁定为 `"bootstrapLocked": true` 后，全部日常工作流固化至 `docs/OPERATOR_PLAYBOOK.md`：
 
-1. **主进程拆分（`apps/desktop/src/main/`）**：
-   - 将当前集中在 `main/index.ts`（第 340–894 行前后约 30 个 `ipcMain.handle`）按业务域拆至：
-     - `src/main/ipc/registry.ts`（总装配表，≤80 行）
-     - `src/main/ipc/workspaceHandlers.ts`（工作区与目录 CRUD）
-     - `src/main/ipc/articleHandlers.ts`（文章读写、搜索、重命名与导入导出）
-     - `src/main/ipc/imageAndConfigHandlers.ts`（图床与启动配置）
-     - `src/main/ipc/platformAuthHandlers.ts`（沙箱 Partition 登录、退出与心跳过期检测）
-     - `src/main/windowLifecycle.ts`（窗口创建、菜单、全屏状态同步与协议拦截）
-   - 此后新增 IPC 能力时，小模型仅需修改对应子域文件 + `packages/shared/src/ipcContract.ts`，不再撞入 `main/index.ts`。
-2. **渲染层拆分（`apps/desktop/src/renderer/src/`）**：
-   - 将 `App.tsx` 中混合的状态逻辑拆至领域 Hooks（`src/renderer/src/features/workspace/useWorkspaceState.ts`、`features/publish/usePublishDrawer.ts`、`features/auth/usePlatformAuthToast.ts`、`features/theme/useBloomTheme.ts`），`App.tsx` 收敛为纯布局壳（目标 ≤300 行）。
-
-## 大小模型路由准则与 2 次熔断机制
-
-- **何时必须使用大 AI（单线程统筹）**：
-  1. 需求梳理、交互原型方案评估、OpenSpec（`proposal` / `specs` / `design` / `tasks`）起草与更新；
-  2. **契约冻结阶段**：编写 `packages/shared` 接口契约、`ipcContract` 与跨模块集成测试骨架，生成互斥切片卡；
-  3. 涉及 `packages/core` / `adapters` / `image-pipeline` / `main` / `preload` / `.github` / `.harness` 的 `risk:high` 修改；
-  4. 合流路口语义冲突裁决与重构枢纽文件；
-  5. 接收小模型 `status: "escalated"` 熔断后的根因重构或二次拆细。
-- **何时直接派发小模型多路并发开工**：
-  1. `.harness/state.json` 已达到 `CONTRACT_FROZEN`；
-  2. 每个小模型持有独立的 `.harness/slices/<id>.json`（`ownedPaths` 交集为空、`maxDiffLines <= 300`、非 `risk:high` 路径）；
-  3. 在各自独立 `git worktree` 中同时实现局部 UI 组件、主题 CSS、单模块工具函数、单测/Playwright E2E 补充、文档修补及 weekly AI Slop 清理切片。
-- **2 次熔断规则**：`pnpm harness:slice-verify --slice <id>` 每次拦截失败都会回写 `retryCount += 1` 与极简 `lastFailureSummary`；若 `retryCount >= 2`，自动写入 `status: "escalated"`，Git pre-commit/CLI 直接锁定该分支拒绝第 3 次盲改，必须由大 AI 介入排查或重新拆分。
+1. **单窗口开机交互流（无论主控是否切到 Gemini 3.8 Flash）**：
+   - **Step 1**：只开 1 个 Antigravity 窗口，进入会话时 `SessionStart` Hook 自动呈报当前状态、锁状态与待处理的 GitHub 邮件单号；
+   - **Step 2**：直接提需求（如 `需求：给发布抽屉增加定时草稿提示`）或处理邮件单号（如 `处理 Slop Issue #12` / `修一下今天汇总 PR 的冲突`）；
+   - **Step 3**：模型自动先走 OpenSpec 与契约校验 → 调用 `pnpm harness:plan-slices` 生成互不重叠的 `ownedPaths` 切片 → 派发多只小模型在独立 Worktree 并行 TDD；每步写文件均被 `PreToolUse`/`PostToolUse`/`Stop` Hook 硬锁护航，全程无需你盯细节。
+2. **每天仅需做的 2 个朴素动作 + GitHub 邮件反推**：
+   - **动作 1（白天零打扰提需求）**：提需求让其并发做完推 PR；低/中风险 PR CI 绿灯后自动 Squash 入 `test`；仅当你收到 GitHub 邮件提示 `risk:high 等待 /approve` 时点进去审查或回复 `/approve`。
+   - **动作 2（每晚 21:00 后收每日汇总邮件并上手测一次）**：打开系统自动建好的当日 `test → master` 汇总 PR，先瞄一眼正文自动生成的 **每日 5 大核心指标**，本地拉取分支上手实测 3 分钟确认体验；没问题直接点 Merge Commit 合入 `master`（CI 自动同步回 `test` 并解锁下一天）。
+3. **每日必看的 5 个量化健康指标**：
+   - **自动合入率**（低/中风险免审直接入 `test` 占比，目标 `≥ 70%`）
+   - **小模型熔断率**（`retryCount >= 2` 触发 `escalated` 比例，异常飙高说明需要升级模型或细化切片）
+   - **合流回归与 Auto-Revert 次数**（`test` 变红次数，衡量“先单测绿合流后集成炸”的接缝质量）
+   - **棘轮与 5 类 AI Slop 净变化量**（新增死代码/7 大文件行数增减，必须长期呈下降趋势）
+   - **Ubuntu CI 平均耗时**（验证并发缓存与路径分流效率）
+4. **全仓文件唯一归属地图**（去重复）：
+   - 长期规则与命令：`AGENTS.md`（≤100行）；产品与架构宪法：`docs/PRODUCT.md` & `docs/ARCHITECTURE.md`；每日上手速查：`docs/OPERATOR_PLAYBOOK.md`；最新进度快照：`docs/session-handoff.md`（≤120行覆盖写）；一切改动需求与契约：`openspec/changes/<slug>/`（完结归档进 `openspec/specs/`）；机械规则与状态机：`.harness/*.json` & `.github/risk-rules.yml`。
 
 ## 10 大补充盲区与工程防线总表
 
 | 编号 | 识别盲区 | 生产/开源风险 | 确定性工程防线 |
 | :--- | :--- | :--- | :--- |
-| **01** | **Public 前历史敏感残留** | 仓库从 Private 切 Public 后，`git log` 历史中若含调试用 Cookie（`BDUSS`/`SESSDATA`）、API Key 或本机隐私路径会被秒爬 | Phase 0 强制执行 `gitleaks` / `git log -S` 全历史正则扫描与高危提交重写清洗，确认零泄露后再执行 `gh repo edit --visibility public` |
-| **02** | **Fork PR 密钥泄露（Pwn-Request）** | 用 `pull_request_target` 直接跑 Fork PR 的 `pnpm test` 或脚本，恶意 PR 修改 `package.json` 可窃取 `DEEPSEEK_API_KEY` | AI Review 拆为两段：`pull_request`（无 Secrets 权限）跑单测并仅导出纯文本 `.diff` Artifact；`workflow_run`（不检出 Fork 代码）仅读取 Diff 调 DeepSeek API 发评注 |
-| **03** | **小模型“作弊过测试”** | 小模型为拿绿灯会给报错测试加 `.skip`、删除 `assert`、`as any` 绕过 TS，或篡改 `.github/` 降级风险规则 | `anti-cheat.ts` 机械比对 base..HEAD diff：禁止新增 skip/only、禁止无声明削减断言数、禁止未豁免 `as any`/`@ts-ignore`、禁止低风险 PR 修改护栏文件 |
-| **04** | **巨型文件与枢纽磁铁扩散** | 7 个历史大文件若不封顶，小模型仍会不断往里塞代码导致合并冲突率居高不下 | `.harness/ratchet.json` 锁死当前上限“只减不增”，新文件严格 ≤500 行；每次拆分成功单向下降基线，未授权增量即报错 |
-| **05** | **并发 Worktree 端口与目录踩踏** | 多个小模型并发跑 Playwright，写死 `vite preview --port 4173` 与相同临时目录会导致随机互相挤占失败 | 改造 `playwright.config.ts` 与测试夹具：未传 `CI` 时自动分配空闲端口（`get-port`）+ `fs.mkdtempSync` 独立 userData/SQLite 路径 |
-| **06** | **每日汇总 PR 与 Squash 分叉冲突** | 日常 PR 用 `--squash` 入 `test`，若 `test → master` 再 Squash 合并，翌日 `test` 与 `master` 祖先分叉必冲突 | 每日 21:00 执行 **Drain & Freeze**（先排空 `merge-test` 并冻结入队），生成 `test → master` 后**必须用 Merge Commit** 合入 `master`，随后立即 fast-forward/merge 回 `test` 并解冻 |
-| **07** | **Auto-Revert 雪崩连环回滚** | `test` 变红若无条件触发自动回滚且没加锁，回滚提交再次失败会形成无限 Revert 循环 | `auto-revert.yml` 触发后先打 `circuit:paused` 熔断标签暂停所有自动合入，且检查当前不存在 open Revert PR 后，才生成**唯一 1 个**回滚 PR 交人工介入 |
-| **08** | **冗长日志撑爆小模型上下文** | Turbo/Playwright 报错往往输出上千行堆栈，低配小模型读后丢失焦点开始乱改 | `pnpm harness:check --json` 将全部机械错误压缩为 `<=20` 条结构化四元组 `{ file, line, rule_id, fix_hint }`，控制报错体积在 2KB 内 |
-| **09** | **未来互联网后端无压测基准** | 后续后端产品不能仅靠桌面端 Electron 测试模板，缺压测和不可逆 SQL 迁移会炸库 | 标准层内嵌 `web-service-profile.md`：固化容器 DB/Redis 集成、Migration `up -> seed -> down -> up` 必测、`k6` P95/错误率 `<0.1%`/内存斜率门禁规范 |
-| **10** | **AGPL-3.0 + 商业双授权法律瑕疵** | 切 Public 后未配标准许可证，或外部贡献者 PR 未确认贡献授权会导致后续商业授权争议 | 根目录落盘官方 `AGPL-3.0-only` `LICENSE` + `LICENSE-COMMERCIAL.md`；外部 PR 自动评论提示遵循本仓双授权 CLA/DCO；CI 增加第三方依赖协议兼容审计 |
+| **01** | **Public 前历史敏感残留** | 仓库切 Public 后，`git log` 历史若含平台 Cookie（`BDUSS`/`SESSDATA`）或密钥会被秒爬 | Phase 0 执行 `gitleaks` / `git log -S` 全历史扫描清洗，确认零泄露后再改可见性 |
+| **02** | **Fork PR 密钥泄露（Pwn-Request）** | `pull_request_target` 直接跑 Fork 代码会泄露 `DEEPSEEK_API_KEY` | 两段隔离：`pull_request`（无 Secrets）产 Diff Artifact；`workflow_run`（不执行 Fork 代码）读 Diff 调 API |
+| **03** | **小模型“作弊与假完成”** | 3.8 Flash 等小模型可能偷加 `.skip`、删断言、`as any`，或未跑完测试直接结束对话 | `anti-cheat.ts` + 原生 `PreToolUse`/`PostToolUse`/`Stop` Hook 硬拒绝并强迫修至绿灯 |
+| **04** | **3.8 Flash 日常顺手改底座** | 日常需求里模型容易“顺手优化”重构 CI 或改 `.harness` 规则放宽约束 | `.harness/project.json` 设置 `bootstrapLocked: true`，日常态 Hook 与 CI 双层拒绝改动底座 |
+| **05** | **并发 Worktree 端口与目录踩踏** | 多并发跑 Playwright 抢占固定 4173 端口与共享 userData 目录 | 动态端口分配 + `fs.mkdtempSync` 独立临时目录 |
+| **06** | **每日汇总 PR 与 Squash 分叉冲突** | 日常 PR Squash 入 `test`，若 `test → master` 再 Squash 必然翌日冲突 | 21:00 CST **Drain & Freeze** + **Merge Commit** 合入 `master` 后立即同步回 `test` 并解锁 |
+| **07** | **Auto-Revert 雪崩连环回滚** | `test` 变红无限制自动 Revert 会引发连环回滚死循环 | 熔断标 `circuit:paused` + 去重校验仅生唯一 1 个 Revert PR 并 `@leileigwl` |
+| **08** | **冗长日志撑爆小模型上下文** | 千行堆栈让小模型失去焦点胡乱改代码 | `pnpm harness:check --json` 压缩为 ≤20 条 `{file, line, rule_id, fix_hint}`（`<2KB`） |
+| **09** | **纯路径/MD 风险分级被绕过** | 中风险文件里悄悄改 `export interface` 签名或加 `child_process` / IPC 未触发严审 | `risk-classifier.ts` 用 TS AST 对比导出签名变化 + 语义模式扫描直接机械升 `risk:high` |
+| **10** | **跨项目复用只留空壳文档与双授权遗漏** | 只抄 MD 到新项目依旧跑偏；开源后缺乏商用付费条款与后端压测工具 | 提供 `init-project.ts` + 可执行 `.harness/profiles/`（含 `k6-smoke.js` / `migration-check.sh`）及 AGPL-3.0 + 商业双授权 |
 
 ## Decisions
 
-1. **决策 1：采用原生 TypeScript（Node `--experimental-strip-types` / `node` 直接运行）编写 `scripts/harness/`**
-   - *Rationale*：`vmark` 团队已全栈使用 TypeScript，且当前环境为 pnpm + Node 22/24，无需引入 Python 或 Go 等第二套运行时，本地 Hook 与 Ubuntu CI 零环境差异。
-   - *Alternative considered*：使用 shell 脚本拼 `grep/jq`（跨平台维护脆弱且难做 AST/TypeScript 导入拓扑分析）。
-2. **决策 2：采用 `concurrency: merge-test` + 合前同步重跑代替 GitHub Merge Queue**
-   - *Rationale*：GitHub 官方 Merge Queue 对私有仓库免费账号受限，而 `concurrency` 互斥锁 + 工作流内检查 `behind` 并合前自动合并最新 `test` 在 Public/Private 仓均 100% 免费稳定可用。
-   - *Alternative considered*：直接开启官方 Merge Queue（在未切 Public 或个人账号方案下不可用或策略受限）。
-3. **决策 3：选用 `AGPL-3.0-only` + `LICENSE-COMMERCIAL.md` 替代自定义 Noncommercial**
-   - *Rationale*：AGPL-3.0 是 GitHub 官方识别的强 Copyleft OSI 协议，既能保护桌面端分发也能约束未来互联网 SaaS 后端必须开源或购买商业授权，同时生态工具（如开源依赖审计）兼容度最高。
-   - *Alternative considered*：PolyForm Noncommercial（非 OSI 开源标准，部分企业与开源生态工具链支持较弱）。
-4. **决策 4：将现有 `openspec/changes/init-cat-publisher` 补齐同步后归档，不直接粗暴删除**
-   - *Rationale*：`init-cat-publisher`（`0/13`）记录了 `vmark` 初版编辑、图床与多平台分发基线契约，补齐核对已实现部分迁移至 `openspec/specs/` 后正式归档，使 `openspec/specs/` 成为完整业务能力账本。
+1. **决策 1：采用原生 `.agents/hooks.json` + `.claude/settings.json` + `.githooks/` 共享 `hook-adapter.ts` 引擎**
+   - *Rationale*：不依赖单一大模型品牌记性，将状态机边界与 `bootstrapLocked` 物理落实到每一次工具调用之前。
+2. **决策 2：使用 TypeScript 自带 Compiler API（`ts.createSourceFile`）实现 AST 风险与模块岛拓扑校验**
+   - *Rationale*：仓库已安装 TypeScript，无需再引入重型 AST 解析依赖，毫秒级识别导出签名变化、Barrel-Only 违规和循环导入。
+3. **决策 3：引入 `bootstrapLocked` 两阶段生命周期**
+   - *Rationale*：满足当前一次性改完底座与拆分大文件的诉求，同时一劳永逸保住后续日常极简迭代期的底座稳定性。
+4. **决策 4：用可执行 `init-project.ts` + `.harness/profiles/` 替代文档型复用模板，选用 AGPL-3.0 + 商业双授权**
+   - *Rationale*：新项目（含互联网后端）一条命令即可继承全部机械护栏、`k6` 压测脚本与可逆迁移检查脚本；AGPL-3.0 兼顾桌面与 SaaS 商业保护。
 
 ## Risks / Trade-offs
 
-- **[Risk] 行数棘轮与反作弊门禁初期可能对快速 Hack 修复产生轻微摩擦** → **Mitigation**: 通过 `@harness-exempt: <reason> (expires: YYYY-MM-DD)` 提供可审计临时豁免标记，并在每周 AI Slop 体检单中自动追踪过期豁免。
-- **[Risk] `ubuntu-latest` 下运行真 Electron L3 冒烟需要 `xvfb-run` 与图形共享库（`libnss3`/`libgtk-3`）依赖，存在偶发启动抖动** → **Mitigation**: 将 L3 Electron 冒烟限定在 `risk:high`、`test` 合流后及每日汇总窗口运行（不阻塞低/中风险日常 PR 极速绿灯），配置 1 次自动重试与日志截图 Artifact 留存。
-- **[Risk] 切 Public 前全历史重写若清理出敏感提交，会导致本地与远端 Commit SHA 变化** → **Mitigation**: 切 Public 前在清理阶段完成历史扫描与强推对齐，保留完整只读备份分支确认无误后，再统一清理备份并切换仓库可见性。
+- **[Risk] `PreToolUse` / `Stop` Hook 拦截过严可能造成小模型在合法跨岛调整中陷入两次重试即熔断** → **Mitigation**: 大 AI/切片规划器在 `CONTRACT_FROZEN` 后精确按物理模块岛生成 `ownedPaths`，且 `--json` 提供明确 `fix_hint` 指向对应 Barrel 或测试文件，避免无效猜测。
+- **[Risk] `bootstrapLocked: true` 开启后，确实需要紧急修 CI 或加新包时可能被阻断** → **Mitigation**: 提供清晰的显式人工命令 `pnpm harness:unlock-bootstrap --reason "..."`，并在解锁期间自动把所有 PR 设为 `risk:high` 需 `/approve` 才合，修改结束即刻重锁。
+- **[Risk] `ubuntu-latest` 上真 Electron L3 冒烟受 Xvfb 与共享库环境影响偶发抖动** → **Mitigation**: 限定 L3 在 `risk:high`、`test` 合流后与每日汇总 PR 运行，允许 1 次重试并附截图 Artifact。
+- **[Risk] 切 Public 前 Git 全历史敏改会改写历史 SHA** → **Mitigation**: 先保留本地备份并完成全历史检查与强推对齐后再切公开。
 
 ## Migration Plan
 
-按 5 个渐进式可回滚 Phase 实施（具体可执行项见 `tasks.md`）：
-1. **Phase 0（公开与 SSOT 前置清场）**：先在本地执行历史敏感扫描，补全双授权许可与精简 `AGENTS.md`，归档重叠设计与历史 `init-cat-publisher` 并补全 `openspec/specs/`，经用户最终确认后切换 `leileigwl/vmark` 为 Public。
-2. **Phase 1（本地代码级 Harness 上线）**：落地 `.harness/` Schema 与 `scripts/harness/` CLI，接入本地 Git Hook 并完成 0 误报自测，此后即可安全引入小模型并发执行低/中风险切片。
-3. **Phase 2（GitHub 治理与分级 CI/CD 上线）**：先上线 `ubuntu-latest` 并行 CI 与 `.github/risk-rules.yml` 试跑打标，再逐步打开自动合入、每日 Drain & Freeze、`auto-revert` 与安全隔离 `ai-review`。
-4. **Phase 3（测试金字塔加固与枢纽文件拆分）**：落地 IPC 契约测试、Playwright 动态端口隔离、L3 `xvfb-run` 冒烟测试，并分切片将 `main/index.ts` 与 `App.tsx` 拆解至 500 行以下。
-5. **Phase 4（每周熵减流水线与跨项目模板沉淀）**：激活每周 Cron Slop 巡检并沉淀 `web-service` 后端规范模板包供新项目复制复用。
+按 5 个渐进 Phase（Stage A 一次性落地完备后锁定 `bootstrapLocked: true` 进入 Stage B）：
+1. **Phase 0（公开合规、SSOT 清理与操作手册）**：全历史密钥扫描、落盘 AGPL-3.0 + 商业双授权、切 Public、瘦身 `AGENTS.md`、编写 `docs/OPERATOR_PLAYBOOK.md`、归档历史设计稿与 `init-cat-publisher`。
+2. **Phase 1（代码级 Harness、原生 Hook 与 AST 检测引擎）**：落地 `.harness/` Schema、`anti-cheat`、`ratchet`、`risk-classifier`（Path+AST+语义）、`arch-graph`（物理模块岛）、`hook-adapter`（`.agents/hooks.json` / `.claude/settings.json` / `.githooks/`）及 `plan-slices` + 2 次熔断。
+3. **Phase 2（GitHub 治理、风险分级 CI/CD 与邮件反推闭环）**：`gh` 配置仓治理、迁移 `ci.yml` 至 `ubuntu-latest` 并行、上线 `risk-gate` / `ai-review`（Fork 安全隔离）/ `daily-release-pr`（5 指标 + `@leileigwl`）/ `auto-revert`。
+4. **Phase 3（五层测试升级、模块岛拆解与 `bootstrapLocked: true` 封板）**：补齐 IPC 契约测试、动态端口 Playwright、L3 `xvfb-run` 冒烟；拆解 `main/index.ts` 与 `App.tsx` 为物理模块岛通过 `arch-graph` 校验；将 `bootstrapLocked` 锁定为 `true` 正式切入极简日常态。
+5. **Phase 4（每周 Cron Slop 流水线与可执行跨项目 `init-project` Kit）**：上线每周 `slop-audit.yml` `@leileigwl` 邮件通知；交付 `init-project.ts` 与含 `k6-smoke.js` / `migration-check.sh` 的可执行 `web-service` Profile 并做新建目录冒烟实测。

@@ -25,17 +25,16 @@
 - **WHEN** 仅完成了 L1 Mock 单元测试或 L2 Web 渲染层 E2E 回归
 - **THEN** 自动化汇报与交接快照 MUST 标记为 Mock 通过，严禁宣称已完成真实外部平台（微信公众号/知乎/百家号等）的 L4 实机发布验证
 
-### Requirement: 跨项目可复用测试 Profile 规范（desktop-electron 与 web-service）
-Harness 验证标准 SHALL 通过 `.harness/project.json` 中的 `profile` 字段适配不同软件形态，使一套流程体系同时支持现有桌面端产品与后续互联网后端产品。
+### Requirement: 跨项目可复用测试 Profile 规范与可执行模板资产（desktop-electron 与 web-service）
+Harness 验证标准 SHALL 通过 `.harness/project.json` 中的 `profile` 字段适配不同软件形态，并随标准工具包交付可直接使用或定制的可执行 Profile 验证模板，避免跨项目复用停留在纯文字清单层面。
 
 #### Scenario: desktop-electron Profile 执行 L3 真 Electron 冒烟测试
 - **WHEN** 项目 `profile` 为 `desktop-electron`（如 `vmark`）且触发 L3 验证
 - **THEN** CI MUST 在无头显示环境（如 Ubuntu 下 `xvfb-run`）拉起真实编译后的 Electron 二进制应用，校验主进程窗口成功渲染无白屏崩溃、Preload `electronAPI` 挂载完整、SQLite 本地索引可读写，以及沙箱 Partition 与基础 IPC 往返正常
 
-#### Scenario: web-service Profile 规范覆盖后端容器冒烟、迁移回滚与 k6 压测
-- **WHEN** 未来互联网后端项目采用本标准层并配置 `profile` 为 `web-service`
-- **THEN** L3 标准管道 MUST 涵盖以下强制验证阶段并作为规范沉淀供新项目一键接入：
-  1. **临时容器化依赖**：拉起隔离的数据库（Postgres/MySQL）与缓存（Redis）容器运行真集成测试；
-  2. **数据库迁移双向校验**：自动执行 `migration up -> seed -> migration down -> migration up` 校验可逆性与零残留；
-  3. **接口契约与 Staging 黄金路径冒烟**：基于 OpenAPI / Zod Schema 校验请求响应，并对 Staging 实例核心读写链路执行冒烟探针；
-  4. **k6 基准压力测试门禁**：对关键接口执行定量压测，强制校验 P95/P99 延迟基线、请求错误率 `< 0.1%`、吞吐量与持续压测下的内存增长斜率不越界
+#### Scenario: web-service Profile 交付可执行容器冒烟、迁移回滚与 k6 压测资产
+- **WHEN** 未来互联网后端项目采用本工具包并配置 `profile` 为 `web-service`
+- **THEN** 初始化工具包 SHALL 直接落盘以下可执行模板资产与自动化门禁脚本：
+  1. **容器编排冒烟模板**：带隔离 DB（Postgres/MySQL）与缓存（Redis）容器的集成与核心 API 黄金路径探针脚本；
+  2. **数据库迁移双向校验脚本（`migration-check`）**：自动执行 `migration up -> seed -> migration down -> migration up` 校验可逆性与零表结构残留；
+  3. **可执行 `k6` 基准压测脚本与阈值配置（`k6-smoke.js` + 阈值 JSON）**：对核心读写接口施加并发压测，机器强校验 P95/P99 延迟基线、请求错误率 `< 0.1%`、吞吐量与持续压测内存斜率不越界

@@ -2,14 +2,12 @@
 
 ## Purpose
 
-定义多 Agent 协同研发的 Consort 风格双轨硬状态机、契约冻结前置协议、互斥路径切片所有权、大小模型路由矩阵及连续失败熔断升级契约，以消除“总合流路口”跨模块语义冲突并保障低配/小模型高并发迭代可控。
+定义多 Agent 协同研发的双轨硬状态机、主控小模型兼容的原生生命周期钩子硬锁、两阶段底座锁定、契约冻结与互斥路径切片规划、并发隔离与连续失败熔断契约，确保即使主窗口直跑 Gemini 3.8 Flash 等小模型亦能高速并发不跑偏。
 
 ## ADDED Requirements
 
 ### Requirement: 双轨硬状态机（Dual-Track Consort State Machine）
-系统 SHALL 为迭代变更提供「完整轨」与「快轨」两种确定性状态机流转路径，并 MUST 阻止跳过当前阶段前置门禁的非法状态推进。
-- **完整轨（UI 大改版 / 新增交互页面）**：`SPEC -> PROTOTYPE_APPROVED -> CONTRACT_FROZEN -> FRONTEND_TDD -> BACKEND_TDD -> MERGE_GATE -> ARCHIVED`。
-- **快轨（局部微调 / Bugfix / 纯后端或工具链改造）**：`SPEC -> CONTRACT_FROZEN -> SLICE_TDD -> MERGE_GATE -> ARCHIVED`。
+系统 SHALL 为迭代变更提供「完整轨」（`SPEC -> PROTOTYPE_APPROVED -> CONTRACT_FROZEN -> FRONTEND_TDD -> BACKEND_TDD -> MERGE_GATE -> ARCHIVED`）与「快轨」（`SPEC -> CONTRACT_FROZEN -> SLICE_TDD -> MERGE_GATE -> ARCHIVED`）两种确定性状态机流转路径，并 MUST 阻止跳过当前阶段前置门禁的非法状态推进。
 
 #### Scenario: 完整轨未确认原型时尝试推进至契约冻结
 - **WHEN** 某变更处于完整轨的 `SPEC` 阶段且交互原型确认记录缺失，调用状态推进接口尝试进入 `CONTRACT_FROZEN`
@@ -23,37 +21,61 @@
 - **WHEN** 完整轨变更处于 `FRONTEND_TDD` 阶段且前端端到端与契约测试尚未全绿，尝试派发后端增强切片进入 `BACKEND_TDD`
 - **THEN** 状态机 MUST 拒绝推进状态并提示先完成前端验收闭环
 
+### Requirement: 主控小模型兼容与原生生命周期钩子（Small-Model Orchestrator & Native Hooks）
+系统 SHALL 通过宿主 Agent 原生生命周期钩子（`SessionStart`、`PreToolUse`、`PostToolUse`、`Stop`）强制接管运行边界，与 Git Hook 共享同一确定性适配器，保证即便主控窗口直接运行 Gemini 3.8 Flash 等小模型也不会因上下文遗忘而跑偏或“假完成”。
+
+#### Scenario: 新开窗口触发 SessionStart 自动注入精简态势
+- **WHEN** 用户新建或打开主交互窗口（无论选用何种模型）启动会话
+- **THEN** `SessionStart` 钩子 SHALL 自动注入当前状态机阶段、底座锁定标志、待处理 GitHub 汇总/告警条目及标准入口命令，使模型开局即进入正确轨道
+
+#### Scenario: PreToolUse 在工具执行前物理拦截越界写码与危险命令
+- **WHEN** 运行中小模型尝试调用文件编辑或命令执行工具，在契约未冻结前写入业务实现、修改所属切片 `ownedPaths` 之外的文件、或运行绕过 `pnpm`/强推主分支命令
+- **THEN** `PreToolUse` 钩子 MUST 返回阻断裁决（`deny`）并在工具落地前硬拒绝该操作
+
+#### Scenario: PostToolUse 即时反馈微粒违规与 Stop 拦截假完成
+- **WHEN** 模型每次落盘源码后 `PostToolUse` 立即发现行数棘轮或反作弊违规，或模型未通过全部必跑机械检查即企图结束回复
+- **THEN** `PostToolUse` SHALL 将违规信息写入精简错误快照供下步自修；`Stop` 钩子 MUST 检查循环防护标志并在未达标时返回强制继续指令与结构化修复提示（达到熔断次数阈值后放行并报告人工）
+
+### Requirement: 两阶段生命周期与底座锁定（Bootstrap vs Locked Steady-State）
+系统 SHALL 在项目配置文件中维护 `bootstrapLocked` 生命周期开关以区分「Stage A 架构奠基期（允许一次性重构底座）」与「Stage B 稳态日常迭代期（核心框架与规范硬锁定）」。
+
+#### Scenario: bootstrapLocked 为 true 时拦截日常需求顺带篡改框架底座
+- **WHEN** 项目处于 `bootstrapLocked: true` 稳态期，普通日常迭代或小模型尝试修改 `.harness/`、`.agents/`、`.github/`、核心调度脚本或架构契约底座
+- **THEN** 原生 `PreToolUse` 钩子与 CI 风险门禁 MUST 双层拒绝该修改，提示日常仅可在各自业务模块岛内高速迭代
+
+#### Scenario: 维护者显式解锁执行重大框架升级
+- **WHEN** 维护者在主窗口显式下达解锁指令并通过专属解锁命令将 `bootstrapLocked` 临时设为 `false`
+- **THEN** 系统 SHALL 记录本次框架解锁审计原因并开放底座改造通道，待该架构变更合流通过验收后重新自动上锁
+
 ### Requirement: 契约冻结与互斥路径切片所有权（Contract-First & Disjoint Ownership）
-系统 MUST 要求并发写码启动前先完成共享接口契约与跨模块集成测试骨架冻结；每个并发切片契约文件（`.harness/slices/<id>.json`）SHALL 显式声明 `owned_paths`、`forbidden_paths`、`max_diff_lines`（上限 300）、`required_tests` 与 `retry_count`，且同一批次并发切片的 `owned_paths` 交集 MUST 为空。
+系统 MUST 要求并发写码启动前先完成共享接口契约与跨模块集成测试骨架冻结；支持确定性切片规划器按物理模块岛划分并发切片卡（`.harness/slices/<id>.json`），显式声明 `ownedPaths`、`forbiddenPaths`、`maxDiffLines`（≤300）与 `retryCount`，且并发切片 `ownedPaths` 交集 MUST 为空。
 
 #### Scenario: 契约未冻结前派发并行切片
 - **WHEN** 状态机尚未进入 `CONTRACT_FROZEN` 而尝试激活多个并行写码切片
 - **THEN** Harness 协调器 MUST 阻断并行启动并要求先合入“契约冻结提交”
 
-#### Scenario: 两个并发切片声明了重叠的 owned_paths
-- **WHEN** 系统注册并发切片 B，而切片 B 的 `owned_paths` 模式与已激活切片 A 的 `owned_paths` 存在路径交集
-- **THEN** 校验命令 MUST 报错退出并拒绝激活切片 B，防止多 Agent 在合流前写入同一文件区域
+#### Scenario: 主控运行小模型时调用确定性切片规划器按模块岛并发拆解
+- **WHEN** 主控直接运行 3.8 Flash 等小模型在需求确认与契约冻结后需要高并发执行多条路线
+- **THEN** 主控 SHALL 调用确定性切片规划器基于物理模块岛边界生成多张互不重叠的 `ownedPaths` 切片卡，确保各并发路线物理隔离
 
-#### Scenario: 切片执行期间越界修改非授权路径或超出行数上限
-- **WHEN** 切片在本地提交前或 PR 校验时修改了不在其 `owned_paths` 内（或命中 `forbidden_paths`）的文件，或有效代码 diff 超过 `max_diff_lines`（默认 300 行）
-- **THEN** 校验命令 MUST 返回失败并阻断合流，要求回滚越界改动或拆分切片
+#### Scenario: 两个并发切片声明了重叠路径或超出行数限制
+- **WHEN** 新注册切片的 `ownedPaths` 与已激活切片存在交集，或执行时修改了非授权路径及有效 diff 超过 300 行
+- **THEN** 校验命令 MUST 立即报错退出并阻断激活或合流
 
 ### Requirement: 大小模型路由矩阵与并发隔离（Model Routing & Worktree Isolation）
-系统 SHALL 依据任务风险与复杂度严格划分大 AI（高阶推理/协调模型）与小模型（低成本执行模型）的准入边界，并 MUST 为每个并发小模型分配相互隔离的工作树与运行时环境。
-- **大 AI 专属阶段**：需求理解与 OpenSpec 起草、核心枢纽拆分设计、契约冻结与跨模块集成测试骨架编写、`risk:high` 核心底座开发、合流语义冲突裁决、以及小模型熔断后的接管重构。
-- **小模型并发阶段**：状态机进入 `CONTRACT_FROZEN` 后，基于已冻结契约与互斥 `owned_paths` 切片卡开展低/中风险并行研发（局部 UI 组件与样式、独立适配器、单测/E2E 补齐、文档修正与 AI Slop 清理）。
+系统 SHALL 依据任务风险区分高阶模型与低成本小模型准入边界，同时支持小模型主控在确定性切片与钩子护栏下对低/中风险模块岛切片进行多 `git worktree` 高速并发开发，且每个并发实例 MUST 具备独立端口与临时数据目录。
 
-#### Scenario: 仅在契约冻结后向小模型并发派发低/中风险切片
+#### Scenario: 仅在契约冻结后向并发工作树派发低/中风险切片
 - **WHEN** 变更进入 `CONTRACT_FROZEN` 状态且所有目标切片均标记为低风险或中风险、路径互斥
 - **THEN** 系统 SHALL 允许多个小模型在不同 `git worktree` 中并发开工，且各并发实例使用彼此隔离的随机测试端口与独立临时用户数据目录
 
 #### Scenario: 拦截小模型越权认领高风险核心切片
 - **WHEN** 执行身份为小模型（或低配执行器）尝试认领涉及核心引擎、鉴权协议、IPC 主进程安全边界或工作流配置文件的高风险切片
-- **THEN** 路由守卫 MUST 拒绝派发并要求路由至大 AI 处理
+- **THEN** 路由守卫 MUST 拒绝派发并要求路由至高阶推理模型处理或挂起人工审批
 
 ### Requirement: 连续失败自动熔断与升级机制（Circuit Breaker & Escalation）
-系统 MUST 对小模型执行切片设置连续失败计数；当同一切片连续 2 次未能通过机械校验门禁时，系统 SHALL 立即触发熔断并升级至大 AI。
+系统 MUST 对小模型执行切片设置连续失败计数；当同一切片连续 2 次未能通过机械校验门禁时，系统 SHALL 立即触发熔断并升级至高阶模型或维护者接管。
 
 #### Scenario: 同一切片连续两次未通过门禁校验
-- **WHEN** 小模型对同一切片连续第 2 次触发门禁失败（如反作弊阻断、类型检查失败或必跑测试红灯），`retry_count` 达到阈值 2
-- **THEN** 系统 MUST 自动将切片状态置为 `status: "escalated"`，锁定并阻断小模型发起第 3 次盲改，同时生成包含失败摘要与 diff 上下文的升级上下文交由大 AI 接管或重新拆细切片
+- **WHEN** 小模型对同一切片连续第 2 次触发门禁失败，`retryCount` 达到阈值 2
+- **THEN** 系统 MUST 自动将切片状态置为 `status: "escalated"`，锁定并阻断小模型发起第 3 次盲改，同时释放 `Stop` 钩子循环并输出包含精简失败上下文的升级报告
