@@ -8,6 +8,7 @@ import {
   JuejinAdapter,
   CsdnAdapter,
   BaijiahaoAdapter,
+  BilibiliAdapter,
   type FetchLike,
 } from './index.ts';
 
@@ -665,4 +666,33 @@ test('JuejinAdapter rejects guest user_id "0" and surfaces actionable re-login e
       }),
     /掘金登录态已失效（must login）/
   );
+});
+
+test('BilibiliAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const adapter = new BilibiliAdapter({
+    csrfToken: 'bili_csrf',
+    fetchFn: async (url) => {
+      const u = String(url);
+      if (u.includes('/x/web-interface/nav')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 0, data: { isLogin: true } }) };
+      }
+      if (u.includes('/upcover')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 0, data: { url: '//i0.hdslb.com/bfs/article/1.png' } }) };
+      }
+      if (u.includes('/draft/addupdate')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 0, data: { aid: 9527 } }) };
+      }
+      if (u.includes('/draft/view')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 0 }) };
+      }
+      throw new Error(`Unexpected bilibili url: ${u}`);
+    },
+  });
+
+  assert.equal(await adapter.checkAuth(), true);
+  const img = await adapter.uploadImage(Buffer.from('img'), 'a.png');
+  assert.equal(img, 'https://i0.hdslb.com/bfs/article/1.png');
+  const pushed = await adapter.push({ title: 'B站测试', markdown: '正文', html: '<p>正文</p>', tags: [], mode: 'draft' });
+  assert.equal(pushed.postId, '9527');
+  assert.equal(pushed.verified, true);
 });
