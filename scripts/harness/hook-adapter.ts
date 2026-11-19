@@ -17,6 +17,7 @@ import {
 
 export interface HookPayload {
   cwd?: string;
+  workspacePaths?: string[];
   modelName?: string;
   continuationActive?: boolean;
   terminationReason?: string;
@@ -225,6 +226,34 @@ export function evaluateHookEvent(options: {
   return {};
 }
 
+function findHarnessRootFrom(startDir: string): string | null {
+  let cur = path.resolve(startDir);
+  while (true) {
+    if (fs.existsSync(path.join(cur, '.harness/project.json'))) {
+      return cur;
+    }
+    const parent = path.dirname(cur);
+    if (parent === cur) return null;
+    cur = parent;
+  }
+}
+
+function resolveRepoRoot(payload: HookPayload): string {
+  if (payload.cwd) {
+    const found = findHarnessRootFrom(payload.cwd);
+    if (found) return found;
+  }
+  for (const ws of payload.workspacePaths ?? []) {
+    const found = findHarnessRootFrom(ws);
+    if (found) return found;
+  }
+  const scriptRelativeRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+  if (fs.existsSync(path.join(scriptRelativeRoot, '.harness/project.json'))) {
+    return scriptRelativeRoot;
+  }
+  return findHarnessRootFrom(process.cwd()) ?? process.cwd();
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   const evIdx = args.indexOf('--event');
@@ -257,9 +286,7 @@ function main(): void {
     }
   }
 
-  const rootDir = payload.cwd && fs.existsSync(path.join(payload.cwd, '.harness/project.json'))
-    ? payload.cwd
-    : process.cwd();
+  const rootDir = resolveRepoRoot(payload);
   const out = evaluateHookEvent({ rootDir, event, runtime, payload });
   console.log(JSON.stringify(out));
 }

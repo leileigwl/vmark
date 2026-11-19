@@ -2,7 +2,7 @@ import type Vditor from 'vditor';
 import type { LightboxPayload } from '../components/MediaLightbox';
 import type { InlineWrapCommand } from './inlineFormat';
 
-export const FORMAT_SNIPPETS: Record<string, string> = {
+const FORMAT_SNIPPETS: Record<string, string> = {
   h1: '# ',
   h2: '## ',
   h3: '### ',

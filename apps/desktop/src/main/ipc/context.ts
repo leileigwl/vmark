@@ -8,10 +8,10 @@ import {
   type AppConfig,
 } from './pathUtils';
 
-export { DEFAULT_CONFIG, recordRecentWorkspace, resolveSafePath, type AppConfig };
+export { recordRecentWorkspace, resolveSafePath, type AppConfig };
 
 /** Resolves the persistent JSON config path under Electron userData. */
-export function getConfigPath(): string {
+function getConfigPath(): string {
   return path.join(app.getPath('userData'), 'vcat-config.json');
 }
 

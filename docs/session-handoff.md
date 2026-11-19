@@ -3,10 +3,10 @@
 > 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史均留存在 Git Commit 与 `openspec/changes/archive/` 中。
 
 - **快照日期**：2026-11-19
-- **当前阶段**：**`master` 与 `test` 已同步基线 `e3a25a7`（PR #2 与 Release PR #3 已合入，去重与 `ci-gate` 轮询加固后全套工作流已在 `master` 激活）**
-- **最新基线版本**：`v0.1.0`（`master` @ `e3a25a7` / `test` @ `e3a25a7`）
-- **当前底座锁状态**：`bootstrapLocked: true`（底座框架已硬锁定，日常仅按垂直物理模块岛并发开发；如需改框架须先执行 `pnpm harness:unlock-bootstrap`）
-- **最近 Slop 巡检记录**：`slop-audit.yml`（Run `44492362530`）已生成/更新周报 Issue #4（标签 `slop:cleanup`，29 项历史待消化债务 + 6 个互斥清理切片）；已启用 GitHub Actions 创建/审批 PR 权限并实测 `circuit:paused` 熔断闭环。
+- **当前阶段**：**Slop Issue #4 全量清零（29 -> 0）& `.agents/hooks.json` 新开窗口 CWD 路径修复就绪**
+- **最新基线版本**：`v0.1.0`（`master` @ `07ba273` / `test` @ `4007bea`）
+- **当前底座锁状态**：`bootstrapLocked: true`（底座框架已硬锁定，红黄绿边界见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)）
+- **最近 Slop 巡检记录**：Issue #4 原 29 项债务已分两波全部清零（Wave 1 PR #10 清理 19 项 + 本轮清理 5 项 Harness 导出/重复块并拆分全部 5 个超行棘轮文件，7 大核心文件全部 ≤ 469 行）。
 
 ## 已完成里程碑
 
@@ -22,7 +22,7 @@
    - 交付便携跨项目套件 `scripts/harness/init-project.ts` + `.harness/profiles/`（含 `web-service` Compose/迁移回滚/`k6-smoke.js`）。
 4. **物理模块岛解耦与五层测试升级（Phase 3）**：
    - `packages/shared/src/ipcContract.ts` 三端 IPC 契约与 `ipcContract.test.ts`。
-   - `apps/desktop/src/main/index.ts`（1303 -> 317 行）拆入 `ipc/<domain>/index.ts`；`apps/desktop/src/renderer/src/App.tsx`（1393 -> 413 行）拆入 `features/<domain>/index.ts`。
+   - `apps/desktop/src/main/index.ts`（1303 -> 317 行）拆入 `ipc/<domain>/index.ts`；`apps/desktop/src/renderer/src/App.tsx`（1393 -> 413 行）拆入 `features/<domain>/index.ts`；`VditorEditor.tsx`、`vditorKeyboard.ts`、`publishHandlers.ts`、`Sidebar.tsx`、`SettingsView.tsx` 均已拆至 `<= 469` 行（棘轮总基线 `5253 -> 2216` 行）。
 
 ## 验证边界诚实声明（L1–L4 严格分层）
 
@@ -33,4 +33,4 @@
 
 ## 后续日常行动
 
-1. 参考 [`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md) 开展单窗口或并发切片日常迭代，结合 Issue #4 互斥切片按需消化历史债务；每晚 21:00 CST 查看 `test -> master` 汇总 PR 并 Merge Commit 发布。
+1. 按 [`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md) 开展单窗口或并发切片日常业务开发，直接新开窗口即可由修复后的 `.agents/hooks.json` 自动加载快照。

@@ -4,10 +4,10 @@
   "files": {
     "apps/desktop/src/renderer/src/App.tsx": { "maxLines": 413, "targetLines": 500 },
     "apps/desktop/src/main/index.ts": { "maxLines": 317, "targetLines": 500 },
-    "apps/desktop/src/renderer/src/components/VditorEditor.tsx": { "maxLines": 1157, "targetLines": 500 },
-    "apps/desktop/src/renderer/src/editor/vditorKeyboard.ts": { "maxLines": 991, "targetLines": 500 },
-    "apps/desktop/src/main/publishHandlers.ts": { "maxLines": 871, "targetLines": 500 },
-    "apps/desktop/src/renderer/src/components/Sidebar.tsx": { "maxLines": 867, "targetLines": 500 },
-    "apps/desktop/src/renderer/src/components/SettingsView.tsx": { "maxLines": 637, "targetLines": 500 }
+    "apps/desktop/src/renderer/src/components/VditorEditor.tsx": { "maxLines": 469, "targetLines": 500 },
+    "apps/desktop/src/renderer/src/editor/vditorKeyboard.ts": { "maxLines": 155, "targetLines": 500 },
+    "apps/desktop/src/main/publishHandlers.ts": { "maxLines": 65, "targetLines": 500 },
+    "apps/desktop/src/renderer/src/components/Sidebar.tsx": { "maxLines": 468, "targetLines": 500 },
+    "apps/desktop/src/renderer/src/components/SettingsView.tsx": { "maxLines": 329, "targetLines": 500 }
   }
 }

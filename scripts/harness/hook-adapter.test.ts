@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -154,4 +155,36 @@ test('hook-adapter Stop blocks fake completion via continue when checks fail, an
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+});
+
+test('hook-adapter executes from .agents/ cwd as Antigravity hooks.json does at runtime', () => {
+  const repoRoot = path.resolve(import.meta.dirname, '../..');
+  const agentsDir = path.join(repoRoot, '.agents');
+
+  const startOut = execFileSync(
+    process.execPath,
+    ['--experimental-strip-types', '../scripts/harness/hook-adapter.ts', '--event', 'SessionStart'],
+    {
+      cwd: agentsDir,
+      input: JSON.stringify({ workspacePaths: [repoRoot] }),
+      encoding: 'utf8',
+    }
+  );
+  const parsedStart = JSON.parse(startOut) as { injectSteps?: unknown[] };
+  assert.ok(Array.isArray(parsedStart.injectSteps) && parsedStart.injectSteps.length > 0);
+
+  const preOut = execFileSync(
+    process.execPath,
+    ['--experimental-strip-types', '../scripts/harness/hook-adapter.ts', '--event', 'PreToolUse'],
+    {
+      cwd: agentsDir,
+      input: JSON.stringify({
+        cwd: repoRoot,
+        toolCall: { name: 'run_command', args: { CommandLine: 'git status' } },
+      }),
+      encoding: 'utf8',
+    }
+  );
+  const parsedPre = JSON.parse(preOut) as { decision?: string };
+  assert.equal(parsedPre.decision, 'allow');
 });

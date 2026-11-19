@@ -9,15 +9,6 @@ export const PAIR_MAP: Record<string, string> = {
   '「': '」',
 };
 
-export function readClipboardImageAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Failed to read clipboard image'));
-    reader.readAsDataURL(file);
-  });
-}
-
 export interface PreviewBlockTarget {
   kind: 'mermaid' | 'math';
   previewPre: HTMLElement;

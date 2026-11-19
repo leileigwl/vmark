@@ -18,7 +18,7 @@ function createUuid(): string {
 }
 
 /** Signs a request to bizapi.csdn.net using Alibaba Cloud API Gateway HMAC-SHA256 signature scheme. */
-export function signCsdnRequest(apiPath: string, method: 'GET' | 'POST' = 'GET'): Record<string, string> {
+function signCsdnRequest(apiPath: string, method: 'GET' | 'POST' = 'GET'): Record<string, string> {
   const nonce = createUuid();
   const signStr =
     method === 'GET'

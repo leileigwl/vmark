@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ImageBedConfig, PlatformId, StartupConfig } from '@vcat/shared';
 
-export const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
+const PLATFORM_LOGIN_URLS: Partial<Record<PlatformId, string>> = {
   weixin: 'https://mp.weixin.qq.com/',
   cnblogs: 'https://account.cnblogs.com/signin',
   linuxdo: 'https://linux.do/login',

@@ -42,9 +42,6 @@ importers:
         specifier: ^3.10.9
         version: 3.11.3
     devDependencies:
-      '@electron-toolkit/preload':
-        specifier: ^3.0.1
-        version: 3.0.2(electron@33.4.11)
       '@electron-toolkit/utils':
         specifier: ^3.0.0
         version: 3.0.0(electron@33.4.11)
@@ -229,11 +226,6 @@ packages:
   '@babel/types@7.29.14':
     resolution: {integrity: sha512-UjI/dKmwJwT9pOszJitq2G6EObZPnsZUfdCr92z2TlF3EZK9J3EdfOKUrCzHl6wFthbzwhzl1Soc/UIwxRiq6w==}
     engines: {node: '>=6.9.0'}
-
-  '@electron-toolkit/preload@3.0.2':
-    resolution: {integrity: sha512-TWWPToXd8qPRfSXwzf5KVhpXMfONaUuRAZJHsKthKgZR/+LqX1dZVSSClQ8OTAEduvLGdecljCsoT2jSshfoUg==}
-    peerDependencies:
-      electron: '>=13.0.0'
 
   '@electron-toolkit/utils@3.0.0':
     resolution: {integrity: sha512-GaXHDhiT7KCvMJjXdp/QqpYinq69T/Pdl49Z1XLf8mKGf63dnsODMWyrmIjEQ0z/vG7dO8qF3fvmI6Eb2lUNZA==}
@@ -2428,10 +2420,6 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.14
       '@babel/helper-validator-identifier': 7.29.7
-
-  '@electron-toolkit/preload@3.0.2(electron@33.4.11)':
-    dependencies:
-      electron: 33.4.11
 
   '@electron-toolkit/utils@3.0.0(electron@33.4.11)':
     dependencies:
