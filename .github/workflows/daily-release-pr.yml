@@ -157,9 +157,10 @@ jobs:
           git merge --no-ff origin/master -m "chore(release): sync master back to test after daily release [skip ci]" || git merge -X theirs origin/master -m "chore(release): sync master back to test [skip ci]"
           if ! git push origin test; then
             SYNC_BRANCH="sync/master-to-test-${{ github.run_id }}"
+            git commit --amend -m "chore(release): sync master back to test after daily release" --no-edit || true
             git push origin "HEAD:${SYNC_BRANCH}"
             PR_URL=$(gh pr create --base test --head "${SYNC_BRANCH}" --title "chore(release): sync master back to test" --body "Auto-sync master back to test after daily release merge.")
-            gh pr merge "${PR_URL}" --merge --delete-branch || true
+            gh pr merge "${PR_URL}" --auto --merge --delete-branch || gh pr merge "${PR_URL}" --merge --delete-branch || true
           fi
 
       - name: Close freeze:release-window issues

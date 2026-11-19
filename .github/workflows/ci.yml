@@ -46,16 +46,20 @@ jobs:
 
       - name: Run 3-layer deterministic risk classifier
         id: risk
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_BRANCH: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE_REF="origin/${{ github.base_ref }}"
-          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] && [ -n "${{ github.event.before }}" ]; then
-            BASE_REF="${{ github.event.before }}"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_BRANCH" ]; then
+            BASE_REF="origin/${BASE_BRANCH}"
+          elif [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            BASE_REF="$BEFORE_SHA"
           else
             BASE_REF="HEAD~1"
           fi
           echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
-          pnpm harness:risk --base "$BASE_REF" --json > risk.json
+          node --experimental-strip-types scripts/harness/cli.ts risk --base "$BASE_REF" --json > risk.json
           cat risk.json
           LEVEL=$(node -e "const r=JSON.parse(require('fs').readFileSync('risk.json','utf8')); console.log(r.level)")
           SKIP_E2E=$(node -e "const r=JSON.parse(require('fs').readFileSync('risk.json','utf8')); console.log(String(r.skipE2e))")
@@ -134,10 +138,14 @@ jobs:
         run: pnpm --filter @vcat/desktop build
 
   l2-e2e:
-    name: L2 Playwright Web E2E (Ubuntu)
+    name: L2 Playwright Web E2E (Ubuntu Shard ${{ matrix.shard }})
     needs: [ classify, l1-unit-and-build ]
     if: needs.classify.outputs.skip_e2e != 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [ '1/2', '2/2' ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -159,11 +167,11 @@ jobs:
       - name: Build Renderer Bundle
         run: pnpm --filter @vcat/desktop build
 
-      - name: Install Playwright Chromium
-        run: pnpm --filter @vcat/desktop exec playwright install chromium
+      - name: Install Playwright Chromium & Linux Deps
+        run: pnpm --filter @vcat/desktop exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E Suite
-        run: pnpm --filter @vcat/desktop exec playwright test --reporter=list
+        run: pnpm --filter @vcat/desktop exec playwright test --shard=${{ matrix.shard }} --reporter=list
         env:
           CI: true
 
