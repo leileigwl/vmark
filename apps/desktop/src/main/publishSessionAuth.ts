@@ -72,9 +72,9 @@ export async function hasSessionAuthCookies(
       );
 
     case 'csdn':
-      // CSDN requires BOTH UserName and UserToken on csdn.net
+      // CSDN session may carry UserName or UserToken*; live getBaseInfo verifies real auth
       return (
-        hasCookie((n, _, d) => n === 'UserName' && (!d || d.includes('csdn.net'))) &&
+        hasCookie((n, _, d) => n === 'UserName' && (!d || d.includes('csdn.net'))) ||
         hasCookie((n, _, d) => n.startsWith('UserToken') && (!d || d.includes('csdn.net')))
       );
 

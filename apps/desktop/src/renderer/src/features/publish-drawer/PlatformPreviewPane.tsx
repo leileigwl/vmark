@@ -8,11 +8,11 @@ import {
 
 export type PreviewPlatform = 'weixin' | 'zhihu' | 'baijiahao' | 'xiaohongshu';
 
-const PREVIEW_TABS: Array<{ id: PreviewPlatform; label: string }> = [
-  { id: 'weixin', label: '微信公众号' },
-  { id: 'zhihu', label: '知乎专栏' },
-  { id: 'baijiahao', label: '百家号' },
-  { id: 'xiaohongshu', label: '小红书 3:4 卡片' },
+const PREVIEW_TABS: Array<{ id: PreviewPlatform; label: string; imageGuide: string }> = [
+  { id: 'weixin', label: '微信公众号', imageGuide: '配图建议：封面头图 900×383 (2.35:1)，正文配图宽 ≥ 640px' },
+  { id: 'zhihu', label: '知乎专栏', imageGuide: '配图建议：专栏封面图 16:9 (1200×675)，正文配图自动转存' },
+  { id: 'baijiahao', label: '百家号', imageGuide: '配图建议：封面图 16:9 或三图模式，正文首图可作封面' },
+  { id: 'xiaohongshu', label: '小红书 3:4 卡片', imageGuide: '配图建议：3:4 竖版封面图 (1080×1440)，多图轮播最多 18 张' },
 ];
 
 interface PlatformPreviewPaneProps {
@@ -76,7 +76,8 @@ export function PlatformPreviewPane({
       {platform === 'weixin' && (
         <>
           <div className="border-b border-black/10 bg-[#fafafa] px-3 py-1.5 text-[11px] text-[#555]">
-            公众号行内 CSS 排版预览（外链已转为文末脚注：{weixinRendered.footnotes.length} 条）
+            <div>公众号行内 CSS 排版预览（外链已转为文末脚注：{weixinRendered.footnotes.length} 条）</div>
+            <div className="text-[10px] text-[#777]">{PREVIEW_TABS[0].imageGuide}</div>
           </div>
           <div
             data-testid="weixin-preview"
@@ -89,7 +90,8 @@ export function PlatformPreviewPane({
       {platform === 'zhihu' && zhihuRendered && (
         <>
           <div className="border-b border-black/10 bg-[#fafafa] px-3 py-1.5 text-[11px] text-[#555]">
-            知乎专栏原生 HTML 排版预览（H1 已降级为 H2，保留代码块语言标识）
+            <div>知乎专栏原生 HTML 排版预览（H1 已降级为 H2，保留代码块语言标识）</div>
+            <div className="text-[10px] text-[#777]">{PREVIEW_TABS[1].imageGuide}</div>
           </div>
           <div
             data-testid="zhihu-preview"
@@ -102,7 +104,8 @@ export function PlatformPreviewPane({
       {platform === 'baijiahao' && baijiahaoRendered && (
         <>
           <div className="border-b border-black/10 bg-[#fafafa] px-3 py-1.5 text-[11px] text-[#555]">
-            百家号语义 HTML 排版预览
+            <div>百家号语义 HTML 排版预览</div>
+            <div className="text-[10px] text-[#777]">{PREVIEW_TABS[2].imageGuide}</div>
           </div>
           <div
             data-testid="baijiahao-preview"
@@ -115,7 +118,8 @@ export function PlatformPreviewPane({
       {platform === 'xiaohongshu' && xhsPayload && (
         <>
           <div className="border-b border-black/10 bg-[#fafafa] px-3 py-1.5 text-[11px] text-[#555]">
-            小红书 3:4 知识卡片预览（共 {xhsPayload.cards.length} 张）
+            <div>小红书 3:4 知识卡片预览（共 {xhsPayload.cards.length} 张）</div>
+            <div className="text-[10px] text-[#777]">{PREVIEW_TABS[3].imageGuide}</div>
           </div>
           <div data-testid="xiaohongshu-preview" className="flex-1 space-y-3 overflow-y-auto bg-[#f5f5f5] p-3">
             <div className="grid grid-cols-2 gap-2.5">
