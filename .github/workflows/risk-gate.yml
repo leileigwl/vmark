@@ -77,11 +77,23 @@ jobs:
               prNumber = context.payload.issue.number;
             } else {
               const prs = context.payload.workflow_run.pull_requests || [];
-              if (prs.length === 0) {
-                console.log('No pull_requests attached to workflow_run.');
-                return;
+              if (prs.length > 0) {
+                prNumber = prs[0].number;
+              } else {
+                const headSha = context.payload.workflow_run.head_sha;
+                const openList = await github.rest.pulls.list({
+                  owner,
+                  repo,
+                  state: 'open',
+                  per_page: 50,
+                });
+                const matched = openList.data.find((p) => p.head.sha === headSha);
+                if (!matched) {
+                  console.log(`No open PR matched workflow_run head_sha=${headSha}.`);
+                  return;
+                }
+                prNumber = matched.number;
               }
-              prNumber = prs[0].number;
             }
 
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: prNumber });

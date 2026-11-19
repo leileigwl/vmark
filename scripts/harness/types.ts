@@ -78,7 +78,18 @@ export interface HarnessSlice {
   ownedPaths: string[];
   forbiddenPaths: string[];
   requiredChecks: Array<'L0' | 'L1' | 'L2' | 'L3'>;
+  predictedRisk?: RiskLevel;
+  riskReasons?: string[];
   lastFailureSummary: string | null;
+}
+
+export interface DesignRiskResult {
+  level: RiskLevel;
+  badge: string;
+  reasons: string[];
+  requiredChecks: Array<'L0' | 'L1' | 'L2' | 'L3'>;
+  recommendedAssigneeTier: 'small-model' | 'frontier-model';
+  paths: string[];
 }
 
 export interface RatchetConfig {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import type {
+  DesignRiskResult,
   HarnessProjectConfig,
   HarnessViolation,
   ParsedDiffFile,
@@ -155,6 +156,70 @@ function elevate(current: RiskLevel, next: RiskLevel): RiskLevel {
   return rank[next] > rank[current] ? next : current;
 }
 
+function classifyPathTier(
+  relPath: string,
+  project: HarnessProjectConfig,
+  rules: RiskRulesConfig
+): { tier: RiskLevel; reason: string | null } {
+  if (project.bootstrapLocked && matchesAnyGlob(relPath, project.bootstrapLockProtectedPaths)) {
+    return { tier: 'high', reason: `BOOTSTRAP_LOCKED_PATH:${relPath}` };
+  }
+  if (matchesAnyGlob(relPath, rules.tiers.high.paths)) {
+    return { tier: 'high', reason: `HIGH_RISK_PATH:${relPath}` };
+  }
+  if (matchesAnyGlob(relPath, rules.tiers.mid.paths)) {
+    return { tier: 'mid', reason: `MID_RISK_PATH:${relPath}` };
+  }
+  if (matchesAnyGlob(relPath, rules.tiers.low.paths)) {
+    return { tier: 'low', reason: null };
+  }
+  return { tier: 'mid', reason: `UNCLASSIFIED_PATH_DEFAULT_MID:${relPath}` };
+}
+
+/**
+ * Shift-Left Design-Time Risk Assessment: predicts risk tier, required L0-L3 checks,
+ * and recommended model tier during brainstorming/OpenSpec planning before code is written.
+ */
+export function assessDesignRisk(options: {
+  project: HarnessProjectConfig;
+  rules: RiskRulesConfig;
+  paths: string[];
+  touchesContractOrBarrel?: boolean;
+  touchesSensitivePrimitives?: boolean;
+}): DesignRiskResult {
+  const { project, rules, paths, touchesContractOrBarrel = false, touchesSensitivePrimitives = false } = options;
+  const normalizedPaths = paths.map((p) => toPosixPath(p.trim())).filter(Boolean);
+  let level: RiskLevel = 'low';
+  const reasons: string[] = [];
+
+  for (const relPath of normalizedPaths) {
+    const pathRes = classifyPathTier(relPath, project, rules);
+    level = elevate(level, pathRes.tier);
+    if (pathRes.reason) reasons.push(pathRes.reason);
+  }
+
+  if (touchesContractOrBarrel) {
+    level = elevate(level, 'high');
+    reasons.push('AST_EXPORT_SIGNATURE_EXPECTED');
+  }
+  if (touchesSensitivePrimitives) {
+    level = elevate(level, 'high');
+    reasons.push('SEMANTIC_PRIMITIVE_EXPECTED');
+  }
+
+  const requiredChecks: Array<'L0' | 'L1' | 'L2' | 'L3'> =
+    level === 'high' ? ['L0', 'L1', 'L2', 'L3'] : level === 'mid' ? ['L0', 'L1', 'L2'] : ['L0'];
+
+  return {
+    level,
+    badge: `[risk:${level}]`,
+    reasons: [...new Set(reasons)],
+    requiredChecks,
+    recommendedAssigneeTier: level === 'high' ? 'frontier-model' : 'small-model',
+    paths: normalizedPaths,
+  };
+}
+
 /**
  * Three-layer deterministic risk classifier: Path+Size + TypeScript AST Export Signatures + Semantic Diff Signals.
  */
@@ -182,21 +247,9 @@ export function classifyRisk(options: {
     diffLines += diff.addedCount + diff.removedCount;
 
     // Layer 1: Path rules & Bootstrap lock
-    if (project.bootstrapLocked && matchesAnyGlob(relPath, project.bootstrapLockProtectedPaths)) {
-      level = elevate(level, 'high');
-      reasons.push(`BOOTSTRAP_LOCKED_PATH:${relPath}`);
-    } else if (matchesAnyGlob(relPath, rules.tiers.high.paths)) {
-      level = elevate(level, 'high');
-      reasons.push(`HIGH_RISK_PATH:${relPath}`);
-    } else if (matchesAnyGlob(relPath, rules.tiers.mid.paths)) {
-      level = elevate(level, 'mid');
-      reasons.push(`MID_RISK_PATH:${relPath}`);
-    } else if (matchesAnyGlob(relPath, rules.tiers.low.paths)) {
-      level = elevate(level, 'low');
-    } else {
-      level = elevate(level, 'mid');
-      reasons.push(`UNCLASSIFIED_PATH_DEFAULT_MID:${relPath}`);
-    }
+    const pathRes = classifyPathTier(relPath, project, rules);
+    level = elevate(level, pathRes.tier);
+    if (pathRes.reason) reasons.push(pathRes.reason);
 
     if (diff.isDeleted || !CODE_EXT_RE.test(relPath)) continue;
     const absPath = path.join(rootDir, relPath);

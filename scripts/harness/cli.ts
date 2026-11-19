@@ -3,7 +3,7 @@ import path from 'node:path';
 import { runAntiCheatChecks } from './anti-cheat.ts';
 import { runArchGraphChecks } from './arch-graph.ts';
 import { runRatchetAndDocChecks } from './ratchet.ts';
-import { classifyRisk, parseRiskRulesYaml } from './risk-classifier.ts';
+import { assessDesignRisk, classifyRisk, parseRiskRulesYaml } from './risk-classifier.ts';
 import { planSlices, validateDisjointOwnership, verifySliceExecution } from './slice-lock.ts';
 import { formatSlopMarkdown, runSlopAudit } from './slop.ts';
 import type { HarnessState, HarnessViolation, ParsedDiffFile, PhaseType } from './types.ts';
@@ -248,6 +248,33 @@ function main(): void {
     const archViolations = runArchGraphChecks(rootDir, project);
     const result = classifyRisk({ rootDir, project, rules, diffFiles, getBaseContent, archViolations });
     console.log(JSON.stringify(result, null, useJson ? 0 : 2));
+    return;
+  }
+
+  if (cmd === 'design-risk') {
+    const rawPaths = getFlag(args, '--paths');
+    if (!rawPaths) {
+      console.error('Usage: cli.ts design-risk --paths <csv> [--ast-signature-change] [--semantic-ipc] [--json]');
+      process.exit(1);
+    }
+    const project = loadProjectConfig(rootDir);
+    const rulesPath = path.join(rootDir, '.github/risk-rules.yml');
+    const rules = fs.existsSync(rulesPath)
+      ? parseRiskRulesYaml(fs.readFileSync(rulesPath, 'utf8'))
+      : { max_auto_merge_lines: 300, tiers: { high: { paths: [] }, mid: { paths: [] }, low: { paths: [] } } };
+    const result = assessDesignRisk({
+      project,
+      rules,
+      paths: rawPaths.split(','),
+      touchesContractOrBarrel: args.includes('--ast-signature-change'),
+      touchesSensitivePrimitives: args.includes('--semantic-ipc'),
+    });
+    if (useJson) {
+      console.log(JSON.stringify(result));
+    } else {
+      console.log(`${result.badge} assignee=${result.recommendedAssigneeTier} checks=${result.requiredChecks.join(',')}`);
+      if (result.reasons.length > 0) console.log('Reasons:', result.reasons.join(', '));
+    }
     return;
   }
 

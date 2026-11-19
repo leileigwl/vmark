@@ -83,6 +83,7 @@ export function initHarnessProject(options: {
     copyTree(path.join(templateRoot, '.harness/profiles/web-service'), path.join(targetDir, '.harness/profiles/web-service'));
   }
   copyTree(path.join(templateRoot, '.agents/hooks.json'), path.join(targetDir, '.agents/hooks.json'));
+  copyTree(path.join(templateRoot, '.agents/skills/superpowers-harness'), path.join(targetDir, '.agents/skills/superpowers-harness'));
   copyTree(path.join(templateRoot, '.claude/settings.json'), path.join(targetDir, '.claude/settings.json'));
   copyTree(path.join(templateRoot, '.githooks'), path.join(targetDir, '.githooks'));
   copyTree(path.join(templateRoot, '.github'), path.join(targetDir, '.github'));

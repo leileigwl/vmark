@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": true,
-  "bootstrapUnlockReason": null,
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "Add shift-left design-time risk tagging, superpowers-harness skill kit, and playbook window/inspection guide",
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",

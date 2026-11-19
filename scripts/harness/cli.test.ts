@@ -4,8 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { formatCompactJsonOutput, transitionPhase } from './cli.ts';
+import { assessDesignRisk, parseRiskRulesYaml } from './risk-classifier.ts';
 import { planSlices, validateDisjointOwnership, verifySliceExecution } from './slice-lock.ts';
-import type { HarnessProjectConfig, HarnessState, HarnessViolation } from './types.ts';
+import type { HarnessProjectConfig, HarnessSlice, HarnessState, HarnessViolation } from './types.ts';
 import { writeJson } from './utils.ts';
 
 function setupTempHarnessRepo(track: 'full' | 'fast' = 'full'): {
@@ -157,4 +158,51 @@ test('formatCompactJsonOutput caps output under 2KB and max 20 violations for sm
   assert.equal(parsed.total, 45);
   assert.equal(parsed.truncated, true);
   assert.ok(parsed.violations.length <= 20);
+});
+
+test('shift-left design-risk & planSlices assign predictedRisk and route high-risk islands to frontier-model', () => {
+  const { tmpDir, project, state } = setupTempHarnessRepo('fast');
+  try {
+    state.contractFrozen = true;
+    writeJson(path.join(tmpDir, '.harness/state.json'), state);
+    const rulesYaml = [
+      'max_auto_merge_lines: 300',
+      'tiers:',
+      '  high:',
+      '    paths:',
+      '      - "apps/desktop/src/main/**"',
+      '  mid:',
+      '    paths:',
+      '      - "apps/desktop/src/renderer/**"',
+      '  low:',
+      '    paths:',
+      '      - "docs/**"',
+    ].join('\n');
+    fs.mkdirSync(path.join(tmpDir, '.github'), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, '.github/risk-rules.yml'), rulesYaml, 'utf8');
+    const rules = parseRiskRulesYaml(rulesYaml);
+
+    const lowDesign = assessDesignRisk({ project, rules, paths: ['docs/guide.md'] });
+    assert.equal(lowDesign.level, 'low');
+    assert.equal(lowDesign.badge, '[risk:low]');
+    assert.deepEqual(lowDesign.requiredChecks, ['L0']);
+    assert.equal(lowDesign.recommendedAssigneeTier, 'small-model');
+
+    const astEscalated = assessDesignRisk({
+      project,
+      rules,
+      paths: ['apps/desktop/src/renderer/src/features/publish/index.ts'],
+      touchesContractOrBarrel: true,
+    });
+    assert.equal(astEscalated.level, 'high');
+    assert.equal(astEscalated.recommendedAssigneeTier, 'frontier-model');
+
+    const planned = planSlices({ rootDir: tmpDir, project, state, islands: ['auth'], kind: 'main' });
+    assert.equal(planned.violations.length, 0);
+    const slice = JSON.parse(fs.readFileSync(path.join(tmpDir, planned.created[0]), 'utf8')) as HarnessSlice;
+    assert.equal(slice.predictedRisk, 'high');
+    assert.equal(slice.assigneeTier, 'frontier-model');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

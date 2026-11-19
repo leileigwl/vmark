@@ -41,6 +41,14 @@
       "type": "array",
       "items": { "type": "string", "enum": ["L0", "L1", "L2", "L3"] }
     },
+    "predictedRisk": {
+      "type": "string",
+      "enum": ["low", "mid", "high"]
+    },
+    "riskReasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "lastFailureSummary": { "type": ["string", "null"] }
   }
 }

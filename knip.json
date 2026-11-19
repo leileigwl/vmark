@@ -6,6 +6,7 @@
     "apps/desktop/src/renderer/public/**",
     "apps/desktop/out/**",
     "scripts/harness/init-project.ts",
+    "scripts/harness/export-skill.ts",
     "scripts/harness/slop.ts"
   ],
   "workspaces": {

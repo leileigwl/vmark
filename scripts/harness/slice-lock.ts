@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { assessDesignRisk, parseRiskRulesYaml } from './risk-classifier.ts';
 import type {
   HarnessProjectConfig,
   HarnessSlice,
@@ -69,7 +70,11 @@ export function planSlices(options: {
   kind: 'renderer' | 'main' | 'adapter';
   assigneeTier?: 'small-model' | 'frontier-model';
 }): { created: string[]; violations: HarnessViolation[] } {
-  const { rootDir, project, state, islands, kind, assigneeTier = 'small-model' } = options;
+  const { rootDir, project, state, islands, kind, assigneeTier } = options;
+  const rulesPath = path.join(rootDir, '.github/risk-rules.yml');
+  const rules = fs.existsSync(rulesPath)
+    ? parseRiskRulesYaml(fs.readFileSync(rulesPath, 'utf8'))
+    : { max_auto_merge_lines: 300, tiers: { high: { paths: [] }, mid: { paths: [] }, low: { paths: [] } } };
   if (!state.contractFrozen) {
     return {
       created: [],
@@ -127,10 +132,18 @@ export function planSlices(options: {
       };
     }
 
+    const predicted = assessDesignRisk({
+      project,
+      rules,
+      paths: ownedPaths,
+    });
+    const effectiveAssigneeTier =
+      assigneeTier ?? (predicted.level === 'high' ? 'frontier-model' : 'small-model');
+
     const slice: HarnessSlice = {
       sliceId,
       changeName: state.changeName,
-      assigneeTier,
+      assigneeTier: effectiveAssigneeTier,
       worktreeBranch: `slice/${sliceId}`,
       status: 'pending',
       retryCount: 0,
@@ -139,6 +152,8 @@ export function planSlices(options: {
       ownedPaths,
       forbiddenPaths: defaultForbidden,
       requiredChecks,
+      predictedRisk: predicted.level,
+      riskReasons: predicted.reasons,
       lastFailureSummary: null,
     };
     const outPath = path.join(rootDir, `.harness/slices/${sliceId}.json`);

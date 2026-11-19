@@ -12,12 +12,14 @@
     "harness:check": "node --experimental-strip-types scripts/harness/cli.ts check",
     "harness:transition": "node --experimental-strip-types scripts/harness/cli.ts transition",
     "harness:risk": "node --experimental-strip-types scripts/harness/cli.ts risk",
+    "harness:design-risk": "node --experimental-strip-types scripts/harness/cli.ts design-risk",
     "harness:plan-slices": "node --experimental-strip-types scripts/harness/cli.ts plan-slices",
     "harness:slice-verify": "node --experimental-strip-types scripts/harness/cli.ts slice-verify",
     "harness:unlock-bootstrap": "node --experimental-strip-types scripts/harness/cli.ts unlock-bootstrap",
     "harness:lock-bootstrap": "node --experimental-strip-types scripts/harness/cli.ts lock-bootstrap",
     "harness:slop": "node --experimental-strip-types scripts/harness/cli.ts slop",
     "harness:init-project": "node --experimental-strip-types scripts/harness/init-project.ts",
+    "harness:export-skill": "node --experimental-strip-types scripts/harness/export-skill.ts",
     "harness:test": "node --experimental-strip-types --test scripts/harness/*.test.ts"
   },
   "devDependencies": {
