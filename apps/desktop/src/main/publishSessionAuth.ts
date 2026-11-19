@@ -30,7 +30,11 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
     if (!headers.has('User-Agent')) {
       headers.set('User-Agent', CHROME_DESKTOP_UA);
     }
-    const res = await targetSession.fetch(input, { ...customInit, headers });
+    const res = await targetSession.fetch(input, {
+      ...customInit,
+      credentials: customInit?.credentials ?? 'include',
+      headers,
+    });
     return {
       ok: res.ok,
       status: res.status,
@@ -112,11 +116,13 @@ export async function hasSessionAuthCookies(
       return hasCookie((n, _, d) => (n === 'sessionid' || n === 'sessionid_ss') && (!d || d.includes('douyin.com')));
 
     case 'linuxdo':
-      return hasCookie((n, _, d) => (n === '_t' || n === '_forum_session') && (!d || d.includes('linux.do')));
+      // _forum_session is issued to anonymous visitors; _t is the authenticated Discourse session token
+      return hasCookie((n, _, d) => n === '_t' && (!d || d.includes('linux.do')));
 
     case 'x':
-      return hasCookie(
-        (n, _, d) => n === 'auth_token' && (!d || d.includes('x.com') || d.includes('twitter.com'))
+      return (
+        hasCookie((n, _, d) => n === 'auth_token' && (!d || d.includes('x.com') || d.includes('twitter.com'))) &&
+        hasCookie((n, _, d) => n === 'ct0' && (!d || d.includes('x.com') || d.includes('twitter.com')))
       );
 
     case 'github_static':
@@ -228,6 +234,72 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         adapter.checkAuth(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+      ]);
+    }
+
+    if (platformId === 'linuxdo') {
+      const lSession = session.fromPartition('persist:platform_linuxdo');
+      const sFetch = createSessionFetch(lSession);
+      return await Promise.race([
+        sFetch('https://linux.do/session/current.json', {
+          headers: { Referer: 'https://linux.do/' },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { current_user?: { id?: number } };
+          return Boolean(data.current_user?.id);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'weibo') {
+      const wSession = session.fromPartition('persist:platform_weibo');
+      const sFetch = createSessionFetch(wSession);
+      return await Promise.race([
+        sFetch('https://m.weibo.cn/api/config', {
+          headers: { Referer: 'https://m.weibo.cn/' },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { ok?: number; data?: { login?: boolean } };
+          return Boolean(data.data?.login);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'douyin') {
+      const dSession = session.fromPartition('persist:platform_douyin');
+      const sFetch = createSessionFetch(dSession);
+      return await Promise.race([
+        sFetch('https://creator.douyin.com/web/api/media/user/info/', {
+          headers: { Referer: 'https://creator.douyin.com/' },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { status_code?: number; user?: { uid?: string } };
+          return Boolean(data.user?.uid) || data.status_code === 0;
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'xiaohongshu') {
+      const xSession = session.fromPartition('persist:platform_xiaohongshu');
+      const sFetch = createSessionFetch(xSession);
+      return await Promise.race([
+        sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+          headers: {
+            Origin: 'https://www.xiaohongshu.com',
+            Referer: 'https://www.xiaohongshu.com/',
+          },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as {
+            success?: boolean;
+            data?: { guest?: boolean; user_id?: string };
+          };
+          return Boolean(data.success) && !data.data?.guest && Boolean(data.data?.user_id);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
 

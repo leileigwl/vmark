@@ -156,6 +156,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         loginWin.on('closed', async () => {
           if (authCheckTimer) clearTimeout(authCheckTimer);
           targetSession.cookies.removeListener('changed', cookieListener);
+          await targetSession.cookies.flushStore().catch(() => {});
           const isAuthorized = await verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig });
           await upsertAccountRecord(platformId, {
             authorized: isAuthorized,
