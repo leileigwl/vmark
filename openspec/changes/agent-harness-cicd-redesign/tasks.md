@@ -2,11 +2,11 @@
 
 ## 1. Phase 0：公开合规前哨、历史 SSOT 清理与操作手册
 
-- [ ] 1.1 执行全 Git 历史敏感信息与隐私路径扫描（覆盖 API Key、平台 Cookie/Token 如 `BDUSS`/`SESSDATA` 及本地硬编码路径），确认零泄露或完成历史清理后生成扫描通过报告并验证工作区测试全绿
-- [ ] 1.2 在仓库根目录新增 `LICENSE`（GNU AGPL-3.0-only 官方全文）与 `LICENSE-COMMERCIAL.md`（商业付费双授权说明），更新 `package.json` 的 `license` 字段为 `SEE LICENSE IN LICENSE`，并验证 `openspec` 与许可证声明一致
+- [x] 1.1 执行全 Git 历史敏感信息与隐私路径扫描（覆盖 API Key、平台 Cookie/Token 如 `BDUSS`/`SESSDATA` 及本地硬编码路径），确认零泄露或完成历史清理后生成扫描通过报告并验证工作区测试全绿
+- [x] 1.2 在仓库根目录新增 `LICENSE`（GNU AGPL-3.0-only 官方全文）与 `LICENSE-COMMERCIAL.md`（商业付费双授权说明），更新 `package.json` 的 `license` 字段为 `SEE LICENSE IN LICENSE`，并验证 `openspec` 与许可证声明一致
 - [ ] 1.3 完成敏感历史扫描与双授权落盘且经维护者最终确认后，通过 `gh repo edit leileigwl/vmark --visibility public --accept-visibility-change-consequences` 切换仓库为公开可见并校验 `gh repo view --json visibility` 返回 `PUBLIC`
-- [ ] 1.4 重构 [AGENTS.md](AGENTS.md) 瘦身为 ≤100 行纯开机入口（移除过期 Round 27 临时方案），同步整理 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与覆盖式快照 [docs/session-handoff.md](docs/session-handoff.md)（≤120 行），撰写 1 页单窗口日常操作手册 `docs/OPERATOR_PLAYBOOK.md`，并将 `docs/02-design/` 重叠过期设计稿归档至 `docs/99-archive/`，验证所有 Markdown 相对路径无死链
-- [ ] 1.5 核对并补齐 `openspec/changes/init-cat-publisher` 已落地能力规格，执行 `openspec archive init-cat-publisher` 完成归档与 `openspec/specs/` 回填，运行 `openspec list --specs` 与 `openspec validate --all` 验证 0 错误
+- [x] 1.4 重构 [AGENTS.md](AGENTS.md) 瘦身为 ≤100 行纯开机入口（移除过期 Round 27 临时方案），同步整理 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 与覆盖式快照 [docs/session-handoff.md](docs/session-handoff.md)（≤120 行），撰写 1 页单窗口日常操作手册 `docs/OPERATOR_PLAYBOOK.md`，并将 `docs/02-design/` 重叠过期设计稿归档至 `docs/99-archive/`，验证所有 Markdown 相对路径无死链
+- [x] 1.5 核对并补齐 `openspec/changes/init-cat-publisher` 已落地能力规格，执行 `openspec archive init-cat-publisher` 完成归档与 `openspec/specs/` 回填，运行 `openspec list --specs` 与 `openspec validate --all` 验证 0 错误
 
 ## 2. Phase 1：代码级 Harness、AST 风险/模块岛守卫与小模型原生 Hook 硬锁
 

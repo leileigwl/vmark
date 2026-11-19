@@ -186,6 +186,9 @@ vmark/
 
 ---
 
-## 📄 开源协议
+## 📄 开源与商业双授权协议（AGPL-3.0 / Commercial Dual License）
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目采用 **GNU AGPL-3.0-only + 商业付费双授权模式**：
+
+- **开源使用**：个人学习、科研及遵守 AGPL-3.0 条款完整开源衍生源码的项目（含服务端网络交互场景），可按 [LICENSE](LICENSE)（GNU AGPL-3.0-only）免费使用与分发。
+- **商业使用**：任何闭源集成、私有商业发行版或闭源商用 SaaS 服务，均须联系版权方购买商业授权。详情与外部 PR 贡献条款（CLA/DCO）请查阅 [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md)。

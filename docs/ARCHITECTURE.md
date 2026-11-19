@@ -75,3 +75,13 @@ vcat-publisher-desktop/
 3. **用户自定义 CSS 入口**：
    - 在「偏好设置 → 外观主题 → 导入自定义 CSS 样式文件」中，支持用户加载自定义 `.css` 文件；可通过覆盖 `--bg-main`、`--text-main`、`--accent`、`--side-bar-bg-color` CSS 变量及 `.vditor-reset` 选择器定制专属主题。
 4. **防盗链演进规划**：当前阶段优先保障本地 `assets/` 目录安全落盘与离线可读；跨平台防盗链后续规划结合云端对象存储统一转存。
+
+## 6. Harness 工程化、垂直物理模块岛与双 Profile 测试规范
+
+1. **代码级确定性 Harness**：通过 `.harness/project.json`、`ratchet.json`、`state.json`、`scripts/harness/` 与原生 `.agents/hooks.json` 执行机械校验，日常操作规范详见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)。
+2. **垂直物理模块岛与 AST 单向依赖（500 行上限 + 棘轮）**：
+   - 新建源码文件严格 `≤ 500` 行；历史超标枢纽文件受 `.harness/ratchet.json` 单向棘轮保护，逐期拆解为垂直特征岛：
+     - 主进程按域拆至 `apps/desktop/src/main/ipc/<domain>/index.ts`，由 `src/main/ipc/registry.ts` 总装；
+     - 渲染层按域拆至 `apps/desktop/src/renderer/src/features/<domain>/index.ts`，跨岛仅允许引用 `index.ts` Barrel 导出，AST 禁止跨岛深层导入与循环依赖；
+     - 渲染层严禁直接导入 `apps/desktop/src/main/**`、主进程 `electron` API 或 `node:fs`/`better-sqlite3`。
+3. **五层验证金字塔与跨项目双 Profile**：支持 `desktop-electron`（L3 `xvfb-run` 真 Electron 冒烟）与互联网后端 `web-service`（容器化 DB/Redis、可逆 Migration `up/down` 校验、Staging API 冒烟与 `k6` 基准压测）双 Profile，详见 `.harness/profiles/`。

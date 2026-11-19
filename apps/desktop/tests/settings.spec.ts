@@ -73,7 +73,7 @@ test.describe('SettingsView Theme & ImageBed E2E', () => {
     await page.getByText('上传至通用云图床（PicGo-Core / 全平台对象存储）').click();
 
     await page.getByRole('button', { name: 'PicGo-Core', exact: true }).click();
-    await page.getByPlaceholder('PicGo-Core 可执行路径（默认 picgo）').fill('/Users/leileigwl/.local/share/pnpm/picgo');
+    await page.getByPlaceholder('PicGo-Core 可执行路径（默认 picgo）').fill('/usr/local/bin/picgo');
     await page.getByRole('button', { name: '测试图床连通性' }).click();
 
     await page.getByRole('button', { name: 'GitHub', exact: true }).click();
@@ -91,7 +91,7 @@ test.describe('SettingsView Theme & ImageBed E2E', () => {
     expect(testedConfigs[0]).toMatchObject({
       strategy: 'custom_oss',
       provider: 'picgo_core',
-      picgoPath: '/Users/leileigwl/.local/share/pnpm/picgo',
+      picgoPath: '/usr/local/bin/picgo',
     });
     expect(testedConfigs[1]).toMatchObject({
       strategy: 'custom_oss',

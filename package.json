@@ -1,6 +1,7 @@
 {
   "name": "vcat-publisher-desktop",
   "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "description": "Local-First desktop Markdown writing, image pipeline & multi-platform publisher",
   "scripts": {
