@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[harness:pre-push] Running deterministic L0 guardrails and full workspace typecheck..."
+pnpm harness:check --json
+pnpm run typecheck

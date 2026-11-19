@@ -10,11 +10,11 @@
 
 ## 2. Phase 1：代码级 Harness、AST 风险/模块岛守卫与小模型原生 Hook 硬锁
 
-- [ ] 2.1 创建 `.harness/schemas/` 下 `project.schema.json`、`state.schema.json`、`slice.schema.json`、`ratchet.schema.json` 与仓库实例配置 `.harness/project.json`（含 `bootstrapLocked` 底座锁、物理模块岛边界及人工解锁入口）、`.harness/ratchet.json`、`.harness/state.json`，验证 JSON Schema 校验通过
-- [ ] 2.2 实现 `scripts/harness/anti-cheat.ts` 与 `scripts/harness/ratchet.ts`：覆盖反作弊 Diff 扫描（禁止 `.skip`/`.only`/断言净减少/未豁免 `as any`/`@ts-ignore`/`eslint-disable`/锁定态修改底座文件）、新文件 ≤500 行限制及 7 个超标历史文件行数棘轮基线，并编写单元测试验证全部红绿场景通过
-- [ ] 2.3 实现 `scripts/harness/risk-classifier.ts`（Path 规则 + TypeScript Compiler API AST 导出签名检测 + Diff 敏感语义扫描三层判定）与 `scripts/harness/arch-graph.ts`（物理模块岛 Barrel-Only 导出、禁止跨岛深层引用与循环依赖、渲染层隔离检验），并编写对应红绿单测验证通过
-- [ ] 2.4 实现 `scripts/harness/slice-lock.ts` 与主入口 `scripts/harness/cli.ts`（挂载至根 `package.json` 的 `pnpm harness:check`、`harness:transition`、`harness:slice-verify`、`harness:plan-slices`、`harness:unlock-bootstrap`），支持 `--json` 精简四元组报错、按模块岛生成互斥 `ownedPaths` 切片卡、单切片 `<300` 行校验与连续 2 次失败置 `status: "escalated"` 熔断，并编写 CLI 单测验证通过
-- [ ] 2.5 实现跨工具同源适配器 `scripts/harness/hook-adapter.ts` 并接入 `.agents/hooks.json`（`SessionStart`/`PreToolUse`/`PostToolUse`/`Stop`）、`.claude/settings.json` 与 `.githooks/`（`pre-commit`/`pre-push`），通过模拟 Gemini 3.8 Flash 越界改文件、锁定态动框架与未过检企图结束对话测试拦截生效
+- [x] 2.1 创建 `.harness/schemas/` 下 `project.schema.json`、`state.schema.json`、`slice.schema.json`、`ratchet.schema.json` 与仓库实例配置 `.harness/project.json`（含 `bootstrapLocked` 底座锁、物理模块岛边界及人工解锁入口）、`.harness/ratchet.json`、`.harness/state.json`，验证 JSON Schema 校验通过
+- [x] 2.2 实现 `scripts/harness/anti-cheat.ts` 与 `scripts/harness/ratchet.ts`：覆盖反作弊 Diff 扫描（禁止 `.skip`/`.only`/断言净减少/未豁免 `as any`/`@ts-ignore`/`eslint-disable`/锁定态修改底座文件）、新文件 ≤500 行限制及 7 个超标历史文件行数棘轮基线，并编写单元测试验证全部红绿场景通过
+- [x] 2.3 实现 `scripts/harness/risk-classifier.ts`（Path 规则 + TypeScript Compiler API AST 导出签名检测 + Diff 敏感语义扫描三层判定）与 `scripts/harness/arch-graph.ts`（物理模块岛 Barrel-Only 导出、禁止跨岛深层引用与循环依赖、渲染层隔离检验），并编写对应红绿单测验证通过
+- [x] 2.4 实现 `scripts/harness/slice-lock.ts` 与主入口 `scripts/harness/cli.ts`（挂载至根 `package.json` 的 `pnpm harness:check`、`harness:transition`、`harness:slice-verify`、`harness:plan-slices`、`harness:unlock-bootstrap`），支持 `--json` 精简四元组报错、按模块岛生成互斥 `ownedPaths` 切片卡、单切片 `<300` 行校验与连续 2 次失败置 `status: "escalated"` 熔断，并编写 CLI 单测验证通过
+- [x] 2.5 实现跨工具同源适配器 `scripts/harness/hook-adapter.ts` 并接入 `.agents/hooks.json`（`SessionStart`/`PreToolUse`/`PostToolUse`/`Stop`）、`.claude/settings.json` 与 `.githooks/`（`pre-commit`/`pre-push`），通过模拟 Gemini 3.8 Flash 越界改文件、锁定态动框架与未过检企图结束对话测试拦截生效
 
 ## 3. Phase 2：GitHub 治理、风险分级 CI/CD 与邮件反推闭环
 

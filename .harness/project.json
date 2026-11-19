@@ -1,0 +1,53 @@
+{
+  "$schema": "./schemas/project.schema.json",
+  "projectId": "vmark",
+  "profile": "desktop-electron",
+  "owner": "leileigwl",
+  "githubNotifyUser": "leileigwl",
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "Stage A: agent-harness-cicd-redesign initial construction",
+  "bootstrapLockProtectedPaths": [
+    ".harness/**",
+    "scripts/harness/**",
+    ".agents/hooks.json",
+    ".claude/settings.json",
+    ".githooks/**",
+    ".github/**",
+    "AGENTS.md",
+    "LICENSE*"
+  ],
+  "licenseMode": "AGPL-3.0-or-commercial",
+  "limits": {
+    "newFileMaxLines": 500,
+    "sliceMaxDiffLines": 300,
+    "agentsMdMaxLines": 100,
+    "handoffMaxLines": 120,
+    "circuitBreakerMaxRetries": 2
+  },
+  "moduleIslands": {
+    "rendererRoot": "apps/desktop/src/renderer/src/features",
+    "mainIpcRoot": "apps/desktop/src/main/ipc",
+    "barrelFile": "index.ts",
+    "forbidCrossIslandDeepImport": true,
+    "forbidCycles": true
+  },
+  "layerBoundaries": [
+    {
+      "from": "apps/desktop/src/renderer/**",
+      "forbidImportFrom": [
+        "apps/desktop/src/main/**",
+        "node:fs",
+        "node:fs/promises",
+        "better-sqlite3",
+        "electron"
+      ]
+    }
+  ],
+  "commands": {
+    "typecheck": "pnpm run typecheck",
+    "unit": "pnpm turbo run test",
+    "ipcContract": "pnpm --filter @vcat/desktop test:ipc",
+    "e2e": "pnpm --filter @vcat/desktop exec playwright test --reporter=list",
+    "l3Smoke": "xvfb-run -a pnpm --filter @vcat/desktop test:electron-smoke"
+  }
+}

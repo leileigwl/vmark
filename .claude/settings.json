@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event SessionStart --runtime claude"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PreToolUse --runtime claude"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event PostToolUse --runtime claude"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node --experimental-strip-types scripts/harness/hook-adapter.ts --event Stop --runtime claude"
+          }
+        ]
+      }
+    ]
+  }
+}
