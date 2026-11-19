@@ -15,7 +15,7 @@ function buildFindRegex(findStr: string, opts?: FindOptions): RegExp | null {
   }
 }
 
-export function collectFindRanges(resetEl: Element, findStr: string, opts?: FindOptions): Range[] {
+function collectFindRanges(resetEl: Element, findStr: string, opts?: FindOptions): Range[] {
   const re = buildFindRegex(findStr, opts);
   if (!re) return [];
 

@@ -84,7 +84,6 @@
     "vditor": "^3.10.9"
   },
   "devDependencies": {
-    "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.0.0",

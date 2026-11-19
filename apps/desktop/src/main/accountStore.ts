@@ -33,7 +33,7 @@ export async function readAccountDatabase(): Promise<AccountDatabase> {
 let writeQueue = Promise.resolve();
 
 /** Saves all platform account records to disk atomically. */
-export async function writeAccountDatabase(db: AccountDatabase): Promise<void> {
+async function writeAccountDatabase(db: AccountDatabase): Promise<void> {
   const op = writeQueue.then(async () => {
     const targetPath = getAccountStorePath();
     const dir = path.dirname(targetPath);

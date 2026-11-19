@@ -1,6 +1,6 @@
 const FOUR_SPACE_LANGS = new Set(['python', 'py', 'rust', 'rs', 'java', 'c', 'cpp', 'csharp', 'cs', 'php', 'sql']);
 
-export function getCodeIndentUnit(lang: string): string {
+function getCodeIndentUnit(lang: string): string {
   return FOUR_SPACE_LANGS.has(lang.toLowerCase()) ? '    ' : '  ';
 }
 

@@ -15,10 +15,6 @@ export function safeDecode(raw: string): string {
   }
 }
 
-export interface LanguageHintResult {
-  activeMarker: HTMLElement | null;
-}
-
 /** Sorts code-block language autocomplete candidates by prefix match and positions `.vditor-hint` in viewport. */
 export function positionAndSortLanguageHint(
   el: HTMLElement,

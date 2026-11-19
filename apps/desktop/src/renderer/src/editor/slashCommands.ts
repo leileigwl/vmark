@@ -8,7 +8,7 @@ export interface SlashCommandItem {
   cursorBackOffset?: number;
 }
 
-export const SLASH_COMMANDS: SlashCommandItem[] = [
+const SLASH_COMMANDS: SlashCommandItem[] = [
   {
     id: 'h1',
     label: '一级标题',
