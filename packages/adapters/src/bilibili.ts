@@ -78,7 +78,7 @@ export class BilibiliAdapter implements PlatformAdapter {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Origin: 'https://member.bilibili.com',
-        Referer: 'https://member.bilibili.com/platform/upload/text/edit',
+        Referer: 'https://member.bilibili.com/',
       },
       body,
     });

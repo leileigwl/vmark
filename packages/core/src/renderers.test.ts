@@ -129,3 +129,10 @@ test('renderZhihuHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marke
   assert.ok(result.html.includes('这是知乎提示内容'));
   assert.ok(!result.html.includes('[!NOTE]'));
 });
+
+test('renderBaijiahaoHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marker', () => {
+  const result = renderBaijiahaoHtml('> [!NOTE]\n> 这是百家号提示内容');
+  assert.ok(result.html.includes('<strong>ℹ️ 提示</strong>'));
+  assert.ok(result.html.includes('这是百家号提示内容'));
+  assert.ok(!result.html.includes('[!NOTE]'));
+});
