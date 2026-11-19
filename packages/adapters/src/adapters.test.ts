@@ -629,3 +629,40 @@ test('BaijiahaoAdapter modern production pipeline: appinfo auth -> pcui image up
   const emptyUserAdapter = new BaijiahaoAdapter({ fetchFn: emptyUserFetch });
   assert.equal(await emptyUserAdapter.checkAuth(), false);
 });
+
+test('JuejinAdapter rejects guest user_id "0" and surfaces actionable re-login error on must login', async () => {
+  const guestAdapter = new JuejinAdapter({
+    fetchFn: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '',
+      json: async () => ({ err_no: 0, data: { user_id: '0' } }),
+    }),
+  });
+  assert.equal(await guestAdapter.checkAuth(), false);
+
+  const expiredAdapter = new JuejinAdapter({
+    fetchFn: async (url) => {
+      if (String(url).includes('sys/token')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 403, err_msg: 'must login' }),
+      };
+    },
+  });
+  await assert.rejects(
+    () =>
+      expiredAdapter.push({
+        title: '测试',
+        markdown: '内容',
+        html: '<p>内容</p>',
+        tags: [],
+        mode: 'draft',
+      }),
+    /掘金登录态已失效（must login）/
+  );
+});

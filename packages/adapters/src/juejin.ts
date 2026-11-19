@@ -25,10 +25,16 @@ export class JuejinAdapter implements PlatformAdapter {
 
   async checkAuth(): Promise<boolean> {
     try {
-      const res = await this.fetchFn('https://api.juejin.cn/user_api/v1/user/get');
+      const res = await this.fetchFn('https://api.juejin.cn/user_api/v1/user/get', {
+        headers: {
+          Origin: 'https://juejin.cn',
+          Referer: 'https://juejin.cn/',
+        },
+      });
       if (!res.ok) return false;
-      const data = (await res.json()) as { err_no: number; data?: { user_id?: string } };
-      return data.err_no === 0 && Boolean(data.data?.user_id);
+      const data = (await res.json()) as { err_no: number; data?: { user_id?: string | number } };
+      const userId = String(data.data?.user_id ?? '').trim();
+      return data.err_no === 0 && Boolean(userId) && userId !== '0';
     } catch {
       return false;
     }
@@ -107,6 +113,9 @@ export class JuejinAdapter implements PlatformAdapter {
 
     const data = (await res.json()) as { err_no: number; err_msg?: string; data?: { id: string } };
     if (data.err_no !== 0 || !data.data?.id) {
+      if (data.err_no === 403 || data.err_msg?.toLowerCase().includes('must login')) {
+        throw new Error('掘金登录态已失效（must login），请先在「偏好设置 → 平台授权托管」重新登录稀土掘金');
+      }
       throw new Error(`掘金草稿接口返回错误: ${data.err_msg || '未知错误'}`);
     }
 
