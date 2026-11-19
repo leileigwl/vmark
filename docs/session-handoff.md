@@ -3,9 +3,10 @@
 > 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史均留存在 Git Commit 与 `openspec/changes/archive/` 中。
 
 - **快照日期**：2026-11-19
-- **当前阶段**：**`agent-harness-cicd-redesign` Stage B 已封板就绪（分支 `openspec/agent-harness-cicd-redesign` / PR #2 -> `test`）**
-- **最新基线版本**：`v0.1.0`（`master` / `test`）
+- **当前阶段**：**`master` 与 `test` 已同步基线 `0d5be0e`（PR #2 与 Release PR #3 已合入，全套 CI/CD 工作流已在默认分支 `master` 激活）**
+- **最新基线版本**：`v0.1.0`（`master` @ `0d5be0e` / `test` @ `0d5be0e`）
 - **当前底座锁状态**：`bootstrapLocked: true`（底座框架已硬锁定，日常仅按垂直物理模块岛并发开发；如需改框架须先执行 `pnpm harness:unlock-bootstrap`）
+- **最近 Slop 巡检记录**：`slop-audit.yml`（Run `44492362530`）已生成/更新周报 Issue #4（标签 `slop:cleanup`，29 项历史待消化债务 + 6 个互斥清理切片）。
 
 ## 已完成里程碑
 
@@ -32,4 +33,4 @@
 
 ## 后续日常行动
 
-1. 合入 PR #2 至 `test` 并在每晚 21:00 CST 汇总 PR 体验后 Merge Commit 入 `master`，随后参考 [`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md) 开展单窗口极简日常迭代。
+1. 参考 [`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md) 开展单窗口或并发切片日常迭代，结合 Issue #4 互斥切片按需消化历史债务；每晚 21:00 CST 查看 `test -> master` 汇总 PR 并 Merge Commit 发布。
