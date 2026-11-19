@@ -1,0 +1,78 @@
+name: Weekly AI Slop Audit & Cleanup Ledger
+
+on:
+  schedule:
+    - cron: '0 2 * * 1' # Every Monday 10:00 CST (02:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  slop-audit:
+    name: Run 5-Category Slop Audit & Notify Maintainer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate 5-category Slop ledger Markdown
+        run: |
+          node --experimental-strip-types scripts/harness/cli.ts slop --markdown > slop-report.md
+          cat slop-report.md
+
+      - name: Upsert weekly AI Slop Issue & @mention maintainer
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { owner, repo } = context.repo;
+            const body = fs.readFileSync('slop-report.md', 'utf8');
+            const title = 'AI Slop 周报体检 & 互斥清理切片清单';
+
+            const existing = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: 'slop:cleanup',
+              per_page: 20,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.data[0].number,
+                title,
+                body,
+              });
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.data[0].number,
+                body: `@${owner} 本周 AI Slop 自动扫描已更新（见 Issue 主楼最新账本与建议并发清理切片）。`,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels: ['slop:cleanup'],
+              });
+            }

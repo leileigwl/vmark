@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Harness File Size Ratchet Baseline",
+  "type": "object",
+  "required": ["defaultNewFileMaxLines", "files"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "defaultNewFileMaxLines": { "type": "integer", "minimum": 50 },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["maxLines", "targetLines"],
+        "properties": {
+          "maxLines": { "type": "integer", "minimum": 1 },
+          "targetLines": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

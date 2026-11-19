@@ -1,0 +1,7 @@
+{
+  "p95LatencyMs": 250,
+  "p99LatencyMs": 500,
+  "maxErrorRate": 0.001,
+  "minRequestsPerSec": 50,
+  "maxMemoryGrowthMbPerMin": 32
+}

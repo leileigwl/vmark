@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Harness Consort State Machine",
+  "type": "object",
+  "required": [
+    "changeName",
+    "track",
+    "phase",
+    "prototypeApproved",
+    "contractFrozen",
+    "activeFreezeLock",
+    "gates",
+    "updatedAt"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "changeName": { "type": "string", "minLength": 1 },
+    "track": { "type": "string", "enum": ["full", "fast"] },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "SPEC",
+        "PROTOTYPE_APPROVED",
+        "CONTRACT_FROZEN",
+        "FRONTEND_TDD",
+        "BACKEND_TDD",
+        "SLICE_TDD",
+        "MERGE_GATE",
+        "ARCHIVED"
+      ]
+    },
+    "prototypeApproved": { "type": "boolean" },
+    "contractFrozen": { "type": "boolean" },
+    "activeFreezeLock": { "type": "boolean" },
+    "gates": {
+      "type": "object",
+      "required": [
+        "specValidated",
+        "frontendTddPassed",
+        "ipcContractPassed",
+        "backendTddPassed"
+      ],
+      "properties": {
+        "specValidated": { "type": "boolean" },
+        "frontendTddPassed": { "type": "boolean" },
+        "ipcContractPassed": { "type": "boolean" },
+        "backendTddPassed": { "type": "boolean" }
+      }
+    },
+    "updatedAt": { "type": "string" }
+  }
+}

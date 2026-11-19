@@ -1,0 +1,45 @@
+name: AI Review Stage 1 (Diff Extract)
+
+on:
+  pull_request:
+    branches: [ master, test ]
+
+permissions:
+  contents: read
+
+jobs:
+  collect-diff:
+    name: Stage 1 Extract Read-Only Diff (No Secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base and fetch PR diff safely
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Export truncated pr.diff & metadata
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --unified=2 "origin/${BASE_REF}...HEAD" > full.diff || true
+          head -c 32000 full.diff > pr.diff
+          node -e "
+            const fs = require('node:fs');
+            fs.writeFileSync('meta.json', JSON.stringify({
+              prNumber: Number(process.env.PR_NUMBER),
+              baseRef: process.env.BASE_REF,
+              headSha: process.env.HEAD_SHA,
+              truncated: fs.statSync('full.diff').size > 32000
+            }));
+          "
+
+      - name: Upload diff artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-review-diff
+          path: |
+            pr.diff
+            meta.json
+          retention-days: 3

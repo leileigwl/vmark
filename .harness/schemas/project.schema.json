@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Harness Project Configuration",
+  "type": "object",
+  "required": [
+    "projectId",
+    "profile",
+    "owner",
+    "bootstrapLocked",
+    "limits",
+    "commands"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "projectId": { "type": "string", "minLength": 1 },
+    "profile": { "type": "string", "enum": ["desktop-electron", "web-service"] },
+    "owner": { "type": "string", "minLength": 1 },
+    "githubNotifyUser": { "type": "string", "minLength": 1 },
+    "bootstrapLocked": { "type": "boolean" },
+    "bootstrapUnlockReason": { "type": ["string", "null"] },
+    "bootstrapLockProtectedPaths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "licenseMode": { "type": "string" },
+    "limits": {
+      "type": "object",
+      "required": [
+        "newFileMaxLines",
+        "sliceMaxDiffLines",
+        "agentsMdMaxLines",
+        "handoffMaxLines",
+        "circuitBreakerMaxRetries"
+      ],
+      "properties": {
+        "newFileMaxLines": { "type": "integer", "minimum": 100 },
+        "sliceMaxDiffLines": { "type": "integer", "minimum": 50 },
+        "agentsMdMaxLines": { "type": "integer", "minimum": 20 },
+        "handoffMaxLines": { "type": "integer", "minimum": 20 },
+        "circuitBreakerMaxRetries": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "moduleIslands": {
+      "type": "object",
+      "properties": {
+        "rendererRoot": { "type": "string" },
+        "mainIpcRoot": { "type": "string" },
+        "barrelFile": { "type": "string" },
+        "forbidCrossIslandDeepImport": { "type": "boolean" },
+        "forbidCycles": { "type": "boolean" }
+      }
+    },
+    "layerBoundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "forbidImportFrom"],
+        "properties": {
+          "from": { "type": "string" },
+          "forbidImportFrom": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

@@ -1,86 +1,88 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type {
-  ContextMenuOptions,
-  ElectronAPI,
-  ExportArticleOptions,
-  ImageBedConfig,
-  PlatformId,
-  StartupConfig,
+import {
+  IPC_EVENT_CHANNELS,
+  IPC_INVOKE_CHANNELS,
+  IPC_SEND_CHANNELS,
+  type ContextMenuOptions,
+  type ElectronAPI,
+  type ExportArticleOptions,
+  type ImageBedConfig,
+  type PlatformId,
+  type StartupConfig,
 } from '@vcat/shared';
 
 const api: ElectronAPI = {
-  selectWorkspace: () => ipcRenderer.invoke('workspace:select'),
-  getWorkspacePath: () => ipcRenderer.invoke('workspace:get'),
-  getRecentWorkspaces: () => ipcRenderer.invoke('workspace:recent'),
-  switchWorkspace: (dirPath: string) => ipcRenderer.invoke('workspace:switch', dirPath),
-  showInFinder: (relativePath?: string) => ipcRenderer.invoke('workspace:showInFinder', relativePath),
-  listArticles: () => ipcRenderer.invoke('articles:list'),
-  listFolders: () => ipcRenderer.invoke('folders:list'),
-  createFolder: (folderName: string) => ipcRenderer.invoke('folders:create', folderName),
-  deleteFolder: (folderPath: string) => ipcRenderer.invoke('folders:delete', folderPath),
+  selectWorkspace: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.selectWorkspace),
+  getWorkspacePath: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getWorkspacePath),
+  getRecentWorkspaces: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getRecentWorkspaces),
+  switchWorkspace: (dirPath: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.switchWorkspace, dirPath),
+  showInFinder: (relativePath?: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.showInFinder, relativePath),
+  listArticles: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.listArticles),
+  listFolders: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.listFolders),
+  createFolder: (folderName: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.createFolder, folderName),
+  deleteFolder: (folderPath: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.deleteFolder, folderPath),
   moveFolder: (oldFolderPath: string, targetParentFolder: string) =>
-    ipcRenderer.invoke('folders:move', oldFolderPath, targetParentFolder),
-  readArticle: (relativePath: string) => ipcRenderer.invoke('articles:read', relativePath),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.moveFolder, oldFolderPath, targetParentFolder),
+  readArticle: (relativePath: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.readArticle, relativePath),
   saveArticle: (relativePath: string, content: string) =>
-    ipcRenderer.invoke('articles:save', relativePath, content),
-  createArticle: (fileName?: string) => ipcRenderer.invoke('articles:create', fileName),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.saveArticle, relativePath, content),
+  createArticle: (fileName?: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.createArticle, fileName),
   renameArticle: (oldRelativePath: string, newFileName: string) =>
-    ipcRenderer.invoke('articles:rename', oldRelativePath, newFileName),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.renameArticle, oldRelativePath, newFileName),
   moveArticle: (oldRelativePath: string, targetFolder: string) =>
-    ipcRenderer.invoke('articles:move', oldRelativePath, targetFolder),
-  deleteArticle: (relativePath: string) => ipcRenderer.invoke('articles:delete', relativePath),
-  duplicateArticle: (relativePath: string) => ipcRenderer.invoke('articles:duplicate', relativePath),
-  searchArticlesContent: (query: string) => ipcRenderer.invoke('articles:search', query),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.moveArticle, oldRelativePath, targetFolder),
+  deleteArticle: (relativePath: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.deleteArticle, relativePath),
+  duplicateArticle: (relativePath: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.duplicateArticle, relativePath),
+  searchArticlesContent: (query: string) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.searchArticlesContent, query),
   saveLocalImage: (base64Data: string, ext: string) =>
-    ipcRenderer.invoke('image:saveLocal', base64Data, ext),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.saveLocalImage, base64Data, ext),
   uploadRemoteImage: (base64Data: string, fileName: string) =>
-    ipcRenderer.invoke('image:uploadRemote', base64Data, fileName),
-  getImageBedConfig: () => ipcRenderer.invoke('config:getImageBed'),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.uploadRemoteImage, base64Data, fileName),
+  getImageBedConfig: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getImageBedConfig),
   saveImageBedConfig: (config: ImageBedConfig) =>
-    ipcRenderer.invoke('config:saveImageBed', config),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.saveImageBedConfig, config),
   testImageBedUpload: (config: ImageBedConfig) =>
-    ipcRenderer.invoke('config:testImageBed', config),
-  getStartupConfig: () => ipcRenderer.invoke('config:getStartup'),
-  saveStartupConfig: (config: StartupConfig) => ipcRenderer.invoke('config:saveStartup', config),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.testImageBedUpload, config),
+  getStartupConfig: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getStartupConfig),
+  saveStartupConfig: (config: StartupConfig) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.saveStartupConfig, config),
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
-    ipcRenderer.invoke('platform:openLogin', platformId, loginUrl),
-  logoutPlatform: (platformId: PlatformId) =>
-    ipcRenderer.invoke('platform:logout', platformId),
-  getPlatformAuthStates: () => ipcRenderer.invoke('platform:authStates'),
-  getGitStatus: () => ipcRenderer.invoke('git:status'),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openPlatformLogin, platformId, loginUrl),
+  logoutPlatform: (platformId: PlatformId) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.logoutPlatform, platformId),
+  getPlatformAuthStates: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getPlatformAuthStates),
+  getGitStatus: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getGitStatus),
   pushGitWorkspace: (commitMessage: string) =>
-    ipcRenderer.invoke('git:push', commitMessage),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.pushGitWorkspace, commitMessage),
   onMenuAction: (callback: (action: string, payload?: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: string, payload?: string) =>
       callback(action, payload);
-    ipcRenderer.on('menu:action', handler);
-    return () => ipcRenderer.removeListener('menu:action', handler);
+    ipcRenderer.on(IPC_EVENT_CHANNELS.onMenuAction, handler);
+    return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onMenuAction, handler);
   },
   showEditorContextMenu: (options: ContextMenuOptions) =>
-    ipcRenderer.invoke('editor:contextMenu', options),
-  importTyporaThemeCss: () => ipcRenderer.invoke('theme:importTyporaCss'),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.showEditorContextMenu, options),
+  importTyporaThemeCss: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.importTyporaThemeCss),
   exportArticle: (options: ExportArticleOptions) =>
-    ipcRenderer.invoke('file:export', options),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.exportArticle, options),
   setRecentFiles: (paths: string[]) =>
-    ipcRenderer.send('menu:setRecentFiles', paths),
+    ipcRenderer.send(IPC_SEND_CHANNELS.setRecentFiles, paths),
   copyImage: (src: string) =>
-    ipcRenderer.invoke('image:copy', src),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.copyImage, src),
   saveImageAs: (src: string) =>
-    ipcRenderer.invoke('image:saveAs', src),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.saveImageAs, src),
   openWorkspaceLink: (href: string, currentRelativePath?: string) =>
-    ipcRenderer.invoke('workspace:openLink', href, currentRelativePath),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openWorkspaceLink, href, currentRelativePath),
   publishWeixinDraft: (payload: Parameters<NonNullable<ElectronAPI['publishWeixinDraft']>>[0]) =>
-    ipcRenderer.invoke('publish:weixinDraft', payload),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.publishWeixinDraft, payload),
   publishMultiPlatform: (payload: Parameters<NonNullable<ElectronAPI['publishMultiPlatform']>>[0]) =>
-    ipcRenderer.invoke('publish:multiPlatform', payload),
-  getPlatformAccounts: () => ipcRenderer.invoke('platform:getAccounts'),
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.publishMultiPlatform, payload),
+  getPlatformAccounts: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getPlatformAccounts),
   onPlatformAuthUpdated: (callback: (states: Partial<Record<PlatformId, boolean>>) => void) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
       states: Partial<Record<PlatformId, boolean>>
     ) => callback(states);
-    ipcRenderer.on('platform:authStatesUpdated', handler);
-    return () => ipcRenderer.removeListener('platform:authStatesUpdated', handler);
+    ipcRenderer.on(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, handler);
+    return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, handler);
   },
 };
 

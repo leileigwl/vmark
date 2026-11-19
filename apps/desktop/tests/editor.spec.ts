@@ -34,7 +34,7 @@ async function setupApp(page: Page, initialMarkdown = '') {
     };
   }, initialMarkdown);
 
-  await page.goto('http://localhost:4173');
+  await page.goto('/');
   const reset = page.locator('.vditor-ir .vditor-reset');
   await reset.waitFor({ state: 'visible', timeout: 15_000 });
   await reset.click();
@@ -84,8 +84,9 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     await page.waitForTimeout(100);
 
     // Clear and type 'py'
-    await page.keyboard.press('Meta+a');
-    await page.keyboard.press('Control+a').catch(() => {});
+    await page.keyboard.press('End');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Backspace');
     await page.keyboard.type('py');
     await page.waitForTimeout(150);
     await page.keyboard.press('ArrowDown');
@@ -212,7 +213,7 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     const codeEl = page.locator('.vditor-reset pre code').first();
     await codeEl.click();
     await page.waitForTimeout(80);
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.press('Backspace');
     await page.waitForTimeout(100);
 
@@ -319,7 +320,7 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
       sel?.removeAllRanges();
       sel?.addRange(r);
     });
-    await page.keyboard.press('Meta+x');
+    await page.keyboard.press('ControlOrMeta+x');
     await page.waitForTimeout(100);
     expect((await firstP.textContent())?.trim()).toBe('world');
 
@@ -337,7 +338,7 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
       sel?.removeAllRanges();
       sel?.addRange(r);
     });
-    await page.keyboard.press('Meta+x');
+    await page.keyboard.press('ControlOrMeta+x');
     await page.waitForTimeout(150);
 
     // Code block and its info marker must remain intact, and blockquote must not contain 'text'
@@ -537,8 +538,8 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
 
     // Cmd+B on selected text wraps in **bold**
     await page.keyboard.type('加粗测试');
-    await page.keyboard.press('Meta+a');
-    await page.keyboard.press('Meta+b');
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('ControlOrMeta+b');
     await page.waitForTimeout(100);
     await expect(page.locator('.vditor-ir .vditor-reset strong')).toContainText('加粗测试');
   });
@@ -553,7 +554,7 @@ test.describe('Vcat Vditor IR Editor E2E', () => {
     await page.waitForTimeout(100);
     await expect(page.locator('.vditor-ir .vditor-reset ol')).toHaveCount(1);
 
-    await page.keyboard.press('Meta+z');
+    await page.keyboard.press('ControlOrMeta+z');
     await page.waitForTimeout(100);
     // Editor remains valid and responsive after undo
     const resetVisible = await page.locator('.vditor-ir .vditor-reset').isVisible();

@@ -47,7 +47,7 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
     };
   }, initialMarkdown);
 
-  await page.goto('http://localhost:4173');
+  await page.goto('/');
   await page.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 15_000 });
 }
 

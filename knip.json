@@ -1,0 +1,43 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [
+    ".harness/**",
+    "apps/desktop/scripts/**",
+    "apps/desktop/src/renderer/public/**",
+    "apps/desktop/out/**",
+    "scripts/harness/init-project.ts",
+    "scripts/harness/export-skill.ts",
+    "scripts/harness/slop.ts"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/harness/cli.ts",
+        "scripts/harness/hook-adapter.ts",
+        "scripts/harness/*.test.ts"
+      ]
+    },
+    "apps/desktop": {
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/main.tsx",
+        "tests/*.spec.ts",
+        "tests/*.test.ts",
+        "playwright*.config.ts",
+        "electron.vite.config.*"
+      ],
+      "ignoreDependencies": [
+        "@tailwindcss/vite",
+        "tailwindcss",
+        "electron"
+      ]
+    },
+    "packages/*": {
+      "entry": [
+        "src/index.ts",
+        "src/*.test.ts"
+      ]
+    }
+  }
+}

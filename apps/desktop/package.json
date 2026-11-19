@@ -15,6 +15,9 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test:ipc": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:electron-smoke": "playwright test -c playwright.electron.config.ts --reporter=list",
+    "test": "pnpm run test:ipc",
     "package:mac": "pnpm run copy-vditor && electron-vite build && electron-builder --mac --publish never",
     "package:win": "pnpm run copy-vditor && electron-vite build && electron-builder --win --publish never",
     "package:linux": "pnpm run copy-vditor && electron-vite build && electron-builder --linux --publish never"
