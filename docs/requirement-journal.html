@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vmark 需求演进、HTML 交互原型与多平台卡片视觉图鉴</title>
+  <style>
+    :root {
+      --bg: #f6f4f0;
+      --surface: #ffffff;
+      --ink: #1e1b18;
+      --muted: #6e655f;
+      --accent: #e05338;
+      --accent-soft: #fde9df;
+      --border: rgba(30, 27, 24, 0.12);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+      line-height: 1.6;
+      padding: 28px 36px 64px;
+    }
+    .container { max-width: 1360px; margin: 0 auto; }
+    .hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.04);
+    }
+    .hero-badge {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .hero h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+    .hero p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--ink);
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .tab-btn.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      margin-bottom: 22px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+    }
+    .section-title {
+      font-size: 19px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+    /* Interactive Prototype Styles */
+    .proto-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #faf8f5;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 18px;
+      align-items: center;
+    }
+    .proto-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .pill-btn {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      padding: 5px 11px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .pill-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .proto-workspace {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .proto-workspace { grid-template-columns: 1fr; }
+    }
+    .proto-sidebar {
+      background: #faf8f5;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .proto-stage {
+      background: #f0ede8;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 16px;
+    }
+    .img-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: transform 0.15s ease;
+    }
+    .img-card:hover { transform: translateY(-3px); }
+    .img-card img {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      object-fit: cover;
+      display: block;
+      border-bottom: 1px solid var(--border);
+    }
+    .img-meta { padding: 10px 12px; }
+    .img-meta h4 { font-size: 13px; font-weight: 700; }
+    .img-meta p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    /* Requirement Log Table & Timeline */
+    .req-item {
+      border-left: 4px solid var(--accent);
+      background: #faf8f5;
+      border-radius: 0 14px 14px 0;
+      padding: 18px 20px;
+      margin-bottom: 16px;
+      border-top: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .req-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .req-id {
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      background: var(--ink);
+      color: #fff;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+    .req-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: #166534;
+      background: #dcfce7;
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 12px;
+    }
+    .diff-col {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+    .diff-col.before { border-top: 3px solid #ef4444; }
+    .diff-col.after { border-top: 3px solid #10b981; }
+    .ratio-preview-frame {
+      margin: 0 auto;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1.5px solid rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="hero">
+      <div>
+        <span class="hero-badge">VMARK STUDIO • HTML PROTOTYPE &amp; REQUIREMENT JOURNAL</span>
+        <h1>Vmark 需求整改图鉴 &amp; 多平台卡片 UI 交互原型看板</h1>
+        <p>遵循“先改交接文档 → 先做 HTML 原型与真实配套图 → 再落盘组件代码与云端 CI 测试”的工程闭环，永久记录每一轮 AI 协同决策。</p>
+      </div>
+      <div style="text-align:right;font-size:12px;color:var(--muted);">
+        <div>最新分支：<code>slice/social-card-generator</code></div>
+        <div>画幅标准：<code>3:4 (1080×1440) / 9:16 / 16:9 / 2.35:1</code></div>
+      </div>
+    </header>
+
+    <nav class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('proto', this)">1. 🖥️ 桌面端『分发预览面板』HTML 交互原型 (先调好样式再写 React)</button>
+      <button class="tab-btn" onclick="switchTab('gallery', this)">2. 📸 小红书 &amp; 抖音 1080×1440 真实渲染配套图全集 (10 张)</button>
+      <button class="tab-btn" onclick="switchTab('journal', this)">3. 🧭 需求演进、Bug 根因与 AI 讨论决策台账</button>
+    </nav>
+
+    <!-- PANEL 1: INTERACTIVE HTML PROTOTYPE FOR PLATFORM PREVIEW PANE -->
+    <section id="panel-proto" class="panel active">
+      <div class="card-box">
+        <div class="section-title">
+          <span>桌面端 PublishModal -> PlatformPreviewPane 高保真交互原型</span>
+          <span style="font-size:12px;color:var(--accent);font-weight:700;">✦ 支持多题材自动识别 + 封面比例兜底 + 主题实时切换</span>
+        </div>
+        <p class="section-sub">
+          在正式修改 <code>apps/desktop/src/renderer/src/features/publish-drawer/PlatformPreviewPane.tsx</code> 前，先在此 HTML 原型中确认工具栏布局、封面比例选择器（未手动传封面时自动生成对应比例 UGC 封面）及卡片网格比例。
+        </p>
+
+        <div class="proto-toolbar">
+          <div class="proto-group">
+            <span>① 预览平台：</span>
+            <button class="pill-btn active" onclick="setProtoPlatform('xiaohongshu', this)">小红书 3:4 卡片</button>
+            <button class="pill-btn" onclick="setProtoPlatform('douyin', this)">抖音 3:4 图文</button>
+            <button class="pill-btn" onclick="setProtoPlatform('weixin', this)">微信公众号 (2.35:1)</button>
+            <button class="pill-btn" onclick="setProtoPlatform('zhihu', this)">知乎/B站专栏 (16:9)</button>
+          </div>
+          <div class="proto-group">
+            <span>② 文章题材模拟：</span>
+            <button class="pill-btn active" onclick="setProtoGenre('travel', this)">🍂 旅行手记 (京都漫游)</button>
+            <button class="pill-btn" onclick="setProtoGenre('essay', this)">📖 个人随笔 (数字花园)</button>
+            <button class="pill-btn" onclick="setProtoGenre('tech', this)">⚡ 技术实践 (离线排版)</button>
+          </div>
+          <div class="proto-group">
+            <span>③ 主题色板：</span>
+            <button class="pill-btn active" onclick="setProtoTheme('editorial-coral', this)">珊瑚白茶</button>
+            <button class="pill-btn" onclick="setProtoTheme('ink-classic', this)">墨水经典</button>
+            <button class="pill-btn" onclick="setProtoTheme('forest-journal', this)">森系手记</button>
+            <button class="pill-btn" onclick="setProtoTheme('ray-dark', this)">极客暗夜</button>
+            <button class="pill-btn" onclick="setProtoTheme('swiss-slate', this)">瑞士工科</button>
+          </div>
+          <div class="proto-group">
+            <span>④ 自动封面比例：</span>
+            <button class="pill-btn active" id="ratio-3-4" onclick="setProtoRatio('3:4', this)">3:4 竖版</button>
+            <button class="pill-btn" id="ratio-9-16" onclick="setProtoRatio('9:16', this)">9:16 全屏</button>
+            <button class="pill-btn" id="ratio-16-9" onclick="setProtoRatio('16:9', this)">16:9 专栏</button>
+            <button class="pill-btn" id="ratio-235-1" onclick="setProtoRatio('2.35:1', this)">2.35:1 公众号</button>
+          </div>
+        </div>
+
+        <div class="proto-workspace">
+          <div class="proto-sidebar">
+            <h4 style="font-size:14px;margin-bottom:10px;">📐 封面自适应与题材探测状态</h4>
+            <div id="proto-status-box" style="font-size:12px;space-y:8px;color:#333;"></div>
+            <hr style="margin:14px 0;border:none;border-top:1px solid var(--border);" />
+            <h4 style="font-size:13px;margin-bottom:6px;">📝 自动生成配文与话题标签</h4>
+            <pre id="proto-caption-box" style="font-size:11px;white-space:pre-wrap;background:#fff;padding:10px;border-radius:8px;border:1px solid var(--border);color:#444;"></pre>
+          </div>
+
+          <div class="proto-stage">
+            <div id="proto-Dynamic-Card" class="ratio-preview-frame"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 2: REAL 1080x1440 RENDERED SCREENSHOTS -->
+    <section id="panel-gallery" class="panel">
+      <div class="card-box">
+        <div class="section-title">
+          <span>📱 小红书平台 1080×1440 真实离屏渲染图（Coral Ivory 珊瑚白茶 · 82% 满版网格）</span>
+          <span style="font-size:12px;color:var(--muted);">目录：docs/assets/screenshots/social_cards/</span>
+        </div>
+        <p class="section-sub">点击任意卡片可在新标签页查看 1080×1440 原始像素大图。已消除上下 35% 空旷留白，且代码块采用词边界智能换行。</p>
+        <div class="gallery-grid">
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-01-cover.png" target="_blank">
+            <img src="assets/screenshots/social_cards/xhs-card-01-cover.png" alt="小红书封面卡" />
+            <div class="img-meta"><h4>01 · 旅行手记 UGC 满版封面</h4><p>xhs-card-01-cover.png (1080×1440)</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-02-content.png" target="_blank">
+            <img src="assets/screenshots/social_cards/xhs-card-02-content.png" alt="小红书正文卡 02" />
+            <div class="img-meta"><h4>02 · 岚山奥嵯峨步径清单卡</h4><p>xhs-card-02-content.png (1080×1440)</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-03-code.png" target="_blank">
+            <img src="assets/screenshots/social_cards/xhs-card-03-code.png" alt="小红书代码卡 03" />
+            <div class="img-meta"><h4>03 · Ray.so 零断词代码窗口卡</h4><p>xhs-card-03-code.png (1080×1440)</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-04-content.png" target="_blank">
+            <img src="assets/screenshots/social_cards/xhs-card-04-content.png" alt="小红书正文卡 04" />
+            <div class="img-meta"><h4>04 · 哲学之道漫游路线卡</h4><p>xhs-card-04-content.png (1080×1440)</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-05-content.png" target="_blank">
+            <img src="assets/screenshots/social_cards/xhs-card-05-content.png" alt="小红书总结卡 05" />
+            <div class="img-meta"><h4>05 · 平台安全与反风控总结卡</h4><p>xhs-card-05-content.png (1080×1440)</p></div>
+          </a>
+        </div>
+      </div>
+
+      <div class="card-box">
+        <div class="section-title">
+          <span>🎬 抖音平台 1080×1440 真实渲染图（Ray Dark 极客暗夜）&amp; 大师色板对比</span>
+          <span style="font-size:12px;color:var(--muted);">高对比流光蓝 + 墨水经典个人随笔 + 瑞士工科</span>
+        </div>
+        <div class="gallery-grid" style="margin-top:12px;">
+          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-01-cover.png" target="_blank">
+            <img src="assets/screenshots/social_cards/douyin-card-01-cover.png" alt="抖音封面卡" />
+            <div class="img-meta"><h4>抖音 01 · 极客暗夜满版封面</h4><p>douyin-card-01-cover.png</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-02-content.png" target="_blank">
+            <img src="assets/screenshots/social_cards/douyin-card-02-content.png" alt="抖音正文卡" />
+            <div class="img-meta"><h4>抖音 02 · 核心架构突破卡片</h4><p>douyin-card-02-content.png</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-03-code.png" target="_blank">
+            <img src="assets/screenshots/social_cards/douyin-card-03-code.png" alt="抖音代码卡" />
+            <div class="img-meta"><h4>抖音 03 · Ray.so 暗夜代码卡</h4><p>douyin-card-03-code.png</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/theme-ink-classic-cover.png" target="_blank">
+            <img src="assets/screenshots/social_cards/theme-ink-classic-cover.png" alt="墨水经典随笔封面" />
+            <div class="img-meta"><h4>大师色板 · 墨水经典个人随笔</h4><p>theme-ink-classic-cover.png</p></div>
+          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/theme-swiss-slate-content.png" target="_blank">
+            <img src="assets/screenshots/social_cards/theme-swiss-slate-content.png" alt="瑞士工科正文" />
+            <div class="img-meta"><h4>大师色板 · 瑞士工科网格</h4><p>theme-swiss-slate-content.png</p></div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 3: REQUIREMENT & BUG ITERATION LOG -->
+    <section id="panel-journal" class="panel">
+      <div class="card-box">
+        <div class="section-title">
+          <span>🧭 需求演进与 Bug 整改历史档案（替代零散聊天，支持跨轮次回溯分析）</span>
+          <span style="font-size:12px;color:var(--muted);">Updated: 2026-11-21</span>
+        </div>
+        <p class="section-sub">每次在 Antigravity 提出新需求或图片整改，均在此登记【需求背景】【根因定位】【Before / After 方案对比】与【验证文件】。</p>
+
+        <div class="req-item">
+          <div class="req-header">
+            <span class="req-id">REQ-2026-11-21-01 • 小红书/抖音 3:4 比例失衡与多题材个人创作适配</span>
+            <span class="req-status">✔ 已完成 HTML 原型与真实出图验证</span>
+          </div>
+          <p style="font-size:13px;"><strong>用户痛点：</strong>旧版 1080×1440 卡片中间只有一个小框，上下空出大片死白，比例不好看；代码块英文单词被从中间硬劈断；且封面写死了“前端开发/极客指南”，无法适配以后主力写的个人旅行日记、随笔博客与生活分享；不同平台封面比例不同，未手动设封面时需自动生成对应平台 UGC 封面。</p>
+          <div class="diff-grid">
+            <div class="diff-col before">
+              <strong>❌ 整改前 (Before)：</strong>
+              <ul style="padding-left:18px;margin-top:6px;">
+                <li>主容器使用 <code>justify-content: center</code>，上下留白占画幅 35%+，缩略图显得空洞。</li>
+                <li>代码块使用 <code>word-break: break-all</code>，导致 <code>ArticlePublishTask</code> 从单词中间断裂，行号垂直居中错位。</li>
+                <li><code>xiaohongshuRenderer.ts</code> 硬编码了 <code>['技术笔记','前端开发']</code>。</li>
+              </ul>
+            </div>
+            <div class="diff-col after">
+              <strong>✅ 整改后 (After)：</strong>
+              <ul style="padding-left:18px;margin-top:6px;">
+                <li>改为 <strong>满版杂志网格布局（填充率 82%）</strong>：顶栏刊头 + 题材大标题 + 核心题记引语框 + 01~04 看点导览卡 + 底部看点条带。</li>
+                <li>代码卡改为自适应字号（20~24px）+ <code>overflow-wrap: break-word; word-break: normal</code> + 行号顶部对齐。</li>
+                <li>智能识别 <code>travel / essay / reading / tech</code> 四大题材，预留 <code>cover:</code> 槽位并支持 <code>3:4 / 9:16 / 16:9 / 2.35:1</code> 自动封面适配。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="req-item">
+          <div class="req-header">
+            <span class="req-id">REQ-2026-11-21-02 • 桌面端分发预览面板升级与云端 CI 测试用例同步</span>
+            <span class="req-status">✔ 原型已定稿 -> 同步 React 组件与 E2E</span>
+          </div>
+          <p style="font-size:13px;"><strong>用户痛点：</strong>桌面端『分发 -> 小红书 3:4 卡片』面板仍停留在早期简陋双列小方格，且很多本地/云端测试用例还是旧断言，没有覆盖多题材卡片、抖音图文预览与封面比例切换。</p>
+          <div class="diff-grid">
+            <div class="diff-col before">
+              <strong>❌ 整改前 (Before)：</strong>
+              <ul style="padding-left:18px;margin-top:6px;">
+                <li><code>PlatformPreviewPane.tsx</code> 仅渲染简陋文本块，无主题切换、无抖音预览、无封面比例提示。</li>
+                <li>测试仅校验旧标题文本，未断言满版结构、代码块不断词及多题材识别。</li>
+              </ul>
+            </div>
+            <div class="diff-col after">
+              <strong>✅ 整改后 (After)：</strong>
+              <ul style="padding-left:18px;margin-top:6px;">
+                <li>按本页面 Tab 1 原型升级 <code>PlatformPreviewPane.tsx</code>，支持小红书/抖音 3:4 卡片、5 套主题色板切换、题材徽章与多平台封面比例切换。</li>
+                <li>同步升级 <code>socialCard.test.ts</code>、<code>publish.spec.ts</code> 与 <code>all-platforms.spec.ts</code>，确保云端 Ubuntu L1/L2/L3 跑最新用例。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="req-item">
+          <div class="req-header">
+            <span class="req-id">REQ-2026-11-21-03 • GitHub 已合并分支清理、master 自动打包与结构化中文 Release 文档</span>
+            <span class="req-status">✔ 已交付一键脚本 + 免费额度验证</span>
+          </div>
+          <p style="font-size:13px;"><strong>根因分析与方案：</strong>① <code>leileigwl/vmark</code> 为 <strong>Public 公开仓库</strong>，GitHub Actions 的 <code>macos-latest / windows-latest / ubuntu-latest</code> 均<strong>完全免费且不限分钟数</strong>；② 此前 <code>release.yml</code> 仅在手动推 <code>v*</code> tag 时触发，因此 <code>test -> master</code> 合入后未自动打 tag 发版；③ 新增 <code>scripts/release-and-branch-maintenance.mjs</code>（<code>pnpm release:maintain</code>），支持一键清理已合并远端/本地 <code>slice/*</code> 分支（保护 <code>test/master</code>），并自动按 Commit 生成含【✨ 核心新特性】【🎨 多平台排版与卡片】【🐛 修复与稳定性】【📦 三端安装包下载指南】的结构化中文 Release Notes 与 Tag。</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const GENRES = {
+      travel: {
+        badge: '旅行手记',
+        kicker: 'TRAVEL & LIFESTYLE LOG',
+        title: '京都深秋漫游手记：避开人潮的4条山野古寺步径',
+        quote: '真正的旅行不是去打卡别人镜头里的风景，而是在陌生街角找到属于自己的清晨节奏。',
+        points: [
+          '岚山奥嵯峨：清晨七点的苔庭与竹影，整条碎石路只有落叶与鸟鸣',
+          '祇王寺与常寂光寺连走：早晨8点开门即入，阳光斜穿过高耸枫林',
+          '哲学之道至南禅寺：红砖水路阁下的阅读与手冲咖啡时刻',
+          '左京区一乘寺独立书店：挑选本年度独立杂志与手账纸品'
+        ],
+        tags: ['旅行日记', '京都漫游', '秋日攻略', '城市步径', '生活记录'],
+        footer: 'Travel & City Walk Journal • 旅途见闻录'
+      },
+      essay: {
+        badge: '个人随笔',
+        kicker: 'PERSONAL ESSAY & NOTES',
+        title: '慢写作时代的个人数字花园：为什么我坚持本地优先记录',
+        quote: '我们写下的每一段文字，都不该被困在某一个平台的封闭数据库里，而应成为伴随一生的思维资产。',
+        points: [
+          '找回对文字与版面的掌控感，远离算法流十几秒的碎片焦虑',
+          '一次专注写作，自动衍生为适配博客、公众号、小红书与抖音的作品',
+          '引语、章节看点与脚注文献自动归位，无需反复手动调字号',
+          '每一轮灵感与需求迭代都沉淀在本地 HTML 图鉴看板中随时回看'
+        ],
+        tags: ['个人随笔', '数字花园', '读书笔记', '独立博客', '深度思考'],
+        footer: 'Personal Essay & Reflection • 独立博客随笔'
+      },
+      tech: {
+        badge: '技术实践',
+        kicker: 'ENGINEERING & TECH DIGEST',
+        title: '前端高性能离线排版：从架构哲学到工程落地',
+        quote: '把排版的不确定性交给确定性的本地光栅化引擎，让创作者只专注于表达本身。',
+        points: [
+          '纯本地解析与光栅化渲染，零外部云端依赖与数据泄露隐患',
+          '融合 Guizang Editorial 杂志网格与小红书/抖音 82% 满版比例系统',
+          'Ray.so 代码窗口智能词边界换行，彻底杜绝英文标识符从中间断裂',
+          '预留自定义封面槽位，无封面时自动生成 3:4 / 16:9 / 2.35:1 专属封面'
+        ],
+        tags: ['前端架构', '性能优化', '本地优先', '极客工程', '技术分享'],
+        footer: 'Editorial × Ray.so Spec • 工程与架构笔记'
+      }
+    };
+
+    const THEMES = {
+      'editorial-coral': { paper: '#fdfaf6', ink: '#261f1b', sub: '#63534a', accent: '#e05338', pill: '#fde9df', card: '#ffffff', quote: '#fbf3ec' },
+      'ink-classic': { paper: '#f3efe9', ink: '#161412', sub: '#524b44', accent: '#8c3f2b', pill: '#e7e0d6', card: '#faf8f5', quote: '#ece6dd' },
+      'forest-journal': { paper: '#f4f7f4', ink: '#16241c', sub: '#43584b', accent: '#1f6f50', pill: '#e0efe7', card: '#ffffff', quote: '#eaf3ee' },
+      'ray-dark': { paper: '#0d1117', ink: '#f0f6fc', sub: '#9ca3af', accent: '#58a6ff', pill: 'rgba(56,139,253,0.2)', card: '#161b22', quote: '#1c2330' },
+      'swiss-slate': { paper: '#f8fafc', ink: '#0f172a', sub: '#475569', accent: '#2563eb', pill: '#e8f0fe', card: '#ffffff', quote: '#f1f5f9' }
+    };
+
+    const state = { platform: 'xiaohongshu', genre: 'travel', theme: 'editorial-coral', ratio: '3:4' };
+
+    function switchTab(id, btn) {
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('panel-' + id).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    function setProtoPlatform(p, btn) {
+      state.platform = p;
+      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (p === 'weixin') setProtoRatio('2.35:1', document.getElementById('ratio-235-1'));
+      else if (p === 'zhihu') setProtoRatio('16:9', document.getElementById('ratio-16-9'));
+      else setProtoRatio('3:4', document.getElementById('ratio-3-4'));
+    }
+
+    function setProtoGenre(g, btn) {
+      state.genre = g;
+      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderProto();
+    }
+
+    function setProtoTheme(t, btn) {
+      state.theme = t;
+      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderProto();
+    }
+
+    function setProtoRatio(r, btn) {
+      state.ratio = r;
+      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderProto();
+    }
+
+    function renderProto() {
+      const g = GENRES[state.genre];
+      const t = THEMES[state.theme];
+      const isLandscape = state.ratio === '16:9' || state.ratio === '2.35:1';
+      const frame = document.getElementById('proto-Dynamic-Card');
+
+      frame.style.background = t.paper;
+      frame.style.color = t.ink;
+      frame.style.maxWidth = isLandscape ? '760px' : '460px';
+      frame.style.aspectRatio = state.ratio === '2.35:1' ? '2.35 / 1' : state.ratio.replace(':', ' / ');
+
+      const tagsHtml = g.tags.map(tag =>
+        `<span style="background:${t.pill};color:${t.accent};padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">#${tag}</span>`
+      ).join(' ');
+
+      const pointsHtml = isLandscape ? '' : `
+        <div style="background:${t.card};border:1px solid rgba(128,128,128,0.2);border-radius:14px;padding:14px 16px;margin:12px 0;flex:1;display:flex;flex-direction:column;justify-content:space-evenly;">
+          <div style="font-size:10px;font-weight:700;color:${t.sub};letter-spacing:1px;border-bottom:1px solid rgba(128,128,128,0.15);padding-bottom:6px;margin-bottom:6px;">HIGHLIGHTS / 本篇看点导览 (01 — 04)</div>
+          ${g.points.map((pt, i) => `
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;${i > 0 ? 'border-top:1px dashed rgba(128,128,128,0.15);' : ''}">
+              <span style="background:${t.pill};color:${t.accent};font-family:monospace;font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;">0${i + 1}</span>
+              <span style="font-size:13px;line-height:1.45;font-weight:500;">${pt}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      frame.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(128,128,128,0.2);padding-bottom:10px;font-size:11px;font-weight:700;">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.accent};margin-right:6px;"></span>VMARK STUDIO</span>
+          <span style="background:${t.pill};color:${t.accent};padding:2px 10px;border-radius:999px;">${g.badge} · ${state.ratio}</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:14px 0;">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:${t.accent};letter-spacing:1.5px;margin-bottom:6px;">— ${g.kicker} • UGC 封面自适应</div>
+            <h2 style="font-size:${isLandscape ? '22px' : '25px'};line-height:1.25;font-weight:800;margin-bottom:10px;">${g.title}</h2>
+            <div style="background:${t.quote};border-left:4px solid ${t.accent};padding:10px 14px;border-radius:10px;font-size:12px;color:${t.sub};">
+              “${g.quote}”
+            </div>
+          </div>
+          ${pointsHtml}
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">${tagsHtml}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(128,128,128,0.2);padding-top:10px;font-size:11px;color:${t.sub};">
+          <span>${g.footer}</span>
+          <span style="color:${t.accent};font-weight:700;">Swipe Next ➔</span>
+        </div>
+      `;
+
+      document.getElementById('proto-status-box').innerHTML = `
+        <div>• <strong>当前目标平台：</strong>${state.platform.toUpperCase()}</div>
+        <div>• <strong>自动识别题材：</strong>${g.badge} (<code>${state.genre}</code>)</div>
+        <div>• <strong>封面槽位策略：</strong>未检测到手动 <code>cover:</code>，已自动启用 <strong>${state.ratio} UGC 杂志封面模板</strong></div>
+        <div>• <strong>版面填充率：</strong>82% 黄金满版网格（已消除旧版上下死白）</div>
+      `;
+      document.getElementById('proto-caption-box').textContent =
+        `${g.title}\n\n${g.quote}\n${g.points.map(p => '• ' + p).join('\n')}\n\n${g.tags.map(x => '#' + x).join(' ')}`;
+    }
+
+    renderProto();
+  </script>
+</body>
+</html>
