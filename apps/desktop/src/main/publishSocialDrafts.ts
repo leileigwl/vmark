@@ -3,7 +3,11 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import type Electron from 'electron';
 import { renderXiaohongshuCards } from '@vcat/core';
-import type { MultiPlatformPublishPayload, MultiPlatformPublishResultItem } from '@vcat/shared';
+import type {
+  MultiPlatformPublishPayload,
+  MultiPlatformPublishResultItem,
+  SocialCoverRatio,
+} from '@vcat/shared';
 import { attachInternalBrowserStealth } from './internalBrowserManager';
 import { hasSessionAuthCookies, type PublishAppConfig } from './publishSessionAuth';
 import { rasterizeSocialCards } from './socialCardRasterizer';
@@ -54,7 +58,8 @@ async function resolveUploadImages(
   workspacePath: string | null,
   markdown: string,
   title?: string,
-  themeId?: string
+  themeId?: string,
+  aspectRatio?: SocialCoverRatio
 ): Promise<string[]> {
   const localImages = await resolveLocalImageFiles(workspacePath, markdown);
   if (localImages.length > 0) {
@@ -66,6 +71,7 @@ async function resolveUploadImages(
       markdown,
       title,
       themeId: selectedTheme,
+      aspectRatio: aspectRatio ?? '3:4',
       maxCards: 9,
     });
     return imagePaths;
@@ -176,8 +182,13 @@ export async function publishXiaohongshuDraft(params: {
     };
   }
 
-  const requestedTheme = (payload as { themeId?: string }).themeId;
-  const files = await resolveUploadImages(cfg.workspacePath, payload.markdown, payload.title, requestedTheme);
+  const files = await resolveUploadImages(
+    cfg.workspacePath,
+    payload.markdown,
+    payload.title,
+    payload.socialThemeId,
+    payload.socialCoverRatio
+  );
   if (files.length === 0) {
     return {
       platformId: 'xiaohongshu',
@@ -285,8 +296,13 @@ export async function publishDouyinDraft(params: {
     };
   }
 
-  const requestedTheme = (payload as { themeId?: string }).themeId;
-  const files = await resolveUploadImages(cfg.workspacePath, payload.markdown, payload.title, requestedTheme);
+  const files = await resolveUploadImages(
+    cfg.workspacePath,
+    payload.markdown,
+    payload.title,
+    payload.socialThemeId,
+    payload.socialCoverRatio
+  );
   if (files.length === 0) {
     return {
       platformId: 'douyin',

@@ -58,12 +58,19 @@ test('rasterizeSocialCards coordinates window lifecycle and writes PNG files', a
 
   const result = await rasterizeSocialCards({
     markdown: '# 架构设计\n- 核心要点',
+    themeId: 'minimalist-magazine',
+    aspectRatio: '2:3',
     maxCards: 1,
-    browserWindowFactory: () => mockWin,
+    browserWindowFactory: (opts) => {
+      assert.equal(opts.width, 1080);
+      assert.equal(opts.height, 1620);
+      return mockWin;
+    },
   });
 
   assert.ok(result.imagePaths.length > 0);
   assert.ok(result.imagePaths[0].endsWith('.png'));
   assert.ok(loadedUrl.includes('data:text/html'));
+  assert.ok(decodeURIComponent(loadedUrl).includes('1620px'));
   assert.equal(destroyed, true);
 });
