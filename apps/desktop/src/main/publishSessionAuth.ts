@@ -8,25 +8,29 @@ import {
   type FetchLike,
 } from '@vcat/adapters';
 import type { ImageBedConfig, PlatformId } from '@vcat/shared';
+import { buildChromeBrowserHeaders, CHROME_DESKTOP_UA } from './browserStealth.ts';
 
 export interface PublishAppConfig {
   workspacePath: string | null;
   imageBed: ImageBedConfig;
 }
 
-const CHROME_DESKTOP_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
 export function createSessionFetch(targetSession: Electron.Session): FetchLike {
+  const browserHeaders = buildChromeBrowserHeaders();
   try {
-    targetSession.setUserAgent(CHROME_DESKTOP_UA);
+    targetSession.setUserAgent(browserHeaders['User-Agent']);
   } catch {
     // ignore user-agent override failure in mock/headless sessions
   }
   return async (input, init) => {
     const customInit = ({ ...init }) as Parameters<typeof targetSession.fetch>[1];
     const headers = new Headers(customInit?.headers || {});
+    for (const [key, value] of Object.entries(browserHeaders)) {
+      if (!headers.has(key)) {
+        headers.set(key, value);
+      }
+    }
     if (!headers.has('User-Agent')) {
       headers.set('User-Agent', CHROME_DESKTOP_UA);
     }

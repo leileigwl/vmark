@@ -6,9 +6,22 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ exclude: ['@vcat/core', '@vcat/image-pipeline', '@vcat/adapters', '@vcat/shared'] })],
+    build: {
+      rollupOptions: {
+        external: ['playwright-core'],
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin({ exclude: ['@vcat/shared'] })],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/preload/index.ts'),
+          stealthLogin: resolve('src/preload/stealthLogin.ts'),
+        },
+      },
+    },
   },
   renderer: {
     publicDir: resolve('src/renderer/public'),
