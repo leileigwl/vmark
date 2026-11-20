@@ -72,8 +72,8 @@ export class CsdnAdapter implements PlatformAdapter {
         headers,
       });
       if (!res.ok) return false;
-      const data = (await res.json()) as { code?: number; data?: { name?: string } };
-      return data.code === 200 && Boolean(data.data?.name);
+      const data = (await res.json()) as { code?: number; msg?: string; data?: { name?: string } | null };
+      return data.code === 200 && (Boolean(data.data?.name) || data.msg === 'success');
     } catch {
       return false;
     }
@@ -179,7 +179,7 @@ export class CsdnAdapter implements PlatformAdapter {
       body: JSON.stringify({
         title: payload.title,
         markdowncontent: payload.markdown,
-        content: payload.html || '',
+        content: payload.html || payload.markdown,
         readType: 'public',
         level: 0,
         tags: payload.tags.join(','),
@@ -200,7 +200,19 @@ export class CsdnAdapter implements PlatformAdapter {
     });
 
     if (!res.ok) {
-      throw new Error(`CSDN 草稿保存失败: HTTP ${res.status}`);
+      let errMsg = `HTTP ${res.status}`;
+      try {
+        const errJson = (await res.json()) as { msg?: string; message?: string };
+        if (errJson.msg || errJson.message) {
+          errMsg = errJson.msg || errJson.message || errMsg;
+        }
+      } catch {
+        // non-JSON error body
+      }
+      if (errMsg.includes('博主不存在')) {
+        throw new Error('CSDN 账号尚未开通博客空间，请访问 https://mp.csdn.net/ 开通博客后重试');
+      }
+      throw new Error(`CSDN 草稿保存失败: ${errMsg}`);
     }
 
     const data = (await res.json()) as {

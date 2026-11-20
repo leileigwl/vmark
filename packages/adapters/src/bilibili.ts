@@ -94,7 +94,7 @@ export class BilibiliAdapter implements PlatformAdapter {
     const verified = await this.verifyDelivery(postId);
     return {
       postId,
-      url: `https://member.bilibili.com/article-text/home?aid=${encodeURIComponent(postId)}`,
+      url: `https://member.bilibili.com/platform/upload/text/new-edit?aid=${encodeURIComponent(postId)}`,
       mode: 'draft',
       verified,
     };

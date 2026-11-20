@@ -1,36 +1,30 @@
 # Session Handoff（覆盖式进度快照）
 
-> 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史均留存在 Git Commit 与 `openspec/changes/archive/` 中。
+> 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史与视觉图鉴均留存在 [`docs/requirement-journal.html`](requirement-journal.html) 与 `openspec/changes/archive/` 中。
 
-- **快照日期**：2026-11-19
-- **当前阶段**：**Slop Issue #4 全量清零（29 -> 0）& `.agents/hooks.json` 新开窗口 CWD 路径修复就绪**
-- **最新基线版本**：`v0.1.0`（`master` @ `07ba273` / `test` @ `4007bea`）
-- **当前底座锁状态**：`bootstrapLocked: true`（底座框架已硬锁定，红黄绿边界见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)）
-- **最近 Slop 巡检记录**：Issue #4 原 29 项债务已分两波全部清零（Wave 1 PR #10 清理 19 项 + 本轮清理 5 项 Harness 导出/重复块并拆分全部 5 个超行棘轮文件，7 大核心文件全部 ≤ 469 行）。
+- **快照日期**：2026-11-21
+- **当前阶段**：**对标 `xhs-textcard.site` 像素级复刻「苹果备忘录」「极简杂志」「空白模板」流式文档排版与 HTML 原型先行 (`slice/social-card-generator`)**
+- **最新基线版本**：`v0.1.0`（`master` @ `5c51dde` / `test` @ `c93e981`）
+- **当前底座锁状态**：`bootstrapLocked: true`（底座硬锁定，红黄绿边界见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)）
+- **样式与 UI 迭代铁律**：**先更新交接文档 → 先做 HTML 交互原型与真实配套图预览调优（[`docs/requirement-journal.html`](requirement-journal.html)）→ 视觉比例确认达标后再落盘 React 组件与 E2E 测试**。
 
-## 已完成里程碑
+## 已完成与进行中里程碑
 
-1. **开源合规、宪法文档收敛与操作手册（Phase 0）**：
-   - 完成全 Git 历史敏感凭据/路径清理，落盘 **AGPL-3.0-only（`LICENSE`）+ 商业双授权（`LICENSE-COMMERCIAL.md`）**，`leileigwl/vmark` 已切换为 `PUBLIC`。
-   - 收敛 [`AGENTS.md`](../AGENTS.md)（36 行）、[`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md)、[`docs/ARCHITECTURE.md`](ARCHITECTURE.md) 并归档 `init-cat-publisher`。
-2. **确定性 Harness + 原生 Hook 硬锁（Phase 1）**：
-   - `.harness/` Schema 与 `scripts/harness/`（`anti-cheat`、`ratchet`、`risk-classifier` Path+AST+语义三层、`arch-graph`、`slice-lock`、2 次失败 `escalated` 熔断）。
-   - 接入 `.agents/hooks.json`、`.claude/settings.json` 与 `.githooks/`（`SessionStart`/`PreToolUse`/`PostToolUse`/`Stop`）。
-3. **Ubuntu 分级 CI/CD 与邮件反推闭环（Phase 2 & 4）**：
-   - `.github/risk-rules.yml` + `ci.yml`（L0/L1/L2 分片/L3 `xvfb-run` 全在 `ubuntu-latest`，日常 PR 零 `macos-latest` 启动）。
-   - `risk-gate.yml`、`daily-release-pr.yml`（21:00 CST Drain & Freeze + 5 指标 + `@leileigwl`）、`auto-revert.yml`、Fork 安全隔离两段式 `ai-review.yml` + `ai-review-post.yml`、每周 `slop-audit.yml`（联动 `knip` + 5 类 Slop）。
-   - 交付便携跨项目套件 `scripts/harness/init-project.ts` + `.harness/profiles/`（含 `web-service` Compose/迁移回滚/`k6-smoke.js`）。
-4. **物理模块岛解耦与五层测试升级（Phase 3）**：
-   - `packages/shared/src/ipcContract.ts` 三端 IPC 契约与 `ipcContract.test.ts`。
-   - `apps/desktop/src/main/index.ts`（1303 -> 317 行）拆入 `ipc/<domain>/index.ts`；`apps/desktop/src/renderer/src/App.tsx`（1393 -> 413 行）拆入 `features/<domain>/index.ts`；`VditorEditor.tsx`、`vditorKeyboard.ts`、`publishHandlers.ts`、`Sidebar.tsx`、`SettingsView.tsx` 均已拆至 `<= 469` 行（棘轮总基线 `5253 -> 2216` 行）。
+1. **开源合规、宪法文档收敛与操作手册（Phase 0–3）**：
+   - 落盘 **AGPL-3.0-only（`LICENSE`）+ 商业双授权（`LICENSE-COMMERCIAL.md`）**，`leileigwl/vmark` 为 `PUBLIC`。
+   - `.harness/` Schema 与 `scripts/harness/` 门禁完备，7 大核心文件全部拆至 `<= 469` 行。
+2. **本轮重点：像素级对齐 `xhs-textcard.site/editor` 流式长文排版体系（Phase 5.1）**：
+   - **彻底摒弃 PPT 汇报风噪音元素**：移除生硬的 `VMARK STUDIO` 顶栏、`CHAPTER §02` 胶囊、每段前面的 `01/02/03` 方块编号及 `Swipe Next` 页脚，回归纯粹的 **连续流式文档分页排版**（标题 `# / ##` + 引用框 `>` + 自然段落 + `**加粗**` + `==高亮==` + `*斜体*` + 列表 `•` + 代码块从上至下自然排布，仅右下角保留极克制的 `1 / N` 页码）。
+   - **复刻最常用的 3 大主力模板 + 扩展模板**：
+     1. **`ios-memo`（苹果备忘录 / 笔记本 — 默认主力）**：`#F2F2F7` iOS 灰底 + 顶部橙色 `< 备忘录`、居中日期时间、右侧 `完成` + `#FFFFFF` 圆角白纸（`12px` 比例圆角 + 柔和阴影 + 随行高对齐的 `#F2F2F7` 横向信纸格线）+ `#FF9500` 橙色标题/引用左竖线/`==高亮==`底色。
+     2. **`minimalist-magazine`（极简杂志）**：`#FFFFFF` 纯白画布 + 顶部与底部 `1px` 极细社论分割线（Hairlines）+ `'Noto Serif SC'` 衬线体 + `#8C3A3A` 绛红标题/引用左线/高亮。
+     3. **`blank`（空白模板）**：`#FFFFFF` 零装饰纯净白底，无顶栏无分割线，回归文字本质，`#888888` 克制灰标题 + `#1A1A1A` 正文。
+     4. **`elegant-book`（书籍内页）**：优雅泛黄纸张与左侧书脊微阴影，满足书摘与长文阅读需求（已全量移除暗黑配色卡片模板，全面回归清爽浅色阅读美学）。
+   - **支持 3 种标准长文/卡片比例**：`小红书 3:4 (1080×1440)`、`小红书长文 2:3 (1080×1620)`、`短视频 9:16 (1080×1920)` 及横版专栏封面。
+   - **HTML 原型与需求记录图鉴**：落盘 [`docs/requirement-journal.html`](requirement-journal.html)，实时预览「苹果备忘录 / 极简杂志 / 空白模板」切换效果。
 
 ## 验证边界诚实声明（L1–L4 严格分层）
 
-- **L0/L1（本地与 CI 确定性静态/单测）**：`pnpm harness:check`、`pnpm harness:test`、`pnpm run typecheck`、`pnpm turbo run test`（含 `ipcContract.test.ts` 与 Mock 适配器单测）。
-- **L2（Mock IPC 渲染层 Web E2E）**：`apps/desktop/playwright.config.ts` 动态端口 + 独立临时目录 Playwright（21 条 E2E 用例），仅验证渲染与编辑体验，**不代表真实主进程或线上平台**。
-- **L3（真实 Electron 主进程无头冒烟）**：`apps/desktop/tests/electron-smoke.spec.ts` 在本地与 Ubuntu CI（`xvfb-run`）拉起真实 `electron` 验证窗口渲染与 Main↔Preload↔Renderer IPC 往返。
-- **L4（真实第三方平台线上联调）**：微信公众号、知乎、百家号等真实账号与线上草稿箱推送**未在 CI 自动执行**，仅在本地实机按需手动验收。
-
-## 后续日常行动
-
-1. 按 [`docs/OPERATOR_PLAYBOOK.md`](OPERATOR_PLAYBOOK.md) 开展单窗口或并发切片日常业务开发，直接新开窗口即可由修复后的 `.agents/hooks.json` 自动加载快照。
+- **L0/L1**：`pnpm harness:check --json`、`pnpm run typecheck`、`pnpm turbo run test`。
+- **L2**：`apps/desktop/playwright.config.ts` 验证渲染、编辑体验与「苹果备忘录 / 极简杂志 / 空白模板」预览切换。
+- **L3**：`apps/desktop/tests/electron-smoke.spec.ts` 在本地与 Ubuntu CI（`xvfb-run`）拉起真实 `electron`。

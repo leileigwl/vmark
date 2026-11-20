@@ -1,66 +1,257 @@
+import { GENRE_META, type ContentGenre, type PlatformCoverRatio } from './socialCardThemes.ts';
+
+export type UgcCoverTemplate =
+  | 'ios-memo'
+  | 'minimalist-magazine'
+  | 'blank'
+  | 'editorial-magazine'
+  | 'ugc-big-type'
+  | 'travel-postcard'
+  | 'tech-blueprint';
+
 export interface XhsCardSection {
   type: 'cover' | 'content' | 'code';
   title: string;
   subtitle?: string;
   bodyLines: string[];
+  quote?: string;
+  closingQuote?: string;
+  takeaway?: string;
   codeLang?: string;
   tags?: string[];
+  genre?: ContentGenre;
+  coverImage?: string;
+  coverTemplate?: UgcCoverTemplate;
 }
 
 export interface XhsNotePayload {
   title: string;
   captionText: string;
   tags: string[];
+  genre: ContentGenre;
+  coverImage?: string;
+  coverRatio: PlatformCoverRatio;
+  coverTemplate: UgcCoverTemplate;
   cards: XhsCardSection[];
 }
 
+export interface RenderXiaohongshuOptions {
+  fallbackTitle?: string;
+  genre?: ContentGenre;
+  coverImage?: string;
+  coverRatio?: PlatformCoverRatio;
+  coverTemplate?: UgcCoverTemplate;
+}
+
+/** Detects article genre by scoring title/tags (high weight) and markdown body features. */
+export function detectArticleGenre(markdown: string, title = '', tags: string[] = []): ContentGenre {
+  const headerContext = `${title} ${tags.join(' ')}`.toLowerCase();
+  const bodyContext = markdown.slice(0, 1500).toLowerCase();
+
+  if (
+    /```|~~~/.test(markdown) ||
+    /typescript|javascript|python|rust|架构|算法|前端|后端|源码|组件|协议|api|docker|极客|工程/i.test(
+      headerContext
+    )
+  ) {
+    return 'tech';
+  }
+
+  if (
+    /旅行|游记|漫游|行程|景点|民宿|航班|徒步|露营|攻略|京都|大理|川西|海岛|步径|古寺|city\s*walk|travel|trip/i.test(
+      headerContext
+    )
+  ) {
+    return 'travel';
+  }
+
+  if (/读书|书单|阅读|书评|摘抄|札记|book|reading/i.test(headerContext)) {
+    return 'reading';
+  }
+
+  if (/旅行|游记|漫游|行程|景点|民宿|徒步|露营|city\s*walk|Day\s*\d/i.test(bodyContext)) {
+    return 'travel';
+  }
+  if (/读书|书单|书评|作者|章节|阅读笔记/i.test(bodyContext)) {
+    return 'reading';
+  }
+  if (/架构|算法|前端|后端|源码|接口|编译|部署/i.test(bodyContext)) {
+    return 'tech';
+  }
+  return 'essay';
+}
+
+function defaultCoverTemplateForGenre(genre: ContentGenre): UgcCoverTemplate {
+  switch (genre) {
+    case 'travel':
+      return 'travel-postcard';
+    case 'tech':
+      return 'tech-blueprint';
+    case 'reading':
+      return 'editorial-magazine';
+    default:
+      return 'ugc-big-type';
+  }
+}
+
+/** Strips all inline markdown syntax (used for plain-text titles & captions). */
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/==([^=]+)==/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/~~([^~]+)~~/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+}
+
+/** Preserves **bold**, ==highlight==, *italic*, ~~del~~, and `code` for xhs-textcard inline rendering. */
+function preserveRichInlineMarkdown(text: string): string {
+  return text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
+}
+
 /**
- * Transforms Markdown into structured 3:4 Xiaohongshu visual card models and caption.
+ * Transforms Markdown into continuous flowing 3:4 / 2:3 Xiaohongshu & Douyin visual cards
+ * modeled after xhs-textcard.site/editor (Apple Notes, Minimalist Magazine, Blank, etc.).
  */
 export function renderXiaohongshuCards(
   markdown: string,
-  fallbackTitle = '技术笔记'
+  fallbackTitleOrOptions: string | RenderXiaohongshuOptions = '个人随笔'
 ): XhsNotePayload {
-  let title = fallbackTitle;
-  const tags: string[] = ['技术笔记', '前端开发', '编程日常'];
+  const opts: RenderXiaohongshuOptions =
+    typeof fallbackTitleOrOptions === 'string'
+      ? { fallbackTitle: fallbackTitleOrOptions }
+      : fallbackTitleOrOptions;
+
+  let title = opts.fallbackTitle || '个人随笔';
+  const explicitTags: string[] = [];
+  let fmCoverImage = opts.coverImage;
+  let fmSubtitle = '';
 
   // Frontmatter parsing
   const fmMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   let cleanMd = markdown;
   if (fmMatch) {
     cleanMd = markdown.slice(fmMatch[0].length);
-    const lines = fmMatch[1].split(/\r?\n/);
-    for (const l of lines) {
+    const fmLines = fmMatch[1].split(/\r?\n/);
+    for (const l of fmLines) {
       const titleMatch = l.match(/^title:\s*(.+)$/i);
       if (titleMatch) title = titleMatch[1].replace(/^["']|["']$/g, '').trim();
+
+      const subMatch = l.match(/^(?:subtitle|description|summary):\s*(.+)$/i);
+      if (subMatch) fmSubtitle = subMatch[1].replace(/^["']|["']$/g, '').trim();
+
+      const coverMatch = l.match(/^(?:cover|coverImage|banner):\s*(.+)$/i);
+      if (coverMatch && !fmCoverImage) {
+        fmCoverImage = coverMatch[1].replace(/^["']|["']$/g, '').trim();
+      }
+
       const tagsMatch = l.match(/^tags:\s*\[(.*)\]/i);
       if (tagsMatch) {
         const parsed = tagsMatch[1]
           .split(',')
           .map((t) => t.replace(/^["']|["']$/g, '').trim())
           .filter(Boolean);
-        if (parsed.length > 0) tags.push(...parsed);
+        explicitTags.push(...parsed);
       }
     }
   }
 
-  const lines = cleanMd.split(/\r?\n/);
-  const cards: XhsCardSection[] = [];
+  // Extract first H1 if title was not set by frontmatter
+  const firstH1Match = cleanMd.match(/^#\s+(.+)$/m);
+  if (firstH1Match && (!opts.fallbackTitle || title === opts.fallbackTitle)) {
+    title = stripInlineMarkdown(firstH1Match[1]);
+  }
 
-  // Card 1: Cover Card
+  // Extract inline hashtags like #旅行日记 #生活碎片
+  const inlineHashtags = [
+    ...cleanMd.matchAll(/(?:^|\s)#([\u4e00-\u9fa5a-zA-Z0-9_-]{2,10})(?=\s|$)/g),
+  ].map((m) => m[1]);
+
+  if (!fmCoverImage) {
+    const firstImgMatch = cleanMd.match(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/);
+    if (firstImgMatch) {
+      fmCoverImage = firstImgMatch[1].trim();
+    }
+  }
+
+  const genre =
+    opts.genre || detectArticleGenre(cleanMd, title, [...explicitTags, ...inlineHashtags]);
+  const genreConfig = GENRE_META[genre];
+  const mergedTags = Array.from(
+    new Set([...explicitTags, ...inlineHashtags, ...genreConfig.defaultTags])
+  ).slice(0, 7);
+
+  const coverRatio: PlatformCoverRatio = opts.coverRatio || '3:4';
+  const coverTemplate: UgcCoverTemplate =
+    opts.coverTemplate || defaultCoverTemplateForGenre(genre);
+
+  const lines = cleanMd.split(/\r?\n/);
+  const headings: string[] = [];
+  const quotes: string[] = [];
+  const richParagraphs: string[] = [];
+
+  let scanCode = false;
+  for (const rawLine of lines) {
+    const t = rawLine.trim();
+    if (/^(`{3,}|~{3,})/.test(t)) {
+      scanCode = !scanCode;
+      continue;
+    }
+    if (scanCode || !t) continue;
+    const h = t.match(/^#{1,3}\s+(.+)$/);
+    if (h) {
+      const hText = stripInlineMarkdown(h[1]);
+      if (hText !== title) headings.push(hText);
+      continue;
+    }
+    if (t.startsWith('>')) {
+      const q = preserveRichInlineMarkdown(t.replace(/^>\s*(\[![A-Z]+\])?\s*/, ''));
+      if (q) quotes.push(q);
+      continue;
+    }
+    if (!t.startsWith('#') && !t.startsWith('![') && t.length >= 6) {
+      richParagraphs.push(preserveRichInlineMarkdown(t));
+    }
+  }
+
+  // Page 1 (Cover / First Page of Flowing Note, just like xhs-textcard.site Page 1)
+  const firstPageLines: string[] = [];
+  for (const p of richParagraphs.slice(0, 4)) {
+    firstPageLines.push(p);
+  }
+  if (firstPageLines.length === 0 && headings.length > 0) {
+    firstPageLines.push(...headings.slice(0, 4));
+  }
+  if (firstPageLines.length === 0) {
+    firstPageLines.push(
+      '每一段保持短一点，两个回车分隔段落。系统会优先在段落之间自动分页，让阅读节奏更自然。',
+      '**加粗**适合普通关键词，它只改变字重，颜色会和正文一致。',
+      '==高亮==适合真正需要停顿的关键信息，如核心结论、路线节点或转折点。'
+    );
+  }
+
+  const cards: XhsCardSection[] = [];
   cards.push({
     type: 'cover',
     title,
-    subtitle: 'Vmark 极客排版与发布指南',
-    bodyLines: ['⚡️ 纯本地 Markdown 一键生成', '🎯 全平台自适应高保真排版'],
-    tags: Array.from(new Set(tags)),
+    subtitle: fmSubtitle || headings[0] || `${genreConfig.badge}`,
+    bodyLines: firstPageLines.slice(0, 4),
+    quote: quotes[0] || fmSubtitle,
+    closingQuote: quotes[1],
+    tags: mergedTags,
+    genre,
+    coverImage: fmCoverImage,
+    coverTemplate,
   });
 
-  // Body Cards & Code Cards
+  // Subsequent flowing pages & code cards
   let currentCard: XhsCardSection = {
     type: 'content',
-    title: '核心内容概要',
+    title: headings[0] || `${genreConfig.badge}`,
     bodyLines: [],
+    genre,
   };
 
   let inCode = false;
@@ -84,9 +275,10 @@ export function renderXiaohongshuCards(
       inCode = false;
       cards.push({
         type: 'code',
-        title: `代码实现 (${codeLang || 'Snippet'})`,
-        bodyLines: codeBuffer.slice(0, 18), // keep within single 3:4 card height
+        title: currentCard.title ? `${currentCard.title}` : `代码实现 (${codeLang || 'Snippet'})`,
+        bodyLines: codeBuffer.slice(0, 18),
         codeLang: codeLang || 'typescript',
+        genre,
       });
       codeBuffer = [];
       codeLang = '';
@@ -101,27 +293,47 @@ export function renderXiaohongshuCards(
 
     const hMatch = line.match(/^#{1,3}\s+(.+)$/);
     if (hMatch) {
+      const hTitle = stripInlineMarkdown(hMatch[1]);
+      if (hTitle === title) continue;
       if (currentCard.bodyLines.length > 0) {
         cards.push(currentCard);
       }
       currentCard = {
         type: 'content',
-        title: hMatch[1].trim(),
+        title: hTitle,
         bodyLines: [],
+        genre,
       };
       continue;
     }
 
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith('![')) {
-      currentCard.bodyLines.push(trimmed.replace(/^[-*]\s+/, '• '));
-      if (currentCard.bodyLines.length >= 6) {
-        cards.push(currentCard);
-        currentCard = {
-          type: 'content',
-          title: `${currentCard.title} (续)`,
-          bodyLines: [],
-        };
+    if (trimmedLine.startsWith('>')) {
+      const qText = preserveRichInlineMarkdown(trimmedLine.replace(/^>\s*(\[![A-Z]+\])?\s*/, ''));
+      if (qText && qText !== quotes[0]) {
+        if (!currentCard.quote) {
+          currentCard.quote = qText;
+        } else if (!currentCard.closingQuote) {
+          currentCard.closingQuote = qText;
+        } else {
+          currentCard.bodyLines.push(`> ${qText}`);
+        }
+      }
+      continue;
+    }
+
+    if (trimmedLine && !trimmedLine.startsWith('![')) {
+      const richLine = preserveRichInlineMarkdown(trimmedLine.replace(/^[-*]\s+/, '• '));
+      if (richLine) {
+        currentCard.bodyLines.push(richLine);
+        if (currentCard.bodyLines.length >= 5) {
+          cards.push(currentCard);
+          currentCard = {
+            type: 'content',
+            title: `${currentCard.title.replace(/ \(续\)$/, '')} (续)`,
+            bodyLines: [],
+            genre,
+          };
+        }
       }
     }
   }
@@ -130,17 +342,18 @@ export function renderXiaohongshuCards(
     cards.push(currentCard);
   }
 
-  // Caption text (max 800 chars + hashtags)
+  // Plain-text caption
   const plainText = cleanMd
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/^#{1,6}\s+/gm, '')
+    .replace(/==([^=]+)==/g, '$1')
     .replace(/[*_~`]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
   const shortSummary = plainText.length > 600 ? `${plainText.slice(0, 599)}…` : plainText;
-  const hashTagStr = Array.from(new Set(tags))
+  const hashTagStr = mergedTags
     .slice(0, 6)
     .map((t) => `#${t.replace(/\s+/g, '')}`)
     .join(' ');
@@ -150,7 +363,11 @@ export function renderXiaohongshuCards(
   return {
     title,
     captionText,
-    tags: Array.from(new Set(tags)),
-    cards: cards.slice(0, 18), // Xiaohongshu allows max 18 images
+    tags: mergedTags,
+    genre,
+    coverImage: fmCoverImage,
+    coverRatio,
+    coverTemplate,
+    cards: cards.slice(0, 18),
   };
 }

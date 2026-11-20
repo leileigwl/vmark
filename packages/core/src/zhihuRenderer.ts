@@ -50,6 +50,16 @@ export function renderZhihuHtml(
       return `\u0000CODE_${idx}\u0000`;
     });
 
+    // Inline LaTeX equations (Zhihu native equation image endpoint)
+    s = s.replace(/\$([^$\n]+)\$/g, (_m, tex) => {
+      const idx = codeSlots.length;
+      const cleanTex = tex.trim();
+      codeSlots.push(
+        `<img src="https://www.zhihu.com/equation?tex=${encodeURIComponent(cleanTex)}" alt="${escapeHtml(cleanTex)}" eeimg="1"/>`
+      );
+      return `\u0000CODE_${idx}\u0000`;
+    });
+
     // Images
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
       const cleanUrl = url.trim();
@@ -82,6 +92,22 @@ export function renderZhihuHtml(
   let quoteLines: string[] = [];
   let inTable = false;
   let tableRows: string[][] = [];
+  let inMathBlock = false;
+  let mathLines: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) {
+      listType = null;
+      listItems = [];
+      return;
+    }
+    const itemsHtml = listItems.map((item) => `<li>${renderInline(item)}</li>`).join('');
+    out.push(`<${listType}>${itemsHtml}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
 
   const CALLOUT_LABELS: Record<string, string> = {
     NOTE: 'ℹ️ 提示',
@@ -109,12 +135,13 @@ export function renderZhihuHtml(
     if (!inTable) return;
     if (tableRows.length > 0) {
       const [header, ...body] = tableRows;
-      const headHtml = `<thead><tr>${header.map((c) => `<th>${renderInline(c)}</th>`).join('')}</tr></thead>`;
-      const bodyHtml =
-        body.length > 0
-          ? `<tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${renderInline(c)}</td>`).join('')}</tr>`).join('')}</tbody>`
-          : '';
-      out.push(`<table>${headHtml}${bodyHtml}</table>`);
+      const headRow = `<tr>${header.map((c) => `<th>${renderInline(c)}</th>`).join('')}</tr>`;
+      const bodyRows = body
+        .map((r) => `<tr>${r.map((c) => `<td>${renderInline(c)}</td>`).join('')}</tr>`)
+        .join('');
+      out.push(
+        `<table data-draft-node="block" data-draft-type="table" data-size="normal" data-row-style="normal"><tbody>${headRow}${bodyRows}</tbody></table>`
+      );
     }
     inTable = false;
     tableRows = [];
@@ -176,12 +203,72 @@ export function renderZhihuHtml(
 
     // Blockquotes
     if (line.startsWith('>')) {
+      flushList();
       inBlockquote = true;
       quoteLines.push(line.replace(/^>\s?/, ''));
       continue;
     } else if (inBlockquote) {
       flushBlockquote();
     }
+
+    // Block LaTeX equations
+    if (trimmedLine === '$$') {
+      flushList();
+      if (!inMathBlock) {
+        inMathBlock = true;
+        mathLines = [];
+      } else {
+        inMathBlock = false;
+        const cleanTex = mathLines.join(' ').trim();
+        out.push(
+          `<p><img src="https://www.zhihu.com/equation?tex=${encodeURIComponent(cleanTex)}" alt="${escapeHtml(cleanTex)}" eeimg="1"/></p>`
+        );
+        mathLines = [];
+      }
+      continue;
+    }
+    if (inMathBlock) {
+      mathLines.push(line);
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(trimmedLine)) {
+      flushList();
+      out.push('<hr/>');
+      continue;
+    }
+
+    // Task / Unordered / Ordered lists
+    const taskMatch = trimmedLine.match(/^[-*+]\s+\[([ xX])\]\s+(.+)$/);
+    if (taskMatch) {
+      if (listType !== 'ul') {
+        flushList();
+        listType = 'ul';
+      }
+      const checked = taskMatch[1].toLowerCase() === 'x';
+      listItems.push(`${checked ? '☑' : '☐'} ${taskMatch[2]}`);
+      continue;
+    }
+    const ulMatch = trimmedLine.match(/^[-*+]\s+(.+)$/);
+    if (ulMatch) {
+      if (listType !== 'ul') {
+        flushList();
+        listType = 'ul';
+      }
+      listItems.push(ulMatch[1]);
+      continue;
+    }
+    const olMatch = trimmedLine.match(/^\d+\.\s+(.+)$/);
+    if (olMatch) {
+      if (listType !== 'ol') {
+        flushList();
+        listType = 'ol';
+      }
+      listItems.push(olMatch[1]);
+      continue;
+    }
+    flushList();
 
     // Empty lines
     if (!line.trim()) {
@@ -215,6 +302,7 @@ export function renderZhihuHtml(
 
   flushBlockquote();
   flushTable();
+  flushList();
 
   return {
     html: out.join(''),
