@@ -229,9 +229,10 @@ export async function publishToSingleTarget(params: {
         };
       }
       const parsed = parseCsdnMarkdown(payload.markdown, payload.title);
+      const sourceMarkdown = parsed.markdown || payload.markdown;
       const uploadResult = await uploadLocalImagesForPublish({
         workspacePath: cfg.workspacePath,
-        markdown: parsed.markdown,
+        markdown: sourceMarkdown,
         config: cfg.imageBed,
         includeRemote,
         uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
@@ -239,11 +240,13 @@ export async function publishToSingleTarget(params: {
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
+      const csdnMarkdown = uploadResult.markdown || sourceMarkdown;
+      const csdnHtml = renderBaijiahaoHtml(csdnMarkdown).html;
       try {
         const pushed = await adapter.push({
           title: payload.title || parsed.title,
-          markdown: uploadResult.markdown,
-          html: '',
+          markdown: csdnMarkdown,
+          html: csdnHtml,
           tags: payload.tags && payload.tags.length > 0 ? payload.tags : parsed.tags,
           mode: 'draft',
         });
