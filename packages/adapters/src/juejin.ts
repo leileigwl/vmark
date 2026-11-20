@@ -1,8 +1,18 @@
 import type { AdapterPushPayload, AdapterPushResult, PlatformAdapter, PlatformDescriptor } from './index.ts';
+import { computeCrc32Hex, signAws4Request } from './imagexSign.ts';
 import type { FetchLike } from './weixin.ts';
+
+const IMAGEX_AID = '2608';
+const IMAGEX_SERVICE_ID = '73owjymdk6';
 
 export interface JuejinOptions {
   fetchFn?: FetchLike;
+}
+
+interface ImageXToken {
+  AccessKeyId: string;
+  SecretAccessKey: string;
+  SessionToken: string;
 }
 
 /** Juejin (稀土掘金) adapter implementing 5-step delivery pipeline. */
@@ -18,6 +28,7 @@ export class JuejinAdapter implements PlatformAdapter {
   };
 
   private readonly fetchFn: FetchLike;
+  private readonly uuid: string = `${Date.now()}${Math.floor(Math.random() * 100000)}`;
 
   constructor(options: JuejinOptions = {}) {
     this.fetchFn = options.fetchFn ?? (globalThis.fetch as unknown as FetchLike);
@@ -60,24 +71,96 @@ export class JuejinAdapter implements PlatformAdapter {
   }
 
   async uploadImage(buffer: Buffer, fileName: string): Promise<string> {
-    const formData = new FormData();
-    const blob = new Blob([new Uint8Array(buffer)]);
-    formData.append('file', blob, fileName);
-
-    const res = await this.fetchFn('https://api.juejin.cn/web/upload_image', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!res.ok) {
-      throw new Error(`掘金图片上传失败: HTTP ${res.status}（建议在「偏好设置 → 图像与图床」配置外部图床）`);
+    const tokenRes = await this.fetchFn(
+      `https://api.juejin.cn/imagex/v2/gen_token?aid=${IMAGEX_AID}&uuid=${this.uuid}&client=web`,
+      { headers: { Referer: 'https://juejin.cn/', Origin: 'https://juejin.cn' } }
+    );
+    if (!tokenRes.ok) {
+      throw new Error(`掘金获取 ImageX 凭证失败: HTTP ${tokenRes.status}`);
     }
-    const data = (await res.json()) as { err_no?: number; data?: string; url?: string };
-    const url = data.data || data.url;
-    if (!url) {
+    const tokenJson = (await tokenRes.json()) as {
+      err_no?: number;
+      err_msg?: string;
+      data?: { token?: ImageXToken };
+    };
+    const token = tokenJson.data?.token;
+    if ((tokenJson.err_no && tokenJson.err_no !== 0) || !token?.AccessKeyId || !token.SecretAccessKey) {
+      throw new Error(`掘金 ImageX 凭证无效: ${tokenJson.err_msg || '请检查登录状态'}`);
+    }
+
+    const applyUrl = `https://imagex.bytedanceapi.com/?Action=ApplyImageUpload&Version=2018-08-01&ServiceId=${IMAGEX_SERVICE_ID}`;
+    const applyHeaders = signAws4Request({
+      method: 'GET',
+      url: applyUrl,
+      accessKeyId: token.AccessKeyId,
+      secretAccessKey: token.SecretAccessKey,
+      securityToken: token.SessionToken,
+    });
+    const applyRes = await this.fetchFn(applyUrl, { method: 'GET', headers: applyHeaders });
+    if (!applyRes.ok) {
+      throw new Error(`掘金 ImageX 申请上传失败: HTTP ${applyRes.status}`);
+    }
+    const applyData = (await applyRes.json()) as {
+      Result?: {
+        UploadAddress?: {
+          SessionKey: string;
+          UploadHosts: string[];
+          StoreInfos: Array<{ StoreUri: string; Auth: string }>;
+        };
+      };
+    };
+    const uploadAddr = applyData.Result?.UploadAddress;
+    const storeInfo = uploadAddr?.StoreInfos?.[0];
+    const uploadHost = uploadAddr?.UploadHosts?.[0];
+    if (!uploadAddr?.SessionKey || !storeInfo?.StoreUri || !uploadHost) {
+      throw new Error('掘金 ImageX 上传地址响应无效');
+    }
+
+    const bytes = new Uint8Array(buffer);
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+    const tosRes = await this.fetchFn(`https://${uploadHost}/${storeInfo.StoreUri}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: storeInfo.Auth,
+        'Content-Type': mime,
+        'Content-CRC32': computeCrc32Hex(bytes),
+      },
+      body: new Blob([bytes], { type: mime }),
+    });
+    if (!tosRes.ok) {
+      throw new Error(`掘金 TOS 图片上传失败: HTTP ${tosRes.status}`);
+    }
+
+    const commitUrl = `https://imagex.bytedanceapi.com/?Action=CommitImageUpload&Version=2018-08-01&SessionKey=${encodeURIComponent(uploadAddr.SessionKey)}&ServiceId=${IMAGEX_SERVICE_ID}`;
+    const commitHeaders = signAws4Request({
+      method: 'POST',
+      url: commitUrl,
+      accessKeyId: token.AccessKeyId,
+      secretAccessKey: token.SecretAccessKey,
+      securityToken: token.SessionToken,
+    });
+    const commitRes = await this.fetchFn(commitUrl, {
+      method: 'POST',
+      headers: commitHeaders,
+    });
+    if (!commitRes.ok) {
+      throw new Error(`掘金 ImageX 提交上传失败: HTTP ${commitRes.status}`);
+    }
+
+    const urlRes = await this.fetchFn(
+      `https://api.juejin.cn/imagex/v2/get_img_url?aid=${IMAGEX_AID}&uuid=${this.uuid}&uri=${encodeURIComponent(storeInfo.StoreUri)}&img_type=private`,
+      { headers: { Referer: 'https://juejin.cn/', Origin: 'https://juejin.cn' } }
+    );
+    if (!urlRes.ok) {
+      throw new Error(`掘金获取图片链接失败: HTTP ${urlRes.status}`);
+    }
+    const urlData = (await urlRes.json()) as { data?: { main_url?: string; backup_url?: string } };
+    const finalUrl = urlData.data?.main_url || urlData.data?.backup_url;
+    if (!finalUrl) {
       throw new Error('掘金图片上传响应中缺失图片 URL');
     }
-    return url;
+    return finalUrl;
   }
 
   async push(payload: AdapterPushPayload): Promise<AdapterPushResult> {

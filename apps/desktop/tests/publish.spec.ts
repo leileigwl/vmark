@@ -83,13 +83,19 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
     await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
-    // Switch platform previews: Zhihu, Baijiahao, Xiaohongshu 3:4 cards
+    // Switch platform previews: Zhihu, Baijiahao, Xiaohongshu 3:4 cards & Douyin 3:4 cards
     await page.getByRole('button', { name: '知乎专栏' }).click();
     await expect(page.getByTestId('zhihu-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '百家号' }).click();
     await expect(page.getByTestId('baijiahao-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号分发测试文章');
+    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号标题');
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '3:4');
+    await page.getByRole('button', { name: '16:9', exact: true }).click();
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '16:9');
+    await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
+    await expect(page.getByTestId('douyin-preview')).toContainText('公众号标题');
+    await expect(page.getByTestId('douyin-preview')).toHaveAttribute('data-theme-id', 'ray-dark');
     await page.getByRole('button', { name: '微信公众号', exact: true }).click();
     await expect(preview).toBeVisible();
 

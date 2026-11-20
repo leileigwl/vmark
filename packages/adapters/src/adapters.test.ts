@@ -4,6 +4,7 @@ import {
   CnblogsAdapter,
   GitHubStaticAdapter,
   PLATFORM_CATALOG,
+  WeiboAdapter,
   ZhihuAdapter,
   JuejinAdapter,
   CsdnAdapter,
@@ -337,12 +338,45 @@ test('JuejinAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verif
         json: async () => ({}),
       };
     }
-    if (url === 'https://api.juejin.cn/web/upload_image') {
+    if (url.includes('imagex/v2/gen_token')) {
       return {
         ok: true,
         status: 200,
         text: async () => '',
-        json: async () => ({ err_no: 0, data: 'https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/sample.png' }),
+        json: async () => ({
+          err_no: 0,
+          data: { token: { AccessKeyId: 'ak', SecretAccessKey: 'sk', SessionToken: 'st' } },
+        }),
+      };
+    }
+    if (url.includes('Action=ApplyImageUpload')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({
+          Result: {
+            UploadAddress: {
+              SessionKey: 'sess_k',
+              UploadHosts: ['tos-cn.example.com'],
+              StoreInfos: [{ StoreUri: 'tos-cn-i-k3u1fbpfcp/sample.png', Auth: 'tos_auth' }],
+            },
+          },
+        }),
+      };
+    }
+    if (url.startsWith('https://tos-cn.example.com/')) {
+      return { ok: true, status: 200, text: async () => '', json: async () => ({}) };
+    }
+    if (url.includes('Action=CommitImageUpload')) {
+      return { ok: true, status: 200, text: async () => '', json: async () => ({ Result: { Results: [{ Uri: 'ok' }] } }) };
+    }
+    if (url.includes('imagex/v2/get_img_url')) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({ err_no: 0, data: { main_url: 'https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/sample.png' } }),
       };
     }
     if (url === 'https://api.juejin.cn/content_api/v1/article_draft/create') {
@@ -711,4 +745,41 @@ test('CsdnAdapter surfaces actionable blog-activation error when saveArticle ret
     () => adapter.push({ title: 't', markdown: 'm', html: '<p>m</p>', tags: [], mode: 'draft' }),
     /CSDN 账号尚未开通博客空间/
   );
+});
+
+test('WeiboAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verifyDelivery', async () => {
+  const adapter = new WeiboAdapter({
+    fetchFn: async (url) => {
+      if (url.includes('card.weibo.com/article/v5/editor')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => `config: JSON.parse('{"uid":"10086","nick":"测试微博"}')`,
+          json: async () => ({}),
+        };
+      }
+      if (url.includes('picupload.weibo.com')) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          json: async () => ({ data: { pics: { pic_1: { pid: 'wb_pid_1' } } } }),
+        };
+      }
+      if (url.includes('draft/create')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 100000, data: { id: 'wb_d_1' } }) };
+      }
+      if (url.includes('draft/save')) {
+        return { ok: true, status: 200, text: async () => '', json: async () => ({ code: 100000 }) };
+      }
+      throw new Error(`Unexpected url: ${url}`);
+    },
+  });
+
+  assert.equal(await adapter.checkAuth(), true);
+  assert.equal(await adapter.uploadImage(Buffer.from('img'), 'a.png'), 'https://wx3.sinaimg.cn/large/wb_pid_1.jpg');
+  const pushed = await adapter.push({ title: '微博测试', markdown: '正文', html: '<p>正文</p>', tags: [], mode: 'draft' });
+  assert.equal(pushed.postId, 'wb_d_1');
+  assert.equal(pushed.url, 'https://card.weibo.com/article/v5/editor#/draft/wb_d_1');
+  assert.equal(await adapter.verifyDelivery('wb_d_1'), true);
 });

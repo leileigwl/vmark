@@ -18,11 +18,6 @@ export interface PublishAppConfig {
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
 export function createSessionFetch(targetSession: Electron.Session): FetchLike {
   const browserHeaders = buildChromeBrowserHeaders();
-  try {
-    targetSession.setUserAgent(browserHeaders['User-Agent']);
-  } catch {
-    // ignore user-agent override failure in mock/headless sessions
-  }
   return async (input, init) => {
     const customInit = ({ ...init }) as Parameters<typeof targetSession.fetch>[1];
     const headers = new Headers(customInit?.headers || {});
