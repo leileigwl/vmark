@@ -98,7 +98,7 @@ test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
     await snap('all-platforms-settings.png');
     await page.getByRole('button', { name: '编辑' }).click();
 
-    // 2. PublishModal -> verify 4 platform previews (WeChat, Zhihu, Baijiahao, Xiaohongshu 3:4)
+    // 2. PublishModal -> verify 5 platform previews (WeChat, Zhihu, Baijiahao, Xiaohongshu 3:4, Douyin 3:4)
     await page.getByRole('button', { name: '分发' }).click();
     await expect(page.getByTestId('weixin-preview')).toContainText('ℹ️ 提示');
     await expect(page.getByTestId('weixin-preview').locator('img[src="vcat-asset://local/assets/arch.png"]')).toBeVisible();
@@ -107,7 +107,9 @@ test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
     await page.getByRole('button', { name: '百家号' }).click();
     await expect(page.getByTestId('baijiahao-preview')).toContainText('全平台分发测试');
     await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('全平台一键分发实测文章');
+    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('全平台分发测试');
+    await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
+    await expect(page.getByTestId('douyin-preview')).toContainText('全平台分发测试');
     await snap('all-platforms-preview.png');
 
     // 3. Multi-platform dispatch -> check all 13 checkboxes & execute batch publish
