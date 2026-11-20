@@ -32,12 +32,22 @@ async function resolveLocalImageFiles(workspacePath: string | null, markdown: st
 }
 
 function detectBestSocialTheme(markdown: string, candidate?: string): string {
-  if (candidate && ['geek-dark', 'warm-note', 'modern-minimal', 'academic-blue'].includes(candidate)) {
+  const validThemes = [
+    'ink-classic',
+    'swiss-slate',
+    'ray-dark',
+    'editorial-coral',
+    'geek-dark',
+    'warm-note',
+    'modern-minimal',
+    'academic-blue',
+  ];
+  if (candidate && validThemes.includes(candidate)) {
     return candidate;
   }
-  if (/```|~~~/.test(markdown)) return 'geek-dark';
-  if (/\$[^$]+\$|\$\$[\s\S]+?\$\$/.test(markdown)) return 'academic-blue';
-  return 'warm-note';
+  if (/```|~~~/.test(markdown)) return 'ray-dark';
+  if (/\$[^$]+\$|\$\$[\s\S]+?\$\$/.test(markdown)) return 'swiss-slate';
+  return 'ink-classic';
 }
 
 async function resolveUploadImages(

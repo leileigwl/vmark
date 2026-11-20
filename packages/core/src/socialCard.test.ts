@@ -1,78 +1,96 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { SOCIAL_CARD_THEMES, getSocialCardTheme } from './socialCardThemes.ts';
+import { SOCIAL_CARD_PRESETS, getSocialCardTheme } from './socialCardThemes.ts';
 import { renderSocialCardHtml } from './socialCardHtml.ts';
 import type { XhsCardSection } from './xiaohongshuRenderer.ts';
 
-describe('Social Card Generator Core', () => {
-  it('provides all 4 distinct classic themes', () => {
-    assert.ok(SOCIAL_CARD_THEMES['geek-dark']);
-    assert.ok(SOCIAL_CARD_THEMES['warm-note']);
-    assert.ok(SOCIAL_CARD_THEMES['modern-minimal']);
-    assert.ok(SOCIAL_CARD_THEMES['academic-blue']);
-    assert.equal(getSocialCardTheme('non-existent').id, 'geek-dark');
+describe('Guizang Editorial x Ray.so Social Card Engine', () => {
+  it('provides all 4 master design presets with WCAG-calibrated tokens', () => {
+    assert.ok(SOCIAL_CARD_PRESETS['ink-classic']);
+    assert.ok(SOCIAL_CARD_PRESETS['swiss-slate']);
+    assert.ok(SOCIAL_CARD_PRESETS['ray-dark']);
+    assert.ok(SOCIAL_CARD_PRESETS['editorial-coral']);
+
+    // Check alias resolution for smooth backwards compatibility
+    assert.equal(getSocialCardTheme('geek-dark').id, 'ray-dark');
+    assert.equal(getSocialCardTheme('warm-note').id, 'editorial-coral');
+    assert.equal(getSocialCardTheme('modern-minimal').id, 'ink-classic');
+    assert.equal(getSocialCardTheme('academic-blue').id, 'swiss-slate');
+    assert.equal(getSocialCardTheme('unknown-fallback').id, 'ray-dark');
   });
 
-  it('renders cover card html with escaping and proper tags', () => {
+  it('renders Guizang Editorial cover card with kicker, lead and safe tags', () => {
     const card: XhsCardSection = {
       type: 'cover',
-      title: '深度解析 <React 19> 核心特性',
-      subtitle: '前端架构指南',
-      bodyLines: ['⚡️ 纯本地 Markdown 渲染', '🎯 全平台自适应高保真排版'],
-      tags: ['React', '前端开发'],
+      title: '从架构哲学到工程落地：深入解析 Vmark 本地优先设计',
+      subtitle: 'EDITORIAL NOTE',
+      bodyLines: ['⚡️ 纯本地 Markdown 一键生成', '🎯 全平台自适应高保真排版', '🛡 敏感凭据系统级安全加密'],
+      tags: ['软件工程', '前端架构', '本地优先'],
     };
 
     const html = renderSocialCardHtml(card, {
-      themeId: 'warm-note',
+      themeId: 'ink-classic',
       cardIndex: 0,
-      totalCards: 5,
-      brandName: 'Vmark Tech',
+      totalCards: 4,
+      brandName: 'Vmark Studio',
     });
 
     assert.ok(html.includes('1080px'));
     assert.ok(html.includes('1440px'));
-    assert.ok(html.includes('&lt;React 19&gt;'));
-    assert.ok(!html.includes('<React 19>'));
-    assert.ok(html.includes('01 / 05'));
-    assert.ok(html.includes('#React'));
-    assert.ok(html.includes('Vmark Tech'));
+    assert.ok(html.includes('EDITORIAL NOTE'));
+    assert.ok(html.includes('01 / 04'));
+    assert.ok(html.includes('Vmark Studio'));
+    assert.ok(html.includes('#软件工程'));
+    assert.ok(html.includes('Guizang Editorial × Ray.so Design'));
   });
 
-  it('renders code card with syntax window buttons and line numbers', () => {
+  it('renders Ray.so code window with traffic lights, line numbers, and language badge', () => {
     const card: XhsCardSection = {
       type: 'code',
-      title: '代码实现示例',
-      bodyLines: ['const sum = (a, b) => a + b;', 'console.log(sum(1, 2));'],
+      title: '高吞吐流水线实现',
+      bodyLines: [
+        'export async function dispatchDraft(task: PublishTask) {',
+        '  const rasterized = await rasterizeCards(task.markdown);',
+        '  return uploadBatch(rasterized.imagePaths);',
+        '}',
+      ],
       codeLang: 'typescript',
     };
 
     const html = renderSocialCardHtml(card, {
-      themeId: 'geek-dark',
+      themeId: 'ray-dark',
       cardIndex: 2,
       totalCards: 5,
     });
 
     assert.ok(html.includes('03 / 05'));
     assert.ok(html.includes('typescript'));
-    assert.ok(html.includes('#ff5f56')); // Mac red button
-    assert.ok(html.includes('const sum = (a, b) =&gt; a + b;'));
+    assert.ok(html.includes('#ff5f56')); // Mac Red
+    assert.ok(html.includes('#ffbd2e')); // Mac Yellow
+    assert.ok(html.includes('#27c93f')); // Mac Green
+    assert.ok(html.includes('rasterizeCards'));
   });
 
-  it('renders content card with bullet lists', () => {
+  it('renders Guizang One-Idea content card with chapter section indicator', () => {
     const card: XhsCardSection = {
       type: 'content',
-      title: '三大核心优势',
-      bodyLines: ['• 本地优先架构设计', '• 离屏无头高清光栅化', '• 零外链零泄漏'],
+      title: '三大不可妥协的安全准则',
+      bodyLines: [
+        '• 凭证零外泄：全加密隔离落库',
+        '• 离屏无痕光栅化：100% 纯本地离线捕获',
+        '• 频控反风控：平滑节奏上传保护账号健康',
+      ],
     };
 
     const html = renderSocialCardHtml(card, {
-      themeId: 'modern-minimal',
+      themeId: 'swiss-slate',
       cardIndex: 1,
       totalCards: 3,
     });
 
     assert.ok(html.includes('02 / 03'));
-    assert.ok(html.includes('三大核心优势'));
-    assert.ok(html.includes('本地优先架构设计'));
+    assert.ok(html.includes('§02'));
+    assert.ok(html.includes('三大不可妥协的安全准则'));
+    assert.ok(html.includes('频控反风控'));
   });
 });
