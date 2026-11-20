@@ -8,8 +8,6 @@ export interface PlatformAccountRecord {
   accountId?: string;
   accountName?: string;
   avatarUrl?: string;
-  proxyUrl?: string;
-  profileDir?: string;
   authorized: boolean;
   lastCheckedAt: number;
   lastSuccessAt?: number;
