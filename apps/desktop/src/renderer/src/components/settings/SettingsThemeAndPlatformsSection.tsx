@@ -1,5 +1,5 @@
-import { PLATFORM_CATALOG } from '@vcat/adapters';
 import type { PlatformId, ThemeId } from '@vcat/shared';
+import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -106,7 +106,7 @@ export function SettingsPlatformsSection({
         每个平台运行在独立的 Electron <code>persist:platform_*</code> 沙箱内，Cookie 本地持久化不串号。
       </p>
       <div className="divide-y divide-[var(--border-color)] rounded border border-[var(--border-color)]">
-        {PLATFORM_CATALOG.map((p) => {
+        {VISIBLE_PLATFORM_CATALOG.map((p) => {
           const online = Boolean(authStates[p.id]);
           return (
             <div
