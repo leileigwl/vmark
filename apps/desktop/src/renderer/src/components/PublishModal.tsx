@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
-import type { ArticleMeta, GitStatusInfo, MultiPlatformPublishResultItem, PlatformId, PublishMode } from '@vcat/shared';
+import type {
+  ArticleMeta,
+  GitStatusInfo,
+  MultiPlatformPublishResultItem,
+  PlatformId,
+  PublishMode,
+  SocialCoverRatio,
+} from '@vcat/shared';
 import {
   PlatformPreviewPane,
   PreflightBanner,
@@ -46,6 +53,8 @@ export function PublishModal({
     Object.fromEntries(VISIBLE_PLATFORM_CATALOG.map((p) => [p.id, p.defaultMode]))
   );
   const [includeRemoteImages, setIncludeRemoteImages] = useState(true);
+  const [socialThemeId, setSocialThemeId] = useState<string | null>(null);
+  const [socialCoverRatio, setSocialCoverRatio] = useState<SocialCoverRatio>('3:4');
   const [pushingMulti, setPushingMulti] = useState(false);
   const [multiResults, setMultiResults] = useState<MultiPlatformPublishResultItem[]>([]);
   const [preflightBlocked, setPreflightBlocked] = useState<{
@@ -99,6 +108,8 @@ export function PublishModal({
         showCoverInBody,
         sourceUrl: sourceUrl.trim() || undefined,
         includeRemoteImages,
+        socialThemeId: socialThemeId ?? undefined,
+        socialCoverRatio,
         targets: targets.map((platformId) => ({
           platformId,
           mode: platformModes[platformId] ?? 'direct',
@@ -321,6 +332,10 @@ export function PublishModal({
               markdown={markdown}
               title={activeArticle?.title}
               weixinRendered={weixinRendered}
+              socialThemeId={socialThemeId}
+              socialCoverRatio={socialCoverRatio}
+              onSocialThemeChange={setSocialThemeId}
+              onSocialCoverRatioChange={setSocialCoverRatio}
             />
           </div>
         ) : (

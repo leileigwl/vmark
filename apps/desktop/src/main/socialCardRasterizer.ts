@@ -2,12 +2,18 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type Electron from 'electron';
-import { renderXiaohongshuCards, renderSocialCardHtml } from '@vcat/core';
+import {
+  PLATFORM_COVER_SPECS,
+  renderSocialCardHtml,
+  renderXiaohongshuCards,
+  type PlatformCoverRatio,
+} from '@vcat/core';
 
 export interface GenerateSocialCardsParams {
   markdown: string;
   title?: string;
   themeId?: string;
+  aspectRatio?: PlatformCoverRatio;
   brandName?: string;
   maxCards?: number;
   browserWindowFactory?: (opts: Electron.BrowserWindowConstructorOptions) => Electron.BrowserWindow;
@@ -28,9 +34,17 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function rasterizeSocialCards(
   params: GenerateSocialCardsParams
 ): Promise<GeneratedCardsResult> {
-  const { markdown, title = '技术笔记', themeId = 'geek-dark', brandName = 'Vmark', maxCards = 9 } = params;
+  const {
+    markdown,
+    title = '个人随笔',
+    themeId = 'ios-memo',
+    aspectRatio = '3:4',
+    brandName = 'Vmark',
+    maxCards = 9,
+  } = params;
 
-  const notePayload = renderXiaohongshuCards(markdown, title);
+  const spec = PLATFORM_COVER_SPECS[aspectRatio] || PLATFORM_COVER_SPECS['3:4'];
+  const notePayload = renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: aspectRatio });
   const cardSections = notePayload.cards.slice(0, maxCards);
 
   if (cardSections.length === 0) {
@@ -45,8 +59,8 @@ export async function rasterizeSocialCards(
   await fs.mkdir(tmpDir, { recursive: true });
 
   const winOpts: Electron.BrowserWindowConstructorOptions = {
-    width: 1080,
-    height: 1440,
+    width: spec.width,
+    height: spec.height,
     show: false,
     useContentSize: true,
     webPreferences: {
@@ -75,6 +89,7 @@ export async function rasterizeSocialCards(
       const card = cardSections[i];
       const html = renderSocialCardHtml(card, {
         themeId,
+        aspectRatio,
         cardIndex: i,
         totalCards: cardSections.length,
         brandName,
@@ -87,8 +102,8 @@ export async function rasterizeSocialCards(
       const image = await win.webContents.capturePage({
         x: 0,
         y: 0,
-        width: 1080,
-        height: 1440,
+        width: spec.width,
+        height: spec.height,
       });
 
       const pngBuffer = image.toPNG();

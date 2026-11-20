@@ -1,21 +1,34 @@
 /**
- * Social Card Design Tokens & Theme Presets
- * Inspired by Guizang Editorial x Swiss Design System (8.2k★), Ray.so (2.4k★),
- * and Xiaohongshu / Douyin UGC Magazine Templates.
+ * Social Card Templates & Design Tokens
+ * Modeled after xhs-textcard.site/editor's clean light templates:
+ * 1. ios-memo (苹果备忘录 / 笔记本 — 2026版 iOS 极致还原)
+ * 2. minimalist-magazine (极简杂志 — 现代社论排版美学)
+ * 3. blank (空白模板 — 纯净极简背景，回归文字本质)
+ * 4. elegant-book (书籍内页 — 优雅泛黄纸张与衬线体出版物)
  */
 
 export type ContentGenre = 'essay' | 'travel' | 'reading' | 'tech';
 
-export type PlatformCoverRatio = '3:4' | '9:16' | '16:9' | '2.35:1';
+export type PlatformCoverRatio = '3:4' | '2:3' | '9:16' | '16:9' | '2.35:1';
+
+export type CardTemplateChrome =
+  | 'ios-memo'
+  | 'minimalist-magazine'
+  | 'blank'
+  | 'elegant-book';
 
 export interface SocialCardTokens {
   id: string;
   name: string;
+  chrome: CardTemplateChrome;
   kicker: string;
   footerSignature: string;
   description: string;
   paper: string;
+  sheetBg: string;
+  ruledLineColor: string;
   ink: string;
+  headingInk: string;
   textSecondary: string;
   textMuted: string;
   line: string;
@@ -23,6 +36,7 @@ export interface SocialCardTokens {
   accent: string;
   accentInk: string;
   accentSurface: string;
+  highlightBg: string;
   cardBg: string;
   quoteBg: string;
   codeBg: string;
@@ -34,6 +48,7 @@ export interface SocialCardTokens {
   fontDisplay: string;
   fontBody: string;
   fontCode: string;
+  letterSpacing: string;
 }
 
 export const GENRE_META: Record<
@@ -41,32 +56,32 @@ export const GENRE_META: Record<
   { kicker: string; badge: string; footerTag: string; defaultTags: string[]; defaultTheme: string }
 > = {
   travel: {
-    kicker: 'TRAVEL & LIFESTYLE LOG',
+    kicker: 'TRAVEL & LIFESTYLE',
     badge: '旅行手记',
-    footerTag: 'Travel & City Walk Journal • 旅途见闻录',
+    footerTag: '备忘录 · 旅途随手记',
     defaultTags: ['旅行日记', '城市漫游', '生活记录'],
-    defaultTheme: 'editorial-coral',
+    defaultTheme: 'ios-memo',
   },
   essay: {
-    kicker: 'PERSONAL ESSAY & NOTES',
+    kicker: 'PERSONAL NOTES',
     badge: '个人随笔',
-    footerTag: 'Personal Essay & Reflection • 独立博客随笔',
+    footerTag: '备忘录 · 日常思考',
     defaultTags: ['个人随笔', '日常思考', '生活碎片'],
-    defaultTheme: 'ink-classic',
+    defaultTheme: 'ios-memo',
   },
   reading: {
-    kicker: 'READING & BOOK DIGEST',
+    kicker: 'READING DIGEST',
     badge: '读书札记',
-    footerTag: 'Book Digest & Takeaways • 阅读与思辨',
+    footerTag: '极简杂志 · 阅读摘录',
     defaultTags: ['读书笔记', '深度阅读', '个人成长'],
-    defaultTheme: 'ink-classic',
+    defaultTheme: 'minimalist-magazine',
   },
   tech: {
-    kicker: 'ENGINEERING & TECH DIGEST',
+    kicker: 'TECH NOTES',
     badge: '技术实践',
-    footerTag: 'Editorial × Ray.so Spec • 工程与架构笔记',
+    footerTag: '技术笔记 · 工程实践',
     defaultTags: ['技术分享', '工程实践', '效率工具'],
-    defaultTheme: 'ray-dark',
+    defaultTheme: 'ios-memo',
   },
 };
 
@@ -77,180 +92,190 @@ export const PLATFORM_COVER_SPECS: Record<
   '3:4': {
     width: 1080,
     height: 1440,
-    label: '3:4 竖版黄金画幅 (1080×1440)',
-    platforms: '小红书图文 / 抖音图文黄金比例',
+    label: '小红书 3:4 (1080×1440)',
+    platforms: '小红书标准 3:4 图文 / 抖音图文',
+  },
+  '2:3': {
+    width: 1080,
+    height: 1620,
+    label: '小红书长文 2:3 (1080×1620)',
+    platforms: 'xhs-textcard 标准长文画幅 (500×750 同比例高清)',
   },
   '9:16': {
     width: 1080,
     height: 1920,
-    label: '9:16 全屏沉浸画幅 (1080×1920)',
-    platforms: '抖音全屏图文 / 快拍竖屏封面',
+    label: '短视频 9:16 (1080×1920)',
+    platforms: '抖音全屏图文 / 快拍竖屏画幅',
   },
   '16:9': {
     width: 1280,
     height: 720,
-    label: '16:9 宽屏专栏画幅 (1280×720)',
-    platforms: '知乎专栏 / 百家号 / B站专栏 / 掘金封面',
+    label: '专栏横版 16:9 (1280×720)',
+    platforms: '知乎专栏 / 百家号 / B站专栏封面',
   },
   '2.35:1': {
     width: 1080,
     height: 460,
-    label: '2.35:1 影院横幅首图 (1080×460)',
-    platforms: '微信公众号头条大图封面',
+    label: '公众号头条 2.35:1 (1080×460)',
+    platforms: '微信公众号首图横幅',
   },
 };
 
 export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
-  'editorial-coral': {
-    id: 'editorial-coral',
-    name: '珊瑚白茶 (Editorial Coral)',
-    kicker: 'CREATOR MAGAZINE',
-    footerSignature: 'Editorial Magazine • 创作者图文志',
-    description: '小红书高赞爆款温润白茶底色，融合暖珊瑚红提亮，适合旅行日记、生活方式与个人分享',
-    paper: '#fdfaf6',
-    ink: '#261f1b',
-    textSecondary: '#63534a',
-    textMuted: '#968378',
-    line: 'rgba(38, 31, 27, 0.11)',
-    lineStrong: '#e05338',
-    accent: '#e05338',
-    accentInk: '#be3a21',
-    accentSurface: '#fde9df',
-    cardBg: '#ffffff',
-    quoteBg: '#fbf3ec',
-    codeBg: '#231c19',
-    codeInk: '#fde2d9',
-    codeBorder: '#e6d3c5',
-    windowDotRed: '#ff6259',
-    windowDotYellow: '#ffc107',
-    windowDotGreen: '#28a745',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif",
-    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
-  },
-  'ink-classic': {
-    id: 'ink-classic',
-    name: '墨水经典 (Ink Classic)',
-    kicker: 'EDITORIAL ESSAY',
-    footerSignature: 'Guizang Editorial • 纸墨人文随笔',
-    description: '归藏经典暖燕麦纸墨质感，典雅克制，适合个人博客随笔、读书笔记与深度长文',
-    paper: '#f3efe9',
-    ink: '#161412',
-    textSecondary: '#524b44',
-    textMuted: '#857b71',
-    line: 'rgba(22, 20, 18, 0.13)',
-    lineStrong: '#26221f',
-    accent: '#8c3f2b',
-    accentInk: '#6e2e1d',
-    accentSurface: '#e7e0d6',
-    cardBg: '#faf8f5',
-    quoteBg: '#ece6dd',
-    codeBg: '#181614',
-    codeInk: '#e8e2d8',
-    codeBorder: 'rgba(22, 20, 18, 0.18)',
+  'ios-memo': {
+    id: 'ios-memo',
+    name: '苹果备忘录 (Apple Notes)',
+    chrome: 'ios-memo',
+    kicker: '备忘录',
+    footerSignature: 'iOS Notes • 苹果备忘录',
+    description: '2026版 iOS 备忘录极致还原，浅灰底配圆角横线白纸与经典暖橙标题高亮，小红书最高频爆款模板',
+    paper: '#F2F2F7',
+    sheetBg: '#FFFFFF',
+    ruledLineColor: '#F2F2F7',
+    ink: '#1C1C1E',
+    headingInk: '#FF9500',
+    textSecondary: '#3A3A3C',
+    textMuted: '#8E8E93',
+    line: 'rgba(28, 28, 30, 0.08)',
+    lineStrong: '#FF9500',
+    accent: '#FF9500',
+    accentInk: '#E08200',
+    accentSurface: 'rgba(255, 149, 0, 0.14)',
+    highlightBg: 'rgba(255, 149, 0, 0.16)',
+    cardBg: '#FFFFFF',
+    quoteBg: 'rgba(255, 149, 0, 0.08)',
+    codeBg: '#F7F7FA',
+    codeInk: '#1C1C1E',
+    codeBorder: 'rgba(28, 28, 30, 0.12)',
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'Songti SC', 'Noto Serif SC', 'PingFang SC', serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif",
+    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
+    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
     fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    letterSpacing: '0px',
   },
-  'forest-journal': {
-    id: 'forest-journal',
-    name: '森系手记 (Forest Journal)',
-    kicker: 'TRAVEL & LIFE LOG',
-    footerSignature: 'Field Notes & Travelogue • 漫游手记',
-    description: '清新松针绿配暖米白纸感，专为旅行游记、徒步露营、摄影探店与周末生活记录打造',
-    paper: '#f4f7f4',
-    ink: '#16241c',
-    textSecondary: '#43584b',
-    textMuted: '#758b7d',
-    line: 'rgba(22, 36, 28, 0.11)',
-    lineStrong: '#1f6f50',
-    accent: '#1f6f50',
-    accentInk: '#16563d',
-    accentSurface: '#e0efe7',
-    cardBg: '#ffffff',
-    quoteBg: '#eaf3ee',
-    codeBg: '#132019',
-    codeInk: '#c8f0dc',
-    codeBorder: '#c5dcd0',
+  'minimalist-magazine': {
+    id: 'minimalist-magazine',
+    name: '极简杂志 (Minimalist)',
+    chrome: 'minimalist-magazine',
+    kicker: 'MINIMAL MAGAZINE',
+    footerSignature: 'Minimalist Magazine • 现代社论排版',
+    description: '现代社论排版美学，纯白画布配上下极细分割线、宋刻衬线体与学院绛红强调色，让文字拥有纸质出版物的高级感',
+    paper: '#FFFFFF',
+    sheetBg: '#FFFFFF',
+    ruledLineColor: 'transparent',
+    ink: '#1A1A1A',
+    headingInk: '#8C3A3A',
+    textSecondary: '#3D3535',
+    textMuted: '#999999',
+    line: 'rgba(26, 26, 26, 0.12)',
+    lineStrong: '#8C3A3A',
+    accent: '#8C3A3A',
+    accentInk: '#8C3A3A',
+    accentSurface: 'rgba(140, 58, 58, 0.12)',
+    highlightBg: 'rgba(140, 58, 58, 0.15)',
+    cardBg: '#FFFFFF',
+    quoteBg: 'rgba(140, 58, 58, 0.07)',
+    codeBg: '#FAF8F7',
+    codeInk: '#2B2222',
+    codeBorder: 'rgba(140, 58, 58, 0.18)',
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif",
+    fontDisplay: "'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif",
+    fontBody: "'Noto Serif SC', 'Songti SC', 'PingFang SC', serif",
     fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    letterSpacing: '0.4px',
   },
-  'swiss-slate': {
-    id: 'swiss-slate',
-    name: '瑞士工科 (Swiss Slate)',
-    kicker: 'SYSTEM BLUEPRINT',
-    footerSignature: 'Swiss Grid System • 结构化知识卡',
-    description: '瑞士国际主义网格系统，冷调理性，适合方法论清单、效率复盘与架构推导',
-    paper: '#f8fafc',
-    ink: '#0f172a',
-    textSecondary: '#475569',
-    textMuted: '#64748b',
-    line: 'rgba(15, 23, 42, 0.11)',
-    lineStrong: '#2563eb',
-    accent: '#2563eb',
-    accentInk: '#1d4ed8',
-    accentSurface: '#e8f0fe',
-    cardBg: '#ffffff',
-    quoteBg: '#f1f5f9',
-    codeBg: '#0f172a',
-    codeInk: '#bfdbfe',
-    codeBorder: '#cbd5e1',
-    windowDotRed: '#ef4444',
-    windowDotYellow: '#f59e0b',
-    windowDotGreen: '#10b981',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif",
-    fontCode: "'JetBrains Mono', 'Fira Code', monospace",
+  blank: {
+    id: 'blank',
+    name: '空白模板 (Pure Blank)',
+    chrome: 'blank',
+    kicker: 'PURE TEXT',
+    footerSignature: 'Pure Blank • 回归文字本质',
+    description: '纯净极简背景，零顶栏、零分割线、零多余装饰框，克制冷灰标题配纯黑正文，专注文字本身的力量',
+    paper: '#FFFFFF',
+    sheetBg: '#FFFFFF',
+    ruledLineColor: 'transparent',
+    ink: '#1A1A1A',
+    headingInk: '#8A8A8A',
+    textSecondary: '#4A4A4A',
+    textMuted: '#B0B0B0',
+    line: 'rgba(26, 26, 26, 0.08)',
+    lineStrong: '#999999',
+    accent: '#8A8A8A',
+    accentInk: '#666666',
+    accentSurface: 'rgba(153, 153, 153, 0.14)',
+    highlightBg: 'rgba(153, 153, 153, 0.20)',
+    cardBg: '#FFFFFF',
+    quoteBg: 'rgba(153, 153, 153, 0.09)',
+    codeBg: '#F7F7F7',
+    codeInk: '#1A1A1A',
+    codeBorder: 'rgba(0, 0, 0, 0.10)',
+    windowDotRed: '#d4d4d4',
+    windowDotYellow: '#bdbdbd',
+    windowDotGreen: '#9e9e9e',
+    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
+    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    letterSpacing: '0.3px',
   },
-  'ray-dark': {
-    id: 'ray-dark',
-    name: '极客暗夜 (Ray Dark)',
-    kicker: 'CREATOR SPOTLIGHT',
-    footerSignature: 'Ray.so Dark Aesthetic • 极夜高对比图文',
-    description: '高对比暗夜流光美学，抖音图文爆款吸睛背景与代码块渲染首选',
-    paper: '#0d1117',
-    ink: '#f0f6fc',
-    textSecondary: '#9ca3af',
-    textMuted: '#6e7681',
-    line: 'rgba(240, 246, 252, 0.14)',
-    lineStrong: '#58a6ff',
-    accent: '#58a6ff',
-    accentInk: '#79c0ff',
-    accentSurface: 'rgba(56, 139, 253, 0.18)',
-    cardBg: '#161b22',
-    quoteBg: '#1c2330',
-    codeBg: '#010409',
-    codeInk: '#a5d6ff',
-    codeBorder: '#30363d',
+  'elegant-book': {
+    id: 'elegant-book',
+    name: '书籍内页 (Book Page)',
+    chrome: 'elegant-book',
+    kicker: 'BOOK PAGE',
+    footerSignature: 'Classic Book Page • 纸质书内页',
+    description: '优雅的泛黄暖纸张与左侧书脊微阴影，复刻经典实体出版物阅读质感，适合读书笔记与长文随笔',
+    paper: '#FDFBF7',
+    sheetBg: '#FDFBF7',
+    ruledLineColor: 'transparent',
+    ink: '#2B2B2B',
+    headingInk: '#8C3A3A',
+    textSecondary: '#4A433C',
+    textMuted: '#9E9488',
+    line: 'rgba(43, 43, 43, 0.10)',
+    lineStrong: '#8C3A3A',
+    accent: '#8C3A3A',
+    accentInk: '#782E2E',
+    accentSurface: 'rgba(140, 58, 58, 0.12)',
+    highlightBg: 'rgba(140, 58, 58, 0.15)',
+    cardBg: '#FDFBF7',
+    quoteBg: 'rgba(140, 58, 58, 0.07)',
+    codeBg: '#F4EFE6',
+    codeInk: '#2B2520',
+    codeBorder: 'rgba(140, 58, 58, 0.16)',
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif",
-    fontCode: "'JetBrains Mono', 'Monaco', Consolas, monospace",
+    fontDisplay: "'Noto Serif SC', 'Songti SC', 'STSong', serif",
+    fontBody: "'Noto Serif SC', 'Songti SC', 'PingFang SC', serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    letterSpacing: '0.8px',
   },
 };
 
 const THEME_ALIASES: Record<string, string> = {
-  'geek-dark': 'ray-dark',
-  'warm-note': 'editorial-coral',
-  'modern-minimal': 'ink-classic',
-  'academic-blue': 'swiss-slate',
-  'travel-forest': 'forest-journal',
+  'editorial-coral': 'ios-memo',
+  'warm-note': 'ios-memo',
+  'ink-classic': 'minimalist-magazine',
+  'modern-minimal': 'blank',
+  'forest-journal': 'elegant-book',
+  'travel-forest': 'elegant-book',
+  'swiss-slate': 'minimalist-magazine',
+  'academic-blue': 'minimalist-magazine',
 };
 
 export function getSocialCardTheme(id?: string): SocialCardTokens {
   if (id) {
-    if (SOCIAL_CARD_PRESETS[id]) return SOCIAL_CARD_PRESETS[id];
+    if (Object.prototype.hasOwnProperty.call(SOCIAL_CARD_PRESETS, id)) {
+      return SOCIAL_CARD_PRESETS[id];
+    }
     const resolved = THEME_ALIASES[id];
-    if (resolved && SOCIAL_CARD_PRESETS[resolved]) return SOCIAL_CARD_PRESETS[resolved];
+    if (resolved && SOCIAL_CARD_PRESETS[resolved]) {
+      return SOCIAL_CARD_PRESETS[resolved];
+    }
   }
-  return SOCIAL_CARD_PRESETS['editorial-coral'];
+  return SOCIAL_CARD_PRESETS['ios-memo'];
 }
