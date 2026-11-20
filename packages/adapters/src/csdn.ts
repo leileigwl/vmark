@@ -179,7 +179,7 @@ export class CsdnAdapter implements PlatformAdapter {
       body: JSON.stringify({
         title: payload.title,
         markdowncontent: payload.markdown,
-        content: payload.html || '',
+        content: payload.html || payload.markdown,
         readType: 'public',
         level: 0,
         tags: payload.tags.join(','),

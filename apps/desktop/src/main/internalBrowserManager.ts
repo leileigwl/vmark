@@ -123,6 +123,7 @@ export class InternalBrowserManager {
       this.activeWindow = new BrowserWindow({
         width: 1120,
         height: 780,
+        backgroundColor: '#ffffff',
         title: `Vmark 内置浏览器 - ${platformId}`,
       });
       this.activeToolbarView = new WebContentsView({
@@ -183,11 +184,11 @@ export class InternalBrowserManager {
           partition,
           preload: getStealthPreloadPath(),
           additionalArguments: [fpArg],
-          webSecurity: false,
           contextIsolation: true,
           nodeIntegration: false,
         },
       });
+      siteView.setBackgroundColor('#ffffff');
       this.activeSiteView = siteView;
       win.contentView.addChildView(siteView);
       win.setTitle(`Vmark 内置浏览器 - ${pid}`);
@@ -201,13 +202,20 @@ export class InternalBrowserManager {
         height: Math.max(0, height - TOOLBAR_HEIGHT),
       });
 
+      let lastDisplayedUrl = targetUrl;
+      let urlUpdateTimer: NodeJS.Timeout | null = null;
       const updateToolbarUrl = (url: string) => {
-        if (win.isDestroyed() || toolbarView.webContents.isDestroyed()) return;
-        void toolbarView.webContents
-          .executeJavaScript(
-            `(() => { const u = document.getElementById('url-pill'); if (u) u.textContent = ${JSON.stringify(url)}; })();`
-          )
-          .catch(() => {});
+        if (url === lastDisplayedUrl || win.isDestroyed() || toolbarView.webContents.isDestroyed()) return;
+        lastDisplayedUrl = url;
+        if (urlUpdateTimer) clearTimeout(urlUpdateTimer);
+        urlUpdateTimer = setTimeout(() => {
+          if (win.isDestroyed() || toolbarView.webContents.isDestroyed()) return;
+          void toolbarView.webContents
+            .executeJavaScript(
+              `(() => { const u = document.getElementById('url-pill'); if (u) u.textContent = ${JSON.stringify(lastDisplayedUrl)}; })();`
+            )
+            .catch(() => {});
+        }, 150);
       };
 
       void toolbarView.webContents.loadURL(
@@ -239,16 +247,18 @@ export class InternalBrowserManager {
 
       let authCheckTimer: NodeJS.Timeout | null = null;
       const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
-        if (removed) return;
-        if (authCheckTimer) clearTimeout(authCheckTimer);
+        if (removed || authCheckTimer) return;
         authCheckTimer = setTimeout(async () => {
+          authCheckTimer = null;
+          if (win.isDestroyed()) return;
           const ok = await verifyFn().catch(() => false);
           if (ok) await notifyFn?.();
-        }, 1200);
+        }, 3000);
       };
       siteSession.cookies.on('changed', cookieListener);
 
       this.cleanupActiveSite = () => {
+        if (urlUpdateTimer) clearTimeout(urlUpdateTimer);
         if (authCheckTimer) clearTimeout(authCheckTimer);
         siteSession.cookies.removeListener('changed', cookieListener);
       };

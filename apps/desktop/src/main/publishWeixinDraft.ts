@@ -4,6 +4,7 @@ import type Electron from 'electron';
 import { WeixinAdapter } from '@vcat/adapters';
 import { renderWeixinHtml } from '@vcat/core';
 import { resolveRefererForUrl, uploadLocalImagesForPublish } from '@vcat/image-pipeline';
+import { rasterizeMarkdownLatexForPlatform } from './latexRasterizer';
 import { createSessionFetch } from './publishSessionAuth';
 
 export interface WeixinDraftIpcPayload {
@@ -106,14 +107,19 @@ export async function executeWeixinDraftPublish(params: {
     return { ok: false, message: coverRes.message };
   }
 
-  const rendered = renderWeixinHtml(uploadResult.markdown, {
+  const latexRes = await rasterizeMarkdownLatexForPlatform({
+    markdown: uploadResult.markdown,
+    uploadFn: async (buffer, fileName) => adapter.uploadImage(buffer, fileName),
+  });
+
+  const rendered = renderWeixinHtml(latexRes.markdown, {
     coverImageUrl: coverRes.url,
     showCoverInBody: payload.showCoverInBody,
   });
 
   const pushed = await adapter.push({
     title: payload.title,
-    markdown: uploadResult.markdown,
+    markdown: latexRes.markdown,
     html: rendered.html,
     tags: [],
     mode: 'draft',

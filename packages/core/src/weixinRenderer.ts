@@ -415,9 +415,16 @@ function renderInlineSafe(
     } else if (tok.startsWith('![')) {
       const m = tok.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
       if (m) {
+        const alt = m[1];
         const cleanUrl = m[2].trim();
         imageUrls.push(cleanUrl);
-        out += `<img src="${escapeHtml(cleanUrl)}" alt="${escapeHtml(m[1])}" style="display: block; max-width: 100%; height: auto; margin: 12px auto; border-radius: 8px;" />`;
+        if (alt === 'vmark-latex-inline') {
+          out += `<img src="${escapeHtml(cleanUrl)}" alt="formula" style="display: inline-block; vertical-align: middle; height: 1.25em; width: auto; margin: 0 2px;" />`;
+        } else if (alt === 'vmark-latex-block') {
+          out += `<img src="${escapeHtml(cleanUrl)}" alt="formula" style="display: block; max-width: 100%; height: auto; margin: 12px auto;" />`;
+        } else {
+          out += `<img src="${escapeHtml(cleanUrl)}" alt="${escapeHtml(alt)}" style="display: block; max-width: 100%; height: auto; margin: 12px auto; border-radius: 8px;" />`;
+        }
       }
     } else if (tok.startsWith('[')) {
       const m = tok.match(/^\[([^\]]+)\]\(([^)]+)\)$/);

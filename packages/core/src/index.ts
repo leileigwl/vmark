@@ -152,3 +152,5 @@ export * from './zhihuRenderer.ts';
 export * from './csdnRenderer.ts';
 export * from './baijiahaoRenderer.ts';
 export * from './xiaohongshuRenderer.ts';
+export * from './socialCardThemes.ts';
+export * from './socialCardHtml.ts';
