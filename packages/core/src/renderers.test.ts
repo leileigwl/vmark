@@ -122,3 +122,17 @@ def hello():
   assert.ok(result.captionText.includes('#算法'));
   assert.ok(result.cards.length <= 18, 'Must not exceed 18 cards');
 });
+
+test('renderZhihuHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marker', () => {
+  const result = renderZhihuHtml('> [!NOTE]\n> 这是知乎提示内容');
+  assert.ok(result.html.includes('<strong>ℹ️ 提示</strong>'));
+  assert.ok(result.html.includes('这是知乎提示内容'));
+  assert.ok(!result.html.includes('[!NOTE]'));
+});
+
+test('renderBaijiahaoHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marker', () => {
+  const result = renderBaijiahaoHtml('> [!NOTE]\n> 这是百家号提示内容');
+  assert.ok(result.html.includes('<strong>ℹ️ 提示</strong>'));
+  assert.ok(result.html.includes('这是百家号提示内容'));
+  assert.ok(!result.html.includes('[!NOTE]'));
+});

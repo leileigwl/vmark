@@ -1,6 +1,7 @@
 import type Electron from 'electron';
 import {
   BaijiahaoAdapter,
+  BilibiliAdapter,
   CsdnAdapter,
   GitHubStaticAdapter,
   JuejinAdapter,
@@ -367,6 +368,50 @@ export async function publishToSingleTarget(params: {
         verified: pushed.verified,
         uploadedImagesCount: uploadResult.uploadedCount,
         message: `已推送到百家号草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'bilibili') {
+      const targetSession = session.fromPartition('persist:platform_bilibili');
+      const cookies = await targetSession.cookies.get({ name: 'bili_jct' });
+      const csrfToken = cookies[0]?.value ?? '';
+      const adapter = new BilibiliAdapter({ csrfToken, fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录 B 站专栏，请先在「偏好设置 → 平台授权托管」完成登录授权',
+        };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: resolveUploadFn(adapter),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const rendered = renderBaijiahaoHtml(uploadResult.markdown);
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: uploadResult.markdown,
+        html: rendered.html,
+        tags: payload.tags ?? [],
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到 B 站专栏草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
       };
     }
 

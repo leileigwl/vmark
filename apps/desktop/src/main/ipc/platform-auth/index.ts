@@ -129,8 +129,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
       });
 
       let authCheckTimer: NodeJS.Timeout | null = null;
-      const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
-        if (removed) return;
+      const scheduleAuthSync = (delayMs: number) => {
         if (authCheckTimer) clearTimeout(authCheckTimer);
         authCheckTimer = setTimeout(async () => {
           const isAuthorized = await verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig });
@@ -141,10 +140,15 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
             });
             getMainWindow()?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, { [platformId]: true });
           }
-        }, 1200);
+        }, delayMs);
+      };
+      const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
+        if (removed) return;
+        scheduleAuthSync(1200);
       };
 
       targetSession.cookies.on('changed', cookieListener);
+      loginWin.webContents.on('did-finish-load', () => scheduleAuthSync(500));
 
       try {
         await loginWin.loadURL(loginUrl);
@@ -156,6 +160,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         loginWin.on('closed', async () => {
           if (authCheckTimer) clearTimeout(authCheckTimer);
           targetSession.cookies.removeListener('changed', cookieListener);
+          await targetSession.cookies.flushStore().catch(() => {});
           const isAuthorized = await verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig });
           await upsertAccountRecord(platformId, {
             authorized: isAuthorized,

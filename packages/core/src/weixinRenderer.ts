@@ -1,3 +1,11 @@
+const CALLOUT_STYLES: Record<string, { label: string; color: string; bg: string }> = {
+  NOTE: { label: 'ℹ️ 提示', color: '#0969da', bg: 'rgba(9, 105, 218, 0.06)' },
+  TIP: { label: '💡 技巧', color: '#1a7f37', bg: 'rgba(26, 127, 55, 0.06)' },
+  IMPORTANT: { label: '📌 重要', color: '#8250df', bg: 'rgba(130, 80, 223, 0.06)' },
+  WARNING: { label: '⚠️ 注意', color: '#9a6700', bg: 'rgba(154, 103, 0, 0.07)' },
+  CAUTION: { label: '🚨 警告', color: '#cf222e', bg: 'rgba(207, 34, 46, 0.06)' },
+};
+
 export interface WeixinRenderOptions {
   /** Primary accent color (hex), defaults to #007aff */
   accentColor?: string;
@@ -220,22 +228,32 @@ export function renderWeixinHtml(
       continue;
     }
 
-    // Blockquote
+    // Blockquote / GitHub-style Callout
     if (trimmed.startsWith('>')) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trim().startsWith('>')) {
         quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
         i++;
       }
-      const innerHtml = quoteLines
+      const calloutMatch = quoteLines[0]?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
+      const callout = calloutMatch ? CALLOUT_STYLES[calloutMatch[1].toUpperCase()] : undefined;
+      const bodyLines = calloutMatch
+        ? [...(calloutMatch[2].trim() ? [calloutMatch[2].trim()] : []), ...quoteLines.slice(1)]
+        : quoteLines;
+      const headerHtml = callout
+        ? `<p style="margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; font-weight: 700; line-height: 1.5; color: ${callout.color};">${callout.label}</p>`
+        : '';
+      const innerHtml = bodyLines
         .filter((ql) => ql.length > 0)
         .map(
           (ql) =>
             `<p style="margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; line-height: 1.7; color: #4a4a4a;">${renderInlineSafe(ql, accent, convertLinks, footnotes, imageUrls)}</p>`
         )
         .join('');
+      const borderColor = callout ? callout.color : accent;
+      const bgColor = callout ? callout.bg : 'rgba(0, 122, 255, 0.05)';
       blocks.push(
-        `<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid ${accent}; border-radius: 8px; background-color: rgba(0, 122, 255, 0.05);">${innerHtml}</blockquote>`
+        `<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid ${borderColor}; border-radius: 8px; background-color: ${bgColor};">${headerHtml}${innerHtml}</blockquote>`
       );
       continue;
     }

@@ -83,10 +83,24 @@ export function renderZhihuHtml(
   let inTable = false;
   let tableRows: string[][] = [];
 
+  const CALLOUT_LABELS: Record<string, string> = {
+    NOTE: 'ℹ️ 提示',
+    TIP: '💡 技巧',
+    IMPORTANT: '📌 重要',
+    WARNING: '⚠️ 注意',
+    CAUTION: '🚨 警告',
+  };
+
   const flushBlockquote = (): void => {
     if (!inBlockquote) return;
-    const body = quoteLines.map((l) => `<p>${renderInline(l)}</p>`).join('');
-    out.push(`<blockquote>${body}</blockquote>`);
+    const calloutMatch = quoteLines[0]?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
+    const label = calloutMatch ? CALLOUT_LABELS[calloutMatch[1].toUpperCase()] : undefined;
+    const bodyLines = calloutMatch
+      ? [...(calloutMatch[2].trim() ? [calloutMatch[2].trim()] : []), ...quoteLines.slice(1)]
+      : quoteLines;
+    const headerHtml = label ? `<p><strong>${label}</strong></p>` : '';
+    const body = bodyLines.filter((l) => l.length > 0).map((l) => `<p>${renderInline(l)}</p>`).join('');
+    out.push(`<blockquote>${headerHtml}${body}</blockquote>`);
     inBlockquote = false;
     quoteLines = [];
   };

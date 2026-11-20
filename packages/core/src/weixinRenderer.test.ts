@@ -83,3 +83,14 @@ const isTrue = true;
   assert.ok(res.html.includes('color: #005cc5;'), 'Numbers/booleans should be highlighted');
   assert.ok(!res.html.includes('class='), 'Must not contain any class attributes');
 });
+
+test('renderWeixinHtml renders GitHub-style [!NOTE] and [!WARNING] callouts with inline CSS', () => {
+  const md = `> [!NOTE]\n> 这是提示内容\n\n> [!WARNING] 警惕\n> 风险说明`;
+  const res = renderWeixinHtml(md);
+  assert.ok(res.html.includes('ℹ️ 提示'));
+  assert.ok(res.html.includes('这是提示内容'));
+  assert.ok(res.html.includes('⚠️ 注意'));
+  assert.ok(res.html.includes('警惕'));
+  assert.ok(!res.html.includes('[!NOTE]'));
+  assert.ok(!res.html.includes('class='));
+});

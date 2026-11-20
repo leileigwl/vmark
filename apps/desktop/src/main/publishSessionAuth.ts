@@ -30,7 +30,11 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
     if (!headers.has('User-Agent')) {
       headers.set('User-Agent', CHROME_DESKTOP_UA);
     }
-    const res = await targetSession.fetch(input, { ...customInit, headers });
+    const res = await targetSession.fetch(input, {
+      ...customInit,
+      credentials: customInit?.credentials ?? 'include',
+      headers,
+    });
     return {
       ok: res.ok,
       status: res.status,
@@ -68,9 +72,9 @@ export async function hasSessionAuthCookies(
       );
 
     case 'csdn':
-      // CSDN requires BOTH UserName and UserToken on csdn.net
+      // CSDN session may carry UserName or UserToken*; live getBaseInfo verifies real auth
       return (
-        hasCookie((n, _, d) => n === 'UserName' && (!d || d.includes('csdn.net'))) &&
+        hasCookie((n, _, d) => n === 'UserName' && (!d || d.includes('csdn.net'))) ||
         hasCookie((n, _, d) => n.startsWith('UserToken') && (!d || d.includes('csdn.net')))
       );
 
@@ -112,11 +116,13 @@ export async function hasSessionAuthCookies(
       return hasCookie((n, _, d) => (n === 'sessionid' || n === 'sessionid_ss') && (!d || d.includes('douyin.com')));
 
     case 'linuxdo':
-      return hasCookie((n, _, d) => (n === '_t' || n === '_forum_session') && (!d || d.includes('linux.do')));
+      // _forum_session is issued to anonymous visitors; _t is the authenticated Discourse session token
+      return hasCookie((n, _, d) => n === '_t' && (!d || d.includes('linux.do')));
 
     case 'x':
-      return hasCookie(
-        (n, _, d) => n === 'auth_token' && (!d || d.includes('x.com') || d.includes('twitter.com'))
+      return (
+        hasCookie((n, _, d) => n === 'auth_token' && (!d || d.includes('x.com') || d.includes('twitter.com'))) &&
+        hasCookie((n, _, d) => n === 'ct0' && (!d || d.includes('x.com') || d.includes('twitter.com')))
       );
 
     case 'github_static':
@@ -161,16 +167,7 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         sFetch('https://i.cnblogs.com/api/user', {
           headers: { Referer: 'https://i.cnblogs.com/' },
-        }).then(async (res) => {
-          if (res.ok) return true;
-          if (res.status === 403) {
-            try {
-              const data = (await res.json()) as { errors?: string[] };
-              if (data.errors?.some((e) => e.includes('您没有开通博客'))) return true;
-            } catch (parseErr) { void parseErr; /* Non-JSON 403 payload from cnblogs */ }
-          }
-          return false;
-        }),
+        }).then((res) => res.ok),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
@@ -190,9 +187,25 @@ export async function verifyPlatformAuth(params: {
 
     if (platformId === 'juejin') {
       const jSession = session.fromPartition('persist:platform_juejin');
-      const adapter = new JuejinAdapter({ fetchFn: createSessionFetch(jSession) });
+      const sFetch = createSessionFetch(jSession);
+      const adapter = new JuejinAdapter({ fetchFn: sFetch });
+      const verifyJuejinDraftAuth = async (): Promise<boolean> => {
+        if (!(await adapter.checkAuth())) return false;
+        const draftRes = await sFetch('https://api.juejin.cn/content_api/v1/article_draft/query_list', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'https://juejin.cn',
+            Referer: 'https://juejin.cn/',
+          },
+          body: JSON.stringify({ page_no: 1, page_size: 1 }),
+        });
+        if (!draftRes.ok) return false;
+        const draftData = (await draftRes.json()) as { err_no?: number };
+        return draftData.err_no === 0;
+      };
       return await Promise.race([
-        adapter.checkAuth(),
+        verifyJuejinDraftAuth(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
@@ -221,6 +234,74 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         adapter.checkAuth(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
+      ]);
+    }
+
+    if (platformId === 'linuxdo') {
+      const lSession = session.fromPartition('persist:platform_linuxdo');
+      const sFetch = createSessionFetch(lSession);
+      return await Promise.race([
+        sFetch('https://linux.do/session/current.json', {
+          headers: { Referer: 'https://linux.do/' },
+        }).then(async (res) => {
+          // Cloudflare JS challenge (403/503) on net.fetch should not invalidate a verified _t session cookie
+          if (res.status === 403 || res.status === 503) return true;
+          if (!res.ok) return false;
+          const data = (await res.json()) as { current_user?: { id?: number } };
+          return Boolean(data.current_user?.id);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'weibo') {
+      const wSession = session.fromPartition('persist:platform_weibo');
+      const sFetch = createSessionFetch(wSession);
+      return await Promise.race([
+        sFetch('https://m.weibo.cn/api/config', {
+          headers: { Referer: 'https://m.weibo.cn/' },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { ok?: number; data?: { login?: boolean } };
+          return Boolean(data.data?.login);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'douyin') {
+      const dSession = session.fromPartition('persist:platform_douyin');
+      const sFetch = createSessionFetch(dSession);
+      return await Promise.race([
+        sFetch('https://creator.douyin.com/web/api/media/user/info/', {
+          headers: { Referer: 'https://creator.douyin.com/' },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as { status_code?: number; user?: { uid?: string } };
+          return Boolean(data.user?.uid) || data.status_code === 0;
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+      ]);
+    }
+
+    if (platformId === 'xiaohongshu') {
+      const xSession = session.fromPartition('persist:platform_xiaohongshu');
+      const sFetch = createSessionFetch(xSession);
+      return await Promise.race([
+        sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+          headers: {
+            Origin: 'https://www.xiaohongshu.com',
+            Referer: 'https://www.xiaohongshu.com/',
+          },
+        }).then(async (res) => {
+          if (!res.ok) return false;
+          const data = (await res.json()) as {
+            success?: boolean;
+            data?: { guest?: boolean; user_id?: string };
+          };
+          return Boolean(data.success) && !data.data?.guest && Boolean(data.data?.user_id);
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }
 

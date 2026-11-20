@@ -33,11 +33,33 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
     return s;
   };
 
+  const CALLOUT_LABELS: Record<string, string> = {
+    NOTE: 'ℹ️ 提示',
+    TIP: '💡 技巧',
+    IMPORTANT: '📌 重要',
+    WARNING: '⚠️ 注意',
+    CAUTION: '🚨 警告',
+  };
+
   const out: string[] = [];
   let inCode = false;
   let codeLang = '';
   let codeMarker = '';
   let codeLines: string[] = [];
+  let quoteLines: string[] = [];
+
+  const flushQuote = () => {
+    if (quoteLines.length === 0) return;
+    const calloutMatch = quoteLines[0]?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
+    const label = calloutMatch ? CALLOUT_LABELS[calloutMatch[1].toUpperCase()] : undefined;
+    const bodyLines = calloutMatch
+      ? [...(calloutMatch[2].trim() ? [calloutMatch[2].trim()] : []), ...quoteLines.slice(1)]
+      : quoteLines;
+    const headerHtml = label ? `<p><strong>${label}</strong></p>` : '';
+    const bodyHtml = bodyLines.filter((l) => l.length > 0).map((l) => `<p>${renderInline(l)}</p>`).join('');
+    out.push(`<blockquote>${headerHtml}${bodyHtml}</blockquote>`);
+    quoteLines = [];
+  };
 
   for (const line of lines) {
     const trimmedLine = line.trim();
@@ -65,6 +87,12 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
       continue;
     }
 
+    if (line.startsWith('>')) {
+      quoteLines.push(line.replace(/^>\s?/, ''));
+      continue;
+    }
+    flushQuote();
+
     if (!line.trim()) continue;
 
     const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
@@ -74,13 +102,9 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
       continue;
     }
 
-    if (line.startsWith('>')) {
-      out.push(`<blockquote><p>${renderInline(line.replace(/^>\s?/, ''))}</p></blockquote>`);
-      continue;
-    }
-
     out.push(`<p>${renderInline(line)}</p>`);
   }
+  flushQuote();
 
   const plain = cleanMd
     .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')

@@ -27,6 +27,9 @@ test('WeixinAdapter 5-step flow: checkAuth -> uploadImage -> push draft -> verif
       };
     }
     if (url.includes('operate_appmsg')) {
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      assert.equal(headers.Origin, 'https://mp.weixin.qq.com');
+      assert.ok(headers.Referer?.startsWith('https://mp.weixin.qq.com/'));
       const bodyStr = String(init?.body || '');
       assert.ok(bodyStr.includes('author0=VmarkAuthor'));
       assert.ok(bodyStr.includes('digest0='));
