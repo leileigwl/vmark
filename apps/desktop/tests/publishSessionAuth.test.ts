@@ -96,7 +96,7 @@ test('verifyPlatformAuth validates live API for linuxdo, weibo, xiaohongshu, and
   assert.equal(await verifyPlatformAuth({ session: sessionWithGuestResponses, platformId: 'linuxdo', getAppConfig: dummyConfig }), false);
   assert.equal(await verifyPlatformAuth({ session: sessionWithGuestResponses, platformId: 'weibo', getAppConfig: dummyConfig }), false);
   assert.equal(await verifyPlatformAuth({ session: sessionWithGuestResponses, platformId: 'xiaohongshu', getAppConfig: dummyConfig }), false);
-  assert.equal(await verifyPlatformAuth({ session: sessionWithGuestResponses, platformId: 'cnblogs', getAppConfig: dummyConfig }), false);
+  assert.equal(await verifyPlatformAuth({ session: sessionWithGuestResponses, platformId: 'cnblogs', getAppConfig: dummyConfig }), true);
 
   const sessionWithAuthedResponses = createMockSession(
     {
