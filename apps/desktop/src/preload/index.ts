@@ -48,8 +48,6 @@ const api: ElectronAPI = {
   openPlatformLogin: (platformId: PlatformId, loginUrl: string) =>
     ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openPlatformLogin, platformId, loginUrl),
   logoutPlatform: (platformId: PlatformId) => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.logoutPlatform, platformId),
-  setPlatformProxy: (platformId: PlatformId, proxyUrl: string) =>
-    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.setPlatformProxy, platformId, proxyUrl),
   getPlatformAuthStates: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getPlatformAuthStates),
   getGitStatus: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getGitStatus),
   pushGitWorkspace: (commitMessage: string) =>

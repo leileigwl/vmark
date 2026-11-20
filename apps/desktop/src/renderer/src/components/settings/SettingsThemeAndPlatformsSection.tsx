@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import type { PlatformId, ThemeId } from '@vcat/shared';
 import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
 
@@ -90,7 +89,7 @@ export function SettingsThemeSection({
   );
 }
 
-/** Multi-platform sandbox authentication status & login/logout/proxy panel. */
+/** Multi-platform sandbox authentication status & built-in isolated browser panel. */
 export function SettingsPlatformsSection({
   authStates,
   onPlatformLogin,
@@ -100,135 +99,61 @@ export function SettingsPlatformsSection({
   onPlatformLogin: (platformId: PlatformId) => void;
   onPlatformLogout?: (platformId: PlatformId) => void;
 }) {
-  const [proxyDrafts, setProxyDrafts] = useState<Partial<Record<PlatformId, string>>>({});
-  const [proxyEditorId, setProxyEditorId] = useState<PlatformId | null>(null);
-  const [proxyMsg, setProxyMsg] = useState<string>('');
-
-  useEffect(() => {
-    void window.electronAPI?.getPlatformAccounts?.().then((accounts) => {
-      if (!accounts) return;
-      const loaded: Partial<Record<PlatformId, string>> = {};
-      for (const [pid, rec] of Object.entries(accounts)) {
-        const proxyUrl = (rec as { proxyUrl?: string })?.proxyUrl;
-        if (proxyUrl) loaded[pid as PlatformId] = proxyUrl;
-      }
-      setProxyDrafts(loaded);
-    });
-  }, []);
-
-  const handleSaveProxy = async (platformId: PlatformId, nextProxy: string) => {
-    if (!window.electronAPI?.setPlatformProxy) return;
-    try {
-      const res = await window.electronAPI.setPlatformProxy(platformId, nextProxy);
-      setProxyDrafts((prev) => ({ ...prev, [platformId]: res.proxyUrl ?? '' }));
-      setProxyEditorId(null);
-      setProxyMsg(res.proxyUrl ? `已保存 ${platformId} 独立代理` : `已清除 ${platformId} 代理配置`);
-      setTimeout(() => setProxyMsg(''), 2500);
-    } catch (err) {
-      setProxyMsg(err instanceof Error ? err.message : String(err));
-    }
-  };
-
   return (
     <div className="max-w-3xl">
       <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
       <p className="mt-1 mb-4 text-xs text-[var(--control-text-color)]">
-        常规平台使用加固版 Electron <code>persist:platform_*</code> 沙箱；高风控平台（小红书/抖音）优先启动独立真实 Chrome Profile，支持按平台配置独立网络代理。
+        每个平台运行在 Vmark 内嵌独立浏览器环境（独立 <code>persist:platform_*</code> 存储分区 + 独立指纹参数），Cookie 本地持久化不串号。
       </p>
-      {proxyMsg && (
-        <div className="mb-3 rounded border border-[var(--accent)]/40 bg-[var(--accent)]/10 px-3 py-1.5 text-xs text-[var(--accent)]">
-          {proxyMsg}
-        </div>
-      )}
       <div className="divide-y divide-[var(--border-color)] rounded border border-[var(--border-color)]">
         {VISIBLE_PLATFORM_CATALOG.map((p) => {
           const online = Boolean(authStates[p.id]);
-          const savedProxy = proxyDrafts[p.id] ?? '';
-          const editingProxy = proxyEditorId === p.id;
           return (
-            <div key={p.id} className="px-4 py-3 hover:bg-[var(--bg-hover)]">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
-                    <span>{p.name}</span>
-                    {p.authChannel === 'isolated_profile' && (
-                      <span className="rounded-full bg-[#ddf4ff] px-2 py-0.5 text-[10px] font-medium text-[#0969da]">
-                        独立 Chrome Profile
-                      </span>
-                    )}
-                    {online ? (
-                      <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
-                        ● 已授权
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--control-text-color)]">
-                        未登录
-                      </span>
-                    )}
-                    {savedProxy && (
-                      <span className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] font-normal text-[var(--control-text-color)]">
-                        代理: {savedProxy}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-[var(--control-text-color)]">
-                    默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setProxyEditorId(editingProxy ? null : p.id)}
-                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-[var(--control-text-color)] hover:border-[var(--accent)] hover:text-[var(--text-main)]"
-                  >
-                    {editingProxy ? '收起代理' : '独立代理'}
-                  </button>
-                  {online && (
-                    <button
-                      type="button"
-                      onClick={() => onPlatformLogout?.(p.id)}
-                      title="清除该平台沙箱内所有持久化 Cookie 并退出登录"
-                      className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10 cursor-pointer"
-                    >
-                      退出授权
-                    </button>
+            <div
+              key={p.id}
+              className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-hover)]"
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
+                  <span>{p.name}</span>
+                  {p.authChannel === 'isolated_profile' && (
+                    <span className="rounded-full bg-[#ddf4ff] px-2 py-0.5 text-[10px] font-medium text-[#0969da]">
+                      独立内嵌环境
+                    </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onPlatformLogin(p.id)}
-                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                  >
-                    {online ? '更新/切换账号' : '打开登录窗授权'}
-                  </button>
+                  {online ? (
+                    <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
+                      ● 已授权
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--control-text-color)]">
+                      未登录
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-[11px] text-[var(--control-text-color)]">
+                  默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
                 </div>
               </div>
-              {editingProxy && (
-                <div className="mt-2.5 flex items-center gap-2 border-t border-[var(--border-color)]/60 pt-2.5">
-                  <input
-                    type="text"
-                    value={savedProxy}
-                    onChange={(e) =>
-                      setProxyDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))
-                    }
-                    placeholder="可选，如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
-                    className="min-w-0 flex-1 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-xs outline-none focus:border-[var(--accent)]"
-                  />
+              <div className="flex items-center gap-2">
+                {online && (
                   <button
                     type="button"
-                    onClick={() => void handleSaveProxy(p.id, savedProxy)}
-                    className="rounded bg-[var(--accent)] px-2.5 py-1 text-xs text-white hover:opacity-90"
+                    onClick={() => onPlatformLogout?.(p.id)}
+                    title="清除该平台沙箱内所有持久化 Cookie 并退出登录"
+                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10 cursor-pointer"
                   >
-                    保存代理
+                    退出授权
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveProxy(p.id, '')}
-                    className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-xs text-[var(--control-text-color)] hover:text-[var(--text-main)]"
-                  >
-                    直连
-                  </button>
-                </div>
-              )}
+                )}
+                <button
+                  type="button"
+                  onClick={() => onPlatformLogin(p.id)}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {online ? '在内置浏览器中打开' : '打开内置浏览器授权'}
+                </button>
+              </div>
             </div>
           );
         })}

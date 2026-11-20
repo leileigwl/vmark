@@ -32,7 +32,6 @@ export const IPC_INVOKE_CHANNELS = {
   saveStartupConfig: 'config:saveStartup',
   openPlatformLogin: 'platform:openLogin',
   logoutPlatform: 'platform:logout',
-  setPlatformProxy: 'platform:setProxy',
   getPlatformAuthStates: 'platform:authStates',
   getPlatformAccounts: 'platform:getAccounts',
   getGitStatus: 'git:status',
