@@ -163,6 +163,31 @@ jobs:
             gh pr merge "${PR_URL}" --auto --merge --delete-branch || gh pr merge "${PR_URL}" --merge --delete-branch || true
           fi
 
+      - name: Auto-Tag Semantic Release on master (triggers macOS/Win/Linux packaging)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin master --tags
+          LATEST_TAG=$(git describe --tags --abbrev=0 origin/master 2>/dev/null || echo "v0.1.0")
+          HAS_FEAT=$(git log "${LATEST_TAG}..origin/master" --pretty=format:"%s" | grep -cE "^feat" || true)
+          BASE_VER="${LATEST_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE_VER}"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-1}
+          PATCH=${PATCH:-0}
+          if [ "${HAS_FEAT}" -gt 0 ]; then
+            NEXT_TAG="v${MAJOR}.$((MINOR + 1)).0"
+          else
+            NEXT_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+          if git rev-parse "${NEXT_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${NEXT_TAG} already exists; skipping tag push."
+          else
+            git tag -a "${NEXT_TAG}" origin/master -m "chore(release): ${NEXT_TAG}"
+            git push origin "${NEXT_TAG}"
+            echo "Pushed semantic release tag ${NEXT_TAG} on master."
+          fi
+
       - name: Close freeze:release-window issues
         uses: actions/github-script@v7
         with:
