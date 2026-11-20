@@ -266,7 +266,7 @@ export function PlatformPreviewPane({
                   >
                     {/* iOS Notes Top Navigation Bar (only for ios-memo) */}
                     {isMemo && (
-                      <div className="flex items-center justify-between px-1 pb-1.5 text-[9px] font-medium">
+                      <div className="flex shrink-0 items-center justify-between px-1 pb-1.5 text-[9px] font-medium">
                         <span style={{ color: tokens.accent }}>‹ 备忘录</span>
                         <span style={{ color: tokens.textMuted }} className="text-[8px]">
                           11月21日 00:32
@@ -285,13 +285,13 @@ export function PlatformPreviewPane({
                         borderTop: isMag ? `1px solid ${tokens.line}` : undefined,
                         borderBottom: isMag ? `1px solid ${tokens.line}` : undefined,
                       }}
-                      className={`flex flex-1 flex-col justify-start gap-1.5 overflow-hidden ${
+                      className={`flex min-h-0 flex-1 flex-col justify-start gap-1.5 overflow-hidden ${
                         isMemo ? 'rounded-lg p-2.5 shadow-2xs' : 'py-2'
                       }`}
                     >
                       <div
                         style={{ color: tokens.headingInk, fontFamily: tokens.fontDisplay }}
-                        className="line-clamp-2 text-xs font-extrabold leading-snug"
+                        className="shrink-0 line-clamp-2 pb-0.5 text-xs font-extrabold leading-[1.35]"
                       >
                         {card.title}
                       </div>
@@ -303,7 +303,7 @@ export function PlatformPreviewPane({
                             borderLeftColor: tokens.lineStrong,
                             color: tokens.textSecondary,
                           }}
-                          className="line-clamp-2 rounded border-l-2 px-2 py-1 text-[9px] italic leading-relaxed"
+                          className="shrink-0 line-clamp-2 rounded border-l-2 px-2 py-1.5 text-[9px] italic leading-[1.45]"
                         >
                           {cleanPreviewLine(card.quote)}
                         </div>
@@ -315,9 +315,9 @@ export function PlatformPreviewPane({
                             backgroundColor: '#18181B',
                             color: '#F4F4F5',
                           }}
-                          className="flex flex-1 flex-col justify-between overflow-hidden rounded-lg p-2 font-mono text-[8.5px]"
+                          className="flex min-h-0 flex-1 flex-col justify-between overflow-hidden rounded-lg p-2 font-mono text-[8.5px]"
                         >
-                          <div className="mb-1 flex items-center justify-between border-b border-white/10 pb-1">
+                          <div className="mb-1 flex shrink-0 items-center justify-between border-b border-white/10 pb-1">
                             <span className="flex items-center gap-1">
                               <span className="h-1.5 w-1.5 rounded-full bg-[#ff5f56]" />
                               <span className="h-1.5 w-1.5 rounded-full bg-[#ffbd2e]" />
@@ -327,7 +327,7 @@ export function PlatformPreviewPane({
                               {card.codeLang || 'TS'}
                             </span>
                           </div>
-                          <div className="space-y-0.5 overflow-hidden">
+                          <div className="min-h-0 flex-1 space-y-0.5 overflow-hidden">
                             {card.bodyLines.slice(0, 6).map((line, i) => (
                               <div key={i} className="flex gap-1.5 leading-tight">
                                 <span className="select-none opacity-40">
@@ -339,9 +339,9 @@ export function PlatformPreviewPane({
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-1.5 overflow-hidden text-[9.5px] leading-relaxed">
-                          {card.bodyLines.slice(0, 4).map((line, i) => (
-                            <p key={i} className="line-clamp-2 text-justify">
+                        <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden text-[9px] leading-[1.5]">
+                          {card.bodyLines.slice(0, card.quote ? 2 : 3).map((line, i) => (
+                            <p key={i} className="line-clamp-2 break-words text-justify">
                               {cleanPreviewLine(line)}
                             </p>
                           ))}
@@ -352,7 +352,7 @@ export function PlatformPreviewPane({
                     {/* Subtle Right-Aligned Page Number */}
                     <div
                       style={{ color: tokens.textMuted }}
-                      className="pt-1 pr-1 text-right text-[8.5px]"
+                      className="shrink-0 pt-1 pr-1 text-right text-[8.5px]"
                     >
                       {idx + 1} / {socialPayload.cards.length}
                     </div>

@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vmark 需求演进、HTML 交互原型与 xhs-textcard 级视觉卡片图鉴</title>
+  <title>Vmark 需求演进台账、交互原型与测试用例映射图鉴</title>
   <style>
     :root {
       --bg: #f4f4f8;
       --surface: #ffffff;
       --ink: #1c1c1e;
       --muted: #6e6e73;
-      --accent: #ff9500;
-      --accent-soft: rgba(255, 149, 0, 0.14);
+      --accent: #007aff;
+      --warm: #ff9500;
       --border: rgba(28, 28, 30, 0.11);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,43 +20,42 @@
       color: var(--ink);
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
       line-height: 1.6;
-      padding: 28px 36px 64px;
+      padding: 24px 32px 60px;
     }
-    .container { max-width: 1360px; margin: 0 auto; }
+    .container { max-width: 1320px; margin: 0 auto; }
     .hero {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 26px 32px;
-      margin-bottom: 22px;
+      border-radius: 18px;
+      padding: 22px 28px;
+      margin-bottom: 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 16px;
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.04);
+      gap: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
     }
     .hero-badge {
       display: inline-block;
-      background: var(--accent-soft);
-      color: #d97706;
+      background: rgba(0, 122, 255, 0.1);
+      color: var(--accent);
       font-weight: 700;
-      font-size: 12px;
-      padding: 4px 12px;
+      font-size: 11px;
+      padding: 4px 10px;
       border-radius: 999px;
-      letter-spacing: 0.8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
-    .hero h1 { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; }
-    .hero p { color: var(--muted); font-size: 14px; margin-top: 4px; }
-    .nav-tabs { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+    .hero h1 { font-size: 22px; font-weight: 800; }
+    .hero p { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
     .tab-btn {
       border: 1px solid var(--border);
       background: var(--surface);
       color: var(--ink);
-      padding: 10px 20px;
-      border-radius: 12px;
-      font-size: 14px;
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
     }
@@ -66,381 +65,387 @@
     .card-box {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 24px;
-      margin-bottom: 22px;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
     }
     .section-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 800;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-    .section-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
-    .proto-toolbar {
-      display: flex;
+      gap: 10px;
       flex-wrap: wrap;
-      gap: 14px;
-      padding: 14px 16px;
-      background: #f9f9fb;
+    }
+    .section-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+    .split-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .split-2 { grid-template-columns: 1fr; } }
+    .window-frame {
       border: 1px solid var(--border);
       border-radius: 14px;
-      margin-bottom: 18px;
-      align-items: center;
+      overflow: hidden;
+      background: #fff;
     }
-    .proto-group {
+    .window-bar {
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #f5f5f7;
+      border-bottom: 1px solid var(--border);
       font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
     }
     .pill-btn {
       border: 1px solid var(--border);
       background: #fff;
       color: var(--ink);
-      padding: 5px 12px;
-      border-radius: 8px;
+      padding: 4px 10px;
+      border-radius: 7px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
     }
-    .pill-btn.active { background: #1c1c1e; color: #fff; border-color: #1c1c1e; }
-    .proto-workspace {
+    .pill-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .icon-grid {
       display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 20px;
-      align-items: start;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      padding: 14px;
     }
-    @media (max-width: 960px) { .proto-workspace { grid-template-columns: 1fr; } }
-    .proto-sidebar {
-      background: #f9f9fb;
+    .icon-tile {
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 16px;
+      background: #fafafa;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.15s;
     }
-    .proto-stage {
-      background: #e5e5ea;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 28px;
+    .icon-tile:hover { border-color: var(--accent); background: #f0f7ff; }
+    .icon-badge {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 6px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 13px;
+    }
+    .tab-strip {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      padding: 6px 10px 0;
+      background: #eef2f7;
+      border-bottom: 1px solid #cbd5e1;
+      overflow-x: auto;
+    }
+    .btab {
+      padding: 5px 10px;
+      font-size: 11.5px;
+      border-radius: 8px 8px 0 0;
+      border: 1px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btab.active {
+      background: #fff;
+      border-color: #cbd5e1;
+      border-bottom-color: #fff;
+      font-weight: 700;
     }
     .gallery-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
     }
     .img-card {
       background: #fff;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 12px;
       overflow: hidden;
       text-decoration: none;
       color: inherit;
     }
-    .img-card img {
-      width: 100%;
-      aspect-ratio: 3 / 4;
-      object-fit: cover;
-      display: block;
-      border-bottom: 1px solid var(--border);
-    }
-    .img-meta { padding: 10px 12px; }
-    .img-meta h4 { font-size: 13px; font-weight: 700; }
-    .img-meta p { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .req-item {
-      border-left: 4px solid var(--accent);
-      background: #f9f9fb;
-      border-radius: 0 14px 14px 0;
-      padding: 16px 20px;
-      margin-bottom: 16px;
-      border-top: 1px solid var(--border);
-      border-right: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-    .req-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .req-id {
-      font-family: monospace;
-      font-size: 12px;
-      font-weight: 700;
-      background: var(--ink);
-      color: #fff;
-      padding: 3px 10px;
-      border-radius: 6px;
-    }
-    .req-status {
-      font-size: 12px;
-      font-weight: 700;
-      color: #166534;
-      background: #dcfce7;
-      padding: 3px 10px;
-      border-radius: 999px;
-    }
+    .img-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; display: block; border-bottom: 1px solid var(--border); }
+    .img-meta { padding: 9px 11px; }
+    .img-meta h4 { font-size: 12.5px; font-weight: 700; }
+    .img-meta p { font-size: 11px; color: var(--muted); }
+    .req-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .req-table th, .req-table td { border: 1px solid var(--border); padding: 9px 11px; text-align: left; vertical-align: top; }
+    .req-table th { background: #f8f9fb; font-weight: 700; }
+    .tag-ok { display: inline-block; background: #dcfce7; color: #166534; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+    .tag-id { font-family: monospace; background: #1c1c1e; color: #fff; padding: 2px 7px; border-radius: 5px; font-size: 11px; font-weight: 700; }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="hero">
       <div>
-        <span class="hero-badge">XHS-TEXTCARD 1:1 REPLICATION • HTML PROTOTYPE &amp; REQUIREMENT JOURNAL</span>
-        <h1>Vmark 小红书/抖音流式文字卡片交互原型 &amp; 需求演进图鉴</h1>
-        <p>像素级对标 <code>xhs-textcard.site/editor</code>：首推最常用的「苹果备忘录 (iOS Notes)」「极简杂志 (Minimalist)」「空白模板 (Blank)」，彻底摒弃生硬的 PPT 标签框。</p>
+        <span class="hero-badge">VMARK PROTOTYPE &amp; REQUIREMENT JOURNAL • 可回看需求/原型/测试台账</span>
+        <h1>Vmark 交互原型工作台 &amp; 需求-测试演进档案</h1>
+        <p>纯写作台独立保留 · 分发弹窗直达『🌐 平台快捷浏览器（多标签 + 图标宫格）』· 小红书卡片防裁切与表格转化 · 需求/测试永久留痕</p>
       </div>
-      <div style="text-align:right;font-size:12px;color:var(--muted);">
-        <div>主力模板：<code>苹果备忘录 / 极简杂志 / 空白模板</code></div>
-        <div>画幅规格：<code>3:4 (1080×1440) / 2:3 (1080×1620) / 9:16</code></div>
+      <div style="font-size:12px;color:var(--muted);text-align:right;">
+        <div>当前分支：<code>slice/browser-hub-and-card-fixes</code></div>
+        <div>更新日期：<code>2026-11-21</code></div>
       </div>
     </header>
 
     <nav class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab('proto', this)">1. 🖥️ 桌面端『苹果备忘录 / 极简杂志 / 空白模板』HTML 交互原型</button>
-      <button class="tab-btn" onclick="switchTab('gallery', this)">2. 📸 1080×1440 真实 Chrome 离屏渲染配套图全集 (10 张)</button>
-      <button class="tab-btn" onclick="switchTab('journal', this)">3. 🧭 需求演进、Bug 根因与 AI 讨论决策台账</button>
+      <button class="tab-btn active" onclick="switchTab('browser', this)">1. 🌐 写作台独立 + 分发内置多标签浏览器 &amp; 宫格原型</button>
+      <button class="tab-btn" onclick="switchTab('xhs', this)">2. 📱 小红书流式卡片修复对比 &amp; 模板切换原型</button>
+      <button class="tab-btn" onclick="switchTab('gallery', this)">3. 📸 1080×1440 真实渲染配套图集 (10 张)</button>
+      <button class="tab-btn" onclick="switchTab('journal', this)">4. 🧭 需求演进、截图根因与测试用例同步台账</button>
     </nav>
 
-    <!-- PANEL 1: INTERACTIVE PROTOTYPE -->
-    <section id="panel-proto" class="panel active">
+    <!-- PANEL 1: BUILT-IN BROWSER HUB PROTOTYPE -->
+    <section id="panel-browser" class="panel active">
       <div class="card-box">
         <div class="section-title">
-          <span>桌面端 PublishModal -> PlatformPreviewPane 高保真交互原型</span>
-          <span style="font-size:12px;color:#d97706;font-weight:700;">✦ 1:1 还原苹果备忘录信纸横线、极简杂志顶底细线与空白极简风</span>
+          <span>布局决策：写作台保持纯粹独立，分发弹窗内置「🌐 平台快捷浏览器」+ 顶栏多标签 Tab</span>
+          <span style="font-size:12px;color:var(--accent);font-weight:700;">点击下方卡片或草稿链接体验真实流转</span>
         </div>
-        <p class="section-sub">支持实时切换内页模板（苹果备忘录 / 极简杂志 / 空白模板 / 书籍内页 / 暗夜深思）与画幅比例（小红书 3:4 / 小红书长文 2:3 / 短视频 9:16 / 专栏 16:9）。</p>
+        <p class="section-sub">解决了“点击打开草稿跳去外部浏览器无登录态”以及“多平台逐个勾选麻烦”的问题；主写作区零干扰。</p>
 
-        <div class="proto-toolbar">
-          <div class="proto-group">
-            <span>① 常用模板：</span>
-            <button class="pill-btn active" onclick="setTemplate('ios-memo', this)">📝 苹果备忘录 (最常用)</button>
-            <button class="pill-btn" onclick="setTemplate('minimalist-magazine', this)">📖 极简杂志</button>
-            <button class="pill-btn" onclick="setTemplate('blank', this)">⬜ 空白模板</button>
-            <button class="pill-btn" onclick="setTemplate('elegant-book', this)">📜 书籍内页</button>
+        <div class="split-2">
+          <!-- Left: PublishModal Launcher & Multi-select -->
+          <div class="window-frame">
+            <div class="window-bar">
+              <strong>合并分发（文章预览与分发入口）</strong>
+              <div style="display:flex;gap:4px;">
+                <button class="pill-btn" onclick="setModalMode('dispatch', this)">多平台分发 / Git</button>
+                <button class="pill-btn active" onclick="setModalMode('grid', this)">🌐 平台快捷浏览器</button>
+              </div>
+            </div>
+            <div id="modal-grid-view">
+              <div class="icon-grid">
+                <div class="icon-tile" onclick="openSandboxTab('weixin', '微信公众号', 'https://mp.weixin.qq.com/')">
+                  <div class="icon-badge" style="background:#07c160;">微信</div>
+                  <div style="font-size:12px;font-weight:700;">微信公众号</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 进后台</div>
+                </div>
+                <div class="icon-tile" onclick="openSandboxTab('juejin', '稀土掘金', 'https://juejin.cn/creator/content/article/drafts')">
+                  <div class="icon-badge" style="background:#1e80ff;">掘</div>
+                  <div style="font-size:12px;font-weight:700;">稀土掘金</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 草稿箱</div>
+                </div>
+                <div class="icon-tile" onclick="openSandboxTab('xiaohongshu', '小红书创作', 'https://creator.xiaohongshu.com/')">
+                  <div class="icon-badge" style="background:#ff2442;">红</div>
+                  <div style="font-size:12px;font-weight:700;">小红书创作</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 笔记台</div>
+                </div>
+                <div class="icon-tile" onclick="openSandboxTab('zhihu', '知乎专栏', 'https://www.zhihu.com/creator')">
+                  <div class="icon-badge" style="background:#0066ff;">知</div>
+                  <div style="font-size:12px;font-weight:700;">知乎专栏</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 进后台</div>
+                </div>
+                <div class="icon-tile" onclick="openSandboxTab('csdn', 'CSDN', 'https://mp.csdn.net/mp_blog/manage/article')">
+                  <div class="icon-badge" style="background:#fc5531;">C</div>
+                  <div style="font-size:12px;font-weight:700;">CSDN</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 进后台</div>
+                </div>
+                <div class="icon-tile" onclick="openSandboxTab('cnblogs', '博客园', 'https://i.cnblogs.com/posts')">
+                  <div class="icon-badge" style="background:#2e64b0;">博</div>
+                  <div style="font-size:12px;font-weight:700;">博客园</div>
+                  <div style="font-size:10.5px;color:#166534;">● 已授权 · 进后台</div>
+                </div>
+              </div>
+            </div>
+            <div id="modal-dispatch-view" style="display:none;padding:14px;font-size:12px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:10px;padding:8px;background:#f8fafc;border-radius:8px;">
+                <span>批量勾选：</span>
+                <div style="display:flex;gap:6px;">
+                  <button class="pill-btn">全选已授权</button>
+                  <button class="pill-btn">全选全部 (11)</button>
+                  <button class="pill-btn">清空</button>
+                </div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
+                <div>☑ 稀土掘金 <span class="tag-ok">● 已授权</span></div>
+                <div style="margin-top:4px;color:#166534;">✓ 已推送到稀土掘金草稿箱 (ID: 77101346329) ·
+                  <a href="javascript:void(0)" onclick="openSandboxTab('juejin', '稀土掘金 · 草稿', 'https://juejin.cn/editor/drafts/77101346329')" style="color:var(--accent);font-weight:700;">打开草稿 / 查看链接 (携带Cookie直开)</a>
+                </div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:8px;padding:10px;">
+                <div>☑ CSDN <span class="tag-ok">● 已授权</span></div>
+                <div style="margin-top:4px;color:#166534;">✓ 已补全 HTML 正文载荷，消除「请输入内容」报错 ·
+                  <a href="javascript:void(0)" onclick="openSandboxTab('csdn', 'CSDN · 草稿', 'https://editor.csdn.net/md?articleId=148201')" style="color:var(--accent);font-weight:700;">打开草稿 / 查看链接</a>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="proto-group">
-            <span>② 页面比例：</span>
-            <button class="pill-btn active" onclick="setRatio('3:4', this)">小红书 3:4</button>
-            <button class="pill-btn" onclick="setRatio('2:3', this)">小红书长文 2:3</button>
-            <button class="pill-btn" onclick="setRatio('9:16', this)">短视频 9:16</button>
-            <button class="pill-btn" onclick="setRatio('16:9', this)">专栏封面 16:9</button>
-          </div>
-        </div>
 
-        <div class="proto-workspace">
-          <div class="proto-sidebar">
-            <h4 style="font-size:14px;margin-bottom:8px;">🎨 当前模板视觉规范</h4>
-            <div id="proto-spec" style="font-size:12px;color:#333;line-height:1.7;"></div>
-            <hr style="margin:14px 0;border:none;border-top:1px solid var(--border);" />
-            <h4 style="font-size:13px;margin-bottom:6px;">✍️ 支持的流式 Markdown 语法</h4>
-            <ul style="font-size:12px;color:#555;padding-left:18px;line-height:1.7;">
-              <li><code># / ## 标题</code>：自动使用模板强调色（如备忘录暖橙 <code>#FF9500</code>）</li>
-              <li><code>&gt; 引用块</code>：圆角半透明底色 + 左侧强调竖线 + 斜体</li>
-              <li><code>**加粗**</code>：仅加重字重，颜色与正文一致</li>
-              <li><code>==高亮==</code>：圆角强调色底块 + 强调色粗体字</li>
-              <li><code>*斜体*</code> / <code>~~删除线~~</code> / <code>`行内代码`</code></li>
-            </ul>
-          </div>
-          <div class="proto-stage">
-            <div id="proto-card-mount" style="margin:0 auto;max-width:460px;box-shadow:0 12px 36px rgba(0,0,0,0.10);border-radius:18px;overflow:hidden;"></div>
+          <!-- Right: Built-in Multi-Tab Sandbox Browser Window -->
+          <div class="window-frame">
+            <div class="tab-strip" id="proto-browser-tabs">
+              <button class="btab active" data-id="weixin" onclick="openSandboxTab('weixin', '微信公众号', 'https://mp.weixin.qq.com/')">🟢 微信公众号</button>
+              <button class="btab" data-id="zhihu" onclick="openSandboxTab('zhihu', '知乎专栏', 'https://www.zhihu.com/creator')">⚪ 知乎专栏</button>
+              <button class="btab" data-id="juejin" onclick="openSandboxTab('juejin', '稀土掘金', 'https://juejin.cn/creator/content/article/drafts')">⚪ 稀土掘金</button>
+              <button class="btab" data-id="csdn" onclick="openSandboxTab('csdn', 'CSDN', 'https://mp.csdn.net/mp_blog/manage/article')">⚪ CSDN</button>
+              <button class="btab" data-id="cnblogs" onclick="openSandboxTab('cnblogs', '博客园', 'https://i.cnblogs.com/posts')">⚪ 博客园</button>
+              <button class="btab" data-id="xiaohongshu" onclick="openSandboxTab('xiaohongshu', '小红书创作', 'https://creator.xiaohongshu.com/')">⚪ 小红书</button>
+            </div>
+            <div class="window-bar" style="background:#fff;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span>← → ↻</span>
+                <code id="proto-partition" style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px;">沙箱: persist:platform_weixin</code>
+              </div>
+              <div id="proto-url" style="flex:1;margin:0 8px;padding:3px 8px;background:#f8fafc;border:1px solid var(--border);border-radius:6px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">https://mp.weixin.qq.com/</div>
+              <span class="pill-btn">完成关闭</span>
+            </div>
+            <div style="padding:20px;min-height:190px;background:#f9fafb;font-size:12.5px;">
+              <div style="font-weight:700;margin-bottom:6px;" id="proto-site-title">微信公众号独立沙箱会话</div>
+              <p style="color:var(--muted);">已携带该平台独立的 <code>persist:platform_*</code> 持久化 Cookie、User-Agent 与指纹配置。无论从宫格图标点击，还是从分发结果的「打开草稿」链接进入，均在此多标签内置浏览器窗口中直接打开，绝不跳去无会话的外部系统浏览器。</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- PANEL 2: REAL SCREENSHOTS -->
+    <!-- PANEL 2: XHS CARD LAYOUT FIXES & TEMPLATES -->
+    <section id="panel-xhs" class="panel">
+      <div class="card-box">
+        <div class="section-title">
+          <span>小红书卡片排版修复前后对比 &amp; 苹果备忘录 / 极简杂志 / 空白模板预览</span>
+        </div>
+        <p class="section-sub">修复：① Flexbox 未设 <code>shrink-0</code> 导致标题与引用下半截被切掉；② Markdown 表格 <code>| :--- |</code> 与 <code>---</code> 分割线原样显示乱码；③ 首段导读重复占用第二张卡片。</p>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="pill-btn active" onclick="setTemplate('ios-memo', this)">📝 苹果备忘录</button>
+          <button class="pill-btn" onclick="setTemplate('minimalist-magazine', this)">📖 极简杂志</button>
+          <button class="pill-btn" onclick="setTemplate('blank', this)">⬜ 空白模板</button>
+        </div>
+        <div class="split-2">
+          <div style="border:1px solid #fecaca;background:#fef2f2;border-radius:14px;padding:16px;font-size:12px;">
+            <div style="font-weight:800;color:#b91c1c;margin-bottom:8px;">❌ 修复前（截图 1 &amp; 5 问题）</div>
+            <div style="background:#fff;border-radius:10px;padding:12px;border:1px solid #fee2e2;line-height:1.5;">
+              <div style="color:#d97706;font-weight:800;height:18px;overflow:hidden;">深入解析现代前端富文（第二行被腰斩裁切）</div>
+              <div style="background:rgba(255,149,0,0.1);border-left:3px solid #ff9500;padding:4px 8px;margin:6px 0;height:28px;overflow:hidden;font-style:italic;">本文介绍的 AST 转换引擎<br>遵循「单向不可逆（下半截切掉）</div>
+              <div style="font-family:monospace;color:#b91c1c;">| 平台属性 | 微信公众号 | 知乎 |<br>| :--- | :--- | :--- |<br>---</div>
+            </div>
+          </div>
+          <div id="proto-card-mount" style="border-radius:14px;overflow:hidden;border:1px solid var(--border);"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 3: REAL SCREENSHOTS -->
     <section id="panel-gallery" class="panel">
       <div class="card-box">
-        <div class="section-title">
-          <span>📱 小红书「苹果备忘录 (ios-memo)」1080×1440 真实渲染图（5 张连续卡片）</span>
-          <span style="font-size:12px;color:var(--muted);">2026版 iOS 备忘录极致还原 · 浅灰底 + 圆角横线白纸 + 暖橙高亮</span>
-        </div>
+        <div class="section-title"><span>📱 1080×1440 真实 Chrome 离屏渲染配套图集 (10 张)</span></div>
         <div class="gallery-grid" style="margin-top:12px;">
-          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-01-cover.png" target="_blank">
-            <img src="assets/screenshots/social_cards/xhs-card-01-cover.png" alt="苹果备忘录首页" />
-            <div class="img-meta"><h4>01 · 苹果备忘录首页（标题+引用+高亮）</h4><p>xhs-card-01-cover.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-02-content.png" target="_blank">
-            <img src="assets/screenshots/social_cards/xhs-card-02-content.png" alt="苹果备忘录列表页" />
-            <div class="img-meta"><h4>02 · 苹果备忘录漫游清单页</h4><p>xhs-card-02-content.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-03-code.png" target="_blank">
-            <img src="assets/screenshots/social_cards/xhs-card-03-code.png" alt="苹果备忘录代码页" />
-            <div class="img-meta"><h4>03 · 苹果备忘录内嵌代码页</h4><p>xhs-card-03-code.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-04-content.png" target="_blank">
-            <img src="assets/screenshots/social_cards/xhs-card-04-content.png" alt="苹果备忘录正文页" />
-            <div class="img-meta"><h4>04 · 苹果备忘录正文页</h4><p>xhs-card-04-content.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-05-content.png" target="_blank">
-            <img src="assets/screenshots/social_cards/xhs-card-05-content.png" alt="苹果备忘录尾页" />
-            <div class="img-meta"><h4>05 · 苹果备忘录总结页</h4><p>xhs-card-05-content.png</p></div>
-          </a>
-        </div>
-      </div>
-
-      <div class="card-box">
-        <div class="section-title">
-          <span>📖「极简杂志」「空白模板」与🎬 抖音「暗夜深思」真实渲染对比</span>
-          <span style="font-size:12px;color:var(--muted);">1080×1440 原始像素直出</span>
-        </div>
-        <div class="gallery-grid" style="margin-top:12px;">
-          <a class="img-card" href="assets/screenshots/social_cards/theme-ink-classic-cover.png" target="_blank">
-            <img src="assets/screenshots/social_cards/theme-ink-classic-cover.png" alt="极简杂志模板" />
-            <div class="img-meta"><h4>极简杂志 (Minimalist Magazine)</h4><p>theme-ink-classic-cover.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/theme-swiss-slate-content.png" target="_blank">
-            <img src="assets/screenshots/social_cards/theme-swiss-slate-content.png" alt="空白模板" />
-            <div class="img-meta"><h4>空白模板 (Pure Blank)</h4><p>theme-swiss-slate-content.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-01-cover.png" target="_blank">
-            <img src="assets/screenshots/social_cards/douyin-card-01-cover.png" alt="抖音极简杂志 01" />
-            <div class="img-meta"><h4>抖音 01 · 极简杂志封面</h4><p>douyin-card-01-cover.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-02-content.png" target="_blank">
-            <img src="assets/screenshots/social_cards/douyin-card-02-content.png" alt="抖音极简杂志 02" />
-            <div class="img-meta"><h4>抖音 02 · 极简杂志正文</h4><p>douyin-card-02-content.png</p></div>
-          </a>
-          <a class="img-card" href="assets/screenshots/social_cards/douyin-card-03-code.png" target="_blank">
-            <img src="assets/screenshots/social_cards/douyin-card-03-code.png" alt="抖音极简杂志 03" />
-            <div class="img-meta"><h4>抖音 03 · 代码窗口卡片</h4><p>douyin-card-03-code.png</p></div>
-          </a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-01-cover.png" target="_blank"><img src="assets/screenshots/social_cards/xhs-card-01-cover.png" alt="苹果备忘录首页" /><div class="img-meta"><h4>01 · 苹果备忘录首页</h4><p>xhs-card-01-cover.png</p></div></a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-02-content.png" target="_blank"><img src="assets/screenshots/social_cards/xhs-card-02-content.png" alt="苹果备忘录清单页" /><div class="img-meta"><h4>02 · 苹果备忘录清单页</h4><p>xhs-card-02-content.png</p></div></a>
+          <a class="img-card" href="assets/screenshots/social_cards/xhs-card-03-code.png" target="_blank"><img src="assets/screenshots/social_cards/xhs-card-03-code.png" alt="苹果备忘录代码页" /><div class="img-meta"><h4>03 · 苹果备忘录代码页</h4><p>xhs-card-03-code.png</p></div></a>
+          <a class="img-card" href="assets/screenshots/social_cards/theme-ink-classic-cover.png" target="_blank"><img src="assets/screenshots/social_cards/theme-ink-classic-cover.png" alt="极简杂志" /><div class="img-meta"><h4>极简杂志模板</h4><p>theme-ink-classic-cover.png</p></div></a>
+          <a class="img-card" href="assets/screenshots/social_cards/theme-swiss-slate-content.png" target="_blank"><img src="assets/screenshots/social_cards/theme-swiss-slate-content.png" alt="空白模板" /><div class="img-meta"><h4>空白模板</h4><p>theme-swiss-slate-content.png</p></div></a>
         </div>
       </div>
     </section>
 
-    <!-- PANEL 3: REQUIREMENT JOURNAL -->
+    <!-- PANEL 4: REQUIREMENT & TEST SYNC JOURNAL -->
     <section id="panel-journal" class="panel">
       <div class="card-box">
         <div class="section-title">
-          <span>🧭 需求演进与视觉迭代历史档案</span>
-          <span style="font-size:12px;color:var(--muted);">Updated: 2026-11-21</span>
+          <span>🧭 需求演进、截图痛点根因与测试用例同步台账（永久可回看）</span>
+          <span style="font-size:12px;color:var(--muted);">每次新需求均同步登记：问题截图 → 代码修复 → 更新的测试文件</span>
         </div>
-        <div class="req-item">
-          <div class="req-header">
-            <span class="req-id">REQ-2026-11-21-04 • 对标 xhs-textcard.site 复刻「苹果备忘录」「极简杂志」「空白模板」</span>
-            <span class="req-status">✔ 已完成像素级复刻与真实渲染出图</span>
-          </div>
-          <p style="font-size:13px;"><strong>用户反馈：</strong>之前的卡片像拼凑的 PPT 汇报框（带 <code>VMARK STUDIO</code>、<code>01/02</code> 编号块、<code>Swipe Next</code>），反而不如 <code>https://xhs-textcard.site/editor</code> 里的<strong>苹果备忘录（笔记本）</strong>、<strong>极简杂志</strong>和<strong>空白模板</strong>自然耐看。</p>
-          <p style="font-size:13px;margin-top:6px;"><strong>整改落地：</strong>实地提取 <code>xhs-textcard.site/editor</code> 的 Canvas 几何参数与配色 Token，彻底移除所有 PPT 式标签噪音，改为自然流式排版：支持 <code># 标题</code>、<code>&gt; 引用块</code>、<code>**加粗**</code>、<code>==高亮==</code>、<code>*斜体*</code>、<code>~~删除线~~</code>，默认首推 <strong>苹果备忘录 (<code>ios-memo</code>)</strong>、<strong>极简杂志 (<code>minimalist-magazine</code>)</strong> 与 <strong>空白模板 (<code>blank</code>)</strong>。</p>
-        </div>
-        <div class="req-item">
-          <div class="req-header">
-            <span class="req-id">REQ-2026-11-21-03 • GitHub 分支自动清理、Public 仓库免费 macOS 打包与中文 Release 文档</span>
-            <span class="req-status">✔ 已交付维护脚本与 Release 预览</span>
-          </div>
-          <p style="font-size:13px;"><code>leileigwl/vmark</code> 为 Public 公开仓库，GitHub Actions 的 <code>macos-latest</code> 完全免费；已新增 <code>scripts/release-and-branch-maintenance.mjs</code> 支持一键清理已合并分支并生成结构化中文 Release 文档。</p>
-        </div>
+        <table class="req-table" style="margin-top:12px;">
+          <thead>
+            <tr>
+              <th style="width:110px;">需求编号</th>
+              <th style="width:220px;">用户反馈 / 截图痛点</th>
+              <th>根因定位与落地整改</th>
+              <th style="width:240px;">同步更新的测试用例</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="tag-id">REQ-08</span><br><span class="tag-ok">已完成</span></td>
+              <td>偏好设置图床右侧灰框无法选中，希望直接隐藏通用云图床</td>
+              <td><code>SettingsImageBedSection.tsx</code> 仅保留「默认图片显示比例（50/75/100%）」与「分发时直传目标平台官方图床（默认推荐）」，彻底隐藏多余云图床表单。</td>
+              <td><code>apps/desktop/tests/settings.spec.ts</code>（验证官方图床可见、通用云图床表单已隐藏、图片比例切换持久化）</td>
+            </tr>
+            <tr>
+              <td><span class="tag-id">REQ-07</span><br><span class="tag-ok">已完成</span></td>
+              <td>点击「打开草稿/查看链接」弹出外部浏览器且无登录态；分发页无法快速全选；需要多标签宫格内置浏览器</td>
+              <td>1. <code>PublishResultRow.tsx</code> 拦截草稿链接点击并调用内置沙箱浏览器；<br>2. <code>internalBrowserManager.ts</code> 顶栏升级为 11 平台横向多标签 Tab 栏；<br>3. <code>PublishModal.tsx</code> 新增「全选已授权/全选全部/清空」及「🌐 平台快捷浏览器」图标宫格。</td>
+              <td><code>apps/desktop/tests/publish.spec.ts</code>（校验批量勾选、草稿链接调起内置浏览器与宫格切换）</td>
+            </tr>
+            <tr>
+              <td><span class="tag-id">REQ-06</span><br><span class="tag-ok">已完成</span></td>
+              <td>小红书卡片标题与引用框文字下半截被腰斩；表格 <code>| :--- |</code> 与 <code>---</code> 原样输出</td>
+              <td>1. <code>xiaohongshuRenderer.ts</code> 新增 <code>normalizeMarkdownTablesAndRules</code> 解析表格为结构化要点并剔除 <code>---</code>，消除首段重复卡片；<br>2. <code>PlatformPreviewPane.tsx</code> 添加 <code>shrink-0</code> 防 Flexbox 挤压文字。</td>
+              <td><code>packages/core/src/socialCard.test.ts</code> &amp; <code>apps/desktop/tests/publish.spec.ts</code></td>
+            </tr>
+            <tr>
+              <td><span class="tag-id">REQ-05</span><br><span class="tag-ok">已完成</span></td>
+              <td>CSDN 草稿保存报「请输入内容」；博客园报「会话校验失败」</td>
+              <td><code>publishPlatformDispatch.ts</code> 为 CSDN 补齐渲染后语义 HTML 载荷；<code>publishCnblogsDraft.ts</code> 预热 <code>/posts/edit</code> 与 <code>/api/user</code> 并解码 <code>XSRF-TOKEN</code> 携带请求头。</td>
+              <td><code>packages/adapters/src/adapters.test.ts</code> &amp; <code>apps/desktop/tests/publishSessionAuth.test.ts</code></td>
+            </tr>
+            <tr>
+              <td><span class="tag-id">REQ-04</span><br><span class="tag-ok">已完成</span></td>
+              <td>对标 <code>xhs-textcard.site</code> 复刻苹果备忘录、极简杂志、空白模板流式排版</td>
+              <td>重构 <code>socialCardThemes.ts</code> 与 <code>socialCardHtml.ts</code>，移除 PPT 噪音元素，支持 3:4 / 2:3 / 9:16 离屏渲染。</td>
+              <td><code>packages/core/src/socialCard.test.ts</code> &amp; <code>apps/desktop/tests/socialCardRasterizer.test.ts</code></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </div>
 
   <script>
-    const state = { template: 'ios-memo', ratio: '3:4' };
-
     function switchTab(id, btn) {
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
       document.getElementById('panel-' + id).classList.add('active');
       btn.classList.add('active');
     }
-
-    function setTemplate(t, btn) {
-      state.template = t;
-      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    function setModalMode(mode, btn) {
+      btn.parentElement.querySelectorAll('.pill-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      renderProto();
+      document.getElementById('modal-grid-view').style.display = mode === 'grid' ? 'block' : 'none';
+      document.getElementById('modal-dispatch-view').style.display = mode === 'dispatch' ? 'block' : 'none';
     }
-
-    function setRatio(r, btn) {
-      state.ratio = r;
-      btn.parentElement.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    function openSandboxTab(pid, label, url) {
+      document.querySelectorAll('#proto-browser-tabs .btab').forEach((b) => {
+        b.classList.toggle('active', b.getAttribute('data-id') === pid);
+      });
+      document.getElementById('proto-partition').textContent = '沙箱: persist:platform_' + pid;
+      document.getElementById('proto-url').textContent = url;
+      document.getElementById('proto-site-title').textContent = label + ' · 独立沙箱会话（已携登录态直接打开）';
+    }
+    function setTemplate(tpl, btn) {
+      btn.parentElement.querySelectorAll('.pill-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      renderProto();
-    }
-
-    function renderFlowBody(accent, ink, quoteBg, hiBg, font) {
-      return `
-        <div style="font-family:${font};color:${ink};text-align:justify;">
-          <h1 style="font-size:24px;font-weight:800;color:${accent};margin-bottom:10px;line-height:1.3;">京都深秋漫游手记：避开人潮的4条山野古寺步径</h1>
-          <div style="background:${quoteBg};border-left:3.5px solid ${accent};border-radius:7px;padding:9px 12px;margin-bottom:12px;font-style:italic;font-size:12.5px;line-height:1.65;">
-            这是一份旅行随笔与排版启动示例，用来展示苹果备忘录、极简杂志与空白模板的真实流式排版效果。
-          </div>
-          <h2 style="font-size:17px;font-weight:800;color:${accent};margin-bottom:8px;">慢下来如何组织一篇有呼吸感的漫游随笔</h2>
-          <p style="font-size:13px;line-height:1.72;margin-bottom:10px;">每一段保持短一点，两个回车分隔段落。系统会优先在段落之间自动分页，所以<strong>清晰分段</strong>比手动塞满一页更稳定。</p>
-          <p style="font-size:13px;line-height:1.72;margin-bottom:10px;"><strong>加粗</strong>适合普通关键词，例如「祇王寺苔庭」「常寂光寺」「化野念佛寺竹径」。它只改变字重，颜色会和正文一致。</p>
-          <p style="font-size:13px;line-height:1.72;margin-bottom:10px;"><span style="background:${hiBg};color:${accent};font-weight:700;padding:1px 5px;border-radius:4px;">高亮</span>适合真正需要停顿的关键信息，例如早晨8点开门即入、岚山电铁小站手冲咖啡或转折点。</p>
-          <p style="font-size:13px;line-height:1.72;margin-bottom:12px;"><em>斜体适合轻提示或旅途心情记录</em>，<del style="opacity:0.65;">删除线适合标记已放弃的拥挤打卡点</del>。</p>
-          <div style="background:${quoteBg};border-left:3.5px solid ${accent};border-radius:7px;padding:9px 12px;font-style:italic;font-size:12.5px;line-height:1.65;">
-            引用适合一句完整的旅途总结，把清晨山野里的落叶与鸟鸣定格在纸页底部。
+      const mount = document.getElementById('proto-card-mount');
+      const cfg = {
+        'ios-memo': { bg: '#f2f2f7', sheet: '#fff', accent: '#ff9500', title: '✅ 修复后（苹果备忘录流式排版）', border: 'none' },
+        'minimalist-magazine': { bg: '#fff', sheet: '#fff', accent: '#8c3a3a', title: '✅ 修复后（极简杂志流式排版）', border: '1px solid #d4d4d8' },
+        'blank': { bg: '#fff', sheet: '#fff', accent: '#52525b', title: '✅ 修复后（空白模板流式排版）', border: 'none' },
+      }[tpl];
+      mount.innerHTML = `
+        <div style="background:${cfg.bg};padding:14px;font-size:12px;">
+          <div style="font-weight:800;color:#166534;margin-bottom:8px;">${cfg.title}</div>
+          <div style="background:${cfg.sheet};border-radius:10px;padding:12px;border-top:${cfg.border};border-bottom:${cfg.border};box-shadow:0 4px 12px rgba(0,0,0,0.04);line-height:1.55;">
+            <div style="color:${cfg.accent};font-weight:800;font-size:13.5px;margin-bottom:6px;">深入解析现代前端富文本与 AST 渲染管线（完整不裁切）</div>
+            <div style="background:rgba(255,149,0,0.08);border-left:3px solid ${cfg.accent};padding:6px 8px;border-radius:6px;font-style:italic;margin-bottom:8px;">本文介绍的 AST 转换引擎遵循「单向不可逆只读渲染」原则（完整显示不腰斩）</div>
+            <div>• <strong>图片防盗链</strong>：微信公众号：严格白名单 (mmbiz.qpic.cn) · 知乎专栏：自动转存</div>
+            <div>• <strong>超链接交互</strong>：微信公众号：仅支持文末附录与脚注 · 知乎专栏：原生可点击</div>
           </div>
         </div>
       `;
     }
-
-    function renderProto() {
-      const mount = document.getElementById('proto-card-mount');
-      const spec = document.getElementById('proto-spec');
-      const aspectCss = state.ratio.replace(':', ' / ');
-      mount.style.maxWidth = state.ratio === '16:9' ? '680px' : '440px';
-
-      if (state.template === 'ios-memo') {
-        spec.innerHTML = '• <strong>模板：</strong>苹果备忘录 (<code>ios-memo</code>)<br>• <strong>背景：</strong><code>#F2F2F7</code> iOS 灰底 + 圆角横线白纸 (<code>#FFFFFF</code>)<br>• <strong>强调色：</strong><code>#FF9500</code> 经典备忘录暖橙<br>• <strong>顶栏：</strong><code>&lt; 备忘录</code> · 日期时间 · <code>完成</code>';
-        mount.innerHTML = `
-          <div style="aspect-ratio:${aspectCss};background:#F2F2F7;padding:14px 14px 12px;display:flex;flex-direction:column;justify-content:space-between;">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:2px 8px 10px;font-size:14px;font-weight:500;">
-              <span style="color:#FF9500;">‹ 备忘录</span>
-              <span style="color:#8E8E93;font-size:11px;">11月21日 00:32</span>
-              <span style="color:#FF9500;">完成</span>
-            </div>
-            <div style="flex:1;background-color:#FFFFFF;background-image:repeating-linear-gradient(to bottom,transparent 0px,transparent 22px,#F2F2F7 22px,#F2F2F7 23px);border-radius:12px;padding:24px 26px;box-shadow:0 4px 18px rgba(0,0,0,0.05);overflow:hidden;">
-              ${renderFlowBody('#FF9500', '#1C1C1E', 'rgba(255,149,0,0.08)', 'rgba(255,149,0,0.16)', 'sans-serif')}
-            </div>
-            <div style="text-align:right;font-size:11px;color:rgba(142,142,147,0.7);padding:8px 10px 0;">1 / 5</div>
-          </div>
-        `;
-      } else if (state.template === 'minimalist-magazine') {
-        spec.innerHTML = '• <strong>模板：</strong>极简杂志 (<code>minimalist-magazine</code>)<br>• <strong>背景：</strong><code>#FFFFFF</code> 纯白画布 + 顶底 1px 极细社论分割线<br>• <strong>字体：</strong><code>Noto Serif SC</code> 宋刻衬线体<br>• <strong>强调色：</strong><code>#8C3A3A</code> 学院绛红';
-        mount.innerHTML = `
-          <div style="aspect-ratio:${aspectCss};background:#FFFFFF;padding:44px 38px 26px;display:flex;flex-direction:column;justify-content:space-between;">
-            <div style="flex:1;border-top:1px solid rgba(26,26,26,0.12);border-bottom:1px solid rgba(26,26,26,0.12);padding:18px 0;overflow:hidden;">
-              ${renderFlowBody('#8C3A3A', '#1A1A1A', 'rgba(140,58,58,0.07)', 'rgba(140,58,58,0.15)', "'Noto Serif SC','Songti SC',serif")}
-            </div>
-            <div style="text-align:right;font-size:11px;color:#999;padding-top:10px;">1 / 4</div>
-          </div>
-        `;
-      } else if (state.template === 'blank') {
-        spec.innerHTML = '• <strong>模板：</strong>空白模板 (<code>blank</code>)<br>• <strong>背景：</strong><code>#FFFFFF</code> 纯净无装饰背景，回归文字本质<br>• <strong>强调色：</strong><code>#8A8A8A</code> 克制冷灰标题与高亮';
-        mount.innerHTML = `
-          <div style="aspect-ratio:${aspectCss};background:#FFFFFF;padding:34px 32px 24px;display:flex;flex-direction:column;justify-content:space-between;">
-            <div style="flex:1;overflow:hidden;">
-              ${renderFlowBody('#8A8A8A', '#1A1A1A', 'rgba(153,153,153,0.09)', 'rgba(153,153,153,0.20)', 'sans-serif')}
-            </div>
-            <div style="text-align:right;font-size:11px;color:#aaa;padding-top:10px;">1 / 3</div>
-          </div>
-        `;
-      } else {
-        spec.innerHTML = '• <strong>模板：</strong>书籍内页 (<code>elegant-book</code>)<br>• <strong>背景：</strong><code>#FDFBF7</code> 泛黄暖纸 + 左侧书脊微阴影';
-        mount.innerHTML = `
-          <div style="aspect-ratio:${aspectCss};background:linear-gradient(135deg,#FDFBF7 0%,#F6F1E7 100%);box-shadow:inset 18px 0 28px -10px rgba(43,35,25,0.08);padding:44px 40px 26px 48px;display:flex;flex-direction:column;justify-content:space-between;">
-            <div style="flex:1;overflow:hidden;">
-              ${renderFlowBody('#8C3A3A', '#2B2B2B', 'rgba(140,58,58,0.07)', 'rgba(140,58,58,0.15)', "'Noto Serif SC','Songti SC',serif")}
-            </div>
-            <div style="text-align:right;font-size:11px;color:#9e9488;padding-top:10px;">1 / 4</div>
-          </div>
-        `;
-      }
-    }
-
-    renderProto();
+    setTemplate('ios-memo', document.querySelector('#panel-xhs .pill-btn.active'));
   </script>
 </body>
 </html>

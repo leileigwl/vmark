@@ -8,21 +8,21 @@ import {
   getPlatformFingerprintProfile,
 } from './browserStealth';
 
-const TOOLBAR_HEIGHT = 48;
+const TOOLBAR_HEIGHT = 82;
 const configuredStealthPartitions = new Set<string>();
 
 const PLATFORM_ENTRY_URLS: Array<{ id: PlatformId; label: string; url: string }> = [
   { id: 'weixin', label: '微信公众号', url: 'https://mp.weixin.qq.com/' },
-  { id: 'zhihu', label: '知乎专栏', url: 'https://www.zhihu.com/signin' },
-  { id: 'juejin', label: '稀土掘金', url: 'https://juejin.cn/login' },
-  { id: 'csdn', label: 'CSDN', url: 'https://passport.csdn.net/login' },
-  { id: 'cnblogs', label: '博客园', url: 'https://account.cnblogs.com/signin' },
-  { id: 'baijiahao', label: '百家号', url: 'https://baijiahao.baidu.com/builder/theme/bjh/login' },
-  { id: 'bilibili', label: 'B 站专栏', url: 'https://passport.bilibili.com/login' },
-  { id: 'weibo', label: '微博', url: 'https://weibo.com/login.php' },
+  { id: 'zhihu', label: '知乎专栏', url: 'https://www.zhihu.com/creator' },
+  { id: 'juejin', label: '稀土掘金', url: 'https://juejin.cn/creator/content/article/drafts' },
+  { id: 'csdn', label: 'CSDN', url: 'https://mp.csdn.net/mp_blog/manage/article' },
+  { id: 'cnblogs', label: '博客园', url: 'https://i.cnblogs.com/posts' },
+  { id: 'baijiahao', label: '百家号', url: 'https://baijiahao.baidu.com/' },
+  { id: 'bilibili', label: 'B 站专栏', url: 'https://member.bilibili.com/platform/home' },
+  { id: 'weibo', label: '微博', url: 'https://card.weibo.com/article/v3/editor' },
   { id: 'douyin', label: '抖音创作者', url: 'https://creator.douyin.com/' },
-  { id: 'xiaohongshu', label: '小红书创作', url: 'https://creator.xiaohongshu.com/login' },
-  { id: 'github_static', label: 'GitHub', url: 'https://github.com/login' },
+  { id: 'xiaohongshu', label: '小红书创作', url: 'https://creator.xiaohongshu.com/' },
+  { id: 'github_static', label: 'GitHub', url: 'https://github.com/' },
 ];
 
 export function buildPlatformToolbarHtml(options: {
@@ -30,23 +30,30 @@ export function buildPlatformToolbarHtml(options: {
   url: string;
 }): string {
   const safeUrl = options.url.replace(/[<>"'&]/g, '');
-  const optionsHtml = PLATFORM_ENTRY_URLS.map(
-    (item) =>
-      `<option value="${item.id}" ${item.id === options.platformId ? 'selected' : ''}>${item.label}</option>`
-  ).join('');
+  const tabsHtml = PLATFORM_ENTRY_URLS.map((item) => {
+    const active = item.id === options.platformId;
+    const tabStyle = active
+      ? 'background:#fff;color:#0f172a;font-weight:600;border:1px solid #cbd5e1;border-bottom-color:#fff;box-shadow:0 -1px 3px rgba(0,0,0,0.04);'
+      : 'background:transparent;color:#475569;font-weight:500;border:1px solid transparent;';
+    const dotColor = active ? '#22c55e' : '#94a3b8';
+    return `<button onclick="location.href='vmark-nav://switch/${item.id}'" data-platform-tab="${item.id}" style="display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px 8px 0 0;font-size:11.5px;white-space:nowrap;cursor:pointer;${tabStyle}"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor};display:inline-block;"></span>${item.label}</button>`;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html>
-  <head><meta charset="utf-8"></head>
-  <body style="margin:0;height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;box-sizing:border-box;user-select:none;">
-    <button onclick="location.href='vmark-nav://back'" title="后退" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">←</button>
-    <button onclick="location.href='vmark-nav://forward'" title="前进" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">→</button>
-    <button onclick="location.href='vmark-nav://reload'" title="刷新" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">↻</button>
-    <select id="platform-switcher" onchange="location.href='vmark-nav://switch/' + this.value" title="切换平台独立环境" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;color:#0f172a;font-weight:500;cursor:pointer;">
-      ${optionsHtml}
-    </select>
-    <div id="url-pill" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:12px;color:#475569;">${safeUrl}</div>
-    <button onclick="location.href='vmark-nav://close'" title="关闭浏览器" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:#475569;">完成关闭</button>
+  <head><meta charset="utf-8"><style>*::-webkit-scrollbar{height:0;width:0;}</style></head>
+  <body style="margin:0;height:82px;display:flex;flex-direction:column;background:#eef2f7;border-bottom:1px solid #cbd5e1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;box-sizing:border-box;user-select:none;">
+    <div style="height:38px;display:flex;align-items:flex-end;gap:4px;padding:4px 10px 0;overflow-x:auto;border-bottom:1px solid #cbd5e1;">
+      ${tabsHtml}
+    </div>
+    <div style="height:43px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#fff;">
+      <button onclick="location.href='vmark-nav://back'" title="后退" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">←</button>
+      <button onclick="location.href='vmark-nav://forward'" title="前进" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">→</button>
+      <button onclick="location.href='vmark-nav://reload'" title="刷新" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer;color:#334155;">↻</button>
+      <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:11px;color:#334155;font-family:monospace;white-space:nowrap;">沙箱: persist:platform_${options.platformId}</span>
+      <div id="url-pill" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:12px;color:#475569;">${safeUrl}</div>
+      <button onclick="location.href='vmark-nav://close'" title="关闭浏览器" style="border:1px solid #e2e8f0;background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:#475569;">完成关闭</button>
+    </div>
   </body>
 </html>`;
 }
@@ -284,7 +291,13 @@ export class InternalBrowserManager {
         const entry = PLATFORM_ENTRY_URLS.find((item) => item.id === nextId);
         if (entry) {
           const nextSession = session.fromPartition(`persist:platform_${nextId}`);
-          mountPlatformSite(nextId, entry.url, nextSession, async () => false);
+          mountPlatformSite(
+            nextId,
+            entry.url,
+            nextSession,
+            nextId === platformId ? checkAuth : async () => false,
+            nextId === platformId ? onAuthorized : undefined
+          );
         }
       }
     });

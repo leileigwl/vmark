@@ -27,6 +27,12 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
       saveStartupConfig: async () => ({ ok: true }),
       setRecentFiles: () => {},
       onMenuAction: () => () => {},
+      onPlatformAuthUpdated: () => () => {},
+      openPlatformLogin: async (platformId: string, url: string) => {
+        const w = window as unknown as { __openedBrowserCalls?: Array<{ platformId: string; url: string }> };
+        w.__openedBrowserCalls = [...(w.__openedBrowserCalls ?? []), { platformId, url }];
+        return true;
+      },
       publishWeixinDraft: async () => ({
         ok: true,
         postId: '10086',
@@ -60,8 +66,24 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
 }
 
 test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
-  test('打开发布弹窗：支持头图/作者/摘要设置、公众号行内样式预览与一键复制富文本', async ({ page }) => {
-    const md = '# 公众号标题\n\n正文包含 **加粗** 与 [外部资料](https://example.com/a)。\n\n![本地配图](./assets/demo.png)\n\n> [!NOTE]\n> 重点提示卡片\n';
+  test('打开发布弹窗：支持头图/作者/摘要设置、小红书卡片表格清洗、批量勾选与内置沙箱浏览器直达草稿', async ({ page }) => {
+    const md = [
+      '# 公众号标题',
+      '',
+      '正文包含 **加粗** 与 [外部资料](https://example.com/a)。',
+      '',
+      '![本地配图](./assets/demo.png)',
+      '',
+      '> [!NOTE]',
+      '> 重点提示卡片',
+      '',
+      '---',
+      '',
+      '## 平台对比',
+      '| 平台 | 模式 |',
+      '| :--- | :--- |',
+      '| 微信公众号 | 草稿箱 |',
+    ].join('\n');
     await openEditorWithArticle(page, md);
 
     await page.getByRole('button', { name: '分发' }).click();
@@ -96,27 +118,36 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '百家号' }).click();
     await expect(page.getByTestId('baijiahao-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号标题');
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('‹ 备忘录');
-    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'ios-memo');
-    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '3:4');
+    const xhsPreview = page.getByTestId('xiaohongshu-preview');
+    await expect(xhsPreview).toContainText('公众号标题');
+    await expect(xhsPreview).toContainText('‹ 备忘录');
+    await expect(xhsPreview).toContainText('微信公众号：草稿箱');
+    await expect(xhsPreview).not.toContainText('| :--- |');
+    await expect(xhsPreview).toHaveAttribute('data-theme-id', 'ios-memo');
+    await expect(xhsPreview).toHaveAttribute('data-cover-ratio', '3:4');
     await page.getByRole('button', { name: '极简杂志', exact: true }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'minimalist-magazine');
+    await expect(xhsPreview).toHaveAttribute('data-theme-id', 'minimalist-magazine');
     await page.getByRole('button', { name: '空白模板', exact: true }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'blank');
+    await expect(xhsPreview).toHaveAttribute('data-theme-id', 'blank');
     await page.getByRole('button', { name: '16:9', exact: true }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '16:9');
+    await expect(xhsPreview).toHaveAttribute('data-cover-ratio', '16:9');
     await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
     await expect(page.getByTestId('douyin-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '微信公众号', exact: true }).click();
     await expect(preview).toBeVisible();
 
-    // Switch to 多平台分发 / Git tab, verify auth states and pre-flight interception
+    // Switch to 多平台分发 / Git tab, verify batch select, auth states and pre-flight interception
     await page.getByRole('button', { name: '多平台分发 / Git' }).click();
     await expect(page.getByRole('button', { name: '刷新账号检测状态' })).toBeVisible();
 
-    // Check GitHub (authed) + Cnblogs (unauthed)
-    await page.getByRole('checkbox', { name: /GitHub 静态博客/ }).check();
+    await page.getByRole('button', { name: '全选全部' }).click();
+    await expect(page.getByRole('button', { name: /一键分发至所选平台 \(11\)/ })).toBeVisible();
+    await page.getByRole('button', { name: '清空' }).click();
+    await expect(page.getByRole('button', { name: /一键分发至所选平台 \(0\)/ })).toBeVisible();
+    await page.getByRole('button', { name: '全选已授权' }).click();
+    await expect(page.getByRole('button', { name: /一键分发至所选平台 \(2\)/ })).toBeVisible();
+
+    // Also check Cnblogs (unauthed) to trigger Pre-flight check
     await page.getByRole('checkbox', { name: /博客园 \(Cnblogs\)/ }).check();
 
     // Trigger publish -> should be intercepted by Pre-flight check
@@ -132,12 +163,28 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await expect(draftLink).toHaveText('打开草稿 / 查看链接');
     await expect(draftLink).toHaveAttribute('target', '_blank');
     await expect(draftLink).toHaveAttribute('rel', 'noreferrer');
+    await draftLink.click();
+
+    // Switch to 🌐 平台快捷浏览器 icon grid tab and launch WeChat sandbox browser
+    await page.getByRole('button', { name: '🌐 平台快捷浏览器' }).click();
+    const browserGrid = page.getByTestId('platform-browser-grid');
+    await expect(browserGrid).toBeVisible();
+    await browserGrid.getByRole('button', { name: /微信公众号/ }).click();
+
+    const browserCalls = await page.evaluate(
+      () => (window as unknown as { __openedBrowserCalls?: Array<{ platformId: string; url: string }> }).__openedBrowserCalls
+    );
+    expect(browserCalls).toEqual([
+      { platformId: 'weixin', url: 'https://example.com/draft/weixin' },
+      { platformId: 'weixin', url: 'https://mp.weixin.qq.com/' },
+    ]);
+
     const lastPayload = await page.evaluate(
       () => (window as unknown as { __lastPublishPayload?: Record<string, unknown> }).__lastPublishPayload
     );
     expect(lastPayload?.socialThemeId).toBe('blank');
     expect(lastPayload?.socialCoverRatio).toBe('16:9');
     await page.getByRole('button', { name: '关闭' }).click();
-    await expect(preview).toBeHidden();
+    await expect(browserGrid).toBeHidden();
   });
 });
