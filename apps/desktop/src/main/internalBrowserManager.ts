@@ -12,14 +12,9 @@ const TOOLBAR_HEIGHT = 44;
 const configuredStealthPartitions = new Set<string>();
 
 export function buildPlatformToolbarHtml(options: {
-  platformId: PlatformId;
   url: string;
-  authorized: boolean;
 }): string {
   const safeUrl = options.url.replace(/[<>"'&]/g, '');
-  const badgeBg = options.authorized ? '#dafbe1' : '#f1f5f9';
-  const badgeFg = options.authorized ? '#116329' : '#475569';
-  const badgeText = options.authorized ? '● 已授权' : '未登录';
   return `<!DOCTYPE html>
 <html>
   <head><meta charset="utf-8"></head>
@@ -28,7 +23,6 @@ export function buildPlatformToolbarHtml(options: {
     <button onclick="location.href='vmark-nav://forward'" title="前进" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;">→</button>
     <button onclick="location.href='vmark-nav://reload'" title="刷新" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;">↻</button>
     <div id="url-pill" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:12px;color:#334155;">${safeUrl}</div>
-    <span id="auth-pill" style="border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;background:${badgeBg};color:${badgeFg};white-space:nowrap;">${options.platformId} · ${badgeText}</span>
   </body>
 </html>`;
 }
@@ -100,7 +94,6 @@ export class InternalBrowserManager {
 
     const fpArg = encodeFingerprintArg(getPlatformFingerprintProfile(platformId));
     const stealthPreload = getStealthPreloadPath();
-    const initialAuthed = await checkAuth().catch(() => false);
 
     const win = new BrowserWindow({
       width: 1120,
@@ -134,7 +127,6 @@ export class InternalBrowserManager {
     win.on('resize', layoutViews);
 
     let currentUrl = loginUrl;
-    let currentAuthed = initialAuthed;
     const refreshToolbar = () => {
       if (win.isDestroyed()) return;
       void toolbarView.webContents
@@ -142,12 +134,6 @@ export class InternalBrowserManager {
           `(() => {
             const u = document.getElementById('url-pill');
             if (u) u.textContent = ${JSON.stringify(currentUrl)};
-            const b = document.getElementById('auth-pill');
-            if (b) {
-              b.textContent = ${JSON.stringify(`${platformId} · ${currentAuthed ? '● 已授权' : '未登录'}`)};
-              b.style.background = ${JSON.stringify(currentAuthed ? '#dafbe1' : '#f1f5f9')};
-              b.style.color = ${JSON.stringify(currentAuthed ? '#116329' : '#475569')};
-            }
           })();`
         )
         .catch(() => {});
@@ -167,7 +153,7 @@ export class InternalBrowserManager {
 
     void toolbarView.webContents.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
-        buildPlatformToolbarHtml({ platformId, url: loginUrl, authorized: initialAuthed })
+        buildPlatformToolbarHtml({ url: loginUrl })
       )}`
     );
 
@@ -210,8 +196,6 @@ export class InternalBrowserManager {
       if (authCheckTimer) clearTimeout(authCheckTimer);
       authCheckTimer = setTimeout(async () => {
         const ok = await checkAuth().catch(() => false);
-        currentAuthed = ok;
-        refreshToolbar();
         if (ok) await onAuthorized?.();
       }, 1200);
     };

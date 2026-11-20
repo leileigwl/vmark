@@ -109,7 +109,15 @@ export async function hasSessionAuthCookies(
       );
 
     case 'xiaohongshu':
-      return hasCookie((n, _, d) => n === 'web_session' && (!d || d.includes('xiaohongshu.com')));
+      return hasCookie(
+        (n, _, d) =>
+          (n === 'web_session' ||
+            n === 'galaxy_creator_session_id' ||
+            n === 'customer-sso-sid' ||
+            n.startsWith('access-token-creator') ||
+            n.startsWith('x-user-id-creator')) &&
+          (!d || d.includes('xiaohongshu.com'))
+      );
 
     case 'weibo':
       return hasCookie(
@@ -305,19 +313,36 @@ export async function verifyPlatformAuth(params: {
       const xSession = session.fromPartition('persist:platform_xiaohongshu');
       const sFetch = createSessionFetch(xSession);
       return await Promise.race([
-        sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
-          headers: {
-            Origin: 'https://www.xiaohongshu.com',
-            Referer: 'https://www.xiaohongshu.com/',
-          },
-        }).then(async (res) => {
-          if (!res.ok) return false;
-          const data = (await res.json()) as {
+        (async () => {
+          const creatorRes = await sFetch('https://creator.xiaohongshu.com/api/galaxy/user/info', {
+            headers: {
+              Origin: 'https://creator.xiaohongshu.com',
+              Referer: 'https://creator.xiaohongshu.com/new/home',
+            },
+          });
+          if (creatorRes.ok) {
+            const creatorData = (await creatorRes.json()) as {
+              success?: boolean;
+              code?: number;
+              data?: { userId?: string };
+            };
+            if (creatorData.success && creatorData.code === 0 && Boolean(creatorData.data?.userId)) {
+              return true;
+            }
+          }
+          const webRes = await sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+            headers: {
+              Origin: 'https://www.xiaohongshu.com',
+              Referer: 'https://www.xiaohongshu.com/',
+            },
+          });
+          if (!webRes.ok) return false;
+          const webData = (await webRes.json()) as {
             success?: boolean;
             data?: { guest?: boolean; user_id?: string };
           };
-          return Boolean(data.success) && !data.data?.guest && Boolean(data.data?.user_id);
-        }),
+          return Boolean(webData.success) && !webData.data?.guest && Boolean(webData.data?.user_id);
+        })(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }

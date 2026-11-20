@@ -127,4 +127,19 @@ test('verifyPlatformAuth validates live API for linuxdo, weibo, xiaohongshu, and
     async () => ({ ok: false, status: 403, json: async () => ({}) })
   );
   assert.equal(await verifyPlatformAuth({ session: linuxdoCloudflareSession, platformId: 'linuxdo', getAppConfig: dummyConfig }), true);
+
+  const xhsCreatorSession = createMockSession(
+    {
+      'persist:platform_xiaohongshu': [
+        { name: 'galaxy_creator_session_id', value: 'creator_sid', domain: 'creator.xiaohongshu.com' },
+      ],
+    },
+    async (url) => {
+      if (url.includes('creator.xiaohongshu.com/api/galaxy/user/info')) {
+        return { ok: true, status: 200, json: async () => ({ success: true, code: 0, data: { userId: 'xhs_u1' } }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    }
+  );
+  assert.equal(await verifyPlatformAuth({ session: xhsCreatorSession, platformId: 'xiaohongshu', getAppConfig: dummyConfig }), true);
 });
