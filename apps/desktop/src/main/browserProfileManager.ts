@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import type Electron from 'electron';
 import type { PlatformId } from '@vcat/shared';
@@ -88,8 +89,16 @@ export interface BrowserProfileManagerDeps {
 }
 
 async function defaultLoadChromium(): Promise<PlaywrightChromiumLike> {
-  const pw = await import('playwright-core');
-  return pw.chromium as unknown as PlaywrightChromiumLike;
+  const req = createRequire(import.meta.url);
+  for (const modName of ['playwright-core', '@playwright/test']) {
+    try {
+      const mod = req(modName) as { chromium?: PlaywrightChromiumLike };
+      if (mod?.chromium) return mod.chromium;
+    } catch {
+      // try next candidate
+    }
+  }
+  throw new Error('未找到可用的 Playwright Chromium 引擎（playwright-core）');
 }
 
 const PROFILE_STEALTH_INIT_SCRIPT = `
