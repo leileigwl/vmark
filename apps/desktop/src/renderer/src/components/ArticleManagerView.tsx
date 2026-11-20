@@ -1,6 +1,6 @@
 import { FolderOpen, Plus } from 'lucide-react';
-import { PLATFORM_CATALOG } from '@vcat/adapters';
 import type { ArticleMeta, GitStatusInfo } from '@vcat/shared';
+import { VISIBLE_PLATFORM_CATALOG } from '../features/publish-drawer';
 
 interface ArticleManagerViewProps {
   workspacePath: string | null;
@@ -70,7 +70,7 @@ export function ArticleManagerView({
         <div className="rounded-md border border-[var(--border-color)] bg-[var(--bg-elevated)] px-4 py-3">
           <div className="text-xs text-[var(--control-text-color)]">已注册平台适配器</div>
           <div className="mt-1 text-xl font-semibold text-[var(--accent)]">
-            {PLATFORM_CATALOG.length} 个
+            {VISIBLE_PLATFORM_CATALOG.length} 个
           </div>
         </div>
       </div>
