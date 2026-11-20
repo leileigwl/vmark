@@ -47,34 +47,47 @@ export function SettingsImageBedSection({
       </div>
 
       <div className="space-y-3 rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] p-4 text-[13px]">
-        <label className="flex cursor-pointer items-start gap-2.5">
-          <input
-            type="radio"
-            className="mt-1"
-            checked={imageBed.strategy === 'platform_private'}
-            onChange={() => onUpdateImageBed({ ...imageBed, strategy: 'platform_private' }, true)}
-          />
-          <div>
-            <div className="font-medium">分发时直传目标平台官方图床（推荐）</div>
-            <div className="text-xs text-[var(--control-text-color)]">
-              推送公众号/博客园/CSDN 时自动上传为官方素材，彻底免疫跨平台防盗链
+        <div className="flex items-start justify-between gap-3">
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="radio"
+              className="mt-1"
+              checked={imageBed.strategy === 'platform_private'}
+              onChange={() => onUpdateImageBed({ ...imageBed, strategy: 'platform_private' }, true)}
+            />
+            <div>
+              <div className="font-medium">分发时直传目标平台官方图床（默认推荐）</div>
+              <div className="text-xs text-[var(--control-text-color)]">
+                推送公众号/知乎/CSDN/百家号时直接上传至平台官方素材库，无需额外配置外部图床
+              </div>
             </div>
-          </div>
-        </label>
-        <label className="flex cursor-pointer items-start gap-2.5">
-          <input
-            type="radio"
-            className="mt-1"
-            checked={imageBed.strategy === 'custom_oss'}
-            onChange={() => onUpdateImageBed({ ...imageBed, strategy: 'custom_oss' }, true)}
-          />
-          <div>
-            <div className="font-medium">上传至通用云图床（PicGo-Core / 全平台对象存储）</div>
-            <div className="text-xs text-[var(--control-text-color)]">
-              支持 PicGo-Core、阿里云 OSS、腾讯云 COS、AWS S3 / R2、GitHub、七牛云、SM.MS、Imgur
+          </label>
+          {imageBed.strategy === 'platform_private' && (
+            <button
+              type="button"
+              onClick={() => onUpdateImageBed({ ...imageBed, strategy: 'custom_oss' }, true)}
+              className="shrink-0 rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-[11px] text-[var(--control-text-color)] hover:border-[var(--accent)] hover:text-[var(--text-main)]"
+            >
+              上传至通用云图床（PicGo-Core / 全平台对象存储）
+            </button>
+          )}
+        </div>
+        {imageBed.strategy === 'custom_oss' && (
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <input
+              type="radio"
+              className="mt-1"
+              checked={imageBed.strategy === 'custom_oss'}
+              onChange={() => onUpdateImageBed({ ...imageBed, strategy: 'custom_oss' }, true)}
+            />
+            <div>
+              <div className="font-medium">上传至通用云图床（PicGo-Core / 全平台对象存储）</div>
+              <div className="text-xs text-[var(--control-text-color)]">
+                支持 PicGo-Core、GitHub、SM.MS（如无需外置图床，切回上方默认直传即可）
+              </div>
             </div>
-          </div>
-        </label>
+          </label>
+        )}
 
         {imageBed.strategy === 'custom_oss' && (
           <div className="mt-3 space-y-3 border-t border-[var(--border-color)] pt-3 text-xs">

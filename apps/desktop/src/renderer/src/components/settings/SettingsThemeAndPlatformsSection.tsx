@@ -151,7 +151,7 @@ export function SettingsPlatformsSection({
                   onClick={() => onPlatformLogin(p.id)}
                   className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 >
-                  {online ? '更新/切换账号' : '打开登录窗授权'}
+                  {online ? '在内置浏览器中打开' : '打开内置浏览器授权'}
                 </button>
               </div>
             </div>
