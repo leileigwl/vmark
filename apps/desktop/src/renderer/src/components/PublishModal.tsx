@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PLATFORM_CATALOG } from '@vcat/adapters';
 import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
 import type { ArticleMeta, GitStatusInfo, MultiPlatformPublishResultItem, PlatformId, PublishMode } from '@vcat/shared';
-import { PlatformPreviewPane, PreflightBanner, PublishResultRow } from '../features/publish-drawer';
+import {
+  PlatformPreviewPane,
+  PreflightBanner,
+  PublishResultRow,
+  VISIBLE_PLATFORM_CATALOG,
+} from '../features/publish-drawer';
 
 interface PublishModalProps {
   activeArticle: ArticleMeta | null;
@@ -39,7 +43,7 @@ export function PublishModal({
   const [checkingAuth, setCheckingAuth] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['weixin']);
   const [platformModes, setPlatformModes] = useState<Record<string, PublishMode>>(() =>
-    Object.fromEntries(PLATFORM_CATALOG.map((p) => [p.id, p.defaultMode]))
+    Object.fromEntries(VISIBLE_PLATFORM_CATALOG.map((p) => [p.id, p.defaultMode]))
   );
   const [includeRemoteImages, setIncludeRemoteImages] = useState(true);
   const [pushingMulti, setPushingMulti] = useState(false);
@@ -368,7 +372,7 @@ export function PublishModal({
             </div>
 
             <div className="divide-y divide-[var(--border-color)] rounded-lg border border-[var(--border-color)]">
-              {PLATFORM_CATALOG.map((p) => {
+              {VISIBLE_PLATFORM_CATALOG.map((p) => {
                 const checked = selectedPlatforms.includes(p.id);
                 const online = Boolean(authStates[p.id]);
                 const currentMode = platformModes[p.id] ?? p.defaultMode;

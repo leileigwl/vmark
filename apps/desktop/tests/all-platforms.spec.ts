@@ -5,7 +5,6 @@ const ALL_PLATFORMS = [
   'github_static',
   'weixin',
   'cnblogs',
-  'linuxdo',
   'juejin',
   'csdn',
   'zhihu',
@@ -13,7 +12,6 @@ const ALL_PLATFORMS = [
   'weibo',
   'bilibili',
   'douyin',
-  'x',
   'xiaohongshu',
 ] as const;
 
@@ -91,10 +89,12 @@ test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
       await page.screenshot({ path: targetPath, fullPage: true });
     };
 
-    // 1. Settings -> verify all 13 platforms show "● 已授权"
+    // 1. Settings -> verify all 11 visible platforms show "● 已授权" and hidden ones stay hidden
     await page.getByTitle('偏好设置 (图床 / 平台 / GitHub)').click();
     await page.getByRole('button', { name: '平台授权托管' }).click();
     await expect(page.getByText('● 已授权')).toHaveCount(ALL_PLATFORMS.length);
+    await expect(page.getByText('Linux.do (Discourse)')).toHaveCount(0);
+    await expect(page.getByText('X (Twitter)')).toHaveCount(0);
     await snap('all-platforms-settings.png');
     await page.getByRole('button', { name: '编辑' }).click();
 

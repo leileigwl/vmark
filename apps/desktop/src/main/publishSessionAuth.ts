@@ -171,8 +171,19 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         sFetch('https://i.cnblogs.com/api/user', {
           headers: { Referer: 'https://i.cnblogs.com/' },
-        }).then((res) => res.ok),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        }).then(async (res) => {
+          if (res.ok) return true;
+          if (res.status === 403) {
+            try {
+              const data = (await res.json()) as { errors?: string[] };
+              if (data.errors?.some((e) => e.includes('您没有开通博客'))) return true;
+            } catch {
+              // non-JSON 403 payload
+            }
+          }
+          return false;
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
@@ -194,23 +205,25 @@ export async function verifyPlatformAuth(params: {
       const sFetch = createSessionFetch(jSession);
       const adapter = new JuejinAdapter({ fetchFn: sFetch });
       const verifyJuejinDraftAuth = async (): Promise<boolean> => {
-        if (!(await adapter.checkAuth())) return false;
-        const draftRes = await sFetch('https://api.juejin.cn/content_api/v1/article_draft/query_list', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Origin: 'https://juejin.cn',
-            Referer: 'https://juejin.cn/',
-          },
-          body: JSON.stringify({ page_no: 1, page_size: 1 }),
-        });
-        if (!draftRes.ok) return false;
+        const [userOk, draftRes] = await Promise.all([
+          adapter.checkAuth(),
+          sFetch('https://api.juejin.cn/content_api/v1/article_draft/query_list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://juejin.cn',
+              Referer: 'https://juejin.cn/',
+            },
+            body: JSON.stringify({ page_no: 1, page_size: 1 }),
+          }).catch(() => null),
+        ]);
+        if (!userOk || !draftRes || !draftRes.ok) return false;
         const draftData = (await draftRes.json()) as { err_no?: number };
         return draftData.err_no === 0;
       };
       return await Promise.race([
         verifyJuejinDraftAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 

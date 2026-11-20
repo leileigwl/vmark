@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { PLATFORM_CATALOG } from '@vcat/adapters';
 import type { PlatformId, ThemeId } from '@vcat/shared';
+import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -141,7 +141,7 @@ export function SettingsPlatformsSection({
         </div>
       )}
       <div className="divide-y divide-[var(--border-color)] rounded border border-[var(--border-color)]">
-        {PLATFORM_CATALOG.map((p) => {
+        {VISIBLE_PLATFORM_CATALOG.map((p) => {
           const online = Boolean(authStates[p.id]);
           const savedProxy = proxyDrafts[p.id] ?? '';
           const editingProxy = proxyEditorId === p.id;
