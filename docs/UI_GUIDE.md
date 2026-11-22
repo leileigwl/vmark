@@ -21,7 +21,10 @@
 ## 3. 关键结构
 - 平台登录状态：唯一来源 `features/platform-auth`（`usePlatformAuth`），四种状态 checking / signedIn / signedOut / error，15 秒超时。
 - 设置 → 平台账号：唯一管理登录的地方。
+- 发布：`features/publish-flow`。左侧勾选平台，右侧逐平台适配；平台要求集中在 `platformSpecs.ts`（标题/摘要字数、封面比例、标签、卡片上限），`verified: false` 的数值需在平台后台核实。
+- 发布默认推入草稿箱；GitHub 博客直接上线。
 
 ## 4. 参考方向
 - 编辑器：Typora / Bear / Obsidian 的安静写作感。
 - 设置与账号：Linear / Raycast 设置页，一行一项、右侧一个操作。
+- 发布：Ghost / Medium 的发布面板，分步、逐项检查。

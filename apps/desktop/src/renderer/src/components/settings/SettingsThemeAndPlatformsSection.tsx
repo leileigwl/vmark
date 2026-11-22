@@ -1,6 +1,7 @@
 import type { PlatformId, ThemeId } from '@vcat/shared';
 import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
 import { AccountsPanel, usePlatformAuth } from '../../features/platform-auth';
+import { SPEC_BY_ID } from '../../features/publish-flow';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -99,7 +100,7 @@ export function SettingsPlatformsSection(_props: {
   const auth = usePlatformAuth();
   const platforms = VISIBLE_PLATFORM_CATALOG.filter((p) => p.id !== 'github_static').map((p) => ({
     id: p.id,
-    name: p.name,
+    name: SPEC_BY_ID[p.id]?.name ?? p.name,
   }));
   return (
     <AccountsPanel
