@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": false,
-  "bootstrapUnlockReason": "升级 CI：master 合入后自动语义化打 Tag 触发三端打包与中文 Release，并在 PR 合入后清理已合并分支",
+  "bootstrapLocked": true,
+  "bootstrapUnlockReason": null,
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",
