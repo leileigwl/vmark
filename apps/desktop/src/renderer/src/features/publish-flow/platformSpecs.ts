@@ -15,6 +15,7 @@ export type CoverMode = 'weixin' | 'card' | 'required' | 'optional';
 /**
  * 每个平台的发布要求。界面上的必填、字数上限、封面比例全部从这里读。
  * verified=false 的数字是常见经验值，需维护者在各平台后台核实后改为 true。
+ * 每个数字的官方出处 / 待核实项与后台核实方法见 platformSpecSources.ts。
  */
 export interface PlatformSpec {
   id: PlatformId;
