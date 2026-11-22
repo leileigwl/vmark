@@ -8,6 +8,8 @@ import { cardDesignHeight, contentBoxFor, type CardContentBox, type CardContentI
  * 3. blank (空白模板 — 纯净极简背景，回归文字本质)
  * 4. elegant-book (书籍内页 — 优雅泛黄纸张与衬线体出版物)
  * 5. fresh-gradient (清新渐变 — 薄荷到淡紫的柔和渐变底 + 半透明白卡)
+ * 6. grid-notebook (方格手账 — 米白方格纸 + 和纸胶带)
+ * 7. sticky-note (便利贴 — 浅灰桌面上的一张黄色便签 + 图钉)
  */
 
 export type ContentGenre = 'essay' | 'travel' | 'reading' | 'tech';
@@ -19,7 +21,9 @@ export type CardTemplateChrome =
   | 'minimalist-magazine'
   | 'blank'
   | 'elegant-book'
-  | 'fresh-gradient';
+  | 'fresh-gradient'
+  | 'grid-notebook'
+  | 'sticky-note';
 
 export interface SocialCardTokens {
   id: string;
@@ -291,6 +295,72 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     letterSpacing: '0.3px',
   },
+  'grid-notebook': {
+    id: 'grid-notebook',
+    name: '方格手账 (Grid Notebook)',
+    chrome: 'grid-notebook',
+    kicker: 'NOTEBOOK',
+    footerSignature: 'Grid Notebook • 方格手账',
+    description: '米白方格纸配一条斜贴的珊瑚色和纸胶带，标题深蓝灰、强调珊瑚红，适合学习笔记、清单与计划',
+    paper: '#FBFAF6',
+    sheetBg: '#FBFAF6',
+    ruledLineColor: 'rgba(47, 58, 74, 0.07)',
+    ink: '#2A2F36',
+    headingInk: '#2F3A4A',
+    textSecondary: '#4B5563',
+    textMuted: '#9AA0A8',
+    line: 'rgba(47, 58, 74, 0.12)',
+    lineStrong: '#E5674E',
+    accent: '#E5674E',
+    accentInk: '#C8513A',
+    accentSurface: 'rgba(229, 103, 78, 0.12)',
+    highlightBg: 'rgba(229, 103, 78, 0.18)',
+    cardBg: '#FBFAF6',
+    quoteBg: 'rgba(229, 103, 78, 0.08)',
+    codeBg: '#FFFFFF',
+    codeInk: '#2A2F36',
+    codeBorder: 'rgba(47, 58, 74, 0.14)',
+    windowDotRed: '#ff5f56',
+    windowDotYellow: '#ffbd2e',
+    windowDotGreen: '#27c93f',
+    fontDisplay: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontBody: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+    letterSpacing: '0.3px',
+  },
+  'sticky-note': {
+    id: 'sticky-note',
+    name: '便利贴 (Sticky Note)',
+    chrome: 'sticky-note',
+    kicker: 'STICKY NOTE',
+    footerSignature: 'Sticky Note • 便利贴',
+    description: '浅灰桌面上钉着一张暖黄便签，楷体标题、深棕正文，像随手写下的提醒，适合短句、金句与待办',
+    paper: '#ECEAE4',
+    sheetBg: '#FFF4B0',
+    ruledLineColor: 'transparent',
+    ink: '#3B3221',
+    headingInk: '#5A3E12',
+    textSecondary: '#5C5240',
+    textMuted: '#9C8F70',
+    line: 'rgba(90, 62, 18, 0.14)',
+    lineStrong: '#D9534F',
+    accent: '#C0392B',
+    accentInk: '#A93226',
+    accentSurface: 'rgba(192, 57, 43, 0.10)',
+    highlightBg: 'rgba(255, 196, 0, 0.45)',
+    cardBg: '#FFF4B0',
+    quoteBg: 'rgba(90, 62, 18, 0.07)',
+    codeBg: '#FFFBE0',
+    codeInk: '#3B3221',
+    codeBorder: 'rgba(90, 62, 18, 0.16)',
+    windowDotRed: '#ff5f56',
+    windowDotYellow: '#ffbd2e',
+    windowDotGreen: '#27c93f',
+    fontDisplay: "'Kaiti SC', 'STKaiti', 'KaiTi', 'Noto Serif SC', 'Source Han Serif SC', serif",
+    fontBody: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+    letterSpacing: '0.3px',
+  },
 };
 
 const THEME_ALIASES: Record<string, string> = {
@@ -325,6 +395,8 @@ export const CARD_CHROME_INSETS: Record<CardTemplateChrome, CardContentInsets> =
   blank: { x: 100, top: 128, bottom: 140 },
   'elegant-book': { x: 120, top: 160, bottom: 150 },
   'fresh-gradient': { x: 112, top: 160, bottom: 196 },
+  'grid-notebook': { x: 112, top: 176, bottom: 150 },
+  'sticky-note': { x: 128, top: 200, bottom: 200 },
 };
 
 /** Size of the flowing content box for a theme and output ratio (design px). */

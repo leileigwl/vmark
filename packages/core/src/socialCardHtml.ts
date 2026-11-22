@@ -173,6 +173,28 @@ function chromeParts(t: SocialCardTokens, title: string, opts: RenderCardHtmlOpt
         before: `<div class="blob" style="width:520px;height:520px;right:-160px;top:-180px;background:radial-gradient(circle,rgba(45,212,191,0.35),transparent 70%)"></div><div class="blob" style="width:600px;height:600px;left:-220px;bottom:-200px;background:radial-gradient(circle,rgba(167,139,250,0.30),transparent 70%)"></div><div class="panel"></div>`,
         after: foot('', brand, page ? `<span class="pill">${page}</span>` : ''),
       };
+    case 'grid-notebook':
+      return {
+        // 方格纸：两层 1px 细线渐变平铺，纯 CSS，无图片资源
+        bg: `linear-gradient(${t.ruledLineColor} 2px, transparent 2px) 0 0 / 46px 46px, linear-gradient(90deg, ${t.ruledLineColor} 2px, transparent 2px) 0 0 / 46px 46px, ${t.paper}`,
+        boxClass: 'grid-paper',
+        css: `.tape{position:absolute;left:88px;top:58px;width:280px;height:70px;background:${t.highlightBg};opacity:0.9;border-left:6px dotted ${t.paper};border-right:6px dotted ${t.paper};transform:rotate(-4deg);}
+.nb-head{position:absolute;right:112px;top:76px;font-size:26px;letter-spacing:4px;color:${t.textMuted};}
+.grid-paper .b-table table,.grid-paper .b-code{background:${t.codeBg};}
+.grid-paper .b-h2{display:inline-block;align-self:flex-start;padding:0 12px;background:linear-gradient(transparent 58%, ${t.highlightBg} 58%);}`,
+        before: `<div class="tape"></div><div class="nb-head">${esc(opts.timestamp || t.kicker)}</div>`,
+        after: foot('', brand, page),
+      };
+    case 'sticky-note':
+      return {
+        bg: t.paper,
+        boxClass: 'sticky-sheet',
+        css: `.sheet{position:absolute;left:72px;right:72px;top:104px;bottom:110px;background:${t.sheetBg};border-radius:6px 6px 6px 64px;box-shadow:0 30px 50px rgba(60,48,20,0.18),0 4px 10px rgba(60,48,20,0.10);}
+.pin{position:absolute;left:50%;top:70px;width:56px;height:56px;margin-left:-28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#F19A8F,${t.accent} 60%,#7B241C);box-shadow:0 8px 12px rgba(0,0,0,0.25);}
+.foot{left:128px;right:128px;bottom:140px;color:${t.textMuted};}`,
+        before: '<div class="sheet"></div><div class="pin"></div>',
+        after: foot('', brand, page),
+      };
     default:
       return { bg: t.paper, boxClass: 'blank-content', css: '', before: '', after: foot('', brand, page) };
   }
