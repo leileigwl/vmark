@@ -97,8 +97,8 @@ tags: [旅行日记, 京都漫游]
       aspectRatio: '3:4',
     });
 
-    assert.ok(htmlMemo.includes('width: 1080px'));
-    assert.ok(htmlMemo.includes('height: 1440px'));
+    assert.ok(htmlMemo.includes('width: 1242px'));
+    assert.ok(htmlMemo.includes('height: 1656px'));
     assert.ok(htmlMemo.includes('备忘录'));
     assert.ok(htmlMemo.includes('完成'));
     assert.ok(htmlMemo.includes('repeating-linear-gradient'));
