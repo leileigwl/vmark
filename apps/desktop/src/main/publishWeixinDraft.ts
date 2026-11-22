@@ -1,11 +1,10 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import type Electron from 'electron';
 import { WeixinAdapter } from '@vcat/adapters';
 import { renderWeixinHtml } from '@vcat/core';
-import { resolveRefererForUrl, uploadLocalImagesForPublish } from '@vcat/image-pipeline';
+import { uploadLocalImagesForPublish } from '@vcat/image-pipeline';
 import { rasterizeMarkdownLatexForPlatform } from './latexRasterizer';
 import { createSessionFetch } from './publishSessionAuth';
+import { resolveWeixinCovers } from './publishWeixinCover';
 
 export interface WeixinDraftIpcPayload {
   title: string;
@@ -16,55 +15,13 @@ export interface WeixinDraftIpcPayload {
   showCoverInBody?: boolean;
   sourceUrl?: string;
   includeRemoteImages?: boolean;
+  /** 按焦点裁好的 1:1 转发图（工作区相对路径）。 */
+  weixinSquareCoverImagePath?: string;
 }
 
 export type WeixinDraftIpcResult =
   | { ok: true; postId: string; url: string; verified: boolean; uploadedImagesCount?: number }
   | { ok: false; message: string };
-
-async function resolveWeixinCoverUrl(params: {
-  coverImageUrl?: string;
-  workspacePath: string | null;
-  adapter: WeixinAdapter;
-  includeRemote: boolean;
-}): Promise<{ ok: true; url?: string } | { ok: false; message: string }> {
-  const raw = params.coverImageUrl?.trim();
-  if (!raw) return { ok: true, url: undefined };
-
-  if (!/^https?:\/\//i.test(raw)) {
-    if (!params.workspacePath) {
-      return { ok: false, message: `未配置工作区路径，无法读取本地封面图: ${raw}` };
-    }
-    const resolvedRoot = path.resolve(params.workspacePath);
-    const cleanRel = raw.replace(/^\.\//, '');
-    const fullCoverPath = path.resolve(resolvedRoot, cleanRel);
-    if (!fullCoverPath.startsWith(`${resolvedRoot}${path.sep}`)) {
-      return { ok: false, message: `非法封面图路径: ${raw}` };
-    }
-    const coverBuffer = await fs.readFile(fullCoverPath);
-    const url = await params.adapter.uploadImage(coverBuffer, path.basename(fullCoverPath));
-    return { ok: true, url };
-  }
-
-  if (!params.includeRemote || raw.includes('mmbiz.qpic.cn')) {
-    return { ok: true, url: raw };
-  }
-
-  const referer = resolveRefererForUrl(raw);
-  const res = await fetch(raw, {
-    headers: {
-      ...(referer ? { Referer: referer } : {}),
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-    },
-  });
-  if (!res.ok) {
-    return { ok: false, message: `抓取封面图失败 (${res.status}): ${raw}` };
-  }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  const url = await params.adapter.uploadImage(buffer, 'cover.png');
-  return { ok: true, url };
-}
 
 /** Uploads images, renders styled WeChat HTML, and pushes a draft to the Official Account box. */
 export async function executeWeixinDraftPublish(params: {
@@ -97,10 +54,11 @@ export async function executeWeixinDraftPublish(params: {
     return { ok: false, message: uploadResult.errors.join('；') };
   }
 
-  const coverRes = await resolveWeixinCoverUrl({
+  const coverRes = await resolveWeixinCovers({
     coverImageUrl: payload.coverImageUrl,
+    squareImagePath: payload.weixinSquareCoverImagePath,
     workspacePath,
-    adapter,
+    upload: (buffer, fileName) => adapter.uploadImage(buffer, fileName),
     includeRemote,
   });
   if (!coverRes.ok) {
@@ -126,6 +84,7 @@ export async function executeWeixinDraftPublish(params: {
     author: payload.author,
     digest: payload.digest?.trim() ? payload.digest : rendered.digest,
     coverImageUrl: coverRes.url,
+    coverSquareImageUrl: coverRes.squareUrl,
     showCoverInBody: payload.showCoverInBody,
     sourceUrl: payload.sourceUrl,
   });

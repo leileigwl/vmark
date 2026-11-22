@@ -86,7 +86,7 @@ test('推送内容：上传封面按平台比例裁一次并复用；卡片平�
   assert.equal(xhs.coverImageUrl, undefined);
   assert.equal(xhs.socialCoverImagePath, 'assets/crop-3:4.jpg');
   assert.equal(xhs.socialCoverRatio, '3:4');
-  assert.deepEqual(crops, ['16:9', '2.35:1', '3:4']);
+  assert.deepEqual(crops, ['16:9', '2.35:1', '1:1', '3:4']);
   assert.equal(wx.targets[0].mode, 'draft');
 });
 

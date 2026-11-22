@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 const MD = [
@@ -84,6 +85,7 @@ type Call = {
   tags?: string[];
   coverImageUrl?: string;
   socialCoverImagePath?: string;
+  weixinSquareCoverImagePath?: string;
   targets: Array<{ platformId: string; mode: string }>;
 };
 const callsOf = (page: Page) => page.evaluate(() => (window as unknown as { __calls: Call[] }).__calls);
@@ -239,7 +241,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(await editor.innerHTML()).toBe(before);
   });
 
-  test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面', async ({ page }) => {
+  test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面（含 1:1 方图）', async ({ page }, testInfo) => {
     await openEditor(page, { weixin: true }, '# 没有配图的文章\n\n只有文字。');
     await openPublish(page);
     await expect(page.getByTestId('cover-field')).toContainText('正文没有图片');
@@ -251,10 +253,14 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await expect(page.getByAltText('2.35:1 封面预览')).toBeVisible();
     await expect(page.getByAltText('1:1 封面预览')).toBeVisible();
     await expect(row(page, 'weixin')).toContainText('就绪');
+    const shotDir = process.env.PW_SCREENSHOT_DIR;
+    await page.screenshot({ path: shotDir ? path.join(shotDir, 'weixin-square-cover.png') : testInfo.outputPath('weixin-square-cover.png') });
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
     const calls = await callsOf(page);
     expect(calls[0].coverImageUrl).toMatch(/assets\/up\.png$/);
+    // 1:1 转发图单独传（测试环境 canvas 读不到 vcat-asset，裁剪失败退回上传原图）
+    expect(calls[0].weixinSquareCoverImagePath).toMatch(/assets\/up\.png$/);
   });
 
   test('上传封面后：知乎 16:9、小红书 3:4 作为第 1 张；移除后回到默认', async ({ page }) => {

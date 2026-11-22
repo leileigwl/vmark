@@ -15,7 +15,7 @@ export type CoverCropper = (src: string, ratio: CoverRatio, focus: { x: number; 
 
 /**
  * 组装某平台的推送内容。封面：
- * - 上传了封面：按该平台主比例裁一张（同一比例只裁一次）；卡片平台作为第 1 张图插入；
+ * - 上传了封面：按该平台主比例裁一张（同一比例只裁一次）；卡片平台作为第 1 张图插入；公众号另裁 1:1 转发图；
  * - 没上传：公众号/百家号/微博用正文首图，其他平台不带封面，卡片平台用第一张卡片。
  * 裁剪失败时退回原图，由平台自行裁切。
  */
@@ -31,10 +31,15 @@ export async function buildPayload(
   const v = resolveFor(draft, id);
   const cover = spec ? coverFor(draft, spec, bodyImage) : null;
   let coverPath: string | undefined;
+  let squarePath: string | undefined;
   if (cover?.kind === 'upload' && spec?.cover) {
-    const ratio = spec.cover.ratios[0];
-    if (!cache.has(ratio)) cache.set(ratio, crop(cover.src, ratio, draft.coverFocus).catch(() => cover.src));
-    coverPath = await cache.get(ratio);
+    const cropOnce = (ratio: CoverRatio) => {
+      if (!cache.has(ratio)) cache.set(ratio, crop(cover.src, ratio, draft.coverFocus).catch(() => cover.src));
+      return cache.get(ratio);
+    };
+    coverPath = await cropOnce(spec.cover.ratios[0]);
+    // 公众号 1:1 转发图也按焦点裁，不再交给公众号从 2.35:1 居中裁
+    if (spec.cover.mode === 'weixin') squarePath = await cropOnce('1:1');
   } else if (cover?.kind === 'body') {
     coverPath = cover.src;
   }
@@ -46,6 +51,7 @@ export async function buildPayload(
     tags: v.tags.length ? v.tags : undefined,
     coverImageUrl: isCards ? undefined : coverPath,
     socialCoverImagePath: isCards ? coverPath : undefined,
+    weixinSquareCoverImagePath: squarePath,
     includeRemoteImages: draft.includeRemoteImages,
     socialThemeId: draft.socialThemeId ?? undefined,
     socialCoverRatio: isCards ? '3:4' : undefined,
