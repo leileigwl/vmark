@@ -17,6 +17,7 @@ import {
   type PointerEventContext,
 } from './vditorPointerEvents';
 import { handleSlashMenuKeyDown, type SlashMenuState } from './vditorSlashMenu';
+import { ensureTaskListOutputPatched, handleTaskCheckboxClickCapture } from './vditorTaskList';
 import type { SlashCommandItem } from './slashCommands';
 
 /** Attaches DOM, capture-phase keyboard/pointer, selection, and MutationObserver listeners to a Vditor instance. */
@@ -125,6 +126,8 @@ export function bindVditorEditorEvents(params: {
       e.stopImmediatePropagation();
       return;
     }
+    const taskCtx = { el, instance, readOnly: params.readOnlyRef.current, pushVditorUndo: params.pushVditorUndo };
+    if (handleTaskCheckboxClickCapture(e, { ...taskCtx, onChange: (md) => params.onChangeRef.current(md) })) return;
     const imgEl = target?.closest('img');
     const previewTarget = imgEl ? null : getPreviewBlockTarget(target);
     if (imgEl || previewTarget) {
@@ -249,7 +252,10 @@ export function bindVditorEditorEvents(params: {
     params.detectSlashCommand();
   };
 
-  const observer = new MutationObserver(params.enhanceDom);
+  const observer = new MutationObserver(() => {
+    ensureTaskListOutputPatched(instance);
+    params.enhanceDom();
+  });
   observer.observe(el, {
     childList: true,
     subtree: true,
