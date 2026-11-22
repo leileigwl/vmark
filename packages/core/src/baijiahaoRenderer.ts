@@ -4,6 +4,11 @@ export interface BaijiahaoRenderedResult {
   imageUrls: string[];
 }
 
+export interface BaijiahaoRenderOptions {
+  /** Use `'list'` for rich editors (like Bilibili) that strip `<table>` tags. */
+  tableMode?: 'html' | 'list';
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -12,17 +17,38 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Renders Markdown into Baijiahao (百家号) compatible semantic HTML. */
-export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
+/** Renders Markdown into Baijiahao (百家号) / compatible semantic HTML. */
+export function renderBaijiahaoHtml(
+  markdown: string,
+  options: BaijiahaoRenderOptions = {}
+): BaijiahaoRenderedResult {
   const imageUrls: string[] = [];
   const cleanMd = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   const lines = cleanMd.split(/\r?\n/);
 
   const renderInline = (raw: string): string => {
-    let s = raw.replace(/`([^`]+)`/g, (_m, code) => `<code>${escapeHtml(code)}</code>`);
+    const protectedSlots: string[] = [];
+    const protect = (html: string): string => {
+      const idx = protectedSlots.length;
+      protectedSlots.push(html);
+      return `\u0000SLOT_${idx}\u0000`;
+    };
+
+    let s = raw.replace(/`([^`]+)`/g, (_m, code) => protect(`<code>${escapeHtml(code)}</code>`));
+    s = s.replace(/\$([^$\n]+)\$/g, (_m, tex) => protect(`<code>$${escapeHtml(tex)}$</code>`));
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
       const cleanUrl = url.trim();
       imageUrls.push(cleanUrl);
+      if (alt === 'vmark-latex-inline') {
+        return protect(
+          `<img src="${escapeHtml(cleanUrl)}" alt="formula" style="display: inline-block; vertical-align: middle; height: 1.25em; width: auto; margin: 0 2px;" />`
+        );
+      }
+      if (alt === 'vmark-latex-block') {
+        return protect(
+          `<p style="text-align: center;"><img src="${escapeHtml(cleanUrl)}" alt="formula" style="max-width: 100%; height: auto;" /></p>`
+        );
+      }
       return `<p style="text-align: center;"><img src="${escapeHtml(cleanUrl)}" alt="${escapeHtml(alt)}" style="max-width: 100%; border-radius: 4px;" /></p>`;
     });
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
@@ -30,7 +56,8 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
     });
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    return s;
+    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    return s.replace(/\u0000SLOT_(\d+)\u0000/g, (_m, idx) => protectedSlots[Number(idx)] ?? '');
   };
 
   const CALLOUT_LABELS: Record<string, string> = {
@@ -46,7 +73,58 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
   let codeLang = '';
   let codeMarker = '';
   let codeLines: string[] = [];
+  let inMath = false;
+  let mathLines: string[] = [];
   let quoteLines: string[] = [];
+  let inTable = false;
+  let tableRows: string[][] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) {
+      listType = null;
+      listItems = [];
+      return;
+    }
+    const itemsHtml = listItems.map((item) => `<li>${renderInline(item)}</li>`).join('');
+    out.push(`<${listType}>${itemsHtml}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  const flushTable = () => {
+    if (!inTable || tableRows.length === 0) {
+      inTable = false;
+      tableRows = [];
+      return;
+    }
+    const [header, ...body] = tableRows;
+    if (options.tableMode === 'list') {
+      const rowsHtml = body
+        .map((r) => {
+          const pairs = r.map((cell, idx) =>
+            idx === 0
+              ? `<strong>${renderInline(cell)}</strong>`
+              : `${escapeHtml(header[idx] ?? '')}: ${renderInline(cell)}`
+          );
+          return `<p>• ${pairs.join(' ｜ ')}</p>`;
+        })
+        .join('');
+      out.push(`<blockquote>${rowsHtml || `<p>${header.map((c) => renderInline(c)).join(' ｜ ')}</p>`}</blockquote>`);
+      inTable = false;
+      tableRows = [];
+      return;
+    }
+    const headHtml = `<thead><tr>${header.map((c) => `<th>${renderInline(c)}</th>`).join('')}</tr></thead>`;
+    const bodyHtml =
+      body.length > 0
+        ? `<tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${renderInline(c)}</td>`).join('')}</tr>`).join('')}</tbody>`
+        : '';
+    out.push(`<table>${headHtml}${bodyHtml}</table>`);
+    inTable = false;
+    tableRows = [];
+  };
 
   const flushQuote = () => {
     if (quoteLines.length === 0) return;
@@ -65,6 +143,9 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
     const trimmedLine = line.trim();
     const codeMatch = trimmedLine.match(/^(`{3,}|~{3,})(.*)$/);
     if (codeMatch && !inCode) {
+      flushQuote();
+      flushTable();
+      flushList();
       inCode = true;
       codeMarker = codeMatch[1];
       const info = codeMatch[2].trim();
@@ -87,17 +168,88 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
       continue;
     }
 
+    if (trimmedLine === '$$') {
+      flushQuote();
+      flushTable();
+      flushList();
+      if (!inMath) {
+        inMath = true;
+        mathLines = [];
+      } else {
+        inMath = false;
+        out.push(`<pre><code>${escapeHtml(mathLines.join('\n'))}</code></pre>`);
+        mathLines = [];
+      }
+      continue;
+    }
+    if (inMath) {
+      mathLines.push(line);
+      continue;
+    }
+
+    if (trimmedLine.startsWith('|') && trimmedLine.endsWith('|')) {
+      flushQuote();
+      flushList();
+      const cells = trimmedLine.slice(1, -1).split('|').map((c) => c.trim());
+      if (cells.every((c) => /^:?-+:?$/.test(c))) continue;
+      inTable = true;
+      tableRows.push(cells);
+      continue;
+    } else if (inTable) {
+      flushTable();
+    }
+
     if (line.startsWith('>')) {
+      flushList();
       quoteLines.push(line.replace(/^>\s?/, ''));
       continue;
     }
     flushQuote();
 
-    if (!line.trim()) continue;
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(trimmedLine)) {
+      flushList();
+      out.push('<hr />');
+      continue;
+    }
+
+    const taskMatch = trimmedLine.match(/^[-*+]\s+\[([ xX])\]\s+(.+)$/);
+    if (taskMatch) {
+      if (listType !== 'ul') {
+        flushList();
+        listType = 'ul';
+      }
+      const checked = taskMatch[1].toLowerCase() === 'x';
+      listItems.push(`${checked ? '☑' : '☐'} ${taskMatch[2]}`);
+      continue;
+    }
+
+    const ulMatch = trimmedLine.match(/^[-*+]\s+(.+)$/);
+    if (ulMatch) {
+      if (listType !== 'ul') {
+        flushList();
+        listType = 'ul';
+      }
+      listItems.push(ulMatch[1]);
+      continue;
+    }
+
+    const olMatch = trimmedLine.match(/^\d+\.\s+(.+)$/);
+    if (olMatch) {
+      if (listType !== 'ol') {
+        flushList();
+        listType = 'ol';
+      }
+      listItems.push(olMatch[1]);
+      continue;
+    }
+
+    flushList();
+
+    if (!trimmedLine) continue;
 
     const hMatch = line.match(/^(#{1,6})\s+(.+)$/);
     if (hMatch) {
-      const level = Math.min(Math.max(hMatch[1].length, 2), 4);
+      const level = Math.min(Math.max(hMatch[1].length, 2), 6);
       out.push(`<h${level}>${renderInline(hMatch[2])}</h${level}>`);
       continue;
     }
@@ -105,6 +257,8 @@ export function renderBaijiahaoHtml(markdown: string): BaijiahaoRenderedResult {
     out.push(`<p>${renderInline(line)}</p>`);
   }
   flushQuote();
+  flushTable();
+  flushList();
 
   const plain = cleanMd
     .replace(/(?:```|~~~)[\s\S]*?(?:```|~~~)/g, ' ')

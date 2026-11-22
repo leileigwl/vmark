@@ -51,6 +51,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -71,8 +73,58 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Generate Structured Chinese Release Notes
+        run: |
+          node -e '
+            const { execSync } = require("node:child_process");
+            const fs = require("node:fs");
+            const tag = process.env.GITHUB_REF_NAME || "v0.2.0";
+            let prev = "v0.1.0";
+            try {
+              const tags = execSync("git tag --sort=-v:refname", { encoding: "utf8" }).trim().split("\n").filter(Boolean);
+              const idx = tags.indexOf(tag);
+              prev = idx >= 0 && tags[idx + 1] ? tags[idx + 1] : (tags.find((t) => t !== tag) || "");
+            } catch {}
+            const range = prev ? `${prev}..HEAD` : "-n 30";
+            const raw = execSync(`git log ${range} --pretty=format:"%h|%s"`, { encoding: "utf8" }).trim();
+            const social = [], feats = [], fixes = [], chores = [];
+            for (const line of raw.split("\n").filter(Boolean)) {
+              const [h, ...rest] = line.split("|");
+              const s = rest.join("|").trim();
+              if (/^chore\(release\): sync master/i.test(s)) continue;
+              const item = `- ${s} (\`${h}\`)`;
+              if (/social|card|xiaohongshu|douyin|weixin|zhihu|baijiahao|latex|排版|卡片|小红书|抖音/i.test(s)) social.push(item);
+              else if (/^feat/i.test(s)) feats.push(item);
+              else if (/^fix/i.test(s)) fixes.push(item);
+              else chores.push(item);
+            }
+            const md = [
+              `# Vmark ${tag} 发布说明 (${new Date().toISOString().slice(0, 10)})`,
+              "",
+              "> **Local-First 多平台创作者排版与一键草稿分发桌面工作台**（支持 macOS / Windows / Linux）",
+              "",
+              "## 🎨 多平台排版与文字卡片引擎",
+              ...(social.length ? social : ["- 持续优化小红书/抖音文字卡片与公众号/知乎/百家号排版体验"]),
+              "",
+              "## ✨ 核心新特性与平台分发",
+              ...(feats.length ? feats : ["- 多平台隔离登录与一键草稿箱安全分发"]),
+              "",
+              "## 🐛 问题修复与稳定性增强",
+              ...(fixes.length ? fixes : ["- 修复已知兼容性与构建稳定性问题"]),
+              ...(chores.length ? ["", "## 🔧 工程护栏与文档演进", ...chores] : []),
+              "",
+              "## 📦 三端安装包下载与安装指南",
+              "| 操作系统 | 安装包格式 | 安装说明 |",
+              "| :--- | :--- | :--- |",
+              "| **macOS** | `.dmg` / `.zip` | 拖入 Applications；首次打开如遇 Gatekeeper 提示请在「系统设置 -> 隐私与安全性」点仍要打开 |",
+              "| **Windows** | `.exe` | 双击安装包完成安装，凭据由系统 DPAPI (`safeStorage`) 加密保护 |",
+              "| **Linux** | `.AppImage` / `.deb` | `chmod +x *.AppImage` 运行或 `sudo dpkg -i *.deb` |",
+            ].join("\n");
+            fs.writeFileSync("RELEASE_NOTES.md", md + "\n", "utf8");
+          '
+
       - name: Upload GitHub Release Assets
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           files: ${{ matrix.artifacts }}

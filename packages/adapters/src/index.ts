@@ -164,3 +164,4 @@ export { JuejinAdapter, type JuejinOptions } from './juejin.ts';
 export { CsdnAdapter, type CsdnOptions } from './csdn.ts';
 export { BaijiahaoAdapter, type BaijiahaoOptions, type BaijiahaoUserInfo } from './baijiahao.ts';
 export { BilibiliAdapter, type BilibiliOptions } from './bilibili.ts';
+export { WeiboAdapter, type WeiboOptions } from './weibo.ts';

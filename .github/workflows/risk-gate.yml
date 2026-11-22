@@ -217,6 +217,15 @@ jobs:
                   commit_title: `${pr.title} (#${prNumber}) [${targetLabel}]`,
                 });
                 console.log(`Merged PR #${prNumber} (${targetLabel}) into test via squash.`);
+                if (pr.head.ref && !['master', 'main', 'test'].includes(pr.head.ref)) {
+                  await github.rest.git.deleteRef({
+                    owner,
+                    repo,
+                    ref: `heads/${pr.head.ref}`,
+                  }).catch((delErr) => {
+                    console.log(`Branch cleanup skipped for ${pr.head.ref}: ${delErr?.message || delErr}`);
+                  });
+                }
                 break;
               } catch (err) {
                 const msg = String(err && err.message ? err.message : err);

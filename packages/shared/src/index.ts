@@ -163,6 +163,8 @@ export interface MultiPlatformPublishTarget {
   mode: PublishMode;
 }
 
+export type SocialCoverRatio = '3:4' | '2:3' | '9:16' | '16:9' | '2.35:1';
+
 export interface MultiPlatformPublishPayload {
   title: string;
   markdown: string;
@@ -173,6 +175,8 @@ export interface MultiPlatformPublishPayload {
   sourceUrl?: string;
   tags?: string[];
   includeRemoteImages?: boolean;
+  socialThemeId?: string;
+  socialCoverRatio?: SocialCoverRatio;
   targets: MultiPlatformPublishTarget[];
 }
 

@@ -1,5 +1,5 @@
-import { PLATFORM_CATALOG } from '@vcat/adapters';
 import type { PlatformId, ThemeId } from '@vcat/shared';
+import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -89,7 +89,7 @@ export function SettingsThemeSection({
   );
 }
 
-/** Multi-platform sandbox authentication status & login/logout panel. */
+/** Multi-platform sandbox authentication status & built-in isolated browser panel. */
 export function SettingsPlatformsSection({
   authStates,
   onPlatformLogin,
@@ -103,10 +103,10 @@ export function SettingsPlatformsSection({
     <div className="max-w-3xl">
       <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
       <p className="mt-1 mb-4 text-xs text-[var(--control-text-color)]">
-        每个平台运行在独立的 Electron <code>persist:platform_*</code> 沙箱内，Cookie 本地持久化不串号。
+        每个平台运行在 Vmark 内嵌独立浏览器环境（独立 <code>persist:platform_*</code> 存储分区 + 独立指纹参数），Cookie 本地持久化不串号。
       </p>
       <div className="divide-y divide-[var(--border-color)] rounded border border-[var(--border-color)]">
-        {PLATFORM_CATALOG.map((p) => {
+        {VISIBLE_PLATFORM_CATALOG.map((p) => {
           const online = Boolean(authStates[p.id]);
           return (
             <div
@@ -114,8 +114,13 @@ export function SettingsPlatformsSection({
               className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-hover)]"
             >
               <div>
-                <div className="flex items-center gap-2 text-[13px] font-semibold">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
                   <span>{p.name}</span>
+                  {p.authChannel === 'isolated_profile' && (
+                    <span className="rounded-full bg-[#ddf4ff] px-2 py-0.5 text-[10px] font-medium text-[#0969da]">
+                      独立内嵌环境
+                    </span>
+                  )}
                   {online ? (
                     <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
                       ● 已授权
@@ -146,7 +151,7 @@ export function SettingsPlatformsSection({
                   onClick={() => onPlatformLogin(p.id)}
                   className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 >
-                  {online ? '更新/切换账号' : '打开登录窗授权'}
+                  {online ? '在内置浏览器中打开' : '打开内置浏览器授权'}
                 </button>
               </div>
             </div>

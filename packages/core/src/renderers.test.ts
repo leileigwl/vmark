@@ -130,9 +130,10 @@ test('renderZhihuHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marke
   assert.ok(!result.html.includes('[!NOTE]'));
 });
 
-test('renderBaijiahaoHtml formats [!NOTE] callouts cleanly without raw [!NOTE] marker', () => {
-  const result = renderBaijiahaoHtml('> [!NOTE]\n> 这是百家号提示内容');
+test('renderBaijiahaoHtml formats [!NOTE] callouts and Markdown tables into semantic HTML', () => {
+  const result = renderBaijiahaoHtml('> [!NOTE]\n> 这是百家号提示内容\n\n| 平台 | 模式 |\n| :--- | :--- |\n| 百家号 | 草稿箱 |');
   assert.ok(result.html.includes('<strong>ℹ️ 提示</strong>'));
   assert.ok(result.html.includes('这是百家号提示内容'));
   assert.ok(!result.html.includes('[!NOTE]'));
+  assert.ok(result.html.includes('<table><thead><tr><th>平台</th><th>模式</th></tr></thead><tbody><tr><td>百家号</td><td>草稿箱</td></tr></tbody></table>'));
 });

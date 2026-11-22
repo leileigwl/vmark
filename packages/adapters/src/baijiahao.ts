@@ -193,8 +193,14 @@ export class BaijiahaoAdapter implements PlatformAdapter {
         if (url && (data.errno === 0 || data.errmsg === 'success' || data.errno === undefined)) {
           return url;
         }
+        if (data.errno && data.errno !== 0 && data.errmsg) {
+          throw new Error(`百家号图片上传失败: ${data.errmsg}`);
+        }
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('百家号图片上传失败:')) {
+        throw err;
+      }
       // ignore and try fallback
     }
 

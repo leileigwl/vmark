@@ -8,25 +8,24 @@ import {
   type FetchLike,
 } from '@vcat/adapters';
 import type { ImageBedConfig, PlatformId } from '@vcat/shared';
+import { buildChromeBrowserHeaders, CHROME_DESKTOP_UA } from './browserStealth.ts';
 
 export interface PublishAppConfig {
   workspacePath: string | null;
   imageBed: ImageBedConfig;
 }
 
-const CHROME_DESKTOP_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
-
 /** Wraps an Electron Session's fetch method into the FetchLike contract expected by adapters. */
 export function createSessionFetch(targetSession: Electron.Session): FetchLike {
-  try {
-    targetSession.setUserAgent(CHROME_DESKTOP_UA);
-  } catch {
-    // ignore user-agent override failure in mock/headless sessions
-  }
+  const browserHeaders = buildChromeBrowserHeaders();
   return async (input, init) => {
     const customInit = ({ ...init }) as Parameters<typeof targetSession.fetch>[1];
     const headers = new Headers(customInit?.headers || {});
+    for (const [key, value] of Object.entries(browserHeaders)) {
+      if (!headers.has(key)) {
+        headers.set(key, value);
+      }
+    }
     if (!headers.has('User-Agent')) {
       headers.set('User-Agent', CHROME_DESKTOP_UA);
     }
@@ -105,7 +104,15 @@ export async function hasSessionAuthCookies(
       );
 
     case 'xiaohongshu':
-      return hasCookie((n, _, d) => n === 'web_session' && (!d || d.includes('xiaohongshu.com')));
+      return hasCookie(
+        (n, _, d) =>
+          (n === 'web_session' ||
+            n === 'galaxy_creator_session_id' ||
+            n === 'customer-sso-sid' ||
+            n.startsWith('access-token-creator') ||
+            n.startsWith('x-user-id-creator')) &&
+          (!d || d.includes('xiaohongshu.com'))
+      );
 
     case 'weibo':
       return hasCookie(
@@ -167,8 +174,19 @@ export async function verifyPlatformAuth(params: {
       return await Promise.race([
         sFetch('https://i.cnblogs.com/api/user', {
           headers: { Referer: 'https://i.cnblogs.com/' },
-        }).then((res) => res.ok),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        }).then(async (res) => {
+          if (res.ok) return true;
+          if (res.status === 403) {
+            try {
+              const data = (await res.json()) as { errors?: string[] };
+              if (data.errors?.some((e) => e.includes('您没有开通博客'))) return true;
+            } catch {
+              // non-JSON 403 payload
+            }
+          }
+          return false;
+        }),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
@@ -190,23 +208,25 @@ export async function verifyPlatformAuth(params: {
       const sFetch = createSessionFetch(jSession);
       const adapter = new JuejinAdapter({ fetchFn: sFetch });
       const verifyJuejinDraftAuth = async (): Promise<boolean> => {
-        if (!(await adapter.checkAuth())) return false;
-        const draftRes = await sFetch('https://api.juejin.cn/content_api/v1/article_draft/query_list', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Origin: 'https://juejin.cn',
-            Referer: 'https://juejin.cn/',
-          },
-          body: JSON.stringify({ page_no: 1, page_size: 1 }),
-        });
-        if (!draftRes.ok) return false;
+        const [userOk, draftRes] = await Promise.all([
+          adapter.checkAuth(),
+          sFetch('https://api.juejin.cn/content_api/v1/article_draft/query_list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Origin: 'https://juejin.cn',
+              Referer: 'https://juejin.cn/',
+            },
+            body: JSON.stringify({ page_no: 1, page_size: 1 }),
+          }).catch(() => null),
+        ]);
+        if (!userOk || !draftRes || !draftRes.ok) return false;
         const draftData = (await draftRes.json()) as { err_no?: number };
         return draftData.err_no === 0;
       };
       return await Promise.race([
         verifyJuejinDraftAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
@@ -288,19 +308,36 @@ export async function verifyPlatformAuth(params: {
       const xSession = session.fromPartition('persist:platform_xiaohongshu');
       const sFetch = createSessionFetch(xSession);
       return await Promise.race([
-        sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
-          headers: {
-            Origin: 'https://www.xiaohongshu.com',
-            Referer: 'https://www.xiaohongshu.com/',
-          },
-        }).then(async (res) => {
-          if (!res.ok) return false;
-          const data = (await res.json()) as {
+        (async () => {
+          const creatorRes = await sFetch('https://creator.xiaohongshu.com/api/galaxy/user/info', {
+            headers: {
+              Origin: 'https://creator.xiaohongshu.com',
+              Referer: 'https://creator.xiaohongshu.com/new/home',
+            },
+          });
+          if (creatorRes.ok) {
+            const creatorData = (await creatorRes.json()) as {
+              success?: boolean;
+              code?: number;
+              data?: { userId?: string };
+            };
+            if (creatorData.success && creatorData.code === 0 && Boolean(creatorData.data?.userId)) {
+              return true;
+            }
+          }
+          const webRes = await sFetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+            headers: {
+              Origin: 'https://www.xiaohongshu.com',
+              Referer: 'https://www.xiaohongshu.com/',
+            },
+          });
+          if (!webRes.ok) return false;
+          const webData = (await webRes.json()) as {
             success?: boolean;
             data?: { guest?: boolean; user_id?: string };
           };
-          return Boolean(data.success) && !data.data?.guest && Boolean(data.data?.user_id);
-        }),
+          return Boolean(webData.success) && !webData.data?.guest && Boolean(webData.data?.user_id);
+        })(),
         new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
       ]);
     }

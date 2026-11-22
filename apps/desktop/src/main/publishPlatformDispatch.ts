@@ -5,6 +5,7 @@ import {
   CsdnAdapter,
   GitHubStaticAdapter,
   JuejinAdapter,
+  WeiboAdapter,
   ZhihuAdapter,
 } from '@vcat/adapters';
 import { parseCsdnMarkdown, renderBaijiahaoHtml, renderZhihuHtml } from '@vcat/core';
@@ -15,11 +16,14 @@ import type {
   PlatformId,
   PublishMode,
 } from '@vcat/shared';
+import { rasterizeMarkdownLatexForPlatform } from './latexRasterizer';
+import { publishCnblogsWebDraft } from './publishCnblogsDraft';
 import {
   createSessionFetch,
   hasSessionAuthCookies,
   type PublishAppConfig,
 } from './publishSessionAuth';
+import { publishDouyinDraft, publishXiaohongshuDraft } from './publishSocialDrafts';
 import { executeWeixinDraftPublish } from './publishWeixinDraft';
 
 /** Dispatches a single-platform publish or draft action with image transfer and auth checks. */
@@ -126,74 +130,7 @@ export async function publishToSingleTarget(params: {
     }
 
     if (platformId === 'cnblogs') {
-      const cnblogsSession = session.fromPartition('persist:platform_cnblogs');
-      const hasCookies = await hasSessionAuthCookies(session, 'cnblogs');
-      if (!hasCookies) {
-        return {
-          platformId,
-          ok: false,
-          mode: 'draft',
-          message: '未登录博客园，请先在「偏好设置 → 平台授权托管」完成登录授权',
-        };
-      }
-
-      const uploadResult = await uploadLocalImagesForPublish({
-        workspacePath: cfg.workspacePath,
-        markdown: payload.markdown,
-        config: cfg.imageBed,
-        includeRemote,
-        uploadFn: createImageBedUploader(),
-      });
-      if (uploadResult.errors.length > 0) {
-        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
-      }
-
-      const sFetch = createSessionFetch(cnblogsSession);
-      const res = await sFetch('https://i.cnblogs.com/api/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json;charset=UTF-8',
-          'Referer': 'https://i.cnblogs.com/posts/edit',
-        },
-        body: JSON.stringify({
-          title: payload.title,
-          postType: 1,
-          postBody: uploadResult.markdown,
-          isDraft: true,
-          isMarkdown: true,
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        let errMsg = `HTTP ${res.status}`;
-        try {
-          const json = JSON.parse(errText);
-          if (json.errors && json.errors.length > 0) errMsg = json.errors.join(', ');
-        } catch (parseErr) { void parseErr; /* Non-JSON cnblogs error response */ }
-        if (errMsg.includes('您没有开通博客')) {
-          errMsg = '博客园账号尚未开通个人博客空间，请访问 https://i.cnblogs.com/ 申请开通后重试';
-        }
-        return {
-          platformId,
-          ok: false,
-          mode: 'draft',
-          message: `博客园发布接口返回失败: ${errMsg}`,
-        };
-      }
-
-      const postData = (await res.json()) as { id?: string | number };
-      const postId = postData.id ? String(postData.id) : 'draft';
-      return {
-        platformId,
-        ok: true,
-        mode: 'draft',
-        postId,
-        url: `https://i.cnblogs.com/posts/edit;postId=${postId}`,
-        verified: true,
-        uploadedImagesCount: uploadResult.uploadedCount,
-        message: `已成功保存至博客园草稿箱（文章 ID: ${postId}）`,
-      };
+      return await publishCnblogsWebDraft({ session, payload, cfg, includeRemote });
     }
 
     if (platformId === 'zhihu') {
@@ -351,10 +288,14 @@ export async function publishToSingleTarget(params: {
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
-      const rendered = renderBaijiahaoHtml(uploadResult.markdown);
+      const latexRes = await rasterizeMarkdownLatexForPlatform({
+        markdown: uploadResult.markdown,
+        uploadFn: (buf, name) => resolveUploadFn(adapter)(buf, name, cfg.imageBed),
+      });
+      const rendered = renderBaijiahaoHtml(latexRes.markdown);
       const pushed = await adapter.push({
         title: payload.title,
-        markdown: uploadResult.markdown,
+        markdown: latexRes.markdown,
         html: rendered.html,
         tags: payload.tags ?? [],
         mode: 'draft',
@@ -395,10 +336,14 @@ export async function publishToSingleTarget(params: {
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
-      const rendered = renderBaijiahaoHtml(uploadResult.markdown);
+      const latexRes = await rasterizeMarkdownLatexForPlatform({
+        markdown: uploadResult.markdown,
+        uploadFn: (buf, name) => resolveUploadFn(adapter)(buf, name, cfg.imageBed),
+      });
+      const rendered = renderBaijiahaoHtml(latexRes.markdown, { tableMode: 'list' });
       const pushed = await adapter.push({
         title: payload.title,
-        markdown: uploadResult.markdown,
+        markdown: latexRes.markdown,
         html: rendered.html,
         tags: payload.tags ?? [],
         mode: 'draft',
@@ -413,6 +358,60 @@ export async function publishToSingleTarget(params: {
         uploadedImagesCount: uploadResult.uploadedCount,
         message: `已推送到 B 站专栏草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
       };
+    }
+
+    if (platformId === 'weibo') {
+      const targetSession = session.fromPartition('persist:platform_weibo');
+      const adapter = new WeiboAdapter({ fetchFn: createSessionFetch(targetSession) });
+      const authed = await adapter.checkAuth();
+      if (!authed) {
+        return {
+          platformId,
+          ok: false,
+          mode: 'draft',
+          message: '未登录微博，请先在「偏好设置 → 平台授权托管」完成登录授权',
+        };
+      }
+      const uploadResult = await uploadLocalImagesForPublish({
+        workspacePath: cfg.workspacePath,
+        markdown: payload.markdown,
+        config: cfg.imageBed,
+        includeRemote,
+        uploadFn: resolveUploadFn(adapter),
+      });
+      if (uploadResult.errors.length > 0) {
+        return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
+      }
+      const latexRes = await rasterizeMarkdownLatexForPlatform({
+        markdown: uploadResult.markdown,
+        uploadFn: (buf, name) => resolveUploadFn(adapter)(buf, name, cfg.imageBed),
+      });
+      const rendered = renderBaijiahaoHtml(latexRes.markdown);
+      const pushed = await adapter.push({
+        title: payload.title,
+        markdown: latexRes.markdown,
+        html: rendered.html,
+        tags: payload.tags ?? [],
+        mode: 'draft',
+      });
+      return {
+        platformId,
+        ok: true,
+        mode: 'draft',
+        postId: pushed.postId,
+        url: pushed.url,
+        verified: pushed.verified,
+        uploadedImagesCount: uploadResult.uploadedCount,
+        message: `已推送到微博头条文章草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+      };
+    }
+
+    if (platformId === 'xiaohongshu') {
+      return await publishXiaohongshuDraft({ session, payload, cfg });
+    }
+
+    if (platformId === 'douyin') {
+      return await publishDouyinDraft({ session, payload, cfg });
     }
 
     const authed = await hasSessionAuthCookies(session, platformId);

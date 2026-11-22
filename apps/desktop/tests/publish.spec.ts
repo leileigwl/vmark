@@ -33,18 +33,25 @@ async function openEditorWithArticle(page: Page, initialMarkdown: string) {
         url: 'https://mp.weixin.qq.com/cgi-bin/appmsg?appmsgid=10086',
         verified: true,
       }),
-      publishMultiPlatform: async (payload: { targets: Array<{ platformId: string; mode: string }> }) => ({
-        results: payload.targets.map((t) => ({
-          platformId: t.platformId,
-          ok: true,
-          mode: t.mode,
-          postId: `post-${t.platformId}`,
-          url: `https://example.com/draft/${t.platformId}`,
-          verified: true,
-          uploadedImagesCount: 2,
-          message: `已完成分发（转存 2 张防盗链图片）`,
-        })),
-      }),
+      publishMultiPlatform: async (payload: {
+        targets: Array<{ platformId: string; mode: string }>;
+        socialThemeId?: string;
+        socialCoverRatio?: string;
+      }) => {
+        (window as unknown as { __lastPublishPayload?: unknown }).__lastPublishPayload = payload;
+        return {
+          results: payload.targets.map((t) => ({
+            platformId: t.platformId,
+            ok: true,
+            mode: t.mode,
+            postId: `post-${t.platformId}`,
+            url: `https://example.com/draft/${t.platformId}`,
+            verified: true,
+            uploadedImagesCount: 2,
+            message: `已完成分发（转存 2 张防盗链图片）`,
+          })),
+        };
+      },
     };
   }, initialMarkdown);
 
@@ -83,13 +90,24 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await page.getByRole('button', { name: '推送到公众号草稿箱' }).click();
     await expect(page.getByText(/已推送至公众号草稿箱（ID: 10086/)).toBeVisible();
 
-    // Switch platform previews: Zhihu, Baijiahao, Xiaohongshu 3:4 cards
+    // Switch platform previews: Zhihu, Baijiahao, Xiaohongshu 3:4 cards & Douyin 3:4 cards
     await page.getByRole('button', { name: '知乎专栏' }).click();
     await expect(page.getByTestId('zhihu-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '百家号' }).click();
     await expect(page.getByTestId('baijiahao-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号分发测试文章');
+    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('公众号标题');
+    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('‹ 备忘录');
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'ios-memo');
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '3:4');
+    await page.getByRole('button', { name: '极简杂志', exact: true }).click();
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'minimalist-magazine');
+    await page.getByRole('button', { name: '空白模板', exact: true }).click();
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-theme-id', 'blank');
+    await page.getByRole('button', { name: '16:9', exact: true }).click();
+    await expect(page.getByTestId('xiaohongshu-preview')).toHaveAttribute('data-cover-ratio', '16:9');
+    await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
+    await expect(page.getByTestId('douyin-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '微信公众号', exact: true }).click();
     await expect(preview).toBeVisible();
 
@@ -114,6 +132,11 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await expect(draftLink).toHaveText('打开草稿 / 查看链接');
     await expect(draftLink).toHaveAttribute('target', '_blank');
     await expect(draftLink).toHaveAttribute('rel', 'noreferrer');
+    const lastPayload = await page.evaluate(
+      () => (window as unknown as { __lastPublishPayload?: Record<string, unknown> }).__lastPublishPayload
+    );
+    expect(lastPayload?.socialThemeId).toBe('blank');
+    expect(lastPayload?.socialCoverRatio).toBe('16:9');
     await page.getByRole('button', { name: '关闭' }).click();
     await expect(preview).toBeHidden();
   });
