@@ -125,7 +125,7 @@ export function TopBar({
           className="ml-1.5 flex h-7 items-center gap-1 rounded-md bg-[#007aff] px-2.5 text-[12px] font-medium text-white shadow-2xs transition hover:bg-[#0066d6]"
         >
           <Send className="h-3 w-3" />
-          分发
+          发布
         </button>
       </div>
     </header>
