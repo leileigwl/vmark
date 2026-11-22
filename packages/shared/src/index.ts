@@ -179,6 +179,8 @@ export interface MultiPlatformPublishPayload {
   socialCoverRatio?: SocialCoverRatio;
   /** 卡片类平台（小红书/抖音）：用户上传的封面，工作区相对路径；作为第 1 张图插在卡片前。 */
   socialCoverImagePath?: string;
+  /** 掘金：文章分类 id（见 adapters 的 JUEJIN_CATEGORIES）；不传时草稿分类为空。 */
+  juejinCategoryId?: string;
   targets: MultiPlatformPublishTarget[];
 }
 

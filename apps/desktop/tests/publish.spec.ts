@@ -84,6 +84,7 @@ type Call = {
   tags?: string[];
   coverImageUrl?: string;
   socialCoverImagePath?: string;
+  juejinCategoryId?: string;
   targets: Array<{ platformId: string; mode: string }>;
 };
 const callsOf = (page: Page) => page.evaluate(() => (window as unknown as { __calls: Call[] }).__calls);
@@ -182,16 +183,19 @@ test('设置页与发布窗口读同一份登录状态', async ({ page }) => {
 
 
 test.describe('发布窗口：逐平台问题、封面、卡片与结果', () => {
-  test('掘金：摘要差 N 字、缺标签；就地补齐后焦点离开自动收起', async ({ page }) => {
+  test('掘金：摘要差 N 字、缺标签、缺分类；就地补齐后焦点离开自动收起', async ({ page }) => {
     await openEditor(page, { weixin: true, juejin: true });
     await openPublish(page);
     await row(page, 'juejin').getByRole('checkbox').click();
     await page.locator('#pub-digest').fill('一'.repeat(38));
-    await expect(attention(page, 'juejin')).toContainText('掘金：摘要差 12 字 · 缺标签');
+    await expect(attention(page, 'juejin')).toContainText('掘金：摘要差 12 字 · 缺标签 · 缺分类');
     await attention(page, 'juejin').getByRole('button', { expanded: false }).click();
     await page.locator('#d-juejin').fill(JUEJIN_DIGEST);
     await page.locator('#g-juejin').fill('前端');
     await page.locator('#g-juejin').press('Enter');
+    await expect(attention(page, 'juejin')).toContainText('缺分类');
+    await attention(page, 'juejin').getByRole('radio', { name: '前端' }).click();
+    await expect(attention(page, 'juejin').getByRole('radio', { name: '前端' })).toHaveAttribute('aria-checked', 'true');
     await expect(attention(page, 'juejin')).toContainText('已就绪');
     await page.locator('#pub-title').click();
     await expect(attention(page, 'juejin')).toHaveCount(0);
@@ -205,6 +209,8 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls.weixin.tags).toEqual(['前端']);
     expect(calls.weixin.digest).toBe('一'.repeat(38));
     expect(calls.juejin.coverImageUrl).toBeUndefined();
+    expect(calls.juejin.juejinCategoryId).toBe('6809637767543259144');
+    expect(calls.weixin.juejinCategoryId).toBeUndefined();
   });
 
   test('删除标签与退格删除都生效，删光后掘金重新出现在待处理里', async ({ page }) => {

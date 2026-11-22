@@ -27,6 +27,8 @@ export interface PlatformSpec {
   /** 没有 cover 的平台（博客园、GitHub 博客）不显示封面项。 */
   cover?: { ratios: CoverRatio[]; mode: CoverMode };
   tags?: { required: boolean; max: number };
+  /** 需要选文章分类的平台（掘金）。 */
+  category?: { required: boolean };
   /** 卡片类平台的图片张数上限（含封面）。 */
   maxCards?: number;
   /** 默认发布方式：除静态博客外一律进草稿箱。 */
@@ -40,7 +42,7 @@ const WIDE: CoverRatio[] = ['16:9'];
 export const PLATFORM_SPECS: PlatformSpec[] = [
   { id: 'weixin', name: '微信公众号', short: '公众号', kind: 'article', title: { max: 64 }, digest: { max: 120 }, cover: { ratios: ['2.35:1', '1:1'], mode: 'weixin' }, mode: 'draft', verified: false },
   { id: 'zhihu', name: '知乎专栏', short: '知乎', kind: 'article', title: { max: 100 }, cover: { ratios: WIDE, mode: 'optional' }, mode: 'draft', verified: false },
-  { id: 'juejin', name: '稀土掘金', short: '掘金', kind: 'article', title: { max: 100 }, digest: { min: 50, max: 100, required: true }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 3 }, mode: 'draft', verified: false, note: '发布时还需选分类' },
+  { id: 'juejin', name: '稀土掘金', short: '掘金', kind: 'article', title: { max: 100 }, digest: { min: 50, max: 100, required: true }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 3 }, category: { required: true }, mode: 'draft', verified: false },
   { id: 'csdn', name: 'CSDN', short: 'CSDN', kind: 'article', title: { min: 5, max: 100 }, digest: { max: 256 }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 7 }, mode: 'draft', verified: false },
   { id: 'cnblogs', name: '博客园', short: '博客园', kind: 'article', title: { max: 100 }, digest: { max: 200 }, mode: 'draft', verified: false },
   { id: 'baijiahao', name: '百家号', short: '百家号', kind: 'article', title: { min: 8, max: 30 }, cover: { ratios: WIDE, mode: 'required' }, mode: 'draft', verified: false },
@@ -68,6 +70,7 @@ export function requirementText(spec: PlatformSpec): string {
   if (spec.digest) r.push(`摘要${spec.digest.required ? '必填' : ''} ${spec.digest.min ? `${spec.digest.min}–` : '≤ '}${spec.digest.max} 字`);
   if (spec.cover) r.push(COVER_RULE[spec.cover.mode]);
   if (spec.tags) r.push(`标签${spec.tags.required ? '必填' : ''}最多 ${spec.tags.max} 个`);
+  if (spec.category) r.push(`分类${spec.category.required ? '必选' : '可选'}`);
   if (spec.maxCards) r.push(`最多 ${spec.maxCards} 张图`);
   if (spec.note) r.push(spec.note);
   if (!spec.verified) r.push('规则待核实');

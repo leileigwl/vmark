@@ -49,6 +49,7 @@ export async function buildPayload(
     includeRemoteImages: draft.includeRemoteImages,
     socialThemeId: draft.socialThemeId ?? undefined,
     socialCoverRatio: isCards ? '3:4' : undefined,
+    juejinCategoryId: spec?.category && draft.juejinCategoryId ? draft.juejinCategoryId : undefined,
     targets: [{ platformId: id, mode: spec?.mode ?? 'draft' }],
   };
 }

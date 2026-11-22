@@ -64,3 +64,29 @@ test('JuejinAdapter.push: 草稿创建请求带上所选分类 category_id', asy
   assert.equal(sent.category_id, '6809637767543259144');
   assert.equal(res.postId, '7300');
 });
+
+test('JuejinAdapter.push: 摘要写进 brief_content，标签名按 query_tag_list 换成 tag_ids（同名优先，查不到跳过，最多 3 个）', async () => {
+  let sent: Record<string, unknown> = {};
+  const queried: string[] = [];
+  const adapter = new JuejinAdapter({
+    fetchFn: mock((url, init) => {
+      if (url.endsWith('/tag_api/v1/query_tag_list')) {
+        const kw = String(JSON.parse(String(init?.body)).key_word);
+        queried.push(kw);
+        if (kw === '前端') return { err_no: 0, data: [{ tag_id: '111', tag: { tag_name: '前端框架' } }, { tag_id: '222', tag: { tag_name: '前端' } }] };
+        if (kw === 'Vue') return { err_no: 0, data: [{ tag_id: '333', tag: { tag_name: 'Vue.js' } }] };
+        if (kw === 'React') return { err_no: 0, data: [{ tag_id: '444', tag: { tag_name: 'React' } }] };
+        return { err_no: 0, data: [] };
+      }
+      if (url.endsWith('/article_draft/create')) {
+        sent = JSON.parse(String(init?.body));
+        return { err_no: 0, data: { id: '7301' } };
+      }
+      return {};
+    }),
+  });
+  await adapter.push({ title: 't', markdown: 'm', html: '', tags: ['前端', '没有这个标签', 'Vue', 'React', '多余'], mode: 'draft', digest: '一段掘金摘要' });
+  assert.equal(sent.brief_content, '一段掘金摘要');
+  assert.deepEqual(sent.tag_ids, ['222', '333', '444']);
+  assert.deepEqual(queried, ['前端', '没有这个标签', 'Vue', 'React']);
+});
