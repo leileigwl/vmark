@@ -67,6 +67,10 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
   const fileOpBusyRef = useRef(false);
   const openRequestIdRef = useRef(0);
+  /** True while openArticle awaits readArticle: the editor still shows the previous article. */
+  const loadingArticleRef = useRef(false);
+  /** Content last read from or written to disk for the article in the editor. */
+  const persistedContentRef = useRef<string | null>(null);
   const undoFileOpRef = useRef<() => Promise<void>>(async () => {});
   const redoFileOpRef = useRef<() => Promise<void>>(async () => {});
 
@@ -102,16 +106,15 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       return;
     }
     const reqId = ++openRequestIdRef.current;
-    if (activeArticle && saveState === '未保存') {
-      const unsaved = editorRef.current?.getValue() ?? markdown;
-      if (!(activeArticle.wordCount > 20 && unsaved.trim().length === 0)) {
-        void window.electronAPI.saveArticle(activeArticle.relativePath, unsaved);
-      }
-    }
+    flushActiveArticle();
+    loadingArticleRef.current = true;
+    setSaveState('已保存');
     setActiveArticle(meta);
     const content = await window.electronAPI.readArticle(meta.relativePath);
     if (reqId !== openRequestIdRef.current) return;
 
+    loadingArticleRef.current = false;
+    persistedContentRef.current = content;
     setMarkdown(content);
     setLoadSeq((s) => s + 1);
     setSaveState('已保存');
@@ -130,6 +133,20 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       window.electronAPI?.setRecentFiles?.(next);
       return next;
     });
+  }
+
+  /**
+   * Writes the editor's current text to the active article when it differs from what is on
+   * disk. Reads the editor directly, so input still inside the 320ms change debounce (and
+   * input while the state already says 已保存) is not lost when switching articles.
+   */
+  function flushActiveArticle() {
+    if (!activeArticle || loadingArticleRef.current) return;
+    const current = editorRef.current?.getValue();
+    if (current === undefined || current === persistedContentRef.current) return;
+    if (activeArticle.wordCount > 20 && current.trim().length === 0) return;
+    persistedContentRef.current = current;
+    void window.electronAPI.saveArticle(activeArticle.relativePath, current);
   }
 
   async function refreshWorkspace() {
@@ -186,10 +203,17 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
   async function handleSaveArticle(nextContent: string, silent = false) {
     if (!activeArticle) return;
+    // While the next article is loading the editor still holds the previous one's text.
+    if (loadingArticleRef.current) return;
     if (silent && activeArticle.wordCount > 20 && nextContent.trim().length === 0) return;
     if (!silent) setSaveState('保存中...');
+    const reqId = openRequestIdRef.current;
     await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
-    setSaveState('已保存');
+    if (reqId !== openRequestIdRef.current) return;
+    persistedContentRef.current = nextContent;
+    // Input typed while the save was in flight must stay 未保存, or it is never saved.
+    const latest = editorRef.current?.getValue();
+    setSaveState(latest === undefined || latest === nextContent ? '已保存' : '未保存');
     if (silent) return;
     const [list, git] = await Promise.all([
       window.electronAPI.listArticles(),
