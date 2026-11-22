@@ -47,6 +47,7 @@ test('rasterizeSocialCards coordinates window lifecycle and writes PNG files', a
       loadedUrl = url;
     },
     webContents: {
+      executeJavaScript: async () => undefined,
       capturePage: async () => ({
         toPNG: () => Buffer.from('fake-png-data'),
       }),
