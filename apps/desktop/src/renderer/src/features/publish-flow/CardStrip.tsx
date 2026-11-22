@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { PLATFORM_COVER_SPECS, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import { cn } from '../../ui';
+import { cardMath } from './cardMath';
 
 const THUMB_W = 132;
 /** 缩略图按真实输出尺寸（3:4 → 1242×1656）排版后整体缩放，与光栅化出图保持一致。 */
@@ -16,7 +17,7 @@ interface CardStripProps {
   maxCards?: number;
 }
 
-/** 卡片平台：选模板 + 看前几张卡片缩略图和总张数。卡片 HTML 自带全局样式，放进 iframe 隔离。 */
+/** 卡片平台：选模板 + 看前几张卡片缩略图和总张数。卡片 HTML 自带全局样式，放进 iframe 隔离（不允许脚本）。 */
 export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }: CardStripProps) {
   const payload = useMemo(
     () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', maxCards }),
@@ -55,10 +56,10 @@ export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }:
             <iframe
               title={`卡片 ${i + 1}`}
               tabIndex={-1}
-              sandbox=""
+              sandbox="allow-same-origin"
               className="pointer-events-none origin-top-left border-0"
               style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})` }}
-              srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: kept, aspectRatio: '3:4' })}
+              srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: kept, aspectRatio: '3:4', math: cardMath })}
             />
           </div>
         ))}

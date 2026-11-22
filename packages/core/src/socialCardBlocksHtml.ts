@@ -2,6 +2,7 @@ import type { CardBlock } from './socialCardBlocks.ts';
 import type { PlacedCardBlock } from './socialCardPaginate.ts';
 import { CARD_TYPE_SCALE, type CardTypeScale } from './socialCardLayout.ts';
 import type { SocialCardTokens } from './socialCardThemes.ts';
+import { CARD_MATH_CSS, extractInlineMath, restoreInlineMath, type CardMathRenderer } from './socialCardMath.ts';
 
 export function escapeCardHtml(text: string): string {
   return text
@@ -12,14 +13,16 @@ export function escapeCardHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** Inline markdown (bold, ==highlight==, italic, del, code) to class-based HTML. */
-export function cardInlineHtml(raw: string): string {
-  return escapeCardHtml(raw)
+/** Inline markdown (bold, ==highlight==, italic, del, code, and `$…$` when a math renderer is given) to class-based HTML. */
+export function cardInlineHtml(raw: string, math?: CardMathRenderer): string {
+  const { text, formulas } = math ? extractInlineMath(raw, math) : { text: raw, formulas: [] };
+  const html = escapeCardHtml(text)
     .replace(/==([^=\n]+)==/g, '<mark>$1</mark>')
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/~~([^~\n]+)~~/g, '<del>$1</del>')
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return restoreInlineMath(html, formulas);
 }
 
 /**
@@ -94,23 +97,24 @@ function codeHtml(b: Extract<CardBlock, { kind: 'code' }>, t: SocialCardTokens):
 }
 
 /** Renders one block as a single root element (so it can be measured on its own). */
-export function cardBlockHtml(b: CardBlock, t: SocialCardTokens, imageMaxHeight?: number): string {
+export function cardBlockHtml(b: CardBlock, t: SocialCardTokens, imageMaxHeight?: number, math?: CardMathRenderer): string {
+  const inline = (raw: string) => cardInlineHtml(raw, math);
   switch (b.kind) {
     case 'heading':
-      return `<h${b.level} class="b-h b-h${b.level}">${cardInlineHtml(b.text)}</h${b.level}>`;
+      return `<h${b.level} class="b-h b-h${b.level}">${inline(b.text)}</h${b.level}>`;
     case 'paragraph':
-      return `<p class="b-p">${cardInlineHtml(b.text)}</p>`;
+      return `<p class="b-p">${inline(b.text)}</p>`;
     case 'list-item':
-      return `<div class="b-li b-d${b.depth}"><i>${escapeCardHtml(b.marker)}</i><div>${cardInlineHtml(b.text)}</div></div>`;
+      return `<div class="b-li b-d${b.depth}"><i>${escapeCardHtml(b.marker)}</i><div>${inline(b.text)}</div></div>`;
     case 'quote':
-      return `<blockquote class="b-q">${cardInlineHtml(b.text)}</blockquote>`;
+      return `<blockquote class="b-q">${inline(b.text)}</blockquote>`;
     case 'math':
-      return `<div class="b-math">${escapeCardHtml(texToText(b.tex))}</div>`;
+      return math ? `<div class="b-math">${math.render(b.tex, true)}</div>` : `<div class="b-math">${escapeCardHtml(texToText(b.tex))}</div>`;
     case 'code':
       return codeHtml(b, t);
     case 'table': {
-      const head = b.header.map((h) => `<th>${cardInlineHtml(h)}</th>`).join('');
-      const body = b.rows.map((r) => `<tr>${r.map((c) => `<td>${cardInlineHtml(c)}</td>`).join('')}</tr>`).join('');
+      const head = b.header.map((h) => `<th>${inline(h)}</th>`).join('');
+      const body = b.rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('');
       return `<div class="b-table${b.header.length >= 5 ? ' wide' : ''}"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
     }
     case 'image': {
@@ -120,17 +124,17 @@ export function cardBlockHtml(b: CardBlock, t: SocialCardTokens, imageMaxHeight?
   }
 }
 
-export function cardFlowHtml(blocks: PlacedCardBlock[], t: SocialCardTokens): string {
-  return blocks.map((p) => cardBlockHtml(p.block, t, p.imageMaxHeight)).join('\n');
+export function cardFlowHtml(blocks: PlacedCardBlock[], t: SocialCardTokens, math?: CardMathRenderer): string {
+  return blocks.map((p) => cardBlockHtml(p.block, t, p.imageMaxHeight, math)).join('\n');
 }
 
 /**
  * A page that lays every block out at the content width with `data-b` indexes,
  * so a real browser can report each block's outer height for pagination.
  */
-export function renderCardMeasureHtml(blocks: CardBlock[], t: SocialCardTokens, contentWidth: number, imageMaxHeight: number): string {
+export function renderCardMeasureHtml(blocks: CardBlock[], t: SocialCardTokens, contentWidth: number, imageMaxHeight: number, math?: CardMathRenderer): string {
   const body = blocks
-    .map((b, i) => cardBlockHtml(b, t, b.kind === 'image' ? imageMaxHeight : undefined).replace(/^<(\w+)/, `<$1 data-b="${i}"`))
+    .map((b, i) => cardBlockHtml(b, t, b.kind === 'image' ? imageMaxHeight : undefined, math).replace(/^<(\w+)/, `<$1 data-b="${i}"`))
     .join('\n');
-  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fff;}${cardBlocksCss(t)}</style></head><body><div class="flow" style="width:${contentWidth}px"><div></div>${body}</div></body></html>`;
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fff;}${cardBlocksCss(t)}${math ? math.css + CARD_MATH_CSS : ''}</style></head><body><div class="flow" style="width:${contentWidth}px"><div></div>${body}</div></body></html>`;
 }

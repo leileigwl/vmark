@@ -38,8 +38,12 @@ export function estimateCardBlockHeight(b: CardBlock, width: number, s: CardType
       return textH(b.text, s.bodySize, s.bodyLine, width - s.listIndent * (b.depth + 1)) + s.listGap;
     case 'quote':
       return textH(b.text, s.quoteSize, s.quoteLine, width - s.quotePadX * 2 - 8) + s.quotePadY * 2 + s.quoteGap;
-    case 'math':
-      return s.mathSize * 1.6 + 48 + s.paraGap;
+    case 'math': {
+      // KaTeX display math: stacked constructs (fractions, big operators, roots) are ~3.6em tall, each extra row (\\) ~1.6em.
+      const tall = /\\(?:d?frac|i*int|oint|sum|prod|sqrt|lim|binom|begin|overset|underset)/.test(b.tex);
+      const rows = (b.tex.match(/\\\\/g) ?? []).length;
+      return s.mathSize * ((tall ? 3.6 : 1.8) + rows * 1.6) + 48 + s.paraGap;
+    }
     case 'image':
       return Math.round(width * 0.66) + s.imageGap;
     case 'code': {

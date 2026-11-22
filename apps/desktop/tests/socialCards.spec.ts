@@ -97,3 +97,25 @@ test.describe('超出平台卡片上限', () => {
     await expect(page.getByRole('status').filter({ hasText: '不会发布' })).toHaveCount(0);
   });
 });
+
+const MATH_MD = ['# 公式卡片', '', '质能方程 $E=mc^2$ 很有名。', '', '$$', '\\int_0^1 x^2\\,dx = \\frac{1}{3}', '$$', '', '$$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$$'].join('\n');
+
+test.describe('公式卡片', () => {
+  test('缩略图里的公式用 KaTeX 排版，字体已加载', async ({ page }, testInfo) => {
+    await openWithMarkdown(page, MATH_MD);
+    const thumb = page.locator('iframe[title="卡片 2"]');
+    await expect(thumb).toBeVisible();
+    await snap(page, testInfo, 'card-katex');
+    const frame = (await (await thumb.elementHandle())!.contentFrame())!;
+    await expect.poll(() => frame.evaluate(() => document.querySelectorAll('.katex').length)).toBe(3);
+    expect(await frame.evaluate(() => document.querySelectorAll('.katex-display .mfrac').length)).toBe(2);
+    expect(await frame.evaluate(() => document.body.textContent?.includes('(1)/(3)'))).toBe(false);
+    // KaTeX 字体真正加载成功（iframe 若是不透明源，字体会被跨源拦截而退回系统字体）
+    const katexFontLoaded = () =>
+      frame.evaluate(async () => {
+        await document.fonts.ready;
+        return [...document.fonts].some((f) => f.family.replace(/["']/g, '') === 'KaTeX_Main' && f.status === 'loaded');
+      });
+    await expect.poll(katexFontLoaded).toBe(true);
+  });
+});

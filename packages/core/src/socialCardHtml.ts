@@ -3,6 +3,7 @@ import type { CardBlock } from './socialCardBlocks.ts';
 import type { PlacedCardBlock } from './socialCardPaginate.ts';
 import { cardBlocksCss, cardFlowHtml, cardInlineHtml } from './socialCardBlocksHtml.ts';
 import { CARD_DESIGN_WIDTH, cardDesignHeight } from './socialCardLayout.ts';
+import { CARD_MATH_CSS, type CardMathRenderer } from './socialCardMath.ts';
 import {
   CARD_CHROME_INSETS,
   GENRE_META,
@@ -60,6 +61,8 @@ export interface RenderCardHtmlOptions {
   showPageNumber?: boolean;
   /** Optional brand / signature shown in the footer and on the cover. */
   footerBrand?: string;
+  /** Renders `$…$` / `$$…$$` (KaTeX in the app); without it formulas use a Unicode approximation. */
+  math?: CardMathRenderer;
 }
 
 /** Cards built before block flow (or by hand) only carry text lines: turn them into blocks. */
@@ -192,7 +195,8 @@ export function renderSocialCardHtml(card: XhsCardSection, options: RenderCardHt
   const parts = chromeParts(t, card.title, { ...options, timestamp, footerBrand: isCover ? '' : options.footerBrand });
   const inner = isCover
     ? coverHtml(card, t, t.chrome, brand, options.totalCards)
-    : `<div class="flow">${cardFlowHtml(card.blocks?.length ? card.blocks : legacyBlocks(card), t)}</div>`;
+    : `<div class="flow">${cardFlowHtml(card.blocks?.length ? card.blocks : legacyBlocks(card), t, options.math)}</div>`;
+  const mathCss = options.math && inner.includes('class="katex') ? `${options.math.css}\n${CARD_MATH_CSS}` : '';
   const pageLabel = `${String(options.cardIndex + 1).padStart(2, '0')} / ${String(options.totalCards).padStart(2, '0')}`;
 
   return `<!DOCTYPE html>
@@ -210,6 +214,7 @@ body { -webkit-font-smoothing: antialiased; font-family: ${t.fontBody}; }
 ${parts.css}
 ${cardBlocksCss(t)}
 ${coverCss(t)}
+${mathCss}
 </style>
 </head>
 <body data-page="${pageLabel}" data-template="${esc(t.id)}">
