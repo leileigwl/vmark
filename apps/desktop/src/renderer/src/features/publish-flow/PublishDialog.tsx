@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
 import { usePlatformAuth } from '../platform-auth';
@@ -6,6 +6,7 @@ import { checkPlatform, type Issue } from './draftModel';
 import { PLATFORM_SPECS, SPEC_BY_ID } from './platformSpecs';
 import { PlatformList } from './PlatformList';
 import { AttentionList } from './AttentionList';
+import { CoverField } from './CoverField';
 import { TagInput } from './TagInput';
 import { PublishResults } from './PublishResults';
 import { cropCover } from './coverCrop';
@@ -24,6 +25,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   const auth = usePlatformAuth();
   const { draft, update, bodyImage } = usePublishDraft(activeArticle, markdown);
   const [rows, setRows] = useState<RunRow[] | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const issuesOf = (id: PlatformId): Issue[] => {
     const spec = SPEC_BY_ID[id];
@@ -127,10 +129,13 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
                   <TagInput id="pub-tags" value={draft.tags} onChange={(tags) => update({ tags })} placeholder="回车添加" />
                 </Field>
               ) : null}
+              {selectedSpecs.some((s) => s.cover) ? (
+                <CoverField draft={draft} specs={selectedSpecs.filter((s) => s.cover)} bodyImage={bodyImage} onChange={update} inputRef={coverInputRef} />
+              ) : null}
             </section>
             <section className="space-y-3">
               <h3 className="text-xs font-medium text-ink">需要单独处理</h3>
-              <AttentionList draft={draft} specs={selectedSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} />
+              <AttentionList draft={draft} specs={selectedSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} />
             </section>
           </main>
         </div>
