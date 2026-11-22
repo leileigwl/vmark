@@ -22,6 +22,7 @@ export function Dialog({ open, onOpenChange, title, description, headerExtra, fo
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px]" />
         <DialogPrimitive.Content
+          aria-modal="true"
           className={cn(
             'fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[920px] max-w-[94vw] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[var(--radius-card)] border border-line bg-canvas text-ink shadow-2xl focus:outline-none',
             className
