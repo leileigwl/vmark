@@ -198,7 +198,7 @@ test.describe('发布窗口：字段规则、封面、卡片与结果', () => {
     await page.getByTestId('platform-row-xiaohongshu').click();
     await expect(page.getByText(/共 \d+ 张 3:4 卡片，平台上限 18 张/)).toBeVisible();
     const templates = page.getByRole('radiogroup', { name: '卡片模板' }).getByRole('radio');
-    await expect(templates).toHaveCount(4);
+    await expect(templates).toHaveCount(5);
     await templates.nth(1).click();
     await expect(templates.nth(1)).toHaveAttribute('aria-checked', 'true');
     await expect(templates.nth(0)).toHaveAttribute('aria-checked', 'false');
