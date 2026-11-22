@@ -12,6 +12,11 @@ export interface WeixinDraftPayload extends AdapterPushPayload {
   author?: string;
   digest?: string;
   coverImageUrl?: string;
+  /**
+   * 1:1 转发/分享图：按用户选的焦点裁好的方图（已上传到 mmbiz 的地址）。
+   * 公众号网页后台的 operate_appmsg 用 `cdn_1_1_url0` 接收现成的 1:1 裁剪图；不传则退回 coverImageUrl，由微信居中裁。
+   */
+  coverSquareImageUrl?: string;
   coverFileId?: string;
   showCoverInBody?: boolean;
   sourceUrl?: string;
@@ -138,7 +143,7 @@ export class WeixinAdapter implements PlatformAdapter {
       only_fans_can_comment0: '0',
       cdn_url0: payload.coverImageUrl ?? '',
       cdn_235_1_url0: payload.coverImageUrl ?? '',
-      cdn_1_1_url0: payload.coverImageUrl ?? '',
+      cdn_1_1_url0: payload.coverSquareImageUrl || payload.coverImageUrl || '',
       show_cover_pic0: payload.showCoverInBody ? '1' : '0',
       copyright_type0: '0',
     });
