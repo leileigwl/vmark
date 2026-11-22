@@ -2,28 +2,25 @@
 
 > 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史需求截图根因、交互原型与测试用例映射台账均留存在 [`docs/requirement-journal.html`](requirement-journal.html) 中。
 
-- **快照日期**：2026-11-21
-- **当前分支与里程碑**：`slice/browser-hub-and-card-fixes`（基于 `test` @ `017cec9`）——**纯写作台独立保留 + 分发内置多标签/宫格沙箱浏览器 + 小红书卡片防裁切/表格转化 + 图床精简与 CSDN/博客园草稿修复**
-- **最新基线版本**：`v0.1.0`（`master` @ `5c51dde` / `test` @ `017cec9`）
-- **护栏约束**：红黄绿路径与单文件 `<= 500` 行边界详见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)
+- **快照日期**：2026-11-22
+- **当前分支与里程碑**：`slice/review-artifacts-and-risk-tuning`（基于 `test` @ `12a72bb`）——**Step 1：接入 `GLM-5.3-Flash` 双段式 AI Review、Verification Artifacts PR 模板、分层风险规则与 CI 耗时修正**
+- **最新基线版本**：`v0.2.0`（PR #37 / #35 / #34 / #38 已合入，Issue #36 冻结锁已解除）
+- **护栏约束**：红黄绿路径与单文件 `<= 500` 行边界详见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)；本 PR 合入 `test` 后需立即执行 `pnpm harness:lock-bootstrap` 提交独立重锁 PR
 
-## 本轮已完成整改（REQ-05 ~ REQ-08）
+## 本轮已完成（Step 1：防盲审与额度优化底座）
 
-1. **纯写作台独立 + 分发口直达内置多标签/宫格沙箱浏览器**：
-   - 主窗口保持纯粹独立的 Markdown 写作台，不侵入主写作区；在「合并分发」弹窗新增 **`🌐 平台快捷浏览器`** 宫格入口（11 平台图标与实时授权状态），并在「多平台分发 / Git」新增 **全选已授权 / 全选全部 / 清空** 及单平台 **`内置浏览器`** 按钮。
-   - **修复草稿链接跳出外部无登录浏览器问题**：`PublishResultRow.tsx` 拦截草稿链接点击事件并调起内置沙箱浏览器，携带独立 `persist:platform_*` Cookie 直开草稿箱。
-   - **升级内置浏览器顶栏为横向多标签 Tab 栏**：`internalBrowserManager.ts` 顶栏直接切换 11 个平台独立沙箱会话与地址栏。
-2. **小红书/抖音流式文字卡片排版修复**：
-   - `xiaohongshuRenderer.ts` 新增 `normalizeMarkdownTablesAndRules`，彻底清除 `---` 分割线与 `| :--- |` 原始表格乱码，自动将 Markdown 表格转为可读结构化要点列表，并消除首段重复卡片。
-   - `PlatformPreviewPane.tsx` 为标题、引用框、顶栏与页码加上 `shrink-0` 与合理行高，消除文字纵向腰斩裁切。
-3. **偏好设置精简与 CSDN/博客园接口修复**：
-   - `SettingsImageBedSection.tsx` 隐藏「通用云图床（PicGo-Core / OSS）」表单，仅保留图片默认比例与官方平台图床直传。
-   - `publishPlatformDispatch.ts`（CSDN 补充语义 `html` 内容防报「请输入内容」）与 `publishCnblogsDraft.ts`（预热并解码 `XSRF-TOKEN` 解决会话校验失败）。
-4. **需求与测试用例同步台账**：
-   - 更新 `docs/requirement-journal.html`，将各需求痛点、原型交互与同步更新的单测/E2E 用例（`socialCard.test.ts`、`settings.spec.ts`、`publish.spec.ts`）建档留存，随时可回看。
+1. **GitHub Actions 模型入口配置**：
+   - 已安全注入 GitHub Secret `AI_REVIEW_API_KEY`（来自未入库 `secret.txt`）与公开变量 `AI_REVIEW_MODEL=GLM-5.3-Flash`、`AI_REVIEW_BASE_URL=https://api.scnet.cn/api/llm/v1`。
+   - `.gitignore` 已屏蔽 `secret.txt`、`*.secret.txt`、`.env.*`、`.harness/.last-violations.json`，严防本地密钥意外入库。
+2. **两段式省额度 AI Code Review（Fork 安全隔离）**：
+   - `.github/workflows/ai-review.yml` 过滤 lockfile 与图片等二进制差异，统计 `reviewableLines` 并提取 PR 标题/正文摘要。
+   - `.github/workflows/ai-review-post.yml` 对纯文档/资源 PR 自动跳过，对 `>40` 行或初检有疑点 PR 执行「Pass 1 Bug 狩猎 → Pass 2 独立去误报」交叉审查，幂等更新中文验收清单并仅在存在 `critical` 真 Bug 时单向升级 `risk:high`。
+3. **风险规则调优与 Verification Artifacts 规范**：
+   - `.github/risk-rules.yml` 将 `packages/core/**`、`packages/adapters/**`、`packages/image-pipeline/**` 调至 `mid`（`shared` / `main` / `preload` / `.github` / `.harness` / 鉴权仍严守 `high`，AST 导出变更与敏感语义仍自动升级）。
+   - 升级 `.github/PULL_REQUEST_TEMPLATE.md` 固化「大白话改动说明 + 验证产物 + 1 分钟验收清单」（保留凭据自检与 AGPL-3.0/CLA 条款），并修复 `.github/workflows/daily-release-pr.yml` 中 `Ubuntu CI 平均耗时` 异常统计口径。
 
-## 验证边界诚实声明（L1–L4 严格分层）
+## 后续排队里程碑（重锁底座后依次切片推进）
 
-- **L0/L1**：`pnpm harness:check --json`、`pnpm run typecheck`、`pnpm turbo run test`。
-- **L2**：`pnpm --filter @vcat/desktop exec playwright test --reporter=list`（同步覆盖图床隐藏、卡片表格清洗、批量全选与内置浏览器调起）。
-- **L3**：`apps/desktop/tests/electron-smoke.spec.ts` 在 CI 拉起真实 `electron`。
+1. **Step 2（小红书/抖音双模式 + 模板透传修复）**：拆分 `xiaohongshuRenderer.ts` 支持正文插图与表格同卡渲染；修复 `publishSocialDrafts.ts` 模板白名单与「视觉卡片（默认）/ 原图」双开关。
+2. **Step 3（分发持久化 + 实时进度 + 失败重试）**：冻结 `publish:getRecords` / `publish:progress` 契约，主进程原子 JSON 落盘 `userData/sync_records.json`，支持逐平台状态回显与仅重试失败项。
+3. **Step 4（`PublishModal` 清爽重排 + 授权秒显）**：拆瘦 `PublishModal.tsx` 至 `features/publish-drawer/`，优化 `accountStore` 缓存秒显与内置浏览器 Tab 体验。
