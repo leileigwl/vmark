@@ -177,8 +177,13 @@ export interface MultiPlatformPublishPayload {
   includeRemoteImages?: boolean;
   socialThemeId?: string;
   socialCoverRatio?: SocialCoverRatio;
+  /** 卡片类平台（小红书/抖音）：用户上传的封面，工作区相对路径；作为第 1 张图插在卡片前。 */
+  socialCoverImagePath?: string;
   targets: MultiPlatformPublishTarget[];
 }
+
+/** 卡片类平台单篇最多可上传的图片张数（含封面）。界面与主进程共用这一份。 */
+export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 35 };
 
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;

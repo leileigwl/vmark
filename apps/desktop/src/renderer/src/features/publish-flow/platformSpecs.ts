@@ -1,4 +1,4 @@
-import type { PlatformId } from '@vcat/shared';
+import { SOCIAL_MAX_CARDS, type PlatformId } from '@vcat/shared';
 
 export type CoverRatio = '2.35:1' | '16:9' | '3:4' | '1:1';
 export type PlatformKind = 'article' | 'cards' | 'site';
@@ -32,8 +32,8 @@ export const PLATFORM_SPECS: PlatformSpec[] = [
   { id: 'baijiahao', name: '百家号', kind: 'article', title: { min: 8, max: 30 }, cover: { ratio: '16:9', required: true }, mode: 'draft', verified: false },
   { id: 'weibo', name: '微博头条文章', kind: 'article', title: { max: 32 }, digest: { max: 44 }, cover: { ratio: '16:9', required: true }, mode: 'draft', verified: false },
   { id: 'bilibili', name: 'B 站专栏', kind: 'article', title: { max: 40 }, cover: { ratio: '16:9', required: false }, tags: { required: false, max: 10 }, mode: 'draft', verified: false },
-  { id: 'xiaohongshu', name: '小红书', kind: 'cards', title: { max: 20 }, digest: { max: 1000 }, cover: { ratio: '3:4', required: true }, tags: { required: false, max: 10 }, maxCards: 18, mode: 'draft', verified: false, note: '正文转成 3:4 文字卡片' },
-  { id: 'douyin', name: '抖音图文', kind: 'cards', title: { max: 20 }, digest: { max: 1000 }, cover: { ratio: '3:4', required: true }, tags: { required: false, max: 5 }, maxCards: 35, mode: 'draft', verified: false, note: '正文转成 3:4 文字卡片' },
+  { id: 'xiaohongshu', name: '小红书', kind: 'cards', title: { max: 20 }, digest: { max: 1000 }, cover: { ratio: '3:4', required: true }, tags: { required: false, max: 10 }, maxCards: SOCIAL_MAX_CARDS.xiaohongshu, mode: 'draft', verified: false, note: '正文转成 3:4 文字卡片' },
+  { id: 'douyin', name: '抖音图文', kind: 'cards', title: { max: 20 }, digest: { max: 1000 }, cover: { ratio: '3:4', required: true }, tags: { required: false, max: 5 }, maxCards: SOCIAL_MAX_CARDS.douyin, mode: 'draft', verified: false, note: '正文转成 3:4 文字卡片' },
   { id: 'github_static', name: 'GitHub 博客', kind: 'site', title: { max: 120 }, digest: { max: 300 }, tags: { required: false, max: 10 }, mode: 'direct', verified: true, note: '推送到仓库后直接上线' },
 ];
 

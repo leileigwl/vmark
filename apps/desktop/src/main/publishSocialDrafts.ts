@@ -3,81 +3,30 @@ import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import type Electron from 'electron';
 import { renderXiaohongshuCards } from '@vcat/core';
-import type {
-  MultiPlatformPublishPayload,
-  MultiPlatformPublishResultItem,
-  SocialCoverRatio,
-} from '@vcat/shared';
+import { SOCIAL_MAX_CARDS, type MultiPlatformPublishPayload, type MultiPlatformPublishResultItem } from '@vcat/shared';
 import { attachInternalBrowserStealth } from './internalBrowserManager';
 import { hasSessionAuthCookies, type PublishAppConfig } from './publishSessionAuth';
 import { rasterizeSocialCards } from './socialCardRasterizer';
+import { pickSocialTheme, resolveSocialUploadImages } from './socialUploadImages';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function resolveLocalImageFiles(workspacePath: string | null, markdown: string): Promise<string[]> {
-  if (!workspacePath) return [];
-  const regex = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-  const results: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(markdown)) !== null) {
-    const raw = match[1].trim();
-    if (!raw || /^https?:\/\//i.test(raw) || raw.startsWith('data:')) continue;
-    const cleaned = decodeURIComponent(raw.replace(/^\.\//, ''));
-    const abs = path.isAbsolute(cleaned) ? cleaned : path.resolve(workspacePath, cleaned);
-    try {
-      const stat = await fs.stat(abs);
-      if (stat.isFile()) results.push(abs);
-    } catch {
-      // skip missing local image
-    }
-    if (results.length >= 18) break;
-  }
-  return results;
-}
+const DEFAULT_THEME = { xiaohongshu: 'ios-memo', douyin: 'minimalist-magazine' } as const;
 
-function detectBestSocialTheme(markdown: string, candidate?: string): string {
-  const validThemes = [
-    'ink-classic',
-    'swiss-slate',
-    'ray-dark',
-    'editorial-coral',
-    'geek-dark',
-    'warm-note',
-    'modern-minimal',
-    'academic-blue',
-  ];
-  if (candidate && validThemes.includes(candidate)) {
-    return candidate;
-  }
-  if (/```|~~~/.test(markdown)) return 'ray-dark';
-  if (/\$[^$]+\$|\$\$[\s\S]+?\$\$/.test(markdown)) return 'swiss-slate';
-  return 'ink-classic';
-}
-
-async function resolveUploadImages(
-  workspacePath: string | null,
-  markdown: string,
-  title?: string,
-  themeId?: string,
-  aspectRatio?: SocialCoverRatio
-): Promise<string[]> {
-  const localImages = await resolveLocalImageFiles(workspacePath, markdown);
-  if (localImages.length > 0) {
-    return localImages;
-  }
-  try {
-    const selectedTheme = detectBestSocialTheme(markdown, themeId);
-    const { imagePaths } = await rasterizeSocialCards({
-      markdown,
-      title,
-      themeId: selectedTheme,
-      aspectRatio: aspectRatio ?? '3:4',
-      maxCards: 9,
-    });
-    return imagePaths;
-  } catch {
-    return [];
-  }
+/** 小红书/抖音要上传的图：生成的卡片（含正文图片），上传封面插在第 1 张，按平台上限截断。 */
+function resolveUploadImages(platformId: 'xiaohongshu' | 'douyin', workspacePath: string | null, payload: MultiPlatformPublishPayload) {
+  return resolveSocialUploadImages(
+    {
+      workspacePath,
+      markdown: payload.markdown,
+      title: payload.title,
+      themeId: pickSocialTheme(payload.socialThemeId, DEFAULT_THEME[platformId]),
+      aspectRatio: payload.socialCoverRatio,
+      maxCards: SOCIAL_MAX_CARDS[platformId] ?? 9,
+      coverImagePath: payload.socialCoverImagePath,
+    },
+    rasterizeSocialCards
+  );
 }
 
 function buildSocialCaption(markdown: string, title?: string, tags: string[] = []): string {
@@ -182,13 +131,7 @@ export async function publishXiaohongshuDraft(params: {
     };
   }
 
-  const files = await resolveUploadImages(
-    cfg.workspacePath,
-    payload.markdown,
-    payload.title,
-    payload.socialThemeId,
-    payload.socialCoverRatio
-  );
+  const files = await resolveUploadImages('xiaohongshu', cfg.workspacePath, payload);
   if (files.length === 0) {
     return {
       platformId: 'xiaohongshu',
@@ -296,13 +239,7 @@ export async function publishDouyinDraft(params: {
     };
   }
 
-  const files = await resolveUploadImages(
-    cfg.workspacePath,
-    payload.markdown,
-    payload.title,
-    payload.socialThemeId,
-    payload.socialCoverRatio
-  );
+  const files = await resolveUploadImages('douyin', cfg.workspacePath, payload);
   if (files.length === 0) {
     return {
       platformId: 'douyin',
@@ -344,7 +281,8 @@ export async function publishDouyinDraft(params: {
         const bin = atob(item.b64);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const ext = item.name.toLowerCase().endsWith('.jpg') || item.name.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
+        const lower = item.name.toLowerCase();
+        const ext = lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' : lower.endsWith('.webp') ? 'image/webp' : 'image/png';
         dt.items.add(new File([bytes], item.name, { type: ext }));
       }
       const els = Array.from(document.querySelectorAll('div, span')).filter(el => el.innerText && el.innerText.includes('拖入此区域'));
