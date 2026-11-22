@@ -89,13 +89,15 @@ test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
       await page.screenshot({ path: targetPath, fullPage: true });
     };
 
-    // 1. Settings -> verify all 11 visible platforms show "● 已授权" and hidden ones stay hidden
-    await page.getByTitle('偏好设置 (图床 / 平台 / GitHub)').click();
-    await page.getByRole('button', { name: '平台授权托管' }).click();
-    await expect(page.getByText('● 已授权')).toHaveCount(ALL_PLATFORMS.length);
+    // 1. 设置 → 平台账号：除 GitHub 博客外全部显示已登录，且不再展示内部路径
+    await page.getByTitle('偏好设置').click();
+    await page.getByRole('button', { name: '平台账号' }).click();
+    const accounts = page.getByTestId('accounts-list');
+    await expect(accounts.locator('[data-auth-status="signedIn"]')).toHaveCount(ALL_PLATFORMS.length - 1);
+    await expect(page.getByText('references/')).toHaveCount(0);
     await expect(page.getByText('Linux.do (Discourse)')).toHaveCount(0);
     await expect(page.getByText('X (Twitter)')).toHaveCount(0);
-    await snap('all-platforms-settings.png');
+    await snap('all-platforms-accounts.png');
     await page.getByRole('button', { name: '编辑' }).click();
 
     // 2. PublishModal -> verify 5 platform previews (WeChat, Zhihu, Baijiahao, Xiaohongshu 3:4, Douyin 3:4)

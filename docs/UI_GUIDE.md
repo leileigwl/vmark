@@ -19,6 +19,8 @@
 - 浅色、深色都要截图检查。
 
 ## 3. 关键结构
+- 平台登录状态：唯一来源 `features/platform-auth`（`usePlatformAuth`），四种状态 checking / signedIn / signedOut / error，15 秒超时。
+- 设置 → 平台账号：唯一管理登录的地方。
 
 ## 4. 参考方向
 - 编辑器：Typora / Bear / Obsidian 的安静写作感。
