@@ -223,7 +223,7 @@ export function PublishModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-xs">
-      <div className="flex max-h-[88vh] w-[860px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
+      <div className="flex max-h-[88vh] w-[980px] max-w-[95vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-elevated)] px-4 py-3 text-sm font-semibold">
           <span className="truncate pr-2">合并分发（{activeArticle?.title ?? '未选择文章'}）</span>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -252,8 +252,8 @@ export function PublishModal({
         </div>
 
         {tab === 'weixin' && (
-          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-2">
-            <div className="space-y-3 text-xs">
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-3 text-xs">
               <div className="space-y-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] p-3">
                 <div className="font-semibold text-[var(--text-main)]">头图与副文本元信息</div>
                 {([

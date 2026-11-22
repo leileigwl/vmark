@@ -131,7 +131,7 @@ export function PlatformPreviewPane({
   };
 
   return (
-    <div className="flex min-h-[360px] flex-col overflow-hidden rounded-lg border border-[var(--border-color)] bg-white text-[#333]">
+    <div className="flex min-h-[360px] min-w-0 w-full flex-col overflow-hidden rounded-lg border border-[var(--border-color)] bg-white text-[#333]">
       <div className="flex flex-wrap items-center gap-1 border-b border-black/10 bg-[#f7f7f7] px-2.5 py-1.5">
         {PREVIEW_TABS.map((item) => (
           <button
@@ -209,62 +209,66 @@ export function PlatformPreviewPane({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] text-[#777]">内页模板：</span>
-              {THEME_OPTIONS.map((t) => (
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="shrink-0 text-[10px] text-[#777]">内页模板：</span>
+                {THEME_OPTIONS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => updateThemeId(t.id)}
+                    className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                      activeThemeId === t.id
+                        ? 'bg-[#1c1c1e] text-white'
+                        : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
+                    }`}
+                  >
+                    {t.name.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="shrink-0 text-[10px] text-[#777]">页面比例：</span>
+                {RATIO_OPTIONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => updateCoverRatio(r)}
+                    className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-mono transition ${
+                      coverRatio === r
+                        ? 'bg-[var(--accent)] text-white'
+                        : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+                <span className="ml-1 shrink-0 text-[10px] text-[#777]">分发配图：</span>
                 <button
-                  key={t.id}
                   type="button"
-                  onClick={() => updateThemeId(t.id)}
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
-                    activeThemeId === t.id
+                  data-testid="social-image-mode-cards"
+                  onClick={() => updateImageMode('cards')}
+                  className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                    imageMode === 'cards'
                       ? 'bg-[#1c1c1e] text-white'
                       : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
                   }`}
                 >
-                  {t.name.split(' ')[0]}
+                  视觉卡片(默认)
                 </button>
-              ))}
-              <span className="ml-1 text-[10px] text-[#777]">页面比例：</span>
-              {RATIO_OPTIONS.map((r) => (
                 <button
-                  key={r}
                   type="button"
-                  onClick={() => updateCoverRatio(r)}
-                  className={`rounded px-1.5 py-0.5 text-[10px] font-mono transition ${
-                    coverRatio === r
-                      ? 'bg-[var(--accent)] text-white'
+                  data-testid="social-image-mode-article"
+                  onClick={() => updateImageMode('article_images')}
+                  className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                    imageMode === 'article_images'
+                      ? 'bg-[#1c1c1e] text-white'
                       : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
                   }`}
                 >
-                  {r}
+                  仅发正文原图
                 </button>
-              ))}
-              <span className="ml-1 text-[10px] text-[#777]">分发配图：</span>
-              <button
-                type="button"
-                data-testid="social-image-mode-cards"
-                onClick={() => updateImageMode('cards')}
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
-                  imageMode === 'cards'
-                    ? 'bg-[#1c1c1e] text-white'
-                    : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
-                }`}
-              >
-                视觉卡片(默认)
-              </button>
-              <button
-                type="button"
-                data-testid="social-image-mode-article"
-                onClick={() => updateImageMode('article_images')}
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
-                  imageMode === 'article_images'
-                    ? 'bg-[#1c1c1e] text-white'
-                    : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
-                }`}
-              >
-                仅发正文原图
-              </button>
+              </div>
             </div>
           </div>
 
@@ -274,7 +278,7 @@ export function PlatformPreviewPane({
             data-cover-ratio={coverRatio}
             className="flex-1 space-y-3 overflow-y-auto bg-[#e5e5ea] p-3"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid min-w-0 grid-cols-2 gap-3">
               {socialPayload.cards.map((card, idx) => {
                 const isCover = card.type === 'cover';
                 const isCode = card.type === 'code';
@@ -299,16 +303,16 @@ export function PlatformPreviewPane({
                       color: tokens.ink,
                       fontFamily: tokens.fontBody,
                     }}
-                    className={`flex ${aspectClass} flex-col justify-between overflow-hidden rounded-xl border border-black/10 p-2.5 shadow-sm`}
+                    className={`flex min-w-0 ${aspectClass} flex-col justify-between overflow-hidden rounded-xl border border-black/10 p-2.5 shadow-sm`}
                   >
                     {/* iOS Notes Top Navigation Bar (only for ios-memo) */}
                     {isMemo && (
-                      <div className="flex shrink-0 items-center justify-between px-1 pb-1.5 text-[9px] font-medium">
-                        <span style={{ color: tokens.accent }}>‹ 备忘录</span>
-                        <span style={{ color: tokens.textMuted }} className="text-[8px]">
-                          11月21日 00:32
+                      <div className="flex shrink-0 items-center justify-between px-1 pb-1 text-[9px] font-medium">
+                        <span className="shrink-0" style={{ color: tokens.accent }}>‹ 备忘录</span>
+                        <span style={{ color: tokens.textMuted }} className="truncate px-1 text-[8px]">
+                          Vmark 笔记
                         </span>
-                        <span style={{ color: tokens.accent }}>完成</span>
+                        <span className="shrink-0" style={{ color: tokens.accent }}>完成</span>
                       </div>
                     )}
 
@@ -322,15 +326,15 @@ export function PlatformPreviewPane({
                         borderTop: isMag ? `1px solid ${tokens.line}` : undefined,
                         borderBottom: isMag ? `1px solid ${tokens.line}` : undefined,
                       }}
-                      className={`flex min-h-0 flex-1 flex-col justify-start gap-1.5 overflow-hidden ${
+                      className={`flex min-h-0 min-w-0 flex-1 flex-col justify-start gap-1.5 overflow-hidden ${
                         isMemo ? 'rounded-lg p-2.5 shadow-2xs' : 'py-2'
                       }`}
                     >
                       <div
                         style={{ color: tokens.headingInk, fontFamily: tokens.fontDisplay }}
-                        className="shrink-0 line-clamp-2 pb-0.5 text-xs font-extrabold leading-[1.35]"
+                        className="shrink-0 break-words text-xs font-extrabold leading-[1.35]"
                       >
-                        {card.title}
+                        <div className="line-clamp-2">{card.title}</div>
                       </div>
 
                       {card.quote && (
@@ -340,9 +344,9 @@ export function PlatformPreviewPane({
                             borderLeftColor: tokens.lineStrong,
                             color: tokens.textSecondary,
                           }}
-                          className="shrink-0 line-clamp-2 rounded border-l-2 px-2 py-1.5 text-[9px] italic leading-[1.45]"
+                          className="shrink-0 rounded border-l-2 px-2 py-1 text-[9px] italic leading-[1.45]"
                         >
-                          {cleanPreviewLine(card.quote)}
+                          <div className="line-clamp-2 break-words">{cleanPreviewLine(card.quote)}</div>
                         </div>
                       )}
 
@@ -376,9 +380,9 @@ export function PlatformPreviewPane({
                           </div>
                         </div>
                       ) : (
-                        <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden text-[9px] leading-[1.5]">
+                        <div className="min-h-0 min-w-0 flex-1 space-y-1.5 overflow-hidden text-[9px] leading-[1.5]">
                           {card.bodyLines.slice(0, card.quote ? 2 : 3).map((line, i) => (
-                            <p key={i} className="line-clamp-2 break-words text-justify">
+                            <p key={i} className="line-clamp-2 [overflow-wrap:anywhere] text-justify">
                               {cleanPreviewLine(line)}
                             </p>
                           ))}
