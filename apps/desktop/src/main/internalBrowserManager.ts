@@ -7,7 +7,7 @@ import {
   encodeFingerprintArg,
   getPlatformFingerprintProfile,
 } from './browserStealth';
-import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction } from './loginWindowBar';
+import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction, resolveLoginBarTheme } from './loginWindowBar';
 
 const TOOLBAR_HEIGHT = LOGIN_BAR_HEIGHT;
 const AUTH_CHECK_TIMEOUT_MS = 3000;
@@ -82,8 +82,11 @@ export class InternalBrowserManager {
     targetSession: Session;
     checkAuth: () => Promise<boolean>;
     onAuthorized?: () => Promise<void> | void;
+    /** Vmark 主界面当前主题快照（RENDERER_THEME_PROBE 的结果），顶栏按它配色而不是跟随系统。 */
+    appTheme?: unknown;
   }): Promise<boolean> {
-    const { platformId, loginUrl, targetSession, checkAuth, onAuthorized } = params;
+    const { platformId, loginUrl, targetSession, checkAuth, onAuthorized, appTheme } = params;
+    const barTheme = resolveLoginBarTheme(appTheme);
     const title = `${loginWindowName(platformId)} · 登录`;
     const verify = () =>
       Promise.race([
@@ -96,7 +99,7 @@ export class InternalBrowserManager {
       // 同一时间只有一个登录窗口：换平台时关掉旧的，旧调用方会在 closed 时拿到自己的结果。
       this.activeWindow.destroy();
     }
-    const win = new BrowserWindow({ width: 1120, height: 780, backgroundColor: '#ffffff', title });
+    const win = new BrowserWindow({ width: 1120, height: 780, backgroundColor: barTheme.scheme === 'dark' ? '#18191c' : '#ffffff', title });
     const toolbarView = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false } });
     win.contentView.addChildView(toolbarView);
     this.activeWindow = win;
@@ -142,7 +145,7 @@ export class InternalBrowserManager {
     };
 
     void toolbarView.webContents.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(buildLoginBarHtml({ platformId, signedInAtOpen }))}`
+      `data:text/html;charset=utf-8,${encodeURIComponent(buildLoginBarHtml({ platformId, signedInAtOpen, appTheme }))}`
     );
     toolbarView.webContents.on('will-navigate', (event, targetUrl) => {
       if (!targetUrl.startsWith('vmark-nav://')) return;
