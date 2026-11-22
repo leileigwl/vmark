@@ -220,7 +220,7 @@ export default function App() {
             )}
 
             {ed.missingLinkTarget && (
-              <div
+              <div role="dialog" aria-modal="true"
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs"
                 onClick={() => ed.setMissingLinkTarget(null)}
               >
@@ -345,7 +345,7 @@ export default function App() {
       )}
 
       {ed.tableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-xs">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-xs">
           <div className="w-[320px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] p-4 text-[var(--text-main)] shadow-2xl">
             <div className="mb-3 text-center text-sm font-semibold">插入表格</div>
             <div className="mb-4 flex items-center justify-center gap-3 text-xs">

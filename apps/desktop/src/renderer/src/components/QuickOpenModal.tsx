@@ -70,6 +70,7 @@ export function QuickOpenModal({
 
   return (
     <div
+      role="dialog" aria-modal="true" data-vcat-quick-open="1"
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[14vh] backdrop-blur-[1px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
