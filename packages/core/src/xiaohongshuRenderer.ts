@@ -111,6 +111,114 @@ function preserveRichInlineMarkdown(text: string): string {
   return text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
 }
 
+function isTableRowLine(trimmed: string): boolean {
+  return trimmed.includes('|') && /^\|?.*\|.*\|?$/.test(trimmed);
+}
+
+function isTableSeparatorLine(trimmed: string): boolean {
+  return (
+    trimmed.includes('|') &&
+    trimmed.includes('-') &&
+    /^\|?(?:\s*:?-{2,}:?\s*\|)+\s*(?::?-{2,}:?\s*\|?)?$/.test(trimmed)
+  );
+}
+
+function parseTableCells(row: string): string[] {
+  return row
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+/**
+ * Strips horizontal rules (`---`, `***`, `___`) and transforms GFM Markdown tables
+ * into clean structured bullet lines outside fenced code blocks.
+ */
+function normalizeMarkdownTablesAndRules(rawMarkdown: string): string {
+  const lines = rawMarkdown.split(/\r?\n/);
+  const out: string[] = [];
+  let inCode = false;
+  let codeFenceChar = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})/);
+
+    if (fenceMatch) {
+      if (!inCode) {
+        inCode = true;
+        codeFenceChar = fenceMatch[1][0];
+      } else if (trimmed.startsWith(codeFenceChar.repeat(3))) {
+        inCode = false;
+        codeFenceChar = '';
+      }
+      out.push(line);
+      continue;
+    }
+
+    if (inCode) {
+      out.push(line);
+      continue;
+    }
+
+    // Drop standalone horizontal rules (---, ***, ___) so cards never show raw "---"
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      continue;
+    }
+
+    // Detect GFM table header + separator row
+    if (
+      isTableRowLine(trimmed) &&
+      i + 1 < lines.length &&
+      isTableSeparatorLine(lines[i + 1].trim())
+    ) {
+      const headers = parseTableCells(trimmed).map((h) => stripInlineMarkdown(h));
+      let j = i + 2;
+      while (j < lines.length && isTableRowLine(lines[j].trim())) {
+        const rowTrimmed = lines[j].trim();
+        if (!isTableSeparatorLine(rowTrimmed)) {
+          const cells = parseTableCells(rowTrimmed);
+          if (cells.some(Boolean)) {
+            if (cells.length === 1) {
+              out.push(`- ${cells[0]}`);
+            } else {
+              const rawLabel = cells[0].replace(/^\*\*|\*\*$/g, '').trim();
+              if (cells.length === 2) {
+                out.push(rawLabel ? `- **${rawLabel}**：${cells[1]}` : `- ${cells[1]}`);
+              } else {
+                const pairs = cells
+                  .slice(1)
+                  .map((val, colIdx) => {
+                    if (!val) return '';
+                    const colHeader = headers[colIdx + 1];
+                    return colHeader ? `${colHeader}：${val}` : val;
+                  })
+                  .filter(Boolean)
+                  .join(' · ');
+                out.push(rawLabel ? `- **${rawLabel}**：${pairs}` : `- ${pairs}`);
+              }
+            }
+          }
+        }
+        j++;
+      }
+      i = j - 1;
+      continue;
+    }
+
+    // Drop orphan table separator lines
+    if (isTableSeparatorLine(trimmed)) {
+      continue;
+    }
+
+    out.push(line);
+  }
+
+  return out.join('\n');
+}
+
 /**
  * Transforms Markdown into continuous flowing 3:4 / 2:3 Xiaohongshu & Douyin visual cards
  * modeled after xhs-textcard.site/editor (Apple Notes, Minimalist Magazine, Blank, etc.).
@@ -176,6 +284,7 @@ export function renderXiaohongshuCards(
     }
   }
 
+  const normalizedMd = normalizeMarkdownTablesAndRules(cleanMd);
   const genre =
     opts.genre || detectArticleGenre(cleanMd, title, [...explicitTags, ...inlineHashtags]);
   const genreConfig = GENRE_META[genre];
@@ -187,12 +296,14 @@ export function renderXiaohongshuCards(
   const coverTemplate: UgcCoverTemplate =
     opts.coverTemplate || defaultCoverTemplateForGenre(genre);
 
-  const lines = cleanMd.split(/\r?\n/);
+  const lines = normalizedMd.split(/\r?\n/);
   const headings: string[] = [];
   const quotes: string[] = [];
   const richParagraphs: string[] = [];
+  const preHeadingParagraphs: string[] = [];
 
   let scanCode = false;
+  let passedFirstSubheading = false;
   for (const rawLine of lines) {
     const t = rawLine.trim();
     if (/^(`{3,}|~{3,})/.test(t)) {
@@ -203,7 +314,10 @@ export function renderXiaohongshuCards(
     const h = t.match(/^#{1,3}\s+(.+)$/);
     if (h) {
       const hText = stripInlineMarkdown(h[1]);
-      if (hText !== title) headings.push(hText);
+      if (hText !== title) {
+        headings.push(hText);
+        passedFirstSubheading = true;
+      }
       continue;
     }
     if (t.startsWith('>')) {
@@ -212,17 +326,21 @@ export function renderXiaohongshuCards(
       continue;
     }
     if (!t.startsWith('#') && !t.startsWith('![') && t.length >= 6) {
-      richParagraphs.push(preserveRichInlineMarkdown(t));
+      const formatted = preserveRichInlineMarkdown(t.replace(/^[-*]\s+/, '• '));
+      richParagraphs.push(formatted);
+      if (!passedFirstSubheading) {
+        preHeadingParagraphs.push(formatted);
+      }
     }
   }
 
-  // Page 1 (Cover / First Page of Flowing Note, just like xhs-textcard.site Page 1)
-  const firstPageLines: string[] = [];
-  for (const p of richParagraphs.slice(0, 4)) {
-    firstPageLines.push(p);
-  }
+  // Page 1 (Cover / First Page of Flowing Note)
+  const firstPageLines: string[] =
+    preHeadingParagraphs.length > 0
+      ? preHeadingParagraphs.slice(0, 3)
+      : richParagraphs.slice(0, 3);
   if (firstPageLines.length === 0 && headings.length > 0) {
-    firstPageLines.push(...headings.slice(0, 4));
+    firstPageLines.push(...headings.slice(0, 3));
   }
   if (firstPageLines.length === 0) {
     firstPageLines.push(
@@ -237,7 +355,7 @@ export function renderXiaohongshuCards(
     type: 'cover',
     title,
     subtitle: fmSubtitle || headings[0] || `${genreConfig.badge}`,
-    bodyLines: firstPageLines.slice(0, 4),
+    bodyLines: firstPageLines,
     quote: quotes[0] || fmSubtitle,
     closingQuote: quotes[1],
     tags: mergedTags,
@@ -249,10 +367,12 @@ export function renderXiaohongshuCards(
   // Subsequent flowing pages & code cards
   let currentCard: XhsCardSection = {
     type: 'content',
-    title: headings[0] || `${genreConfig.badge}`,
+    title: `${title} · 导读`,
     bodyLines: [],
     genre,
   };
+  let seenSubheading = false;
+  const coverLineSet = new Set(firstPageLines);
 
   let inCode = false;
   let codeLang = '';
@@ -275,7 +395,7 @@ export function renderXiaohongshuCards(
       inCode = false;
       cards.push({
         type: 'code',
-        title: currentCard.title ? `${currentCard.title}` : `代码实现 (${codeLang || 'Snippet'})`,
+        title: seenSubheading ? currentCard.title : `代码实现 (${codeLang || 'Snippet'})`,
         bodyLines: codeBuffer.slice(0, 18),
         codeLang: codeLang || 'typescript',
         genre,
@@ -295,6 +415,7 @@ export function renderXiaohongshuCards(
     if (hMatch) {
       const hTitle = stripInlineMarkdown(hMatch[1]);
       if (hTitle === title) continue;
+      seenSubheading = true;
       if (currentCard.bodyLines.length > 0) {
         cards.push(currentCard);
       }
@@ -323,9 +444,12 @@ export function renderXiaohongshuCards(
 
     if (trimmedLine && !trimmedLine.startsWith('![')) {
       const richLine = preserveRichInlineMarkdown(trimmedLine.replace(/^[-*]\s+/, '• '));
+      if (!seenSubheading && coverLineSet.has(richLine)) {
+        continue;
+      }
       if (richLine) {
         currentCard.bodyLines.push(richLine);
-        if (currentCard.bodyLines.length >= 5) {
+        if (currentCard.bodyLines.length >= 4) {
           cards.push(currentCard);
           currentCard = {
             type: 'content',
@@ -343,7 +467,7 @@ export function renderXiaohongshuCards(
   }
 
   // Plain-text caption
-  const plainText = cleanMd
+  const plainText = normalizedMd
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
     .replace(/^#{1,6}\s+/gm, '')

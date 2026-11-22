@@ -155,4 +155,43 @@ tags: [旅行日记, 京都漫游]
     assert.ok(html.includes('vertical-align:top'));
     assert.ok(!html.includes('word-break:break-all'));
   });
+
+  it('converts Markdown tables to structured bullets, strips --- rules, and avoids duplicate pre-heading cards', () => {
+    const md = [
+      '# 深入解析现代前端富文本与 AST 渲染管线',
+      '',
+      '> 本文介绍的 AST 转换引擎遵循单向不可逆只读渲染原则。',
+      '',
+      '现代技术创作者通常面临严峻的内容分发割裂困境：需要适配多个异构平台。',
+      '',
+      '---',
+      '',
+      '## 1. 异构平台分发的核心差异矩阵',
+      '',
+      '下表总结了主流平台的解析特性：',
+      '',
+      '| 平台属性 | 微信公众号 | 知乎专栏 |',
+      '| :--- | :--- | :--- |',
+      '| **图片防盗链** | 严格白名单 (mmbiz.qpic.cn) | 自动转存 (picx.zhimg.com) |',
+      '| **超链接交互** | 仅支持文末附录与脚注 | 原生可点击 |',
+      '',
+      '---',
+    ].join('\n');
+
+    const deck = renderXiaohongshuCards(md);
+    const allLines = deck.cards.flatMap((c) => c.bodyLines);
+
+    assert.equal(deck.cards[0].type, 'cover');
+    assert.equal(deck.cards[1].title, '1. 异构平台分发的核心差异矩阵');
+    assert.ok(deck.cards.filter((c) => c.title === '1. 异构平台分发的核心差异矩阵').length === 1);
+    assert.ok(!allLines.some((line) => line.includes('| :--- |') || line.trim() === '---'));
+    assert.ok(
+      allLines.some(
+        (line) =>
+          line.includes('**图片防盗链**') &&
+          line.includes('微信公众号：严格白名单') &&
+          line.includes('知乎专栏：自动转存')
+      )
+    );
+  });
 });

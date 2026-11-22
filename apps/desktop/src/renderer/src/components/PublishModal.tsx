@@ -25,17 +25,38 @@ interface PublishModalProps {
   onSaveArticle: (content: string) => void;
 }
 
-/** Multi-platform publish, WeChat Official Account inline-CSS preview & local Git push modal. */
+const PLATFORM_BROWSER_META: Partial<
+  Record<PlatformId, { badge: string; color: string; dashboardUrl: string; loginUrl: string }>
+> = {
+  github_static: { badge: 'GH', color: '#24292f', dashboardUrl: 'https://github.com/', loginUrl: 'https://github.com/login' },
+  weixin: { badge: '微信', color: '#07c160', dashboardUrl: 'https://mp.weixin.qq.com/', loginUrl: 'https://mp.weixin.qq.com/' },
+  cnblogs: { badge: '博', color: '#2e64b0', dashboardUrl: 'https://i.cnblogs.com/posts', loginUrl: 'https://account.cnblogs.com/signin' },
+  juejin: { badge: '掘', color: '#1e80ff', dashboardUrl: 'https://juejin.cn/creator/content/article/drafts', loginUrl: 'https://juejin.cn/login' },
+  csdn: { badge: 'C', color: '#fc5531', dashboardUrl: 'https://mp.csdn.net/mp_blog/manage/article', loginUrl: 'https://passport.csdn.net/login' },
+  zhihu: { badge: '知', color: '#0066ff', dashboardUrl: 'https://www.zhihu.com/creator', loginUrl: 'https://www.zhihu.com/signin' },
+  baijiahao: { badge: '百', color: '#2932e1', dashboardUrl: 'https://baijiahao.baidu.com/', loginUrl: 'https://baijiahao.baidu.com/builder/theme/bjh/login' },
+  weibo: { badge: '微', color: '#e6162d', dashboardUrl: 'https://card.weibo.com/article/v3/editor', loginUrl: 'https://weibo.com/login.php' },
+  bilibili: { badge: 'B', color: '#fb7299', dashboardUrl: 'https://member.bilibili.com/platform/home', loginUrl: 'https://passport.bilibili.com/login' },
+  douyin: { badge: '抖', color: '#111827', dashboardUrl: 'https://creator.douyin.com/', loginUrl: 'https://creator.douyin.com/' },
+  xiaohongshu: { badge: '红', color: '#ff2442', dashboardUrl: 'https://creator.xiaohongshu.com/', loginUrl: 'https://creator.xiaohongshu.com/login' },
+};
+
+const MODAL_TABS: Array<{ id: 'weixin' | 'git' | 'browser'; label: string }> = [
+  { id: 'weixin', label: '微信公众号排版' },
+  { id: 'git', label: '多平台分发 / Git' },
+  { id: 'browser', label: '🌐 平台快捷浏览器' },
+];
+
+/** Multi-platform publish, inline-CSS/social card preview & built-in sandbox browser hub modal. */
 export function PublishModal({
   activeArticle,
   gitStatus,
-  gitPushLog,
   markdown,
   onClose,
   onGitPush,
   onSaveArticle,
 }: PublishModalProps) {
-  const [tab, setTab] = useState<'weixin' | 'git'>('weixin');
+  const [tab, setTab] = useState<'weixin' | 'git' | 'browser'>('weixin');
   const [author, setAuthor] = useState('');
   const [digest, setDigest] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
@@ -45,7 +66,6 @@ export function PublishModal({
   const [pushingWeixin, setPushingWeixin] = useState(false);
   const [weixinPushMsg, setWeixinPushMsg] = useState('');
 
-  // Multi-platform batch dispatch state
   const [authStates, setAuthStates] = useState<Partial<Record<PlatformId, boolean>>>({});
   const [checkingAuth, setCheckingAuth] = useState(false);
   const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformId[]>(['weixin']);
@@ -82,7 +102,7 @@ export function PublishModal({
   }, []);
 
   useEffect(() => {
-    if (tab === 'git') {
+    if (tab === 'git' || tab === 'browser') {
       void refreshAuthStates();
     }
   }, [tab]);
@@ -91,6 +111,14 @@ export function PublishModal({
     setSelectedPlatforms((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+  };
+
+  const openBuiltInBrowser = async (platformId: PlatformId, online: boolean) => {
+    const meta = PLATFORM_BROWSER_META[platformId];
+    const targetUrl = online ? meta?.dashboardUrl : meta?.loginUrl;
+    if (!targetUrl || !window.electronAPI?.openPlatformLogin) return;
+    await window.electronAPI.openPlatformLogin(platformId, targetUrl);
+    await refreshAuthStates();
   };
 
   const executePublishToTargets = async (targets: PlatformId[]) => {
@@ -156,11 +184,9 @@ export function PublishModal({
         showCoverInBody,
         sourceUrl: sourceUrl.trim() || undefined,
       });
-      if (res.ok) {
-        setWeixinPushMsg(`已推送至公众号草稿箱（ID: ${res.postId}${res.verified ? ' · 已校验' : ''}）`);
-      } else {
-        setWeixinPushMsg(res.message);
-      }
+      setWeixinPushMsg(
+        res.ok ? `已推送至公众号草稿箱（ID: ${res.postId}${res.verified ? ' · 已校验' : ''}）` : res.message
+      );
     } catch (err) {
       setWeixinPushMsg(err instanceof Error ? err.message : String(err));
     } finally {
@@ -170,21 +196,18 @@ export function PublishModal({
 
   const autoDigest = useMemo(() => extractWeixinDigest(markdown), [markdown]);
   const weixinRendered = useMemo(
-    () =>
-      renderWeixinHtml(markdown, {
-        coverImageUrl: coverUrl,
-        showCoverInBody,
-      }),
+    () => renderWeixinHtml(markdown, { coverImageUrl: coverUrl, showCoverInBody }),
     [markdown, coverUrl, showCoverInBody]
   );
 
   const handleCopyWeixinRichText = async () => {
     try {
       if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-        const htmlBlob = new Blob([weixinRendered.html], { type: 'text/html' });
-        const textBlob = new Blob([markdown], { type: 'text/plain' });
         await navigator.clipboard.write([
-          new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }),
+          new ClipboardItem({
+            'text/html': new Blob([weixinRendered.html], { type: 'text/html' }),
+            'text/plain': new Blob([markdown], { type: 'text/plain' }),
+          }),
         ]);
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(weixinRendered.html);
@@ -203,32 +226,24 @@ export function PublishModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-xs">
-      <div className="flex max-h-[88vh] w-[820px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
+      <div className="flex max-h-[88vh] w-[860px] max-w-[94vw] flex-col overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] text-[var(--text-main)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-elevated)] px-4 py-3 text-sm font-semibold">
-          <span>合并分发（{activeArticle?.title ?? '未选择文章'}）</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setTab('weixin')}
-              className={`rounded px-2.5 py-1 text-xs font-medium ${
-                tab === 'weixin'
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              微信公众号排版
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('git')}
-              className={`rounded px-2.5 py-1 text-xs font-medium ${
-                tab === 'git'
-                  ? 'bg-[var(--accent)] text-white'
-                  : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
-              }`}
-            >
-              多平台分发 / Git
-            </button>
+          <span className="truncate pr-2">合并分发（{activeArticle?.title ?? '未选择文章'}）</span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {MODAL_TABS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition ${
+                  tab === item.id
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'text-[var(--control-text-color)] hover:bg-[var(--bg-hover)]'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
             <button
               type="button"
               onClick={onClose}
@@ -239,87 +254,57 @@ export function PublishModal({
           </div>
         </div>
 
-        {tab === 'weixin' ? (
+        {tab === 'weixin' && (
           <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 md:grid-cols-2">
             <div className="space-y-3 text-xs">
-              <div className="rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] p-3">
-                <div className="mb-2 font-semibold text-[var(--text-main)]">头图与副文本元信息</div>
-                <label className="mb-2 block">
-                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">
-                    头图 / 封面图 URL（建议 2.35:1 如 900×383）
-                  </span>
-                  <input
-                    type="text"
-                    value={coverUrl}
-                    onChange={(e) => setCoverUrl(e.target.value)}
-                    placeholder="https://... 或 ./assets/cover.png"
-                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="mb-2 flex items-center gap-2 text-[11px] text-[var(--control-text-color)]">
-                  <input
-                    type="checkbox"
-                    checked={showCoverInBody}
-                    onChange={(e) => setShowCoverInBody(e.target.checked)}
-                  />
-                  在正文顶部同时展示封面图
-                </label>
-                <label className="mb-2 block">
-                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">作者</span>
-                  <input
-                    type="text"
-                    value={author}
-                    onChange={(e) => setAuthor(e.target.value)}
-                    placeholder="选填，如：Vmark 作者"
-                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="mb-2 block">
-                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">
-                    摘要（留空将自动提取正文前 120 字）
-                  </span>
-                  <textarea
-                    rows={3}
-                    value={digest}
-                    onChange={(e) => setDigest(e.target.value)}
-                    placeholder={autoDigest || '文章摘要…'}
-                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">阅读原文链接</span>
-                  <input
-                    type="text"
-                    value={sourceUrl}
-                    onChange={(e) => setSourceUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
+              <div className="space-y-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] p-3">
+                <div className="font-semibold text-[var(--text-main)]">头图与副文本元信息</div>
+                {([
+                  ['头图 / 封面图 URL（建议 2.35:1 如 900×383）', coverUrl, setCoverUrl, 'https://... 或 ./assets/cover.png'],
+                  ['作者', author, setAuthor, '选填，如：Vmark 作者'],
+                  ['阅读原文链接', sourceUrl, setSourceUrl, 'https://...'],
+                ] as const).map(([label, val, setter, placeholder], idx) => (
+                  <div key={label} className="space-y-2">
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">{label}</span>
+                      <input
+                        type="text"
+                        value={val}
+                        onChange={(e) => setter(e.target.value)}
+                        placeholder={placeholder}
+                        className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                      />
+                    </label>
+                    {idx === 0 && (
+                      <label className="flex items-center gap-2 text-[11px] text-[var(--control-text-color)]">
+                        <input type="checkbox" checked={showCoverInBody} onChange={(e) => setShowCoverInBody(e.target.checked)} />
+                        在正文顶部同时展示封面图
+                      </label>
+                    )}
+                    {idx === 1 && (
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] text-[var(--control-text-color)]">摘要（留空将自动提取正文前 120 字）</span>
+                        <textarea
+                          rows={3}
+                          value={digest}
+                          onChange={(e) => setDigest(e.target.value)}
+                          placeholder={autoDigest || '文章摘要…'}
+                          className="w-full rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1.5 text-xs text-[var(--text-main)] outline-none focus:border-[var(--accent)]"
+                        />
+                      </label>
+                    )}
+                  </div>
+                ))}
               </div>
-
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void handleCopyWeixinRichText()}
-                  className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
-                >
+                <button type="button" onClick={() => void handleCopyWeixinRichText()} className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
                   一键复制公众号富文本
                 </button>
-                <button
-                  type="button"
-                  disabled={pushingWeixin}
-                  onClick={() => void handlePushWeixinDraft()}
-                  className="rounded border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--bg-hover)] disabled:opacity-50"
-                >
+                <button type="button" disabled={pushingWeixin} onClick={() => void handlePushWeixinDraft()} className="rounded border border-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--accent)] hover:bg-[var(--bg-hover)] disabled:opacity-50">
                   {pushingWeixin ? '推送中…' : '推送到公众号草稿箱'}
                 </button>
                 {activeArticle && (
-                  <button
-                    type="button"
-                    onClick={handleSaveAndClose}
-                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
-                  >
+                  <button type="button" onClick={handleSaveAndClose} className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]">
                     保存本地文章
                   </button>
                 )}
@@ -327,7 +312,6 @@ export function PublishModal({
                 {weixinPushMsg && <div className="w-full text-[11px] text-[var(--accent)]">{weixinPushMsg}</div>}
               </div>
             </div>
-
             <PlatformPreviewPane
               markdown={markdown}
               title={activeArticle?.title}
@@ -338,14 +322,14 @@ export function PublishModal({
               onSocialCoverRatioChange={setSocialCoverRatio}
             />
           </div>
-        ) : (
+        )}
+
+        {tab === 'git' && (
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-[13px] text-[var(--control-text-color)]">
             {gitStatus.isGitRepo && (
               <div className="flex items-center justify-between rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2">
                 <div>
-                  <div className="font-medium text-[var(--text-main)]">
-                    GitHub 静态博客 ({gitStatus.branch})
-                  </div>
+                  <div className="font-medium text-[var(--text-main)]">GitHub 静态博客 ({gitStatus.branch})</div>
                   <div className="text-[11px]">{gitStatus.changedFiles} 项改动待推送</div>
                 </div>
                 <button
@@ -376,14 +360,37 @@ export function PublishModal({
                 />
                 自动转存第三方防盗链外链图片与本地图片（带平台 Referer 抓取并重写）
               </label>
-              <button
-                type="button"
-                disabled={checkingAuth}
-                onClick={() => void refreshAuthStates()}
-                className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]"
-              >
-                {checkingAuth ? '检测中…' : '刷新账号检测状态'}
-              </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlatforms(VISIBLE_PLATFORM_CATALOG.filter((p) => Boolean(authStates[p.id])).map((p) => p.id))}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]"
+                >
+                  全选已授权
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlatforms(VISIBLE_PLATFORM_CATALOG.map((p) => p.id))}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]"
+                >
+                  全选全部
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlatforms([])}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-1 text-[11px] text-[var(--control-text-color)] hover:text-[var(--text-main)]"
+                >
+                  清空
+                </button>
+                <button
+                  type="button"
+                  disabled={checkingAuth}
+                  onClick={() => void refreshAuthStates()}
+                  className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]"
+                >
+                  {checkingAuth ? '检测中…' : '刷新账号检测状态'}
+                </button>
+              </div>
             </div>
 
             <div className="divide-y divide-[var(--border-color)] rounded-lg border border-[var(--border-color)]">
@@ -396,37 +403,32 @@ export function PublishModal({
                   <div key={p.id} className="flex flex-col gap-1 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
                       <label className="flex cursor-pointer items-center gap-2 font-medium text-[var(--text-main)]">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePlatform(p.id)}
-                        />
+                        <input type="checkbox" checked={checked} onChange={() => togglePlatform(p.id)} />
                         <span>{p.name}</span>
-                        {online ? (
-                          <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[10px] text-[#116329]">
-                            ● 已授权
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] text-[var(--control-text-color)]">
-                            未登录
-                          </span>
-                        )}
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] ${online ? 'bg-[#dafbe1] text-[#116329]' : 'bg-[var(--bg-elevated)] text-[var(--control-text-color)]'}`}>
+                          {online ? '● 已授权' : '未登录'}
+                        </span>
                       </label>
-                      <select
-                        aria-label={`${p.name} 发布模式`}
-                        value={currentMode}
-                        disabled={p.supportedModes.length <= 1}
-                        onChange={(e) =>
-                          setPlatformModes((prev) => ({
-                            ...prev,
-                            [p.id]: e.target.value as PublishMode,
-                          }))
-                        }
-                        className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-0.5 text-[11px] text-[var(--text-main)]"
-                      >
-                        {p.supportedModes.includes('draft') && <option value="draft">推入草稿箱</option>}
-                        {p.supportedModes.includes('direct') && <option value="direct">直接发布</option>}
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void openBuiltInBrowser(p.id, online)}
+                          title="在 Vmark 内置多标签沙箱浏览器中打开该平台后台/草稿箱"
+                          className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-0.5 text-[11px] text-[var(--control-text-color)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                        >
+                          内置浏览器
+                        </button>
+                        <select
+                          aria-label={`${p.name} 发布模式`}
+                          value={currentMode}
+                          disabled={p.supportedModes.length <= 1}
+                          onChange={(e) => setPlatformModes((prev) => ({ ...prev, [p.id]: e.target.value as PublishMode }))}
+                          className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2 py-0.5 text-[11px] text-[var(--text-main)]"
+                        >
+                          {p.supportedModes.includes('draft') && <option value="draft">推入草稿箱</option>}
+                          {p.supportedModes.includes('direct') && <option value="direct">直接发布</option>}
+                        </select>
+                      </div>
                     </div>
                     {result && <PublishResultRow result={result} />}
                   </div>
@@ -441,19 +443,51 @@ export function PublishModal({
                 onClick={() => void handlePushMultiPlatform()}
                 className="rounded bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                {pushingMulti
-                  ? '正在并行分发…'
-                  : `一键分发至所选平台 (${selectedPlatforms.length})`}
+                {pushingMulti ? '正在并行分发…' : `一键分发至所选平台 (${selectedPlatforms.length})`}
               </button>
               {activeArticle && (
-                <button
-                  type="button"
-                  onClick={handleSaveAndClose}
-                  className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]"
-                >
+                <button type="button" onClick={handleSaveAndClose} className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1.5 text-xs text-[var(--text-main)] hover:bg-[var(--bg-hover)]">
                   保存本地文章
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'browser' && (
+          <div data-testid="platform-browser-grid" className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-2.5">
+              <div>
+                <div className="font-semibold text-[var(--text-main)]">多平台沙箱快捷浏览器宫格</div>
+                <div className="text-[11px] text-[var(--control-text-color)]">
+                  点击任意平台卡片直接启动 Vmark 内置多标签沙箱浏览器（保留各平台独立 Cookie，顶栏可跨平台切换 Tab）。
+                </div>
+              </div>
+              <button type="button" disabled={checkingAuth} onClick={() => void refreshAuthStates()} className="rounded border border-[var(--border-color)] bg-[var(--bg-main)] px-2.5 py-1 text-[11px] text-[var(--text-main)] hover:border-[var(--accent)]">
+                {checkingAuth ? '检测中…' : '刷新授权状态'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {VISIBLE_PLATFORM_CATALOG.map((p) => {
+                const online = Boolean(authStates[p.id]);
+                const meta = PLATFORM_BROWSER_META[p.id] ?? { badge: p.name.slice(0, 1), color: '#007aff' };
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => void openBuiltInBrowser(p.id, online)}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-[var(--border-color)] bg-[var(--bg-elevated)] p-3.5 text-center transition hover:border-[var(--accent)] hover:bg-[var(--bg-hover)]"
+                  >
+                    <div style={{ backgroundColor: meta.color }} className="flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold text-white shadow-xs">
+                      {meta.badge}
+                    </div>
+                    <div className="font-semibold text-[var(--text-main)]">{p.name}</div>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${online ? 'bg-[#dafbe1] text-[#116329]' : 'bg-[var(--bg-main)] text-[var(--control-text-color)]'}`}>
+                      {online ? '● 已授权 · 进后台' : '未登录 · 点此授权'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
