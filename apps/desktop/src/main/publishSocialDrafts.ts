@@ -2,90 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import type Electron from 'electron';
-import { renderXiaohongshuCards } from '@vcat/core';
-import type {
-  MultiPlatformPublishPayload,
-  MultiPlatformPublishResultItem,
-  SocialCoverRatio,
-} from '@vcat/shared';
+import type { MultiPlatformPublishPayload, MultiPlatformPublishResultItem } from '@vcat/shared';
 import { attachInternalBrowserStealth } from './internalBrowserManager';
 import { hasSessionAuthCookies, type PublishAppConfig } from './publishSessionAuth';
 import { rasterizeSocialCards } from './socialCardRasterizer';
+import { buildSocialCaption, resolveSocialUploadImages } from './socialDraftHelpers';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function resolveLocalImageFiles(workspacePath: string | null, markdown: string): Promise<string[]> {
-  if (!workspacePath) return [];
-  const regex = /!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-  const results: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(markdown)) !== null) {
-    const raw = match[1].trim();
-    if (!raw || /^https?:\/\//i.test(raw) || raw.startsWith('data:')) continue;
-    const cleaned = decodeURIComponent(raw.replace(/^\.\//, ''));
-    const abs = path.isAbsolute(cleaned) ? cleaned : path.resolve(workspacePath, cleaned);
-    try {
-      const stat = await fs.stat(abs);
-      if (stat.isFile()) results.push(abs);
-    } catch {
-      // skip missing local image
-    }
-    if (results.length >= 18) break;
-  }
-  return results;
-}
-
-function detectBestSocialTheme(markdown: string, candidate?: string): string {
-  const validThemes = [
-    'ink-classic',
-    'swiss-slate',
-    'ray-dark',
-    'editorial-coral',
-    'geek-dark',
-    'warm-note',
-    'modern-minimal',
-    'academic-blue',
-  ];
-  if (candidate && validThemes.includes(candidate)) {
-    return candidate;
-  }
-  if (/```|~~~/.test(markdown)) return 'ray-dark';
-  if (/\$[^$]+\$|\$\$[\s\S]+?\$\$/.test(markdown)) return 'swiss-slate';
-  return 'ink-classic';
-}
-
-async function resolveUploadImages(
-  workspacePath: string | null,
-  markdown: string,
-  title?: string,
-  themeId?: string,
-  aspectRatio?: SocialCoverRatio
-): Promise<string[]> {
-  const localImages = await resolveLocalImageFiles(workspacePath, markdown);
-  if (localImages.length > 0) {
-    return localImages;
-  }
-  try {
-    const selectedTheme = detectBestSocialTheme(markdown, themeId);
-    const { imagePaths } = await rasterizeSocialCards({
-      markdown,
-      title,
-      themeId: selectedTheme,
-      aspectRatio: aspectRatio ?? '3:4',
-      maxCards: 9,
-    });
-    return imagePaths;
-  } catch {
-    return [];
-  }
-}
-
-function buildSocialCaption(markdown: string, title?: string, tags: string[] = []): string {
-  const rendered = renderXiaohongshuCards(markdown, title);
-  const tagLine = tags.length > 0 ? `\n${tags.map((t) => `#${t}`).join(' ')}` : '';
-  const text = `${rendered.captionText.trim()}${tagLine}`.trim();
-  return text.length > 950 ? `${text.slice(0, 947)}...` : text;
-}
 
 async function setInputFilesViaDebugger(
   win: BrowserWindow,
@@ -182,13 +105,16 @@ export async function publishXiaohongshuDraft(params: {
     };
   }
 
-  const files = await resolveUploadImages(
-    cfg.workspacePath,
-    payload.markdown,
-    payload.title,
-    payload.socialThemeId,
-    payload.socialCoverRatio
-  );
+  const files = await resolveSocialUploadImages({
+    workspacePath: cfg.workspacePath,
+    markdown: payload.markdown,
+    title: payload.title,
+    themeId: payload.socialThemeId,
+    defaultTheme: 'ios-memo',
+    aspectRatio: payload.socialCoverRatio,
+    imageMode: payload.socialImageMode ?? 'cards',
+    rasterizeFn: rasterizeSocialCards,
+  });
   if (files.length === 0) {
     return {
       platformId: 'xiaohongshu',
@@ -296,13 +222,16 @@ export async function publishDouyinDraft(params: {
     };
   }
 
-  const files = await resolveUploadImages(
-    cfg.workspacePath,
-    payload.markdown,
-    payload.title,
-    payload.socialThemeId,
-    payload.socialCoverRatio
-  );
+  const files = await resolveSocialUploadImages({
+    workspacePath: cfg.workspacePath,
+    markdown: payload.markdown,
+    title: payload.title,
+    themeId: payload.socialThemeId,
+    defaultTheme: 'minimalist-magazine',
+    aspectRatio: payload.socialCoverRatio,
+    imageMode: payload.socialImageMode ?? 'cards',
+    rasterizeFn: rasterizeSocialCards,
+  });
   if (files.length === 0) {
     return {
       platformId: 'douyin',

@@ -165,6 +165,8 @@ export interface MultiPlatformPublishTarget {
 
 export type SocialCoverRatio = '3:4' | '2:3' | '9:16' | '16:9' | '2.35:1';
 
+export type SocialImageMode = 'cards' | 'article_images';
+
 export interface MultiPlatformPublishPayload {
   title: string;
   markdown: string;
@@ -177,6 +179,7 @@ export interface MultiPlatformPublishPayload {
   includeRemoteImages?: boolean;
   socialThemeId?: string;
   socialCoverRatio?: SocialCoverRatio;
+  socialImageMode?: SocialImageMode;
   targets: MultiPlatformPublishTarget[];
 }
 

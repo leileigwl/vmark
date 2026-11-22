@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { SocialImageMode } from '@vcat/shared';
 import {
   GENRE_META,
   PLATFORM_COVER_SPECS,
@@ -30,8 +31,10 @@ interface PlatformPreviewPaneProps {
   weixinRendered: WeixinRenderedResult;
   socialThemeId?: string | null;
   socialCoverRatio?: PlatformCoverRatio;
+  socialImageMode?: SocialImageMode;
   onSocialThemeChange?: (themeId: string) => void;
   onSocialCoverRatioChange?: (ratio: PlatformCoverRatio) => void;
+  onSocialImageModeChange?: (mode: SocialImageMode) => void;
 }
 
 /** Rewrites relative workspace image paths to `vcat-asset://local/...` for renderer preview only. */
@@ -62,15 +65,19 @@ export function PlatformPreviewPane({
   weixinRendered,
   socialThemeId,
   socialCoverRatio,
+  socialImageMode,
   onSocialThemeChange,
   onSocialCoverRatioChange,
+  onSocialImageModeChange,
 }: PlatformPreviewPaneProps) {
   const [platform, setPlatform] = useState<PreviewPlatform>('weixin');
   const [internalThemeId, setInternalThemeId] = useState<string | null>(null);
   const [internalCoverRatio, setInternalCoverRatio] = useState<PlatformCoverRatio>('3:4');
+  const [internalImageMode, setInternalImageMode] = useState<SocialImageMode>('cards');
 
   const customThemeId = socialThemeId !== undefined ? socialThemeId : internalThemeId;
   const coverRatio = socialCoverRatio ?? internalCoverRatio;
+  const imageMode = socialImageMode ?? internalImageMode;
 
   const updateThemeId = (next: string) => {
     setInternalThemeId(next);
@@ -80,6 +87,11 @@ export function PlatformPreviewPane({
   const updateCoverRatio = (next: PlatformCoverRatio) => {
     setInternalCoverRatio(next);
     onSocialCoverRatioChange?.(next);
+  };
+
+  const updateImageMode = (next: SocialImageMode) => {
+    setInternalImageMode(next);
+    onSocialImageModeChange?.(next);
   };
 
   const zhihuRendered = useMemo(
@@ -228,6 +240,31 @@ export function PlatformPreviewPane({
                   {r}
                 </button>
               ))}
+              <span className="ml-1 text-[10px] text-[#777]">分发配图：</span>
+              <button
+                type="button"
+                data-testid="social-image-mode-cards"
+                onClick={() => updateImageMode('cards')}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                  imageMode === 'cards'
+                    ? 'bg-[#1c1c1e] text-white'
+                    : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
+                }`}
+              >
+                视觉卡片(默认)
+              </button>
+              <button
+                type="button"
+                data-testid="social-image-mode-article"
+                onClick={() => updateImageMode('article_images')}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition ${
+                  imageMode === 'article_images'
+                    ? 'bg-[#1c1c1e] text-white'
+                    : 'border border-black/10 bg-white text-[#555] hover:bg-black/5'
+                }`}
+              >
+                仅发正文原图
+              </button>
             </div>
           </div>
 

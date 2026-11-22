@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extractWeixinDigest, renderWeixinHtml } from '@vcat/core/weixin';
 import type {
-  ArticleMeta,
-  GitStatusInfo,
-  MultiPlatformPublishResultItem,
-  PlatformId,
-  PublishMode,
-  SocialCoverRatio,
+  ArticleMeta, GitStatusInfo, MultiPlatformPublishResultItem, PlatformId, PublishMode, SocialCoverRatio, SocialImageMode,
 } from '@vcat/shared';
 import {
   PlatformPreviewPane,
@@ -75,6 +70,7 @@ export function PublishModal({
   const [includeRemoteImages, setIncludeRemoteImages] = useState(true);
   const [socialThemeId, setSocialThemeId] = useState<string | null>(null);
   const [socialCoverRatio, setSocialCoverRatio] = useState<SocialCoverRatio>('3:4');
+  const [socialImageMode, setSocialImageMode] = useState<SocialImageMode>('cards');
   const [pushingMulti, setPushingMulti] = useState(false);
   const [multiResults, setMultiResults] = useState<MultiPlatformPublishResultItem[]>([]);
   const [preflightBlocked, setPreflightBlocked] = useState<{
@@ -138,6 +134,7 @@ export function PublishModal({
         includeRemoteImages,
         socialThemeId: socialThemeId ?? undefined,
         socialCoverRatio,
+        socialImageMode,
         targets: targets.map((platformId) => ({
           platformId,
           mode: platformModes[platformId] ?? 'direct',
@@ -318,8 +315,10 @@ export function PublishModal({
               weixinRendered={weixinRendered}
               socialThemeId={socialThemeId}
               socialCoverRatio={socialCoverRatio}
+              socialImageMode={socialImageMode}
               onSocialThemeChange={setSocialThemeId}
               onSocialCoverRatioChange={setSocialCoverRatio}
+              onSocialImageModeChange={setSocialImageMode}
             />
           </div>
         )}

@@ -131,6 +131,8 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     await expect(xhsPreview).toHaveAttribute('data-theme-id', 'blank');
     await page.getByRole('button', { name: '16:9', exact: true }).click();
     await expect(xhsPreview).toHaveAttribute('data-cover-ratio', '16:9');
+    await expect(page.getByTestId('social-image-mode-cards')).toBeVisible();
+    await page.getByTestId('social-image-mode-article').click();
     await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
     await expect(page.getByTestId('douyin-preview')).toContainText('公众号标题');
     await page.getByRole('button', { name: '微信公众号', exact: true }).click();
@@ -184,6 +186,7 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     );
     expect(lastPayload?.socialThemeId).toBe('blank');
     expect(lastPayload?.socialCoverRatio).toBe('16:9');
+    expect(lastPayload?.socialImageMode).toBe('article_images');
     await page.getByRole('button', { name: '关闭' }).click();
     await expect(browserGrid).toBeHidden();
   });
