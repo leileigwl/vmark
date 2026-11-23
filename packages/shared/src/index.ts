@@ -179,6 +179,8 @@ export interface MultiPlatformPublishPayload {
   socialCoverRatio?: SocialCoverRatio;
   /** 卡片类平台（小红书/抖音）：用户上传的封面，工作区相对路径；作为第 1 张图插在卡片前。 */
   socialCoverImagePath?: string;
+  /** 公众号：按焦点裁好的 1:1 转发图，工作区相对路径；不传时由公众号从 2.35:1 封面居中裁。 */
+  weixinSquareCoverImagePath?: string;
   targets: MultiPlatformPublishTarget[];
 }
 
