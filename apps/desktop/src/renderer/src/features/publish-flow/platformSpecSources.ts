@@ -133,7 +133,7 @@ export const SPEC_PENDING: Partial<Record<PlatformId, SpecPending[]>> = {
   ],
   douyin: [
     todo('title.max', '开放接口只有合并的 text 字段（≤1000），网页端标题上限无官方文档', 'creator.douyin.com → 发布图文，标题框输入 21 字，看计数器'),
-    todo('maxCards', '开放接口“每次最多上传 30 张”，抖店学习中心（官方）写“最多35张”；值在 packages/shared 的 SOCIAL_MAX_CARDS，本 PR 不能改', 'creator.douyin.com → 发布图文，连续上传 36 张，看第几张起被拒'),
+    todo('maxCards', '开放接口“每次最多上传 30 张”，抖店学习中心（官方）写“最多35张”；未核实前 packages/shared 的 SOCIAL_MAX_CARDS 取保守值 30', 'creator.douyin.com → 发布图文，连续上传 36 张，看第几张起被拒'),
     todo('cover.mode', '抖店学习中心称上传后可“设置封面”，未写默认首图', '发布图文页上传多图，看封面默认取哪张'),
     todo('cover.ratios', NO_DOC, '发布图文页上传竖图，看推荐比例提示'),
     todo('tags.max', NO_DOC, '发布图文页添加 #话题，看第几个起被拦截'),

@@ -43,9 +43,9 @@ test('正文里有本地图片时，上传的仍然是生成的卡片，而不�
   assert.ok(!files.some((f) => f.endsWith('body.png')));
 });
 
-test('卡片上限按平台传入：小红书 18、抖音 35，不再写死 9', async () => {
+test('卡片上限按平台传入：小红书 18、抖音 30（35 未核实，取开放平台的保守值），不再写死 9', async () => {
   assert.equal(SOCIAL_MAX_CARDS.xiaohongshu, 18);
-  assert.equal(SOCIAL_MAX_CARDS.douyin, 35);
+  assert.equal(SOCIAL_MAX_CARDS.douyin, 30);
   const ws = await makeWorkspace();
   const xhs = fakeRasterizer(40);
   const xhsFiles = await resolveSocialUploadImages(
@@ -60,8 +60,8 @@ test('卡片上限按平台传入：小红书 18、抖音 35，不再写死 9', 
     { workspacePath: ws, markdown: '# a', themeId: 'ios-memo', maxCards: SOCIAL_MAX_CARDS.douyin ?? 0 },
     dy.rasterize
   );
-  assert.equal(dy.calls[0].maxCards, 35);
-  assert.equal(dyFiles.length, 35);
+  assert.equal(dy.calls[0].maxCards, 30);
+  assert.equal(dyFiles.length, 30);
 });
 
 test('上传的封面作为第 1 张图插在卡片前，总数仍不超过平台上限', async () => {

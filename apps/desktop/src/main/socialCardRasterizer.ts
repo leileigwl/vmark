@@ -16,7 +16,11 @@ import {
   type PlatformCoverRatio,
   type XhsNotePayload,
 } from '@vcat/core';
+import { SOCIAL_MAX_CARDS } from '@vcat/shared';
 import { resolveCardImageSources } from './socialCardImageBase.ts';
+
+/** 没指定平台上限时按小红书（卡片平台里最常用的）上限。 */
+const DEFAULT_MAX_CARDS = SOCIAL_MAX_CARDS.xiaohongshu ?? 18;
 import { getCardMathRenderer } from './socialCardMath.ts';
 
 export interface GenerateSocialCardsParams {
@@ -89,7 +93,7 @@ export async function renderCardDeck(
   /** 公式排版（KaTeX）；不传时公式按 Unicode 近似，测量页与出图用同一个。 */
   math?: CardMathRenderer
 ): Promise<{ payload: XhsNotePayload; images: Buffer[]; overflow: number[] }> {
-  const { title = '个人随笔', themeId = 'ios-memo', aspectRatio = '3:4', maxCards = 9 } = params;
+  const { title = '个人随笔', themeId = 'ios-memo', aspectRatio = '3:4', maxCards = DEFAULT_MAX_CARDS } = params;
   // 相对路径图片按 imageBaseDir 解析为 file://，越界/绝对路径/带协议的保持原样（防路径穿越）
   const markdown = resolveCardImageSources(params.markdown, params.imageBaseDir);
   const theme = getSocialCardTheme(themeId);
@@ -100,6 +104,8 @@ export async function renderCardDeck(
       fallbackTitle: title,
       coverRatio: aspectRatio,
       themeId,
+      // 不传时核心库按小红书 18 张截断，抖音等上限更高的平台会被误截。
+      maxCards: Math.max(0, maxCards),
       measure: (b) => {
         const key = JSON.stringify(b);
         const known = heights.get(key);
@@ -147,7 +153,7 @@ export async function renderCardDeck(
  * in an offscreen BrowserWindow, waiting for fonts and images before each capture.
  */
 export async function rasterizeSocialCards(params: GenerateSocialCardsParams): Promise<GeneratedCardsResult> {
-  const { aspectRatio = '3:4', maxCards = 9 } = params;
+  const { aspectRatio = '3:4', maxCards = DEFAULT_MAX_CARDS } = params;
   const spec = PLATFORM_COVER_SPECS[aspectRatio] || PLATFORM_COVER_SPECS['3:4'];
   if (maxCards <= 0) {
     const payload = renderXiaohongshuCards(params.markdown, { fallbackTitle: params.title, coverRatio: aspectRatio });
