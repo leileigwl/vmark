@@ -8,6 +8,7 @@ import {
   renderXiaohongshuCards,
   type PlatformCoverRatio,
 } from '@vcat/core';
+import { resolveCardImageSources } from './socialCardImageBase.ts';
 
 export interface GenerateSocialCardsParams {
   markdown: string;
@@ -16,6 +17,8 @@ export interface GenerateSocialCardsParams {
   aspectRatio?: PlatformCoverRatio;
   brandName?: string;
   maxCards?: number;
+  /** 正文相对路径图片按这个目录解析（越界的路径不解析）。 */
+  imageBaseDir?: string;
   browserWindowFactory?: (opts: Electron.BrowserWindowConstructorOptions) => Electron.BrowserWindow;
 }
 
@@ -34,8 +37,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function rasterizeSocialCards(
   params: GenerateSocialCardsParams
 ): Promise<GeneratedCardsResult> {
+  const markdown = resolveCardImageSources(params.markdown, params.imageBaseDir);
   const {
-    markdown,
     title = '个人随笔',
     themeId = 'ios-memo',
     aspectRatio = '3:4',

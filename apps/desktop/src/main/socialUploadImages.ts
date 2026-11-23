@@ -10,6 +10,8 @@ export type CardRasterizer = (params: {
   themeId: string;
   aspectRatio: SocialCoverRatio;
   maxCards: number;
+  /** 正文相对路径图片的基准目录（工作区根目录，与编辑器 vcat-asset 协议一致）。 */
+  imageBaseDir?: string;
 }) => Promise<{ imagePaths: string[] }>;
 
 export interface SocialUploadParams {
@@ -67,6 +69,7 @@ export async function resolveSocialUploadImages(params: SocialUploadParams, rast
       themeId: params.themeId,
       aspectRatio: params.aspectRatio ?? '3:4',
       maxCards: budget,
+      imageBaseDir: params.workspacePath ? path.resolve(params.workspacePath) : undefined,
     });
     cards = imagePaths.slice(0, budget);
   } catch {
