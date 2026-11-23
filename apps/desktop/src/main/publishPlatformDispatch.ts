@@ -25,6 +25,7 @@ import {
 } from './publishSessionAuth';
 import { publishDouyinDraft, publishXiaohongshuDraft } from './publishSocialDrafts';
 import { executeWeixinDraftPublish } from './publishWeixinDraft';
+import { buildJuejinPush } from './publishJuejinDraft';
 
 /** Dispatches a single-platform publish or draft action with image transfer and auth checks. */
 export async function publishToSingleTarget(params: {
@@ -197,13 +198,7 @@ export async function publishToSingleTarget(params: {
       if (uploadResult.errors.length > 0) {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
-      const pushed = await adapter.push({
-        title: payload.title,
-        markdown: uploadResult.markdown,
-        html: '',
-        tags: payload.tags ?? [],
-        mode: 'draft',
-      });
+      const pushed = await adapter.push(buildJuejinPush(payload, uploadResult.markdown));
       return {
         platformId,
         ok: true,

@@ -22,7 +22,7 @@ const draft = (patch: Partial<PublishDraft> = {}): PublishDraft => ({ ...createD
 
 test('问题是短句：掘金“摘要差 N 字”“缺标签”，小红书“标题超 N 字”', () => {
   const d = draft({ digest: '一'.repeat(38), title: '一二三四五六七八九十一二三四五六七八九十一二' });
-  assert.deepEqual(checkPlatform(d, spec('juejin'), true).map((i) => i.message), ['摘要差 12 字', '缺标签']);
+  assert.deepEqual(checkPlatform(d, spec('juejin'), true).map((i) => i.message), ['摘要差 12 字', '缺标签', '缺分类']);
   assert.deepEqual(checkPlatform(d, spec('xiaohongshu'), true).map((i) => i.message), ['标题超 2 字']);
   assert.deepEqual(checkPlatform(d, spec('zhihu'), false).map((i) => i.message), ['未登录']);
   assert.deepEqual(checkPlatform(d, spec('github_static'), false), []);

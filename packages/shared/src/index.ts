@@ -181,6 +181,8 @@ export interface MultiPlatformPublishPayload {
   socialCoverImagePath?: string;
   /** 公众号：按焦点裁好的 1:1 转发图，工作区相对路径；不传时由公众号从 2.35:1 封面居中裁。 */
   weixinSquareCoverImagePath?: string;
+  /** 掘金：文章分类 id（见 adapters 的 JUEJIN_CATEGORIES）；不传时草稿分类为空。 */
+  juejinCategoryId?: string;
   targets: MultiPlatformPublishTarget[];
 }
 

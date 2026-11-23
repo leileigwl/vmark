@@ -16,9 +16,11 @@ export interface PublishDraft {
   selected: PlatformId[];
   socialThemeId: string | null;
   includeRemoteImages: boolean;
+  /** 掘金文章分类 id；空字符串表示还没选。 */
+  juejinCategoryId: string;
 }
 
-export type IssueField = 'title' | 'digest' | 'cover' | 'tags' | 'auth';
+export type IssueField = 'title' | 'digest' | 'cover' | 'tags' | 'category' | 'auth';
 export interface Issue {
   level: 'error' | 'warn';
   field: IssueField;
@@ -75,10 +77,11 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     selected: ['weixin'],
     socialThemeId: null,
     includeRemoteImages: true,
+    juejinCategoryId: '',
   };
 }
 
-const KNOWN_KEYS: Array<keyof PublishDraft> = ['title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages'];
+const KNOWN_KEYS: Array<keyof PublishDraft> = ['title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId'];
 
 /** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops）丢弃。 */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
@@ -137,6 +140,7 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
   if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover?.mode !== 'optional') err('cover', '缺封面');
   if (spec.tags?.required && v.tags.length === 0) err('tags', '缺标签');
   else if (spec.tags && v.tags.length > spec.tags.max) err('tags', `标签多 ${v.tags.length - spec.tags.max} 个`);
+  if (spec.category?.required && !draft.juejinCategoryId) err('category', '缺分类');
   return issues;
 }
 

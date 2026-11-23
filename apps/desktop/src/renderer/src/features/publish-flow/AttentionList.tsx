@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { PlatformId } from '@vcat/shared';
 import { renderXiaohongshuCards } from '@vcat/core';
+import { JUEJIN_CATEGORIES } from '@vcat/adapters';
 import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
 import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
 import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
 import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
 import { CardStrip } from './CardStrip';
+import { CategoryPicker } from './CategoryPicker';
 
 interface AttentionListProps {
   draft: PublishDraft;
@@ -118,6 +120,9 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
                 placeholder="回车添加"
               />
             </Field>
+          ) : null}
+          {spec.category && show('category') ? (
+            <CategoryPicker label={`${spec.short}分类`} options={JUEJIN_CATEGORIES} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
           ) : null}
           {show('cover') && !draft.coverUpload ? (
             <div className="flex items-center justify-between gap-4">

@@ -17,6 +17,8 @@ export interface AdapterPushPayload {
   tags: string[];
   mode: PublishMode;
   categoryId?: string;
+  /** 文章摘要（掘金 brief_content 等）。 */
+  digest?: string;
 }
 
 export interface AdapterPushResult {

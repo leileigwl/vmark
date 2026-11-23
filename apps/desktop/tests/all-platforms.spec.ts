@@ -107,11 +107,12 @@ test.describe('全平台：登录状态一致、逐平台适配与批量推送',
     }
     await expect(page.getByTestId('publish-start')).not.toHaveText(`推送到 ${ALL_PLATFORMS.length} 个草稿箱`);
 
-    // 3. 共用信息补齐标签与合规摘要（掘金 50–100 字）；“需要单独处理”只剩百家号标题、微博摘要和两个卡片平台
+    // 3. 共用信息补齐标签与合规摘要（掘金 50–100 字）；“需要单独处理”只剩百家号标题、微博摘要、掘金分类和两个卡片平台
     await page.locator('#pub-tags').fill('前端');
     await page.locator('#pub-tags').press('Enter');
     await page.locator('#pub-digest').fill('这是一篇用于验证多平台发布流程的测试文章，覆盖标题、摘要、标签和封面比例的适配，确保每个平台都能顺利进入草稿箱。');
-    await expect(page.getByTestId('attention-list').locator('li')).toHaveCount(4);
+    await expect(page.getByTestId('attention-list').locator('li')).toHaveCount(5);
+    await expect(page.getByTestId('attention-juejin')).toContainText('掘金：缺分类');
     await expect(page.getByTestId('attention-baijiahao')).toContainText('百家号：标题差 1 字');
     await expect(page.getByTestId('attention-weibo')).toContainText('微博：摘要超 12 字');
     await expect(page.getByTestId('attention-xiaohongshu')).toContainText('张卡片');
@@ -120,6 +121,8 @@ test.describe('全平台：登录状态一致、逐平台适配与批量推送',
     await page.locator('#t-baijiahao').fill('全平台分发测试短标题');
     await page.getByTestId('attention-weibo').getByRole('button', { expanded: false }).click();
     await page.locator('#d-weibo').fill('多平台发布流程测试');
+    await page.getByTestId('attention-juejin').getByRole('button', { expanded: false }).click();
+    await page.getByTestId('attention-juejin').getByRole('radio', { name: '前端' }).click();
     for (const id of ALL_PLATFORMS) {
       await expect(page.getByTestId(`platform-row-${id}`)).toContainText('就绪');
     }

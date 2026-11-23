@@ -80,3 +80,31 @@ for (const [mode, theme] of [
     await page.screenshot({ path: dir ? path.join(dir, `simplify-dialog-cards-${mode}.png`) : testInfo.outputPath(`simplify-dialog-cards-${mode}.png`) });
   });
 }
+
+for (const [mode, theme] of [
+  ['light', 'apple-light'],
+  ['dark', 'bloom-ink-dark'],
+] as const) {
+  test(`掘金缺分类（${mode}）：点开是一行分类选项，选中后就绪`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await setup(page, theme);
+    const dir = process.env.PW_SCREENSHOT_DIR;
+    const shot = (name: string) => page.screenshot({ path: dir ? path.join(dir, `${name}-${mode}.png`) : testInfo.outputPath(`${name}-${mode}.png`) });
+    await page.locator('#pub-digest').fill('这是一段专门为掘金准备的摘要，长度需要落在五十到一百字之间，所以这里多写几句，说明这篇文章讲的是多平台发布流程的设计与实现。');
+    await page.locator('#pub-tags').fill('前端');
+    await page.locator('#pub-tags').press('Enter');
+    const row = page.getByTestId('attention-juejin');
+    await expect(row).toContainText('掘金：缺分类');
+    await row.getByRole('button', { expanded: false }).click();
+    const group = row.getByRole('radiogroup', { name: '掘金分类' });
+    await expect(group.getByRole('radio')).toHaveCount(8);
+    await expect(group.getByRole('radio', { checked: true })).toHaveCount(0);
+    await expectNoOverflow(page);
+    await shot('juejin-category-missing');
+    await group.getByRole('radio', { name: '人工智能' }).click();
+    await expect(group.getByRole('radio', { name: '人工智能' })).toHaveAttribute('aria-checked', 'true');
+    await expect(row).toContainText('已就绪');
+    await expectNoOverflow(page);
+    await shot('juejin-category-picked');
+  });
+}

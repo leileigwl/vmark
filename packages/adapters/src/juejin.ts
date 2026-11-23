@@ -206,6 +206,32 @@ export class JuejinAdapter implements PlatformAdapter {
     return finalUrl;
   }
 
+  /**
+   * 标签名换成掘金 tag_id：POST tag_api/v1/query_tag_list 按关键词搜，名称完全相同的优先，否则取第一个结果；
+   * 搜不到或接口出错的标签跳过。掘金一篇最多 3 个标签。
+   */
+  async resolveTagIds(names: string[]): Promise<string[]> {
+    const ids: string[] = [];
+    for (const name of names) {
+      if (ids.length >= 3) break;
+      try {
+        const res = await this.fetchFn('https://api.juejin.cn/tag_api/v1/query_tag_list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Origin: 'https://juejin.cn', Referer: 'https://juejin.cn/' },
+          body: JSON.stringify({ cursor: '0', key_word: name, limit: 10, sort_type: 1 }),
+        });
+        if (!res.ok) continue;
+        const data = (await res.json()) as { err_no?: number; data?: Array<{ tag_id?: string; tag?: { tag_name?: string } }> };
+        const list = data.err_no === 0 && Array.isArray(data.data) ? data.data : [];
+        const hit = list.find((t) => t.tag?.tag_name === name) ?? list[0];
+        if (hit?.tag_id && !ids.includes(hit.tag_id)) ids.push(hit.tag_id);
+      } catch {
+        /* 单个标签查不到不影响存草稿 */
+      }
+    }
+    return ids;
+  }
+
   async push(payload: AdapterPushPayload): Promise<AdapterPushResult> {
     const csrfToken = await this.getCsrfToken();
     const headers: Record<string, string> = {
@@ -221,14 +247,14 @@ export class JuejinAdapter implements PlatformAdapter {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        brief_content: '',
+        brief_content: payload.digest?.trim() ?? '',
         category_id: payload.categoryId || '0',
         cover_image: '',
         edit_type: 10,
         html_content: 'deprecated',
         link_url: '',
         mark_content: payload.markdown,
-        tag_ids: [],
+        tag_ids: await this.resolveTagIds(payload.tags),
         title: payload.title,
       }),
     });
