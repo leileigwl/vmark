@@ -14,7 +14,7 @@ import { PublishResults } from './PublishResults';
 import { cropCover } from './coverCrop';
 import { runPublish, type RunRow } from './runPublish';
 import { usePublishDraft } from './usePublishDraft';
-import { selectPushable } from './platformSelection';
+import { allPushableSelected, togglePushable } from './platformSelection';
 
 interface PublishDialogProps {
   open: boolean;
@@ -127,7 +127,8 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
               onOpenBrowser={(id) => void auth.openDashboard(id)}
               checking={auth.snapshot.checking}
               onRefresh={() => void auth.refresh()}
-              onSelectPushable={() => update((d) => ({ selected: selectPushable(d.selected, auth.status) }))}
+              onSelectPushable={() => update((d) => ({ selected: togglePushable(d.selected, auth.status) }))}
+              allPushableSelected={allPushableSelected(draft.selected, auth.status)}
             />
           </aside>
           <main className="min-h-0 space-y-10 overflow-y-auto px-10 py-8">
