@@ -36,6 +36,7 @@ async function openEditor(page: Page, auth: Record<string, boolean>, md: string 
         readArticle: async () => md,
         saveArticle: async () => ({ ok: true }),
         saveStartupConfig: async () => ({ ok: true }),
+        saveLocalImage: async () => ({ relativeMarkdownPath: './assets/up.png', fullPath: '/tmp/vmark-pub-test/assets/up.png' }),
         setRecentFiles: () => {},
         onMenuAction: () => () => {},
         onPlatformAuthUpdated: () => () => {},
@@ -98,6 +99,7 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(page.locator('#pub-title')).toHaveValue('公众号标题：一篇关于多平台发布流程的长文测试');
     await expect(row(page, 'weixin').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
     await expect(row(page, 'weixin')).toContainText('就绪');
+    await expect(page.getByTestId('cover-field')).toContainText('默认：正文首图');
     await expect(page.getByTestId('attention-empty')).toBeVisible();
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
     await page.getByTestId('publish-start').click();
@@ -237,12 +239,44 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(await editor.innerHTML()).toBe(before);
   });
 
-  test('正文没有图片：公众号显示“缺封面”，推送按钮不可用', async ({ page }) => {
+  test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面', async ({ page }) => {
     await openEditor(page, { weixin: true }, '# 没有配图的文章\n\n只有文字。');
     await openPublish(page);
+    await expect(page.getByTestId('cover-field')).toContainText('正文没有图片');
     await expect(attention(page, 'weixin')).toContainText('公众号：缺封面');
-    await expect(row(page, 'weixin')).toContainText('差 1 项');
     await expect(page.getByTestId('publish-start')).toBeDisabled();
+    await attention(page, 'weixin').getByRole('button', { expanded: false }).click();
+    await expect(attention(page, 'weixin').getByRole('button', { name: '上传封面' })).toBeVisible();
+    await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+    await expect(page.getByAltText('2.35:1 封面预览')).toBeVisible();
+    await expect(page.getByAltText('1:1 封面预览')).toBeVisible();
+    await expect(row(page, 'weixin')).toContainText('就绪');
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
+    const calls = await callsOf(page);
+    expect(calls[0].coverImageUrl).toMatch(/assets\/up\.png$/);
+  });
+
+  test('上传封面后：知乎 16:9、小红书 3:4 作为第 1 张；移除后回到默认', async ({ page }) => {
+    await openEditor(page, { weixin: true, zhihu: true, xiaohongshu: true });
+    await openPublish(page);
+    await row(page, 'zhihu').getByRole('checkbox').click();
+    await row(page, 'xiaohongshu').getByRole('checkbox').click();
+    await expect(page.getByTestId('cover-field')).toContainText('默认：第一张卡 / 正文首图');
+    await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+    for (const r of ['2.35:1', '1:1', '16:9', '3:4']) await expect(page.getByAltText(`${r} 封面预览`)).toBeVisible();
+    await page.getByTestId('cover-field').getByRole('button', { name: '移除' }).click();
+    await expect(page.getByAltText('16:9 封面预览')).toHaveCount(0);
+    await expect(page.getByTestId('cover-field')).toContainText('默认：第一张卡 / 正文首图');
+    await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+    await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
+    await page.locator('#t-xiaohongshu').fill('多平台发布实测');
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
+    const calls = byPlatform(await callsOf(page));
+    expect(calls.zhihu.coverImageUrl).toMatch(/assets\/up\.png$/);
+    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
+    expect(calls.xiaohongshu.coverImageUrl).toBeUndefined();
   });
 
   test('小红书：卡片缩略图收在行里默认收起，展开后可切换模板', async ({ page }) => {

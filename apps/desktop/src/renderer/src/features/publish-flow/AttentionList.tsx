@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { PlatformId } from '@vcat/shared';
 import { renderXiaohongshuCards } from '@vcat/core';
-import { CheckCircle2, ChevronDown } from 'lucide-react';
-import { Field, Input, Textarea, Tooltip, cn } from '../../ui';
+import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
+import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
 import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
 import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
@@ -14,6 +14,7 @@ interface AttentionListProps {
   markdown: string;
   issuesOf: (id: PlatformId) => Issue[];
   onChange: (patch: Partial<PublishDraft> | ((d: PublishDraft) => Partial<PublishDraft>)) => void;
+  coverInputRef: RefObject<HTMLInputElement>;
 }
 
 const fieldIssues = (issues: Issue[]) => issues.filter((i) => i.level === 'error' && i.field !== 'auth');
@@ -25,7 +26,7 @@ interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   setOpen: (open: boolean) => void;
 }
 
-function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange }: RowProps) {
+function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, coverInputRef }: RowProps) {
   const v = resolveFor(draft, spec.id);
   const o = draft.overrides[spec.id] ?? {};
   const has = (f: Issue['field']) => issues.some((i) => i.field === f);
@@ -118,7 +119,15 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange }
               />
             </Field>
           ) : null}
-          {show('cover') && !draft.coverUpload ? <p className="text-xs text-muted">正文里没有图片，{spec.short}需要一张封面。</p> : null}
+          {show('cover') && !draft.coverUpload ? (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted">正文里没有图片，{spec.short}需要一张封面。</span>
+              <Button className="h-9" onClick={() => coverInputRef.current?.click()}>
+                <ImagePlus />
+                上传封面
+              </Button>
+            </div>
+          ) : null}
           {spec.kind === 'cards' ? (
             <div className="space-y-2">
               {draft.coverUpload ? <p className="text-xs text-muted">上传的封面会作为第 1 张图。</p> : null}
