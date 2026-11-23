@@ -231,11 +231,12 @@ test('Benchmark Publishing: verifies draft payload structures across authorized 
 
   // 6. Weixin Draft
   const weixinFetch: FetchLike = async (url) => {
-    if (url === 'https://mp.weixin.qq.com/') {
+    // 首页取 token，再带 token 复核后台首页（公众号 token 为纯数字）
+    if (url === 'https://mp.weixin.qq.com/' || url.includes('/cgi-bin/home?t=home/index')) {
       return {
         ok: true,
         status: 200,
-        text: async () => 'window.wx = { data: { t: "wx_tok_123" } };',
+        text: async () => 'window.wx = { data: { t: "1577889912" } };',
         json: async () => ({}),
       };
     }

@@ -26,10 +26,22 @@ export interface WeixinDraftPayload extends AdapterPushPayload {
 export type FetchLike = (input: string, init?: RequestInit) => Promise<{
   ok: boolean;
   status: number;
+  /** 跟随重定向后的最终地址（可选；能拿到时用来识别「被跳回登录页」）。 */
+  url?: string;
   headers?: { get: (name: string) => string | null };
   text: () => Promise<string>;
   json: () => Promise<unknown>;
 }>;
+
+/**
+ * 从公众号后台页面脚本 `window.wx = { data: { t: "<token>", ... } }` 里取 token。
+ * 只认 data 对象里独立的 `t` 键（前面是 `{`、`,` 或空白），值必须是纯数字（公众号 token 都是数字）；
+ * 旧写法 `data:\s*\{[\s\S]*?t:` 会跨键匹配到 `content: "..."` 这类键末尾的 `t:`，把登录页误判成已登录。
+ */
+export function parseWeixinToken(html: string): string | null {
+  const m = html.match(/data:\s*\{[^{}]*?(?:^|[{,\s])t\s*:\s*["'](\d+)["']/);
+  return m ? m[1] : null;
+}
 
 /** WeChat Official Account draft-box adapter following the 5-step observable contract. */
 export class WeixinAdapter implements PlatformAdapter {
@@ -55,30 +67,41 @@ export class WeixinAdapter implements PlatformAdapter {
   }
 
   async checkAuth(): Promise<boolean> {
+    this.meta = null;
     const res = await this.fetchFn('https://mp.weixin.qq.com/', {
       method: 'GET',
       credentials: 'include',
     });
     if (!res.ok) return false;
     const html = await res.text();
-    const tokenMatch = html.match(/data:\s*\{[\s\S]*?t:\s*["']([^"']+)["']/);
-    if (!tokenMatch) {
-      this.meta = null;
-      return false;
-    }
+    const token = parseWeixinToken(html);
+    if (!token) return false;
+    // cookie 还在、首页也像有 token 不代表会话有效：带 token 打开后台首页，
+    // 会话失效时会被跳回登录页（最终地址不再带这个 token，页面里也取不到同一个 token）。
+    if (!(await this.confirmToken(token))) return false;
     const ticketMatch = html.match(/ticket:\s*["']([^"']+)["']/);
     const userNameMatch = html.match(/user_name:\s*["']([^"']+)["']/);
     const nickNameMatch = html.match(/nick_name:\s*["']([^"']+)["']/);
     const timeMatch = html.match(/time:\s*["'](\d+)["']/);
 
     this.meta = {
-      token: tokenMatch[1],
+      token,
       userName: userNameMatch?.[1] ?? '',
       nickName: nickNameMatch?.[1] ?? '',
       ticket: ticketMatch?.[1] ?? '',
       svrTime: timeMatch ? Number(timeMatch[1]) : Math.floor(Date.now() / 1000),
     };
     return true;
+  }
+
+  private async confirmToken(token: string): Promise<boolean> {
+    const res = await this.fetchFn(
+      `https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=${encodeURIComponent(token)}`,
+      { method: 'GET', credentials: 'include' }
+    );
+    if (!res.ok) return false;
+    if (res.url && !res.url.includes(`token=${token}`)) return false;
+    return parseWeixinToken(await res.text()) === token;
   }
 
   async uploadImage(buffer: Buffer, fileName: string): Promise<string> {
@@ -168,8 +191,9 @@ export class WeixinAdapter implements PlatformAdapter {
       base_resp?: { ret?: number; err_msg?: string };
     };
 
-    if (!res.appMsgId) {
-      throw new Error(`微信草稿保存失败: ${res.base_resp?.err_msg || `ret=${res.ret ?? res.base_resp?.ret}`}`);
+    const ret = res.base_resp?.ret ?? res.ret;
+    if (!res.appMsgId || (typeof ret === 'number' && ret !== 0)) {
+      throw new Error(`微信草稿保存失败: ${res.base_resp?.err_msg || `ret=${ret}`}`);
     }
 
     const draftUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=77&appmsgid=${res.appMsgId}&token=${this.meta.token}&lang=zh_CN`;
@@ -187,6 +211,7 @@ export class WeixinAdapter implements PlatformAdapter {
     if (!postId || !this.meta) return false;
     const url = `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=77&appmsgid=${encodeURIComponent(postId)}&token=${encodeURIComponent(this.meta.token)}&lang=zh_CN`;
     const res = await this.fetchFn(url, { method: 'GET', credentials: 'include' });
-    return res.ok;
+    // 被跳回登录页（最终地址不再指向这篇草稿）不算送达
+    return res.ok && (!res.url || res.url.includes(`appmsgid=${postId}`));
   }
 }

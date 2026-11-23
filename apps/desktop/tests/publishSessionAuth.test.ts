@@ -143,3 +143,28 @@ test('verifyPlatformAuth validates live API for linuxdo, weibo, xiaohongshu, and
   );
   assert.equal(await verifyPlatformAuth({ session: xhsCreatorSession, platformId: 'xiaohongshu', getAppConfig: dummyConfig }), true);
 });
+
+test('verifyPlatformAuth weixin: 过期会话（slave_user/slave_sid 仍在，首页是扫码登录页）判为未登录', async () => {
+  const loginPage = `<script>window.wx = { data: { uin: "", t: "", lang: "zh_CN" } };
+var loginConf = { content: "使用账号登录", redirect_url: "/cgi-bin/home" };</script>`;
+  const staleSession = {
+    fromPartition() {
+      return {
+        cookies: {
+          async get() {
+            return [
+              { name: 'slave_user', value: 'gh_stale', domain: 'mp.weixin.qq.com' },
+              { name: 'slave_sid', value: 'stale_sid', domain: 'mp.weixin.qq.com' },
+            ];
+          },
+        },
+        async fetch() {
+          return { ok: true, status: 200, url: 'https://mp.weixin.qq.com/', headers: new Headers(), text: async () => loginPage, json: async () => ({}) };
+        },
+      };
+    },
+  } as unknown as typeof Electron.session;
+
+  assert.equal(await hasSessionAuthCookies(staleSession, 'weixin'), true, 'cookie 还在，所以只看 cookie 会误判');
+  assert.equal(await verifyPlatformAuth({ session: staleSession, platformId: 'weixin', getAppConfig: dummyConfig }), false);
+});
