@@ -121,7 +121,8 @@ test.describe('Phase 2 PublishModal & WeChat Preview E2E', () => {
     const xhsPreview = page.getByTestId('xiaohongshu-preview');
     await expect(xhsPreview).toContainText('公众号标题');
     await expect(xhsPreview).toContainText('‹ 备忘录');
-    await expect(xhsPreview).toContainText('微信公众号：草稿箱');
+    // 卡片分块解析（#45）后表格按行转成要点：首列作行名，其余列写成「列名：值」
+    await expect(xhsPreview).toContainText('微信公众号：模式：草稿箱');
     await expect(xhsPreview).not.toContainText('| :--- |');
     await expect(xhsPreview).toHaveAttribute('data-theme-id', 'ios-memo');
     await expect(xhsPreview).toHaveAttribute('data-cover-ratio', '3:4');
