@@ -70,7 +70,6 @@ export class InternalBrowserManager {
   private activeWindow: BrowserWindow | null = null;
   private activeToolbarView: WebContentsView | null = null;
   private activeSiteView: WebContentsView | null = null;
-  private cleanupActiveSite: (() => void) | null = null;
 
   /**
    * Opens the single Vmark login window for one platform: a unified top bar (platform name, 「登录完成」, close)
@@ -111,11 +110,23 @@ export class InternalBrowserManager {
       toolbarView.setBounds({ x: 0, y: 0, width, height: TOOLBAR_HEIGHT });
       this.activeSiteView?.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width, height: Math.max(0, height - TOOLBAR_HEIGHT) });
     };
+    const keepTitle = (e: Electron.Event) => e.preventDefault();
     win.on('resize', layoutViews);
-    win.on('page-title-updated', (e) => e.preventDefault());
-    win.on('close', () => {
-      this.cleanupActiveSite?.();
-      this.cleanupActiveSite = null;
+    win.on('page-title-updated', keepTitle);
+    // 本窗口自己的释放清单（不挂在 manager 上：换平台时旧窗口的 closed 可能晚于新窗口创建，不能误清新窗口）。
+    const disposers: Array<() => void> = [];
+    let siteView: WebContentsView | null = null;
+    // 'closed' 对用户点关闭（close→closed）和 win.destroy()（只发 closed）都会触发；'close' 对 destroy() 不触发。
+    win.once('closed', () => {
+      for (const dispose of disposers.splice(0)) dispose();
+      win.off('resize', layoutViews);
+      win.off('page-title-updated', keepTitle);
+      // WebContentsView 的 webContents 不会随窗口销毁，必须显式 close()，否则渲染进程和内存残留。
+      for (const view of [siteView, toolbarView]) {
+        if (!view) continue;
+        if (!win.isDestroyed()) win.contentView.removeChildView(view);
+        if (!view.webContents.isDestroyed()) view.webContents.close();
+      }
       if (this.activeWindow === win) {
         this.activeSiteView = null;
         this.activeToolbarView = null;
@@ -130,6 +141,10 @@ export class InternalBrowserManager {
         .catch(() => {});
     };
     let closing = false;
+    let closeTimer: NodeJS.Timeout | null = null;
+    disposers.push(() => {
+      if (closeTimer) clearTimeout(closeTimer);
+    });
     const handleAuth = async (trigger: 'cookie' | 'done') => {
       if (closing || win.isDestroyed()) return;
       const signedIn = await verify();
@@ -138,7 +153,7 @@ export class InternalBrowserManager {
       if (action.status) setStatus(action.status);
       if (action.close) {
         closing = true;
-        setTimeout(() => {
+        closeTimer = setTimeout(() => {
           if (!win.isDestroyed()) win.destroy();
         }, action.status ? 600 : 0);
       }
@@ -147,19 +162,21 @@ export class InternalBrowserManager {
     void toolbarView.webContents.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(buildLoginBarHtml({ platformId, signedInAtOpen, appTheme }))}`
     );
-    toolbarView.webContents.on('will-navigate', (event, targetUrl) => {
+    const onToolbarNavigate = (event: Electron.Event, targetUrl: string) => {
       if (!targetUrl.startsWith('vmark-nav://')) return;
       event.preventDefault();
-      const siteWc = this.activeSiteView?.webContents;
+      const siteWc = siteView?.webContents;
       if (targetUrl === 'vmark-nav://back' && siteWc?.canGoBack()) siteWc.goBack();
       else if (targetUrl === 'vmark-nav://reload') siteWc?.reload();
       else if (targetUrl === 'vmark-nav://done') void handleAuth('done');
       else if (targetUrl === 'vmark-nav://close' && !win.isDestroyed()) win.destroy();
-    });
+    };
+    toolbarView.webContents.on('will-navigate', onToolbarNavigate);
+    disposers.push(() => toolbarView.webContents.off('will-navigate', onToolbarNavigate));
 
     const partition = `persist:platform_${platformId}`;
     attachInternalBrowserStealth(targetSession, partition);
-    const siteView = new WebContentsView({
+    siteView = new WebContentsView({
       webPreferences: {
         partition,
         preload: getStealthPreloadPath(),
@@ -168,24 +185,31 @@ export class InternalBrowserManager {
         nodeIntegration: false,
       },
     });
+    const siteWc = siteView.webContents;
     siteView.setBackgroundColor('#ffffff');
     this.activeSiteView = siteView;
     win.contentView.addChildView(siteView);
     layoutViews();
 
-    siteView.webContents.setUserAgent(CHROME_DESKTOP_UA);
+    siteWc.setUserAgent(CHROME_DESKTOP_UA);
     // Keep target=_blank / window.open links inside the same view so no unclosable popups spawn
-    siteView.webContents.setWindowOpenHandler((details) => {
-      if (details.url) void siteView.webContents.loadURL(details.url);
+    siteWc.setWindowOpenHandler((details) => {
+      if (details.url) void siteWc.loadURL(details.url);
       return { action: 'deny' };
     });
     // Prevent editor pages' beforeunload prompts from blocking the close button
-    siteView.webContents.on('will-prevent-unload', (event) => event.preventDefault());
-    siteView.webContents.on('did-fail-load', (_ev, errorCode, errorDescription, validatedURL) => {
+    const allowUnload = (event: Electron.Event) => event.preventDefault();
+    const onFailLoad = (_ev: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string) => {
       if (errorCode === -3) return;
-      void siteView.webContents.loadURL(
+      void siteWc.loadURL(
         `data:text/html;charset=utf-8,${encodeURIComponent(buildLoadErrorHtml(errorCode, errorDescription, validatedURL))}`
       );
+    };
+    siteWc.on('will-prevent-unload', allowUnload);
+    siteWc.on('did-fail-load', onFailLoad);
+    disposers.push(() => {
+      siteWc.off('will-prevent-unload', allowUnload);
+      siteWc.off('did-fail-load', onFailLoad);
     });
 
     let authCheckTimer: NodeJS.Timeout | null = null;
@@ -197,12 +221,13 @@ export class InternalBrowserManager {
       }, 1500);
     };
     targetSession.cookies.on('changed', cookieListener);
-    this.cleanupActiveSite = () => {
+    disposers.push(() => {
       if (authCheckTimer) clearTimeout(authCheckTimer);
+      authCheckTimer = null;
       targetSession.cookies.removeListener('changed', cookieListener);
-    };
+    });
 
-    void siteView.webContents.loadURL(loginUrl).catch(() => {});
+    void siteWc.loadURL(loginUrl).catch(() => {});
 
     return new Promise<boolean>((resolve) => {
       win.once('closed', () => {
