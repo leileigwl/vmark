@@ -18,6 +18,7 @@ import {
   type ArticleOpsCtx,
 } from './articleOps';
 import { executeRedoOp, executeUndoOp, type FileHistoryOp } from './fileHistory';
+import { useSaveBaseline } from './saveBaseline';
 
 export type { FileHistoryOp };
 
@@ -69,6 +70,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
   const loadingArticleRef = useRef(false);
   /** Content last read from or written to disk for the article in the editor. */
   const persistedContentRef = useRef<string | null>(null);
+  const baseline = useSaveBaseline(editorRef, loadSeq);
   const undoFileOpRef = useRef<() => Promise<void>>(async () => {});
   const redoFileOpRef = useRef<() => Promise<void>>(async () => {});
 
@@ -141,10 +143,12 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
   function flushActiveArticle() {
     if (!activeArticle || loadingArticleRef.current) return;
     const current = editorRef.current?.getValue();
-    if (current === undefined || current === persistedContentRef.current) return;
+    if (current === undefined) return;
     if (activeArticle.wordCount > 20 && current.trim().length === 0) return;
-    persistedContentRef.current = current;
-    void window.electronAPI.saveArticle(activeArticle.relativePath, current);
+    const next = baseline.contentForDisk(persistedContentRef.current, current);
+    if (next === persistedContentRef.current) return;
+    persistedContentRef.current = next;
+    void window.electronAPI.saveArticle(activeArticle.relativePath, next);
   }
 
   async function refreshWorkspace() {
@@ -204,9 +208,11 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     if (silent && activeArticle.wordCount > 20 && nextContent.trim().length === 0) return;
     if (!silent) setSaveState('保存中...');
     const reqId = openRequestIdRef.current;
-    await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
+    const toWrite = baseline.contentForDisk(persistedContentRef.current, nextContent);
+    await window.electronAPI.saveArticle(activeArticle.relativePath, toWrite);
     if (reqId !== openRequestIdRef.current) return;
-    persistedContentRef.current = nextContent;
+    persistedContentRef.current = toWrite;
+    baseline.markSaved(nextContent);
     // Input typed while the save was in flight must stay 未保存, or it is never saved.
     const latest = editorRef.current?.getValue();
     setSaveState(latest === undefined || latest === nextContent ? '已保存' : '未保存');

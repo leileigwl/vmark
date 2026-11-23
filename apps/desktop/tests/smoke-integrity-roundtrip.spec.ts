@@ -43,31 +43,9 @@ const UNTOUCHED: Record<string, string> = {
   '缩进代码块': '    缩进代码\n    第二行\n',
 };
 
-/**
- * 已知失败（preview/latest 4b7aa55 实测）：⌘S 把编辑器规范化后的 Markdown 整篇写回，
- * 改写了用户没碰过的地方（缩进代码块甚至整段被删成空行）。修复见 stacked PR 分支
- * fix/integrity-preserve-save；修复合入后这里的 test.fail 必须改回 test，否则会因「意外通过」报错。
- */
-const KNOWN_FAIL_UNTOUCHED = new Set([
-  '没有结尾换行',
-  '结尾两个换行',
-  '表格（--- 分隔行）',
-  '紧凑表格',
-  '对齐表格',
-  'Front Matter 后的空行',
-  'CRLF 换行',
-  '中文 + emoji 混排（不许自动加空格）',
-  'Setext 标题',
-  '行尾两个空格硬换行',
-  '多个连续空行',
-  '*** 分割线',
-  '缩进代码块',
-]);
-
 test.describe('@smoke 数据完整性 A1：打开后直接保存，文件逐字节不变', () => {
   for (const [name, content] of Object.entries(UNTOUCHED)) {
-    const run = KNOWN_FAIL_UNTOUCHED.has(name) ? test.fail : test;
-    run(`${name}`, async ({ page }) => {
+    test(`${name}`, async ({ page }) => {
       await installMockWorkspace(page, { files: { 'a.md': content } });
       await openEditor(page);
       expect(await saveAndRead(page)).toBe(content);
@@ -77,9 +55,8 @@ test.describe('@smoke 数据完整性 A1：打开后直接保存，文件逐字�
 
 const MIXED = '# 标题\n\n第一段文字。\n\n- [ ] 任务\n- 列表项\n\n```js\nconst a = 1;\n```\n\n> 引用\n';
 
-// 已知失败（同上，修复见 fix/integrity-preserve-save）：任务项后紧跟普通列表项时，任何一次编辑都会在两者之间多插一个空行。
 test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输入的内容', () => {
-  test.fail('段落中间输入英文，其余逐字节不变', async ({ page }) => {
+  test('段落中间输入英文，其余逐字节不变', async ({ page }) => {
     await installMockWorkspace(page, { files: { 'a.md': MIXED } });
     await openEditor(page);
     await caretAt(page, '第一段');
@@ -88,7 +65,7 @@ test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输�
     await shot(page, 'A2-type-middle');
   });
 
-  test.fail('列表项末尾输入中文与 emoji，不丢前一个字、不多空格', async ({ page }) => {
+  test('列表项末尾输入中文与 emoji，不丢前一个字、不多空格', async ({ page }) => {
     await installMockWorkspace(page, { files: { 'a.md': MIXED } });
     await openEditor(page);
     await caretAt(page, '列表项');
@@ -105,7 +82,7 @@ test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输�
     expect(await saveAndRead(page)).toBe(`开头${burst}\n`);
   });
 
-  test.fail('代码块里输入，代码块外的内容与围栏不变', async ({ page }) => {
+  test('代码块里输入，代码块外的内容与围栏不变', async ({ page }) => {
     await installMockWorkspace(page, { files: { 'a.md': MIXED } });
     await openEditor(page);
     await caretAt(page, 'const a = 1;');
@@ -113,7 +90,7 @@ test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输�
     expect(await saveAndRead(page)).toBe(MIXED.replace('const a = 1;', 'const a = 1; // 注释'));
   });
 
-  test.fail('Backspace 删除一个字，只少这一个字', async ({ page }) => {
+  test('Backspace 删除一个字，只少这一个字', async ({ page }) => {
     await installMockWorkspace(page, { files: { 'a.md': MIXED } });
     await openEditor(page);
     await caretAt(page, '第一段文字');
@@ -121,7 +98,15 @@ test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输�
     expect(await saveAndRead(page)).toBe(MIXED.replace('第一段文字。', '第一段文。'));
   });
 
-  test.fail('自动保存（不按 ⌘S）写下的内容同样精确', async ({ page }) => {
+  test('含图标 emoji 的行里输入：不偷偷补 U+FE0F、不在图标后加空格', async ({ page }) => {
+    await installMockWorkspace(page, { files: { 'a.md': '⚠注意事项\n\n✔完成😀开心\n' } });
+    await openEditor(page);
+    await caretAt(page, '开心');
+    await page.keyboard.type('啊');
+    expect(await saveAndRead(page)).toBe('⚠注意事项\n\n✔完成😀开心啊\n');
+  });
+
+  test('自动保存（不按 ⌘S）写下的内容同样精确', async ({ page }) => {
     await installMockWorkspace(page, { files: { 'a.md': MIXED } });
     await openEditor(page);
     await caretAt(page, '引用');
@@ -129,5 +114,40 @@ test.describe('@smoke 数据完整性 A2：编辑后保存，只多出用户输�
     await expect.poll(async () => (await getCalls(page, 'saveArticle')).length, { timeout: 5000 }).toBeGreaterThan(0);
     const calls = await getCalls(page, 'saveArticle');
     expect(calls[calls.length - 1].args[1]).toBe(MIXED.replace('> 引用\n', '> 引用续\n'));
+  });
+});
+
+/** 文中含有编辑器会「规范化」的写法：编辑别处时，这些写法必须原样保留，只有编辑的那一行变化。 */
+const QUIRKY =
+  '---\ntitle: 测试\n---\n\n# 标题\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n行一  \n行二\n\n***\n\n    缩进代码\n\n- [ ] 任务\n- 列表项\n\n结尾段落。\n';
+
+test.describe('@smoke 数据完整性 A3：编辑一处，其余写法逐字节保留', () => {
+  test('文末段落输入：表格分隔行、硬换行空格、*** 分割线、缩进代码块、front matter 空行全部不变', async ({ page }) => {
+    await installMockWorkspace(page, { files: { 'a.md': QUIRKY } });
+    await openEditor(page);
+    await caretAt(page, '结尾段落');
+    await page.keyboard.type('新增');
+    expect(await saveAndRead(page)).toBe(QUIRKY.replace('结尾段落。', '结尾段落新增。'));
+    await shot(page, 'A3-quirky-edit');
+  });
+
+  test('CRLF 文件里编辑：换行符仍是 CRLF，只改这一行', async ({ page }) => {
+    const crlf = '第一行\r\n\r\n第二行\r\n';
+    await installMockWorkspace(page, { files: { 'a.md': crlf } });
+    await openEditor(page);
+    await caretAt(page, '第二行');
+    await page.keyboard.type('改');
+    expect(await saveAndRead(page)).toBe('第一行\r\n\r\n第二行改\r\n');
+  });
+
+  test('连续两次保存：第二次编辑也只改那一处', async ({ page }) => {
+    await installMockWorkspace(page, { files: { 'a.md': QUIRKY } });
+    await openEditor(page);
+    await caretAt(page, '结尾段落');
+    await page.keyboard.type('一');
+    expect(await saveAndRead(page)).toBe(QUIRKY.replace('结尾段落。', '结尾段落一。'));
+    await caretAt(page, '# 标题'.slice(2));
+    await page.keyboard.type('二');
+    expect(await saveAndRead(page)).toBe(QUIRKY.replace('结尾段落。', '结尾段落一。').replace('# 标题', '# 标题二'));
   });
 });
