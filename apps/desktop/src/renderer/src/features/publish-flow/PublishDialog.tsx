@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
 import { usePlatformAuth } from '../platform-auth';
@@ -12,6 +12,7 @@ import { PublishResults } from './PublishResults';
 import { cropCover } from './coverCrop';
 import { runPublish, type RunRow } from './runPublish';
 import { usePublishDraft } from './usePublishDraft';
+import { selectPushable } from './platformSelection';
 
 interface PublishDialogProps {
   open: boolean;
@@ -26,6 +27,11 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   const { draft, update, bodyImage } = usePublishDraft(activeArticle, markdown);
   const [rows, setRows] = useState<RunRow[] | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const { refresh } = auth;
+  // 每次打开发布弹窗都全量检测一次登录状态（各平台结果回来就各自更新）。
+  useEffect(() => {
+    if (open) void refresh();
+  }, [open, refresh]);
 
   const issuesOf = (id: PlatformId): Issue[] => {
     const spec = SPEC_BY_ID[id];
@@ -104,7 +110,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
           />
         </div>
       ) : (
-        <div className="grid h-full grid-cols-[272px_1fr]">
+        <div className="grid h-full grid-cols-[300px_1fr]">
           <aside className="min-h-0 border-r border-line bg-surface">
             <PlatformList
               selected={draft.selected}
@@ -115,6 +121,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
               onOpenBrowser={(id) => void auth.openDashboard(id)}
               checking={auth.snapshot.checking}
               onRefresh={() => void auth.refresh()}
+              onSelectPushable={() => update((d) => ({ selected: selectPushable(d.selected, auth.status) }))}
             />
           </aside>
           <main className="min-h-0 space-y-7 overflow-y-auto px-8 py-6">
