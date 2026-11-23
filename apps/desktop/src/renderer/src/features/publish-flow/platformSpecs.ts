@@ -58,18 +58,75 @@ export const SPEC_BY_ID = Object.fromEntries(PLATFORM_SPECS.map((s) => [s.id, s]
 
 export const RATIO_VALUE: Record<CoverRatio, number> = { '2.35:1': 2.35, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1 };
 
-const COVER_RULE: Record<CoverMode, string> = {
-  weixin: '封面 2.35:1（列表）+ 1:1（转发），默认正文首图',
-  card: '第一张卡片即封面 3:4',
-  required: '封面 16:9 必填，默认正文首图',
-  optional: '封面 16:9 可选',
+/**
+ * 各封面用法的说明：未上传封面时逐平台列出，也用在平台悬停提示里。
+ * 比例取自 spec.cover.ratios，这里只给每个比例在信息流里的叫法。
+ */
+const COVER_GUIDE: Record<CoverMode, { required: boolean; label: Partial<Record<CoverRatio, string>>; fallback: string }> = {
+  weixin: { required: false, label: { '2.35:1': '列表大图', '1:1': '转发小图' }, fallback: '不传用正文首图自动裁' },
+  optional: { required: false, label: { '16:9': '列表右侧小图' }, fallback: '不传就不放' },
+  required: { required: true, label: {}, fallback: '不传用正文首图' },
+  card: { required: false, label: { '3:4': '第一张卡片就是封面' }, fallback: '传了插到卡片最前' },
 };
+
+/** 比例旁的悬停提示：比例来自各平台常见显示方式。 */
+export const COVER_RATIO_HINT = '按平台常见显示方式，未逐个后台核对';
+
+export interface CoverGuide {
+  mode: CoverMode;
+  required: boolean;
+  slots: Array<{ ratio: CoverRatio; label: string }>;
+  fallback: string;
+  /** 不传就没有封面可用、会挡住推送（正文没图且平台要用正文首图）。 */
+  needUpload: boolean;
+}
+
+/** 某平台“要不要封面、什么比例、不传会怎样”。没有封面项的平台（博客园、GitHub 博客）返回 null。 */
+export function coverGuide(spec: PlatformSpec, bodyImage: string): CoverGuide | null {
+  if (!spec.cover) return null;
+  const g = COVER_GUIDE[spec.cover.mode];
+  const usesBody = spec.cover.mode === 'weixin' || spec.cover.mode === 'required';
+  return {
+    mode: spec.cover.mode,
+    required: g.required,
+    slots: spec.cover.ratios.map((ratio) => ({ ratio, label: g.label[ratio] ?? '' })),
+    fallback: g.fallback,
+    needUpload: usesBody && !bodyImage,
+  };
+}
+
+export interface CoverGuideLine extends CoverGuide {
+  ids: PlatformId[];
+  names: string[];
+}
+
+/** 已勾选平台的封面指引，同一用法的平台合成一行（如“百家号、微博：必需 · 16:9”），按平台列表顺序。 */
+export function coverGuideLines(specs: PlatformSpec[], bodyImage: string): CoverGuideLine[] {
+  const lines: CoverGuideLine[] = [];
+  for (const spec of specs) {
+    const g = coverGuide(spec, bodyImage);
+    if (!g) continue;
+    const same = lines.find((l) => l.mode === g.mode);
+    if (same) {
+      same.ids.push(spec.id);
+      same.names.push(spec.short);
+    } else lines.push({ ...g, ids: [spec.id], names: [spec.short] });
+  }
+  return lines;
+}
+
+function coverRule(spec: PlatformSpec): string {
+  const g = coverGuide(spec, 'x');
+  if (!g) return '';
+  const slots = g.slots.map((s) => (s.label ? `${s.label} ${s.ratio}` : s.ratio)).join(' + ');
+  return `封面${g.required ? '必需' : '可选'} ${slots}，${g.fallback}`;
+}
 
 /** 平台规则的一句话说明，放在悬停提示里，不占版面。 */
 export function requirementText(spec: PlatformSpec): string {
   const r = [`标题 ${spec.title.min ? `${spec.title.min}–` : '≤ '}${spec.title.max} 字`];
   if (spec.digest) r.push(`摘要${spec.digest.required ? '必填' : ''} ${spec.digest.min ? `${spec.digest.min}–` : '≤ '}${spec.digest.max} 字`);
-  if (spec.cover) r.push(COVER_RULE[spec.cover.mode]);
+  if (spec.cover) r.push(coverRule(spec));
   if (spec.tags) r.push(`标签${spec.tags.required ? '必填' : ''}最多 ${spec.tags.max} 个`);
   if (spec.category) r.push(`分类${spec.category.required ? '必选' : '可选'}`);
   if (spec.maxCards) r.push(`最多 ${spec.maxCards} 张图`);

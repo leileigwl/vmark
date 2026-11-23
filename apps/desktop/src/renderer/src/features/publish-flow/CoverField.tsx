@@ -1,8 +1,8 @@
 import { useState, type RefObject } from 'react';
 import { ImagePlus } from 'lucide-react';
-import { Button, Tooltip } from '../../ui';
+import { Button, Tooltip, cn } from '../../ui';
 import { importLocalImage, previewSrc } from './coverCrop';
-import { RATIO_VALUE, type CoverRatio, type PlatformSpec } from './platformSpecs';
+import { COVER_RATIO_HINT, RATIO_VALUE, coverGuideLines, type CoverRatio, type PlatformSpec } from './platformSpecs';
 import type { PublishDraft } from './draftModel';
 
 interface CoverFieldProps {
@@ -15,12 +15,34 @@ interface CoverFieldProps {
   inputRef: RefObject<HTMLInputElement>;
 }
 
-/** 没上传时说明各平台默认用什么。 */
-function defaultText(specs: PlatformSpec[], bodyImage: string): string {
-  const parts: string[] = [];
-  if (specs.some((s) => s.cover?.mode === 'card')) parts.push('第一张卡');
-  if (specs.some((s) => s.cover?.mode === 'weixin' || s.cover?.mode === 'required')) parts.push(bodyImage ? '正文首图' : '正文没有图片，需上传');
-  return parts.length ? `默认：${parts.join(' / ')}` : '默认：不设封面';
+/** 没上传时逐个列出已勾选平台：要不要封面、什么比例、不传会怎样（同一用法的平台合成一行）。 */
+function CoverGuideList({ specs, bodyImage }: { specs: PlatformSpec[]; bodyImage: string }) {
+  const lines = coverGuideLines(specs, bodyImage);
+  return (
+    <ul className="mt-1 space-y-0.5 text-xs text-muted" data-testid="cover-guide">
+      {lines.map((l) => (
+        <li key={l.mode} data-testid={`cover-guide-${l.mode}`} className="leading-5">
+          <span className="text-ink">{l.names.join('、')}</span>：
+          <span className={cn(l.required && 'font-medium text-ink')}>{l.required ? '必需' : '可选'}</span>
+          {' · '}
+          {l.slots.map((s, i) => (
+            <span key={s.ratio}>
+              {i ? ' + ' : ''}
+              {s.label ? `${s.label} ` : ''}
+              <Tooltip content={COVER_RATIO_HINT}>
+                <span className="cursor-help underline decoration-dotted underline-offset-2" data-testid="cover-ratio">
+                  {s.ratio}
+                </span>
+              </Tooltip>
+            </span>
+          ))}
+          {' · '}
+          {l.fallback}
+          {l.needUpload ? <span className="ml-1 font-medium text-danger">正文无图，需上传</span> : null}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** 封面：唯一入口“上传封面”。上传后点图设焦点，按焦点生成各平台需要的比例。 */
@@ -48,10 +70,10 @@ export function CoverField({ draft, specs, bodyImage, onChange, inputRef: fileRe
 
   return (
     <div className="space-y-3" data-testid="cover-field">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-xs font-medium text-ink">封面</div>
-          {!src ? <div className="mt-1 text-xs text-muted">{defaultText(specs, bodyImage)}</div> : null}
+          {!src ? <CoverGuideList specs={specs} bodyImage={bodyImage} /> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {src ? (
