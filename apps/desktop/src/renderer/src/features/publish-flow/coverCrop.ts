@@ -1,4 +1,4 @@
-import { RATIO_VALUE, type CoverRatio } from './platformSpecs';
+import { RATIO_VALUE, type CoverRatio } from './platformSpecs.ts';
 
 const OUTPUT_WIDTH: Record<CoverRatio, number> = { '2.35:1': 1080, '16:9': 1280, '3:4': 1080, '1:1': 1080 };
 
