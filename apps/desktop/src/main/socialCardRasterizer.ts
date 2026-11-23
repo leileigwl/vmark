@@ -9,6 +9,7 @@ import {
   type PlatformCoverRatio,
 } from '@vcat/core';
 import { resolveCardImageSources } from './socialCardImageBase.ts';
+import { getCardMathRenderer } from './socialCardMath.ts';
 
 export interface GenerateSocialCardsParams {
   markdown: string;
@@ -86,6 +87,8 @@ export async function rasterizeSocialCards(
   }
 
   const imagePaths: string[] = [];
+  // 公式用 KaTeX 排版；加载失败时退回 Unicode 近似，不影响出图
+  const math = await getCardMathRenderer().catch(() => undefined);
 
   try {
     for (let i = 0; i < cardSections.length; i++) {
@@ -96,9 +99,14 @@ export async function rasterizeSocialCards(
         cardIndex: i,
         totalCards: cardSections.length,
         brandName,
+        math,
       });
 
       await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      if (html.includes('class="katex')) {
+        // KaTeX 字体从本地文件加载，截图前等字体就绪
+        await win.webContents.executeJavaScript?.('document.fonts.ready.then(() => true)');
+      }
       // Wait a tick for web font rendering and layout stabilization
       await sleep(150);
 
