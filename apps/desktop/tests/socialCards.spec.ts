@@ -119,3 +119,17 @@ test.describe('公式卡片', () => {
     await expect.poll(katexFontLoaded).toBe(true);
   });
 });
+
+test.describe('卡片模板', () => {
+  for (const [name, id] of [['方格手账', 'grid-notebook'], ['便利贴', 'sticky-note']]) {
+    test(`可切换到「${name}」模板，缩略图按该模板渲染`, async ({ page }, testInfo) => {
+      await openWithMarkdown(page, SHORT_MD);
+      const chip = page.getByRole('radiogroup', { name: '卡片模板' }).getByRole('radio', { name });
+      await chip.click();
+      await expect(chip).toHaveAttribute('aria-checked', 'true');
+      const frame = (await (await page.locator('iframe[title="卡片 2"]').elementHandle())!.contentFrame())!;
+      await expect.poll(() => frame.evaluate(() => document.body.dataset.template)).toBe(id);
+      await snap(page, testInfo, `card-template-${id}`);
+    });
+  }
+});
