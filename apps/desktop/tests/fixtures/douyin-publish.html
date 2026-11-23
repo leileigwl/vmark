@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- 抖音图文发布页的离线夹具：结构按公开开源项目记录的 DOM 模拟（见 docs/platform-rules-todo.md），不是真实页面。 -->
+<html><body>
+<div class="tabs"><div class="tab-item">发布视频</div><div class="tab-item" id="tab-image">发布图文</div></div>
+<div class="container-abc" id="upload" style="display:none"><input type="file" accept="image/png,image/jpeg,image/webp" multiple></div>
+<div id="editor" style="display:none">
+  <div class="img-list-x"></div>
+  <input placeholder="填写作品标题，为作品获得更多流量">
+  <div class="zone-container editor-kit-container" contenteditable="true"><div><br></div></div>
+  <button id="save">暂存离开</button>
+</div>
+<script>
+  window.__saved = null;
+  const list = document.querySelector('.img-list-x');
+  document.getElementById('tab-image').onclick = () => { document.getElementById('upload').style.display = 'block'; };
+  document.querySelector('#upload input').addEventListener('change', (e) => {
+    document.getElementById('editor').style.display = 'block';
+    [...e.target.files].forEach((f, i) => setTimeout(() => {
+      const d = document.createElement('div'); d.className = 'img-container-1'; const img = document.createElement('img'); img.alt = f.name; d.appendChild(img); list.appendChild(d);
+    }, 100 * (i + 1)));
+  });
+  document.getElementById('save').onclick = () => {
+    window.__saved = {
+      title: document.querySelector('input[placeholder*="作品标题"]').value,
+      body: document.querySelector('.zone-container').innerText,
+      thumbs: [...document.querySelectorAll('[class*="img-container"] img')].map((i) => i.alt),
+    };
+  };
+</script>
+</body></html>

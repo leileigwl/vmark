@@ -186,8 +186,11 @@ export interface MultiPlatformPublishPayload {
   targets: MultiPlatformPublishTarget[];
 }
 
-/** 卡片类平台单篇最多可上传的图片张数（含封面）。界面与主进程共用这一份。 */
-export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 35 };
+/**
+ * 卡片类平台单篇最多可上传的图片张数（含封面）。界面、卡片生成与主进程共用这一份。
+ * 抖音：创作者中心网页提示 35 张、开放平台接口写 30 张，未真机核实前取保守值 30（见 docs/platform-rules-todo.md）。
+ */
+export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 30 };
 
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;

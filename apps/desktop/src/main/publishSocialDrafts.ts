@@ -1,16 +1,16 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import type Electron from 'electron';
-import { renderXiaohongshuCards } from '@vcat/core';
+import { markdownToPlainText } from '@vcat/core';
 import { SOCIAL_MAX_CARDS, type MultiPlatformPublishPayload, type MultiPlatformPublishResultItem } from '@vcat/shared';
 import { attachInternalBrowserStealth } from './internalBrowserManager';
 import { hasSessionAuthCookies, type PublishAppConfig } from './publishSessionAuth';
 import { rasterizeSocialCards } from './socialCardRasterizer';
 import { pickSocialTheme, resolveSocialUploadImages } from './socialUploadImages';
+import { DOUYIN_DRAFT_SPEC, XHS_DRAFT_SPEC, runSocialDraftFlow, type DraftPage, type SocialDraftSpec } from './socialDraftPage';
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const DEFAULT_MAX_CARDS = 18;
 const DEFAULT_THEME = { xiaohongshu: 'ios-memo', douyin: 'minimalist-magazine' } as const;
 
 /** 小红书/抖音要上传的图：生成的卡片（含正文图片），上传封面插在第 1 张，按平台上限截断。 */
@@ -22,18 +22,11 @@ function resolveUploadImages(platformId: 'xiaohongshu' | 'douyin', workspacePath
       title: payload.title,
       themeId: pickSocialTheme(payload.socialThemeId, DEFAULT_THEME[platformId]),
       aspectRatio: payload.socialCoverRatio,
-      maxCards: SOCIAL_MAX_CARDS[platformId] ?? 9,
+      maxCards: SOCIAL_MAX_CARDS[platformId] ?? DEFAULT_MAX_CARDS,
       coverImagePath: payload.socialCoverImagePath,
     },
     rasterizeSocialCards
   );
-}
-
-function buildSocialCaption(markdown: string, title?: string, tags: string[] = []): string {
-  const rendered = renderXiaohongshuCards(markdown, title);
-  const tagLine = tags.length > 0 ? `\n${tags.map((t) => `#${t}`).join(' ')}` : '';
-  const text = `${rendered.captionText.trim()}${tagLine}`.trim();
-  return text.length > 950 ? `${text.slice(0, 947)}...` : text;
 }
 
 async function setInputFilesViaDebugger(
@@ -102,239 +95,88 @@ async function clickTextViaDebugger(win: BrowserWindow, text: string): Promise<b
   }
 }
 
-async function waitForSelector(win: BrowserWindow, selector: string, timeoutMs = 12000): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const found = await win.webContents
-      .executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(selector)}))`)
-      .catch(() => false);
-    if (found) return true;
-    await sleep(400);
+function windowDriver(win: BrowserWindow): DraftPage {
+  return {
+    eval: (script) => win.webContents.executeJavaScript(script),
+    setFiles: (selector, files) => setInputFilesViaDebugger(win, selector, files),
+    sleep,
+    clickTextFallback: (text) => clickTextViaDebugger(win, text).catch(() => false),
+  };
+}
+
+type SocialPlatform = 'xiaohongshu' | 'douyin';
+
+const SOCIAL: Record<SocialPlatform, { name: string; entryUrl: string; draftsUrl: string; spec: SocialDraftSpec }> = {
+  // 带 target=image 仍可能停在「上传视频」，流程里会再点「上传图文」tab。
+  xiaohongshu: {
+    name: '小红书',
+    entryUrl: 'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=image',
+    // 小红书图文草稿存在发布页所在浏览器本地（同一个 persist:platform_xiaohongshu 分区），从发布页的草稿箱打开。
+    draftsUrl: 'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=image',
+    spec: XHS_DRAFT_SPEC,
+  },
+  douyin: {
+    name: '抖音',
+    entryUrl: 'https://creator.douyin.com/creator-micro/content/upload?default-tab=3',
+    draftsUrl: 'https://creator.douyin.com/creator-micro/content/manage',
+    spec: DOUYIN_DRAFT_SPEC,
+  },
+};
+
+/** 小红书/抖音图文：上传生成的全部卡片（逐张确认）、填标题与纯文本正文、点暂存草稿。 */
+async function publishSocialDraft(platformId: SocialPlatform, params: {
+  session: typeof Electron.session;
+  payload: MultiPlatformPublishPayload;
+  cfg: PublishAppConfig;
+}): Promise<MultiPlatformPublishResultItem> {
+  const { session, payload, cfg } = params;
+  const meta = SOCIAL[platformId];
+  const fail = (message: string): MultiPlatformPublishResultItem => ({ platformId, ok: false, mode: 'draft', message });
+  if (!(await hasSessionAuthCookies(session, platformId))) return fail(`未登录${meta.name}，请先在发布窗口里登录${meta.name}`);
+
+  const files = await resolveUploadImages(platformId, cfg.workspacePath, payload);
+  if (files.length === 0) return fail(`${meta.name}图文未能生成卡片图片，请检查文章内容后重试`);
+
+  const partition = `persist:platform_${platformId}`;
+  const targetSession = session.fromPartition(partition);
+  attachInternalBrowserStealth(targetSession, partition);
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    show: false,
+    webPreferences: { session: targetSession, contextIsolation: true, nodeIntegration: false },
+  });
+
+  try {
+    await win.loadURL(meta.entryUrl);
+    if (/login|passport|signin/i.test(win.webContents.getURL())) return fail(`${meta.name}登录已失效，请重新登录后再推送`);
+    const title = (payload.title || '无标题').trim();
+    const body = markdownToPlainText(payload.markdown, { title });
+    const res = await runSocialDraftFlow(windowDriver(win), meta.spec, { files, title, body, tags: payload.tags });
+    await sleep(3000);
+    const note = res.warnings.length ? `；${res.warnings.join('；')}` : '';
+    return {
+      platformId,
+      ok: true,
+      mode: 'draft',
+      url: meta.draftsUrl,
+      verified: res.warnings.length === 0,
+      uploadedImagesCount: res.uploaded,
+      message: `已暂存到${meta.name}图文草稿箱（上传 ${res.uploaded}/${files.length} 张图）${note}`,
+    };
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : String(err));
+  } finally {
+    if (!win.isDestroyed()) win.destroy();
   }
-  return false;
 }
 
 /** Saves an image-text draft to Xiaohongshu creator center using isolated session browser automation. */
-export async function publishXiaohongshuDraft(params: {
-  session: typeof Electron.session;
-  payload: MultiPlatformPublishPayload;
-  cfg: PublishAppConfig;
-}): Promise<MultiPlatformPublishResultItem> {
-  const { session, payload, cfg } = params;
-  const authed = await hasSessionAuthCookies(session, 'xiaohongshu');
-  if (!authed) {
-    return {
-      platformId: 'xiaohongshu',
-      ok: false,
-      mode: 'draft',
-      message: '未登录小红书，请先在「偏好设置 → 平台授权托管」完成登录授权',
-    };
-  }
-
-  const files = await resolveUploadImages('xiaohongshu', cfg.workspacePath, payload);
-  if (files.length === 0) {
-    return {
-      platformId: 'xiaohongshu',
-      ok: false,
-      mode: 'draft',
-      message: '小红书图文未能生成或解析到有效图片，请检查文章内容后重试',
-    };
-  }
-
-  const partition = 'persist:platform_xiaohongshu';
-  const targetSession = session.fromPartition(partition);
-  attachInternalBrowserStealth(targetSession, partition);
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 900,
-    show: false,
-    webPreferences: { session: targetSession, contextIsolation: true, nodeIntegration: false },
-  });
-
-  try {
-    await win.loadURL('https://creator.xiaohongshu.com/publish/publish?target=image');
-    const ready = await waitForSelector(win, 'input.upload-input', 12000);
-    if (!ready) throw new Error('小红书上传页加载超时或登录状态已失效');
-
-    await setInputFilesViaDebugger(win, 'input.upload-input', files);
-    const editorReady = await waitForSelector(win, 'input[placeholder*="填写标题"]', 15000);
-    if (!editorReady) throw new Error('小红书图片上传后未进入图文编辑页');
-
-    await sleep(1500);
-    const shortTitle = (payload.title || '无标题').trim().slice(0, 20);
-    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags);
-
-    await win.webContents.executeJavaScript(`((title, caption) => {
-      const knowBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === '我知道了');
-      if (knowBtn) knowBtn.click();
-
-      const titleInput = document.querySelector('input[placeholder*="填写标题"]');
-      if (titleInput) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        if (setter) setter.call(titleInput, title);
-        else titleInput.value = title;
-        titleInput.dispatchEvent(new Event('input', { bubbles: true }));
-        titleInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
-      const editor = document.querySelector('.tiptap.ProseMirror[contenteditable="true"]');
-      if (editor) {
-        editor.focus();
-        document.execCommand('selectAll', false);
-        document.execCommand('insertText', false, caption);
-      }
-    })(${JSON.stringify(shortTitle)}, ${JSON.stringify(caption)})`);
-
-    await sleep(1200);
-    let clickedDraft = false;
-    const draftDeadline = Date.now() + 12000;
-    while (Date.now() < draftDeadline) {
-      clickedDraft = await win.webContents
-        .executeJavaScript(`(() => {
-          const candidates = Array.from(document.querySelectorAll('button, [role="button"], div, span'))
-            .filter(el => el.innerText && el.innerText.trim() === '暂存离开');
-          const btn = candidates[candidates.length - 1];
-          if (!btn) return false;
-          btn.click();
-          return true;
-        })()`)
-        .catch(() => false);
-      if (!clickedDraft) {
-        clickedDraft = await clickTextViaDebugger(win, '暂存离开').catch(() => false);
-      }
-      if (clickedDraft) break;
-      await sleep(500);
-    }
-    if (!clickedDraft) throw new Error('未找到小红书「暂存离开」草稿按钮');
-
-    await sleep(3000);
-    return {
-      platformId: 'xiaohongshu',
-      ok: true,
-      mode: 'draft',
-      url: 'https://creator.xiaohongshu.com/publish/publish?target=image',
-      verified: true,
-      uploadedImagesCount: files.length,
-      message: `已暂存到小红书图文草稿箱（上传 ${files.length} 张图）`,
-    };
-  } finally {
-    if (!win.isDestroyed()) win.destroy();
-  }
+export function publishXiaohongshuDraft(params: Parameters<typeof publishSocialDraft>[1]): Promise<MultiPlatformPublishResultItem> {
+  return publishSocialDraft('xiaohongshu', params);
 }
 
 /** Saves an image-text draft to Douyin creator center using isolated session browser automation. */
-export async function publishDouyinDraft(params: {
-  session: typeof Electron.session;
-  payload: MultiPlatformPublishPayload;
-  cfg: PublishAppConfig;
-}): Promise<MultiPlatformPublishResultItem> {
-  const { session, payload, cfg } = params;
-  const authed = await hasSessionAuthCookies(session, 'douyin');
-  if (!authed) {
-    return {
-      platformId: 'douyin',
-      ok: false,
-      mode: 'draft',
-      message: '未登录抖音，请先在「偏好设置 → 平台授权托管」完成登录授权',
-    };
-  }
-
-  const files = await resolveUploadImages('douyin', cfg.workspacePath, payload);
-  if (files.length === 0) {
-    return {
-      platformId: 'douyin',
-      ok: false,
-      mode: 'draft',
-      message: '抖音图文未能生成或解析到有效图片，请检查文章内容后重试',
-    };
-  }
-
-  const partition = 'persist:platform_douyin';
-  const targetSession = session.fromPartition(partition);
-  attachInternalBrowserStealth(targetSession, partition);
-  const win = new BrowserWindow({
-    width: 1280,
-    height: 900,
-    show: false,
-    webPreferences: { session: targetSession, contextIsolation: true, nodeIntegration: false },
-  });
-
-  try {
-    await win.loadURL('https://creator.douyin.com/creator-micro/content/post/image');
-    const ready = await waitForSelector(win, 'input[placeholder="添加作品标题"]', 12000);
-    if (!ready) throw new Error('抖音图文发布页加载超时或登录状态已失效');
-
-    await sleep(1500);
-    const filePayloads = await Promise.all(
-      files.map(async (f) => ({
-        name: path.basename(f),
-        b64: (await fs.readFile(f)).toString('base64'),
-      }))
-    );
-
-    const dropOk = await win.webContents.executeJavaScript(`((items) => {
-      const doneBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === '完成');
-      if (doneBtn) doneBtn.click();
-
-      const dt = new DataTransfer();
-      for (const item of items) {
-        const bin = atob(item.b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const lower = item.name.toLowerCase();
-        const ext = lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' : lower.endsWith('.webp') ? 'image/webp' : 'image/png';
-        dt.items.add(new File([bytes], item.name, { type: ext }));
-      }
-      const els = Array.from(document.querySelectorAll('div, span')).filter(el => el.innerText && el.innerText.includes('拖入此区域'));
-      const target = els[els.length - 1];
-      if (!target) return false;
-      target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
-      return true;
-    })(${JSON.stringify(filePayloads)})`);
-    if (!dropOk) throw new Error('未找到抖音图片拖拽上传区域');
-
-    await sleep(5000);
-    const shortTitle = (payload.title || '无标题').trim().slice(0, 20);
-    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags);
-
-    await win.webContents.executeJavaScript(`((title, caption) => {
-      const titleInput = document.querySelector('input[placeholder="添加作品标题"]');
-      if (titleInput) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        if (setter) setter.call(titleInput, title);
-        else titleInput.value = title;
-        titleInput.dispatchEvent(new Event('input', { bubbles: true }));
-        titleInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-
-      const editor = document.querySelector('.zone-container.editor-kit-container[contenteditable="true"]');
-      if (editor) {
-        editor.focus();
-        document.execCommand('selectAll', false);
-        document.execCommand('insertText', false, caption);
-      }
-    })(${JSON.stringify(shortTitle)}, ${JSON.stringify(caption)})`);
-
-    await sleep(1200);
-    const clickedDraft = await win.webContents.executeJavaScript(`(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('暂存离开'));
-      if (!btn) return false;
-      btn.click();
-      return true;
-    })()`);
-    if (!clickedDraft) throw new Error('未找到抖音「暂存离开」草稿按钮');
-
-    await sleep(3000);
-    return {
-      platformId: 'douyin',
-      ok: true,
-      mode: 'draft',
-      url: 'https://creator.douyin.com/creator-micro/content/manage',
-      verified: true,
-      uploadedImagesCount: files.length,
-      message: `已暂存到抖音图文草稿箱（上传 ${files.length} 张图）`,
-    };
-  } finally {
-    if (!win.isDestroyed()) win.destroy();
-  }
+export function publishDouyinDraft(params: Parameters<typeof publishSocialDraft>[1]): Promise<MultiPlatformPublishResultItem> {
+  return publishSocialDraft('douyin', params);
 }
