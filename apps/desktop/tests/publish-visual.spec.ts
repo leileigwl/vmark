@@ -72,7 +72,7 @@ for (const [mode, theme] of [
     await expectTargets(page);
     const dir = process.env.PW_SCREENSHOT_DIR;
     await page.screenshot({ path: dir ? path.join(dir, `simplify-dialog-${mode}.png`) : testInfo.outputPath(`simplify-dialog-${mode}.png`) });
-    await page.getByTestId('attention-xiaohongshu').getByRole('button', { expanded: false }).click();
+    await page.getByTestId('section-social').getByRole('button', { expanded: false }).click();
     await page.getByRole('dialog').locator('main').evaluate((m) => (m.scrollTop = m.scrollHeight));
     await expectNoOverflow(page);
     await expect(page.getByTitle('卡片 1')).toBeVisible();

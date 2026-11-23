@@ -1,20 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PlatformId } from '@vcat/shared';
-import { renderXiaohongshuCards } from '@vcat/core';
 import { JUEJIN_CATEGORIES } from '@vcat/adapters';
 import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
 import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
 import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
 import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
-import { CardStrip } from './CardStrip';
 import { CategoryPicker } from './CategoryPicker';
-import { WeixinPreview } from './WeixinPreview';
 
 interface AttentionListProps {
   draft: PublishDraft;
   specs: PlatformSpec[];
-  markdown: string;
   issuesOf: (id: PlatformId) => Issue[];
   onChange: (patch: Partial<PublishDraft> | ((d: PublishDraft) => Partial<PublishDraft>)) => void;
   coverInputRef: RefObject<HTMLInputElement>;
@@ -29,7 +25,7 @@ interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   setOpen: (open: boolean) => void;
 }
 
-function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, coverInputRef }: RowProps) {
+function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef }: RowProps) {
   const v = resolveFor(draft, spec.id);
   const o = draft.overrides[spec.id] ?? {};
   const has = (f: Issue['field']) => issues.some((i) => i.field === f);
@@ -40,26 +36,16 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
   if (!open && seen.length) setSeen([]);
   const show = (f: Issue['field']) => has(f) || seen.includes(f);
   const errorOf = (f: Issue['field']) => issues.find((i) => i.field === f)?.message ?? null;
-  const cards = useMemo(
-    () =>
-      spec.kind === 'cards' ? renderXiaohongshuCards(markdown, { fallbackTitle: v.title, coverRatio: '3:4', maxCards: spec.maxCards }).totalCards : 0,
-    [spec.kind, spec.maxCards, markdown, v.title]
-  );
-  const total = cards + (draft.coverUpload ? 1 : 0);
-  const over = spec.maxCards && total > spec.maxCards ? total - spec.maxCards : 0;
   const override = (patch: Parameters<typeof setOverride>[2]) => onChange((d) => ({ overrides: setOverride(d, spec.id, patch) }));
   const tagsShared = errorOf('tags') === '缺标签' || !o.tags;
 
-  const summary = [
-    ...issues.map((i) => i.message),
-    ...(spec.kind === 'cards' ? [over ? `卡片超 ${over} 张，多出的不上传` : `${total} 张卡片`] : []),
-  ];
+  const summary = issues.map((i) => i.message);
 
   // 改好后点到别处（或用键盘把焦点移出）就收起。用 click 而不是失焦，避免按下鼠标时行消失导致点空。
   const liRef = useRef<HTMLLIElement>(null);
   const closeRef = useRef(() => setOpen(false));
   closeRef.current = () => setOpen(false);
-  const done = open && issues.length === 0 && spec.kind !== 'cards';
+  const done = open && issues.length === 0;
   useEffect(() => {
     if (!done) return;
     let pointer = false;
@@ -96,9 +82,9 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
           <span className="font-medium text-ink">{spec.short}：</span>
         </Tooltip>
         <span className={cn('min-w-0 flex-1 truncate', issues.length ? 'text-warning' : 'text-muted')}>
-          {issues.length || spec.kind === 'cards' ? summary.join(' · ') : spec.id === 'weixin' ? '已就绪 · 点开看排版' : '已就绪'}
+          {issues.length ? summary.join(' · ') : '已就绪'}
         </span>
-        {!issues.length && spec.kind !== 'cards' ? <CheckCircle2 className="size-4 text-success" aria-hidden /> : null}
+        {!issues.length ? <CheckCircle2 className="size-4 text-success" aria-hidden /> : null}
         <ChevronDown className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
       {open ? (
@@ -135,19 +121,6 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
               </Button>
             </div>
           ) : null}
-          {spec.id === 'weixin' ? <WeixinPreview markdown={markdown} /> : null}
-          {spec.kind === 'cards' ? (
-            <div className="space-y-2">
-              {draft.coverUpload ? <p className="text-xs text-muted">上传的封面会作为第 1 张图。</p> : null}
-              <CardStrip
-                markdown={markdown}
-                title={v.title}
-                themeId={draft.socialThemeId ?? (spec.id === 'douyin' ? 'minimalist-magazine' : 'ios-memo')}
-                onThemeChange={(id) => onChange({ socialThemeId: id })}
-                maxCards={spec.maxCards}
-              />
-            </div>
-          ) : null}
         </div>
       ) : null}
     </li>
@@ -156,7 +129,7 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
 
 /**
  * 只列出需要单独处理的平台，一行一个（如“掘金：摘要差 12 字”）。
- * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。卡片平台、公众号常驻一行，缩略图 / 排版预览默认收起。
+ * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。公众号、小红书/抖音的问题在它们自己的分区里处理。
  */
 export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) {
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
@@ -169,22 +142,17 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
     });
   const rows = specs
     .map((spec) => ({ spec, issues: fieldIssues(issuesOf(spec.id)) }))
-    // 卡片平台与公众号常驻一行（默认收起），点开看卡片缩略图 / 公众号排版。
-    .filter(({ spec, issues }) => issues.length || spec.kind === 'cards' || spec.id === 'weixin' || open.has(spec.id));
+    .filter(({ spec, issues }) => spec.kind !== 'cards' && spec.id !== 'weixin' && (issues.length || open.has(spec.id)));
 
-  if (specs.length === 0) return <p className="text-xs text-muted">在左侧勾选要发布的平台。</p>;
-  if (rows.length === 0)
-    return (
-      <p className="flex items-center gap-1.5 text-xs text-muted" data-testid="attention-empty">
-        <CheckCircle2 className="size-4 text-success" />
-        已选平台都不需要单独处理。
-      </p>
-    );
+  if (rows.length === 0) return null;
   return (
-    <ul className="space-y-2" data-testid="attention-list">
-      {rows.map(({ spec, issues }) => (
-        <AttentionRow key={spec.id} spec={spec} issues={issues} open={open.has(spec.id)} setOpen={(on) => setOpen(spec.id, on)} {...rest} />
-      ))}
-    </ul>
+    <section className="space-y-3">
+      <h3 className="text-xs font-medium text-muted">需要单独处理</h3>
+      <ul className="space-y-2" data-testid="attention-list">
+        {rows.map(({ spec, issues }) => (
+          <AttentionRow key={spec.id} spec={spec} issues={issues} open={open.has(spec.id)} setOpen={(on) => setOpen(spec.id, on)} {...rest} />
+        ))}
+      </ul>
+    </section>
   );
 }

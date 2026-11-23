@@ -88,6 +88,9 @@ type Call = {
   tags?: string[];
   coverImageUrl?: string;
   socialCoverImagePath?: string;
+  socialBody?: string;
+  author?: string;
+  sourceUrl?: string;
   weixinSquareCoverImagePath?: string;
   juejinCategoryId?: string;
   targets: Array<{ platformId: string; mode: string }>;
@@ -96,6 +99,7 @@ const callsOf = (page: Page) => page.evaluate(() => (window as unknown as { __ca
 const byPlatform = (calls: Call[]) => Object.fromEntries(calls.map((c) => [c.targets[0].platformId, c]));
 const row = (page: Page, id: string) => page.getByTestId(`platform-row-${id}`);
 const attention = (page: Page, id: string) => page.getByTestId(`attention-${id}`);
+const section = (page: Page, id: 'weixin' | 'social') => page.getByTestId(`section-${id}`);
 const JUEJIN_DIGEST = '这是一段专门为掘金准备的摘要，长度需要落在五十到一百字之间，所以这里多写几句，说明这篇文章讲的是多平台发布流程的设计与实现。';
 
 test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
@@ -105,8 +109,8 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(page.locator('#pub-title')).toHaveValue('公众号标题：一篇关于多平台发布流程的长文测试');
     await expect(row(page, 'weixin').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
     await expect(row(page, 'weixin')).toContainText('就绪');
-    await expect(page.getByTestId('cover-guide')).toHaveText('公众号：可选 · 列表大图 2.35:1 + 转发小图 1:1 · 不传用正文首图自动裁');
-    await expect(attention(page, 'weixin')).toContainText('已就绪 · 点开看排版');
+    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面');
+    await expect(section(page, 'weixin')).toContainText('沿用通用内容');
     await expect(page.getByTestId('weixin-preview')).toHaveCount(0); // 排版预览默认收起
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
     await page.getByTestId('publish-start').click();
@@ -128,18 +132,22 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(page.getByRole('tooltip')).toContainText('摘要必填 50–100 字');
   });
 
-  test('小红书标题超 20 字：只列出这一行，点开改写后就绪，推送使用各自标题', async ({ page }) => {
+  test('小红书：标题默认从通用标题截取 20 字即可推送；在小红书分区里单独改写，超 20 字才报', async ({ page }) => {
     await openEditor(page, { weixin: true, xiaohongshu: true });
     await openPublish(page);
     await row(page, 'xiaohongshu').getByRole('checkbox').click();
-    await expect(row(page, 'xiaohongshu')).toContainText('差 1 项');
-    await expect(attention(page, 'xiaohongshu')).toContainText(/小红书：标题超 \d+ 字 · \d+ 张卡片/);
-    await expect(attention(page, 'weixin')).toContainText('已就绪 · 点开看排版'); // 公众号行常驻（收起），只放排版预览
-    await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
-
-    await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
-    await page.locator('#t-xiaohongshu').fill('多平台发布实测');
     await expect(row(page, 'xiaohongshu')).toContainText('就绪');
+    await expect(section(page, 'social')).toContainText('标题「公众号标题：一篇关于多平台发布流程的长文」');
+    await expect(attention(page, 'xiaohongshu')).toHaveCount(0); // 小红书不在「需要单独处理」里
+    await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
+
+    await section(page, 'social').getByRole('button', { expanded: false }).click();
+    await page.locator('#social-title').fill('一二三四五六七八九十一二三四五六七八九十一');
+    await expect(row(page, 'xiaohongshu')).toContainText('差 1 项');
+    await expect(section(page, 'social')).toContainText('小红书标题超 1 字');
+    await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
+    await page.locator('#social-title').fill('多平台发布实测');
+    await page.locator('#social-body').fill('小红书正文');
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
 
     await page.getByTestId('publish-start').click();
@@ -147,6 +155,7 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     const calls = byPlatform(await callsOf(page));
     expect(calls.weixin.title).toBe('公众号标题：一篇关于多平台发布流程的长文测试');
     expect(calls.xiaohongshu.title).toBe('多平台发布实测');
+    expect(calls.xiaohongshu.socialBody).toBe('小红书正文');
     expect(calls.xiaohongshu.socialCoverImagePath).toBeUndefined();
     expect(calls.xiaohongshu.coverImageUrl).toBeUndefined();
   });
@@ -255,11 +264,10 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
   test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面（含 1:1 方图）', async ({ page }, testInfo) => {
     await openEditor(page, { weixin: true }, '# 没有配图的文章\n\n只有文字。');
     await openPublish(page);
-    await expect(page.getByTestId('cover-guide-weixin')).toContainText('正文无图，需上传');
-    await expect(attention(page, 'weixin')).toContainText('公众号：缺封面');
+    await expect(section(page, 'weixin')).toContainText('缺封面');
     await expect(page.getByTestId('publish-start')).toBeDisabled();
-    await attention(page, 'weixin').getByRole('button', { expanded: false }).click();
-    await expect(attention(page, 'weixin').getByRole('button', { name: '上传封面' })).toBeVisible();
+    await section(page, 'weixin').getByRole('button', { expanded: false }).click();
+    await expect(page.getByTestId('weixin-cover')).toContainText('正文没有图片，请在上方通用封面上传一张');
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
     await expect(page.getByAltText('2.35:1 封面预览')).toBeVisible();
     await expect(page.getByAltText('1:1 封面预览')).toBeVisible();
@@ -274,72 +282,87 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls[0].weixinSquareCoverImagePath).toMatch(/assets\/up\.png$/);
   });
 
-  test('上传封面后：知乎 16:9、小红书 3:4 作为第 1 张；移除后回到默认', async ({ page }) => {
+  test('通用封面给文章平台；小红书/抖音只用自己分区上传的封面（插到第一张卡前）', async ({ page }) => {
     await openEditor(page, { weixin: true, zhihu: true, xiaohongshu: true });
     await openPublish(page);
     await row(page, 'zhihu').getByRole('checkbox').click();
     await row(page, 'xiaohongshu').getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-guide')).toContainText('小红书：可选 · 第一张卡片就是封面 3:4');
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    for (const r of ['2.35:1', '1:1', '16:9', '3:4']) await expect(page.getByAltText(`${r} 封面预览`)).toBeVisible();
+    await expect(page.getByTestId('cover-field').getByTestId('cover-focus')).toBeVisible();
     await page.getByTestId('cover-field').getByRole('button', { name: '移除' }).click();
-    await expect(page.getByAltText('16:9 封面预览')).toHaveCount(0);
-    await expect(page.getByTestId('cover-guide')).toContainText('小红书：可选 · 第一张卡片就是封面 3:4');
+    await expect(page.getByTestId('cover-field').getByTestId('cover-focus')).toHaveCount(0);
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
-    await page.locator('#t-xiaohongshu').fill('多平台发布实测');
+    // 公众号的 2.35:1 + 1:1 裁切预览在公众号分区里
+    await section(page, 'weixin').getByRole('button', { expanded: false }).click();
+    for (const r of ['2.35:1', '1:1']) await expect(section(page, 'weixin').getByAltText(`${r} 封面预览`)).toBeVisible();
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
-    const calls = byPlatform(await callsOf(page));
+    let calls = byPlatform(await callsOf(page));
     expect(calls.zhihu.coverImageUrl).toMatch(/assets\/up\.png$/);
-    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
+    expect(calls.xiaohongshu.socialCoverImagePath).toBeUndefined();
     expect(calls.xiaohongshu.coverImageUrl).toBeUndefined();
+
+    await page.getByRole('button', { name: '返回修改' }).click();
+    await section(page, 'social').getByRole('button', { expanded: false }).click();
+    await expect(section(page, 'social')).toContainText('第一张卡片就是封面');
+    await page.getByTestId('social-cover-input').setInputFiles({ name: 'xhs.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+    await expect(section(page, 'social')).toContainText('上传的封面是第 1 张');
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
+    calls = byPlatform(await callsOf(page));
+    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
   });
 
-  test('封面指引：未上传时按已勾选平台逐个列出要不要、什么比例、不传会怎样；博客园不列', async ({ page }) => {
+  test('通用封面下只有一句短提示，不再逐平台列规则；比例悬停仍可在平台行看到', async ({ page }) => {
     await openEditor(page, { weixin: true, zhihu: true, juejin: true, baijiahao: true, xiaohongshu: true, douyin: true, cnblogs: true });
     await openPublish(page);
     for (const id of ['zhihu', 'juejin', 'baijiahao', 'xiaohongshu', 'douyin', 'cnblogs']) await row(page, id).getByRole('checkbox').click();
-    const guide = page.getByTestId('cover-guide');
-    await expect(guide.locator('li')).toHaveText([
-      '公众号：可选 · 列表大图 2.35:1 + 转发小图 1:1 · 不传用正文首图自动裁',
-      '知乎、掘金：可选 · 列表右侧小图 16:9 · 不传就不放',
-      '百家号：必需 · 16:9 · 不传用正文首图',
-      '小红书、抖音：可选 · 第一张卡片就是封面 3:4 · 传了插到卡片最前',
-    ]);
-    await expect(guide).not.toContainText('博客园');
-    await expect(guide).not.toContainText('需上传');
-    await guide.getByTestId('cover-ratio').first().hover();
-    await expect(page.getByRole('tooltip')).toContainText('按平台常见显示方式，未逐个后台核对');
-    // 取消公众号后它那一行消失
-    await row(page, 'weixin').getByRole('checkbox').click();
-    await expect(guide).not.toContainText('公众号');
-    // 上传后指引收起，换成各比例裁切预览
-    await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    await expect(guide).toHaveCount(0);
-    for (const r of ['16:9', '3:4']) await expect(page.getByAltText(`${r} 封面预览`)).toBeVisible();
+    await expect(page.getByTestId('cover-hint')).toHaveText('其他平台按需自动裁 16:9');
+    await expect(page.getByTestId('cover-guide')).toHaveCount(0);
+    await expect(page.getByTestId('general-section')).not.toContainText('列表右侧小图');
+    await expect(page.getByTestId('general-section')).not.toContainText('第一张卡片就是封面');
+    await row(page, 'baijiahao').getByText('百家号').hover();
+    await expect(page.getByRole('tooltip')).toContainText('封面必需 16:9');
   });
 
-  test('封面指引：正文无图时百家号/微博标红“需上传”，并出现在“需要单独处理”；知乎不报', async ({ page }) => {
+  test('正文无图时百家号/微博必需封面出现在「需要单独处理」并可就地上传；知乎不报', async ({ page }) => {
     await openEditor(page, { weixin: true, baijiahao: true, weibo: true, zhihu: true }, '# 没有配图的文章标题够长\n\n只有文字。');
     await openPublish(page);
     await row(page, 'weixin').getByRole('checkbox').click();
     for (const id of ['baijiahao', 'weibo', 'zhihu']) await row(page, id).getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-guide-required')).toContainText('百家号、微博：必需 · 16:9 · 不传用正文首图');
-    await expect(page.getByTestId('cover-guide-required').locator('.text-danger')).toHaveText('正文无图，需上传');
-    await expect(page.getByTestId('cover-guide-optional')).not.toContainText('需上传');
+    await expect(page.getByTestId('cover-hint')).toHaveText('其他平台按需自动裁 16:9');
     await expect(attention(page, 'baijiahao')).toContainText('百家号：缺封面');
     await expect(attention(page, 'weibo')).toContainText('微博：缺封面');
     await expect(attention(page, 'zhihu')).toHaveCount(0);
+    await attention(page, 'baijiahao').getByRole('button', { expanded: false }).click();
+    await expect(attention(page, 'baijiahao').getByRole('button', { name: '上传封面' })).toBeVisible();
   });
 
-  test('小红书：卡片缩略图收在行里默认收起，展开后可切换模板', async ({ page }) => {
+  test('公众号分区：作者与阅读原文随推送带上，标题不填沿用通用', async ({ page }) => {
+    await openEditor(page, { weixin: true, zhihu: true });
+    await openPublish(page);
+    await row(page, 'zhihu').getByRole('checkbox').click();
+    await section(page, 'weixin').getByRole('button', { expanded: false }).click();
+    await expect(page.locator('#wx-title')).toHaveAttribute('placeholder', /沿用通用/);
+    await page.locator('#wx-author').fill('维磊');
+    await page.locator('#wx-source').fill('https://example.com/post');
+    await expect(section(page, 'weixin')).toContainText('单独设置了作者、阅读原文');
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);
+    const calls = byPlatform(await callsOf(page));
+    expect(calls.weixin.author).toBe('维磊');
+    expect(calls.weixin.sourceUrl).toBe('https://example.com/post');
+    expect(calls.weixin.title).toBe('公众号标题：一篇关于多平台发布流程的长文测试');
+    expect(calls.zhihu.author).toBeUndefined();
+  });
+
+  test('小红书：卡片缩略图收在「小红书 · 抖音」分区里默认收起，展开后可切换模板', async ({ page }) => {
     await openEditor(page, { xiaohongshu: true });
     await openPublish(page);
     await row(page, 'xiaohongshu').getByRole('checkbox').click();
     const templates = page.getByRole('radiogroup', { name: '卡片模板' }).getByRole('radio');
     await expect(templates).toHaveCount(0);
-    await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
+    await section(page, 'social').getByRole('button', { expanded: false }).click();
     await expect(page.getByText(/共 \d+ 张 3:4 卡片，平台上限 18 张/)).toBeVisible();
     await expect(templates).toHaveCount(7);
     await templates.nth(1).click();
@@ -380,11 +403,11 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
 const openedOf = (page: Page) => page.evaluate(() => (window as unknown as { __opened: string[][] }).__opened);
 
 test.describe('预览收进平台行、内置浏览器入口与打开草稿', () => {
-  test('公众号排版预览收在公众号行里，点开才出现，并带「复制富文本」', async ({ page }) => {
+  test('公众号排版预览收在公众号分区里，点开才出现，并带「复制富文本」', async ({ page }) => {
     await openEditor(page, { weixin: true });
     await openPublish(page);
     await expect(page.getByRole('dialog').getByRole('tab')).toHaveCount(0); // 顶部没有「公众号排版」「平台快捷浏览器」标签页
-    await attention(page, 'weixin').getByRole('button', { name: /公众号/ }).click();
+    await section(page, 'weixin').getByRole('button', { name: /公众号/ }).click();
     const preview = page.getByTestId('weixin-preview');
     await expect(preview).toBeVisible();
     await expect(preview.getByRole('button', { name: '复制富文本' })).toBeVisible();

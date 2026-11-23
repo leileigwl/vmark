@@ -27,7 +27,7 @@ export async function buildPayload(
   id: PlatformId,
   bodyImage: string,
   crop: CoverCropper,
-  cache: Map<CoverRatio, Promise<string>>
+  cache: Map<string, Promise<string>>
 ): Promise<MultiPlatformPublishPayload> {
   const spec = SPEC_BY_ID[id];
   const v = resolveFor(draft, id);
@@ -35,9 +35,12 @@ export async function buildPayload(
   let coverPath: string | undefined;
   let squarePath: string | undefined;
   if (cover?.kind === 'upload' && spec?.cover) {
+    // 卡片平台的封面是它们分区里单独上传的图，焦点取中心；其余平台共用通用封面与焦点。
+    const focus = spec.cover.mode === 'card' ? { x: 50, y: 50 } : draft.coverFocus;
     const cropOnce = (ratio: CoverRatio) => {
-      if (!cache.has(ratio)) cache.set(ratio, crop(cover.src, ratio, draft.coverFocus).catch(() => cover.src));
-      return cache.get(ratio);
+      const key = `${cover.src}|${ratio}`;
+      if (!cache.has(key)) cache.set(key, crop(cover.src, ratio, focus).catch(() => cover.src));
+      return cache.get(key);
     };
     coverPath = await cropOnce(spec.cover.ratios[0]);
     // 公众号 1:1 转发图也按焦点裁，不再交给公众号从 2.35:1 居中裁
@@ -46,10 +49,14 @@ export async function buildPayload(
     coverPath = cover.src;
   }
   const isCards = spec?.kind === 'cards';
+  const isWeixin = id === 'weixin';
   return {
     title: v.title,
+    author: isWeixin && draft.weixinAuthor.trim() ? draft.weixinAuthor.trim() : undefined,
+    sourceUrl: isWeixin && draft.weixinSourceUrl.trim() ? draft.weixinSourceUrl.trim() : undefined,
+    socialBody: isCards && v.digest.trim() ? v.digest.trim() : undefined,
     markdown,
-    digest: v.digest || undefined,
+    digest: !isCards && v.digest ? v.digest : undefined,
     tags: v.tags.length ? v.tags : undefined,
     coverImageUrl: isCards ? undefined : coverPath,
     socialCoverImagePath: isCards ? coverPath : undefined,
@@ -71,7 +78,7 @@ export async function runPublish(
   deps: { bodyImage: string; crop: CoverCropper }
 ): Promise<void> {
   const api = window.electronAPI;
-  const cache = new Map<CoverRatio, Promise<string>>();
+  const cache = new Map<string, Promise<string>>();
   for (const id of targets) {
     onRow({ id, state: 'running' });
     try {

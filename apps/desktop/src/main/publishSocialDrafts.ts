@@ -151,7 +151,8 @@ async function publishSocialDraft(platformId: SocialPlatform, params: {
     await win.loadURL(meta.entryUrl);
     if (/login|passport|signin/i.test(win.webContents.getURL())) return fail(`${meta.name}登录已失效，请重新登录后再推送`);
     const title = (payload.title || '无标题').trim();
-    const body = markdownToPlainText(payload.markdown, { title });
+    // 用户在小红书/抖音分区里写了正文就用他写的，否则从 Markdown 生成纯文本。
+    const body = payload.socialBody?.trim() || markdownToPlainText(payload.markdown, { title });
     const res = await runSocialDraftFlow(windowDriver(win), meta.spec, { files, title, body, tags: payload.tags });
     await sleep(3000);
     const note = res.warnings.length ? `；${res.warnings.join('；')}` : '';

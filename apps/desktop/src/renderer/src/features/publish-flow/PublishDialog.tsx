@@ -3,11 +3,13 @@ import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
 import { usePlatformAuth } from '../platform-auth';
 import { checkPlatform, type Issue } from './draftModel';
-import { PLATFORM_SPECS, SPEC_BY_ID } from './platformSpecs';
+import { PLATFORM_SPECS, SPEC_BY_ID, generalCoverHint } from './platformSpecs';
 import { PlatformList } from './PlatformList';
 import { AttentionList } from './AttentionList';
 import { CoverField } from './CoverField';
 import { TagInput } from './TagInput';
+import { WeixinSection } from './WeixinSection';
+import { SocialSection } from './SocialSection';
 import { PublishResults } from './PublishResults';
 import { cropCover } from './coverCrop';
 import { runPublish, type RunRow } from './runPublish';
@@ -40,6 +42,10 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   const selectedSpecs = PLATFORM_SPECS.filter((s) => draft.selected.includes(s.id));
   const ready = selectedSpecs.filter((s) => !issuesOf(s.id).some((i) => i.level === 'error')).map((s) => s.id);
   const blocked = selectedSpecs.filter((s) => !ready.includes(s.id));
+  // 通用区服务于文章类平台；小红书/抖音有自己的分区。
+  const articleSpecs = selectedSpecs.filter((s) => s.kind !== 'cards');
+  const cardSpecs = selectedSpecs.filter((s) => s.kind === 'cards');
+  const weixinOn = draft.selected.includes('weixin');
   const showTags = selectedSpecs.some((s) => s.tags);
 
   const toggle = (id: PlatformId, on: boolean) =>
@@ -124,8 +130,13 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
               onSelectPushable={() => update((d) => ({ selected: selectPushable(d.selected, auth.status) }))}
             />
           </aside>
-          <main className="min-h-0 space-y-7 overflow-y-auto px-8 py-6">
-            <section className="space-y-5">
+          <main className="min-h-0 space-y-10 overflow-y-auto px-10 py-8">
+            {selectedSpecs.length === 0 ? <p className="text-xs text-muted">在左侧勾选要发布的平台。</p> : null}
+            <section className="space-y-6" data-testid="general-section">
+              <div>
+                <h3 className="text-sm font-medium text-ink">通用内容</h3>
+                <p className="mt-1 text-xs text-muted">默认铺给所有勾选的平台</p>
+              </div>
               <Field label="标题" htmlFor="pub-title" count={{ value: [...draft.title].length }}>
                 <Input id="pub-title" className="h-9" value={draft.title} onChange={(e) => update({ title: e.target.value })} />
               </Field>
@@ -137,14 +148,18 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
                   <TagInput id="pub-tags" value={draft.tags} onChange={(tags) => update({ tags })} placeholder="回车添加" />
                 </Field>
               ) : null}
-              {selectedSpecs.some((s) => s.cover) ? (
-                <CoverField draft={draft} specs={selectedSpecs.filter((s) => s.cover)} bodyImage={bodyImage} onChange={update} inputRef={coverInputRef} />
+              {articleSpecs.some((s) => s.cover) ? (
+                <CoverField draft={draft} hint={generalCoverHint(articleSpecs)} onChange={update} inputRef={coverInputRef} />
               ) : null}
             </section>
-            <section className="space-y-3">
-              <h3 className="text-xs font-medium text-ink">需要单独处理</h3>
-              <AttentionList draft={draft} specs={selectedSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} />
-            </section>
+            <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} />
+            {weixinOn || cardSpecs.length ? (
+              <section className="space-y-3">
+                <h3 className="text-xs font-medium text-muted">平台专属</h3>
+                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field !== 'auth')} onChange={update} /> : null}
+                {cardSpecs.length ? <SocialSection draft={draft} specs={cardSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} /> : null}
+              </section>
+            ) : null}
           </main>
         </div>
       )}

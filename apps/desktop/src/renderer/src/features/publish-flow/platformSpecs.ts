@@ -115,6 +115,16 @@ export function coverGuideLines(specs: PlatformSpec[], bodyImage: string): Cover
   return lines;
 }
 
+/**
+ * 通用封面下的一句短提示（不再逐平台列长列表）：已勾选平台里需要从通用封面自动裁的比例，
+ * 公众号与小红书/抖音在各自分区里处理，不算在内。比例取自 spec.cover.ratios。
+ */
+export function generalCoverHint(specs: PlatformSpec[]): string | null {
+  const ratios = new Set<CoverRatio>();
+  for (const s of specs) if (s.cover && (s.cover.mode === 'optional' || s.cover.mode === 'required')) s.cover.ratios.forEach((r) => ratios.add(r));
+  return ratios.size ? `其他平台按需自动裁 ${[...ratios].join('、')}` : null;
+}
+
 function coverRule(spec: PlatformSpec): string {
   const g = coverGuide(spec, 'x');
   if (!g) return '';
