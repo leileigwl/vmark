@@ -1,0 +1,22 @@
+/*
+ * Vmark 设计令牌：把各主题已有的 CSS 变量映射为 Tailwind v4 语义色。
+ * 新界面只用这些语义类（bg-surface / text-muted / border-line / bg-primary ...），不写十六进制颜色。
+ */
+@theme inline {
+  --color-canvas: var(--bg-main);
+  --color-surface: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+  --color-line: var(--border-color);
+  --color-ink: var(--text-main);
+  --color-muted: var(--control-text-color);
+  --color-primary: var(--accent);
+  --color-primary-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --color-success: #1f9d55;
+  --color-success-soft: color-mix(in srgb, #1f9d55 12%, transparent);
+  --color-warning: #c27c0e;
+  --color-warning-soft: color-mix(in srgb, #c27c0e 14%, transparent);
+  --color-danger: #d93a3a;
+  --color-danger-soft: color-mix(in srgb, #d93a3a 12%, transparent);
+  --radius-ui: 8px;
+  --radius-card: 12px;
+}

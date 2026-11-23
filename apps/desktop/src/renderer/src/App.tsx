@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { ArticleManagerView } from './components/ArticleManagerView';
 import { FindReplaceBar } from './components/FindReplaceBar';
-import { PublishModal } from './components/PublishModal';
+import { PublishDialog } from './features/publish-flow';
 import { QuickOpenModal } from './components/QuickOpenModal';
 import { SettingsView, type SettingCategory } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
@@ -333,14 +333,11 @@ export default function App() {
       </div>
 
       {publishModalOpen && (
-        <PublishModal
+        <PublishDialog
+          open={publishModalOpen}
           activeArticle={ws.activeArticle}
-          gitStatus={ws.gitStatus}
-          gitPushLog={ws.gitPushLog}
           markdown={ws.markdown}
           onClose={() => setPublishModalOpen(false)}
-          onGitPush={ws.handleGitPush}
-          onSaveArticle={(content) => void ws.handleSaveArticle(content)}
         />
       )}
 
