@@ -144,9 +144,18 @@ export function resolveFor(draft: PublishDraft, id: PlatformId) {
   if (spec?.kind === 'cards') {
     const s = draft.social;
     const title = s.title?.trim() ? s.title : o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join('');
-    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? draft.tags };
+    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? fitTags(draft.tags, spec.tags?.max) };
   }
-  return { title: o.title ?? draft.title, digest: o.digest ?? fitDigest(draft.digest, spec?.digest?.max), tags: o.tags ?? draft.tags };
+  return { title: o.title ?? draft.title, digest: o.digest ?? fitDigest(draft.digest, spec?.digest?.max), tags: o.tags ?? fitTags(draft.tags, spec?.tags?.max) };
+}
+
+/** 沿用通用标签时：超出平台上限默认取前 max 个。 */
+const fitTags = (tags: string[], max: number | undefined) => (max !== undefined && tags.length > max ? tags.slice(0, max) : tags);
+
+/** 该平台是否沿用通用标签（没在平台行 / 小红书抖音分区里单独挑选）。 */
+export function usesSharedTags(draft: PublishDraft, spec: PlatformSpec): boolean {
+  if (draft.overrides[spec.id]?.tags !== undefined) return false;
+  return spec.kind !== 'cards' || draft.social.topics === undefined;
 }
 
 const len = (s: string) => [...s.trim()].length;
@@ -177,6 +186,9 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
     else if (spec.digest.min && d > 0 && d < spec.digest.min) err('digest', `摘要差 ${spec.digest.min - d} 字`);
   }
   if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover?.mode !== 'optional') err('cover', '缺封面');
+  if (spec.tags && usesSharedTags(draft, spec) && draft.tags.length > spec.tags.max) {
+    issues.push({ level: 'warn', field: 'tags', message: `标签超 ${draft.tags.length - spec.tags.max} 个（取前 ${spec.tags.max} 个）` });
+  }
   if (spec.tags?.required && v.tags.length === 0) err('tags', '缺标签');
   else if (spec.tags && v.tags.length > spec.tags.max) err('tags', `标签多 ${v.tags.length - spec.tags.max} 个`);
   if (spec.category?.required && !draft.juejinCategoryId) err('category', '缺分类');

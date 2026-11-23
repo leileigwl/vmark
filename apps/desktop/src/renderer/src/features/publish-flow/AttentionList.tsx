@@ -6,6 +6,7 @@ import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
 import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
 import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
+import { TagPicker } from './TagPicker';
 import { CategoryPicker } from './CategoryPicker';
 
 interface AttentionListProps {
@@ -36,9 +37,9 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
   if (fresh.length) setSeen([...seen, ...fresh]);
   if (!open && seen.length) setSeen([]);
   const show = (f: Issue['field']) => has(f) || seen.includes(f);
-  const errorOf = (f: Issue['field']) => issues.find((i) => i.field === f)?.message ?? null;
   const override = (patch: Parameters<typeof setOverride>[2]) => onChange((d) => ({ overrides: setOverride(d, spec.id, patch) }));
-  const tagsShared = errorOf('tags') === '缺标签' || !o.tags;
+  // 标签默认全部平台共用；只有平台有个数上限且通用标签超出（或已单独挑过）时，才在行里挑该平台用哪几个。
+  const pickTags = !!spec.tags && (o.tags !== undefined || draft.tags.length > spec.tags.max);
 
   const summary = issues.map((i) => i.message);
 
@@ -105,14 +106,18 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
               <Textarea id={`d-${spec.id}`} value={v.digest} onChange={(e) => override({ digest: e.target.value })} aria-invalid={issues.some((i) => i.field === 'digest' && i.level === 'error')} />
             </Field>
           ) : null}
-          {spec.tags && show('tags') ? (
-            <Field label={tagsShared ? '标签（所有平台共用）' : `${spec.short}标签`} htmlFor={`g-${spec.id}`}>
-              <TagInput
-                id={`g-${spec.id}`}
-                value={tagsShared ? draft.tags : v.tags}
-                onChange={(tags) => (tagsShared ? onChange({ tags }) : override({ tags }))}
-                placeholder="回车添加"
-              />
+          {spec.tags && pickTags ? (
+            <TagPicker
+              label={`${spec.short}标签`}
+              options={[...new Set([...draft.tags, ...(o.tags ?? [])])]}
+              value={v.tags}
+              max={spec.tags.max}
+              hint={[`最多 ${spec.tags.max} 个，默认取通用标签前 ${spec.tags.max} 个`, spec.tags.hint].filter(Boolean).join('；')}
+              onChange={(tags) => override({ tags })}
+            />
+          ) : spec.tags && show('tags') ? (
+            <Field label="标签（所有平台共用）" htmlFor={`g-${spec.id}`}>
+              <TagInput id={`g-${spec.id}`} value={draft.tags} onChange={(tags) => onChange({ tags })} placeholder="回车添加" />
             </Field>
           ) : null}
           {spec.category && show('category') ? (

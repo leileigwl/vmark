@@ -27,7 +27,8 @@ export interface PlatformSpec {
   digest?: { max: number; min?: number; required?: boolean };
   /** 没有 cover 的平台（博客园、GitHub 博客）不显示封面项。 */
   cover?: { ratios: CoverRatio[]; mode: CoverMode };
-  tags?: { required: boolean; max: number };
+  /** hint：平台对标签的额外说明，显示在该平台行的标签挑选下方。 */
+  tags?: { required: boolean; max: number; hint?: string };
   /** 需要选文章分类的平台（掘金）。 */
   category?: { required: boolean };
   /** 卡片类平台的图片张数上限（含封面）。 */
@@ -43,7 +44,7 @@ const WIDE: CoverRatio[] = ['16:9'];
 export const PLATFORM_SPECS: PlatformSpec[] = [
   { id: 'weixin', name: '微信公众号', short: '公众号', kind: 'article', title: { max: 64 }, digest: { max: 120 }, cover: { ratios: ['2.35:1', '1:1'], mode: 'weixin' }, mode: 'draft', verified: false },
   { id: 'zhihu', name: '知乎专栏', short: '知乎', kind: 'article', title: { max: 100 }, cover: { ratios: WIDE, mode: 'optional' }, mode: 'draft', verified: false },
-  { id: 'juejin', name: '稀土掘金', short: '掘金', kind: 'article', title: { max: 100 }, digest: { min: 50, max: 100, required: true }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 3 }, category: { required: true }, mode: 'draft', verified: false },
+  { id: 'juejin', name: '稀土掘金', short: '掘金', kind: 'article', title: { max: 100 }, digest: { min: 50, max: 100, required: true }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 3, hint: '按名称匹配掘金标签库（同名优先，否则取最接近的一个），搜不到的跳过' }, category: { required: true }, mode: 'draft', verified: false },
   { id: 'csdn', name: 'CSDN', short: 'CSDN', kind: 'article', title: { min: 5, max: 100 }, digest: { max: 256 }, cover: { ratios: WIDE, mode: 'optional' }, tags: { required: true, max: 7 }, mode: 'draft', verified: false },
   { id: 'cnblogs', name: '博客园', short: '博客园', kind: 'article', title: { max: 100 }, digest: { max: 200 }, mode: 'draft', verified: false },
   { id: 'baijiahao', name: '百家号', short: '百家号', kind: 'article', title: { min: 8, max: 30 }, cover: { ratios: WIDE, mode: 'required' }, mode: 'draft', verified: false },
