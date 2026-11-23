@@ -80,8 +80,8 @@ async function setupAllPlatformsPage(page: Page) {
   await page.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 15_000 });
 }
 
-test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
-  test('校验全部 13 个平台授权状态、多平台排版预览与一键批量分发结果链接', async ({ page }, testInfo) => {
+test.describe('全平台：登录状态一致、逐平台适配与批量推送', () => {
+  test('设置页与发布窗口状态一致；补齐各平台要求后一次推送全部平台', async ({ page }, testInfo) => {
     await setupAllPlatformsPage(page);
     const screenshotDir = process.env.PW_SCREENSHOT_DIR;
     const snap = async (name: string) => {
@@ -89,43 +89,55 @@ test.describe('All 13 Platforms Auth, Preview & Batch Dispatch E2E', () => {
       await page.screenshot({ path: targetPath, fullPage: true });
     };
 
-    // 1. Settings -> verify all 11 visible platforms show "● 已授权" and hidden ones stay hidden
-    await page.getByTitle('偏好设置 (图床 / 平台 / GitHub)').click();
-    await page.getByRole('button', { name: '平台授权托管' }).click();
-    await expect(page.getByText('● 已授权')).toHaveCount(ALL_PLATFORMS.length);
-    await expect(page.getByText('Linux.do (Discourse)')).toHaveCount(0);
-    await expect(page.getByText('X (Twitter)')).toHaveCount(0);
-    await snap('all-platforms-settings.png');
+    // 1. 设置 → 平台账号：除 GitHub 博客外全部显示已登录，且不再展示内部路径
+    await page.getByTitle('偏好设置').click();
+    await page.getByRole('button', { name: '平台账号' }).click();
+    const accounts = page.getByTestId('accounts-list');
+    await expect(accounts.locator('[data-auth-status="signedIn"]')).toHaveCount(ALL_PLATFORMS.length - 1);
+    await expect(page.getByText('references/')).toHaveCount(0);
+    await snap('all-platforms-accounts.png');
+
+    // 2. 打开发布窗口，勾选全部平台
     await page.getByRole('button', { name: '编辑' }).click();
-
-    // 2. PublishModal -> verify 5 platform previews (WeChat, Zhihu, Baijiahao, Xiaohongshu 3:4, Douyin 3:4)
-    await page.getByRole('button', { name: '分发' }).click();
-    await expect(page.getByTestId('weixin-preview')).toContainText('ℹ️ 提示');
-    await expect(page.getByTestId('weixin-preview').locator('img[src="vcat-asset://local/assets/arch.png"]')).toBeVisible();
-    await page.getByRole('button', { name: '知乎专栏' }).click();
-    await expect(page.getByTestId('zhihu-preview')).toContainText('ℹ️ 提示');
-    await page.getByRole('button', { name: '百家号' }).click();
-    await expect(page.getByTestId('baijiahao-preview')).toContainText('全平台分发测试');
-    await page.getByRole('button', { name: '小红书 3:4 卡片' }).click();
-    await expect(page.getByTestId('xiaohongshu-preview')).toContainText('全平台分发测试');
-    await page.getByRole('button', { name: '抖音 3:4 图文' }).click();
-    await expect(page.getByTestId('douyin-preview')).toContainText('全平台分发测试');
-    await snap('all-platforms-preview.png');
-
-    // 3. Multi-platform dispatch -> check all 13 checkboxes & execute batch publish
-    await page.getByRole('button', { name: '多平台分发 / Git' }).click();
-    const checkboxes = page.locator('div.divide-y input[type="checkbox"]');
-    const count = await checkboxes.count();
-    expect(count).toBe(ALL_PLATFORMS.length);
-    for (let i = 0; i < count; i++) {
-      const cb = checkboxes.nth(i);
-      if (!(await cb.isChecked())) {
-        await cb.check();
-      }
+    await page.getByRole('button', { name: '发布', exact: true }).click();
+    for (const id of ALL_PLATFORMS) {
+      const box = page.getByTestId(`platform-row-${id}`).getByRole('checkbox');
+      if ((await box.getAttribute('data-state')) !== 'checked') await box.click();
+      await expect(box).toHaveAttribute('data-state', 'checked');
     }
+    await expect(page.getByTestId('publish-start')).not.toHaveText(`推送到 ${ALL_PLATFORMS.length} 个草稿箱`);
 
-    await page.getByRole('button', { name: `一键分发至所选平台 (${ALL_PLATFORMS.length})` }).click();
-    await expect(page.getByRole('link', { name: '打开草稿 / 查看链接' })).toHaveCount(ALL_PLATFORMS.length);
+    // 3. 共用信息补齐标签与合规摘要（掘金 50–100 字）；“需要单独处理”只剩百家号标题、微博摘要、掘金分类和两个卡片平台
+    await page.locator('#pub-tags').fill('前端');
+    await page.locator('#pub-tags').press('Enter');
+    await page.locator('#pub-digest').fill('这是一篇用于验证多平台发布流程的测试文章，覆盖标题、摘要、标签和封面比例的适配，确保每个平台都能顺利进入草稿箱。');
+    await expect(page.getByTestId('attention-list').locator('li')).toHaveCount(5);
+    await expect(page.getByTestId('attention-juejin')).toContainText('掘金：缺分类');
+    await expect(page.getByTestId('attention-baijiahao')).toContainText('百家号：标题差 1 字');
+    await expect(page.getByTestId('attention-weibo')).toContainText('微博：摘要超 12 字');
+    await expect(page.getByTestId('attention-xiaohongshu')).toContainText('张卡片');
+    await expect(page.getByTestId('attention-douyin')).toContainText('张卡片');
+    await page.getByTestId('attention-baijiahao').getByRole('button', { expanded: false }).click();
+    await page.locator('#t-baijiahao').fill('全平台分发测试短标题');
+    await page.getByTestId('attention-weibo').getByRole('button', { expanded: false }).click();
+    await page.locator('#d-weibo').fill('多平台发布流程测试');
+    await page.getByTestId('attention-juejin').getByRole('button', { expanded: false }).click();
+    await page.getByTestId('attention-juejin').getByRole('radio', { name: '前端' }).click();
+    for (const id of ALL_PLATFORMS) {
+      await expect(page.getByTestId(`platform-row-${id}`)).toContainText('就绪');
+    }
+    await expect(page.getByTestId('publish-start')).toHaveText(`推送到 ${ALL_PLATFORMS.length} 个草稿箱`);
+    await snap('all-platforms-ready.png');
+
+    // 4. 推送：每个平台单独一次请求，全部成功
+    const start = page.getByTestId('publish-start');
+    await expect(start).toBeEnabled();
+    await start.click();
+    const results = page.getByTestId('publish-results');
+    await expect(results.locator('[data-state="ok"]')).toHaveCount(ALL_PLATFORMS.length, { timeout: 10_000 });
+    await expect(page.getByText(`已推送到 ${ALL_PLATFORMS.length} 个平台`)).toBeVisible();
+    await expect(page.getByRole('button', { name: '去草稿箱' })).toHaveCount(ALL_PLATFORMS.length - 1);
+    await expect(page.getByRole('button', { name: '查看' })).toHaveCount(1);
     await snap('all-platforms-dispatch.png');
   });
 });

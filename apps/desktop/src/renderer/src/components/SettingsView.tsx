@@ -80,7 +80,7 @@ export function SettingsView({
             ['editor', '编辑与导出', SlidersHorizontal],
             ['image', '图像与图床', ImageIcon],
             ['theme', '外观主题', Palette],
-            ['platforms', '平台授权托管', Globe],
+            ['platforms', '平台账号', Globe],
             ['github', 'GitHub 静态博客', GitBranch],
           ] as const
         ).map(([id, label, Icon]) => (
