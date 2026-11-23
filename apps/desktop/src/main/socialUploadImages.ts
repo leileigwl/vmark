@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { SOCIAL_CARD_PRESETS } from '@vcat/core';
+import { getSocialCardTheme } from '@vcat/core';
 import type { SocialCoverRatio } from '@vcat/shared';
 
 /** 卡片生成器（正式环境是 rasterizeSocialCards，测试里可替换）。 */
@@ -28,9 +28,13 @@ export interface SocialUploadParams {
 
 const COVER_EXT_RE = /\.(png|jpe?g|webp)$/i;
 
-/** 界面里选的卡片模板；不认识的模板回退到平台默认。 */
+/**
+ * 界面里选的卡片模板；没选时用平台默认。
+ * 选了的（含旧版保存的别名）按 getSocialCardTheme 解析——发布弹窗缩略图也是这样解析的，保证所见即所发。
+ */
 export function pickSocialTheme(candidate: string | undefined, fallback: string): string {
-  return candidate && Object.prototype.hasOwnProperty.call(SOCIAL_CARD_PRESETS, candidate) ? candidate : fallback;
+  const id = candidate?.trim();
+  return id ? getSocialCardTheme(id).id : fallback;
 }
 
 /** 把封面相对路径解析为工作区内存在的图片文件；越界、不存在、非图片一律返回 null。 */

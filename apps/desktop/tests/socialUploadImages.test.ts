@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { SOCIAL_MAX_CARDS } from '../../../packages/shared/src/index.ts';
+import { getSocialCardTheme, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import {
   pickSocialTheme,
   resolveSocialCoverImage,
@@ -103,8 +104,18 @@ test('卡片生成失败或为空时返回空列表（不会只传一张封面�
   );
 });
 
-test('卡片模板沿用界面里选的模板，未知模板回退到平台默认', () => {
+test('卡片模板沿用界面里选的模板，没选时用平台默认', () => {
   assert.equal(pickSocialTheme('minimalist-magazine', 'ios-memo'), 'minimalist-magazine');
-  assert.equal(pickSocialTheme('ink-classic', 'ios-memo'), 'ios-memo');
   assert.equal(pickSocialTheme(undefined, 'minimalist-magazine'), 'minimalist-magazine');
+  assert.equal(pickSocialTheme('  ', 'minimalist-magazine'), 'minimalist-magazine');
+  for (const id of Object.keys(SOCIAL_CARD_PRESETS)) assert.equal(pickSocialTheme(id, 'ios-memo'), id);
+});
+
+test('旧版保存的模板名（别名）与发布弹窗缩略图解析成同一套模板，所见即所发（来自 #42）', () => {
+  // 缩略图 CardStrip 用 renderSocialCardHtml → getSocialCardTheme 解析模板；发布必须和它一致
+  assert.equal(pickSocialTheme('ink-classic', 'ios-memo'), 'minimalist-magazine');
+  assert.equal(pickSocialTheme('forest-journal', 'minimalist-magazine'), 'elegant-book');
+  for (const legacy of ['ink-classic', 'modern-minimal', 'mint-gradient', 'warm-note', 'not-a-theme']) {
+    assert.equal(pickSocialTheme(legacy, 'minimalist-magazine'), getSocialCardTheme(legacy).id);
+  }
 });
