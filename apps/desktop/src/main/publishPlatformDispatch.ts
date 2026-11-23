@@ -26,9 +26,14 @@ import {
 import { publishDouyinDraft, publishXiaohongshuDraft } from './publishSocialDrafts';
 import { executeWeixinDraftPublish } from './publishWeixinDraft';
 import { buildJuejinPush } from './publishJuejinDraft';
+import { confirmDraftDelivered, withDraftLink } from './draftLinks';
 
-/** Dispatches a single-platform publish or draft action with image transfer and auth checks. */
-export async function publishToSingleTarget(params: {
+/** Dispatches a single-platform publish or draft action; every successful draft gets its「打开草稿」link (see draftLinks). */
+export async function publishToSingleTarget(params: Parameters<typeof dispatchSingleTarget>[0]): Promise<MultiPlatformPublishResultItem> {
+  return withDraftLink(await dispatchSingleTarget(params));
+}
+
+async function dispatchSingleTarget(params: {
   platformId: PlatformId;
   mode: PublishMode;
   payload: MultiPlatformPublishPayload;
@@ -199,15 +204,17 @@ export async function publishToSingleTarget(params: {
         return { platformId, ok: false, mode: 'draft', message: uploadResult.errors.join('；') };
       }
       const pushed = await adapter.push(buildJuejinPush(payload, uploadResult.markdown));
+      // 掘金创建接口返回 id 不代表草稿箱立刻可见：回查一次，查不到时如实提示（用户反馈「有时候检测不到草稿箱」）。
+      const check = await confirmDraftDelivered(() => adapter.verifyDelivery(pushed.postId));
       return {
         platformId,
         ok: true,
         mode: 'draft',
         postId: pushed.postId,
         url: pushed.url,
-        verified: pushed.verified,
+        verified: check.verified,
         uploadedImagesCount: uploadResult.uploadedCount,
-        message: `已推送到稀土掘金草稿箱（转存 ${uploadResult.uploadedCount} 张图）`,
+        message: `已推送到稀土掘金草稿箱（转存 ${uploadResult.uploadedCount} 张图）${check.note}`,
       };
     }
 

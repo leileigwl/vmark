@@ -194,7 +194,9 @@ export interface MultiPlatformPublishResultItem {
   ok: boolean;
   mode: PublishMode;
   postId?: string;
+  /** 推送成功后「打开草稿」的地址：urlKind 为 draft 时是这篇草稿的编辑页，为 list 时是草稿列表页（拿不到草稿 id 时的兜底）。 */
   url?: string;
+  urlKind?: 'draft' | 'list';
   verified?: boolean;
   uploadedImagesCount?: number;
   message: string;
