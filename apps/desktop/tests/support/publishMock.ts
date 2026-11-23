@@ -11,7 +11,13 @@ export interface PublishSetup {
   /** 预置其他发布设置（如摘要），同样写进本地记住的设置。 */
   saved?: Record<string, unknown>;
   theme?: 'apple-light' | 'bloom-ink-dark';
+  /** 截图用：上传的图返回一张真实可显示的示例图（data URL），否则返回 ./assets/up.png。 */
+  sampleImage?: boolean;
 }
+
+/** 截图用示例封面：横幅渐变 + 偏左的主体圆，方便看出不同比例的裁切。 */
+const SAMPLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#ffb36b"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><circle cx="380" cy="360" r="190" fill="#fff" fill-opacity=".85"/><text x="380" y="380" font-size="64" text-anchor="middle" fill="#334">主体</text></svg>`;
+const SAMPLE_URL = `data:image/svg+xml;base64,${Buffer.from(SAMPLE_SVG).toString('base64')}`;
 
 export type PublishCall = {
   title: string;
@@ -29,7 +35,7 @@ export type PublishCall = {
 export async function openPublishWith(page: Page, s: PublishSetup): Promise<void> {
   const theme = s.theme ?? 'apple-light';
   await page.addInitScript(
-    ({ md, auth, selected, saved, theme: t }) => {
+    ({ md, auth, selected, saved, theme: t, image }) => {
       const meta = { id: 'c', title: 'content', relativePath: 'content.md', folder: '', wordCount: 40, updatedAt: Date.now(), imageCount: 1, hasFrontmatter: false, excerpt: '' };
       const w = window as unknown as { __calls: unknown[]; electronAPI: Record<string, unknown> };
       w.__calls = [];
@@ -45,7 +51,7 @@ export async function openPublishWith(page: Page, s: PublishSetup): Promise<void
         readArticle: async () => md,
         saveArticle: async () => ({ ok: true }),
         saveStartupConfig: async () => ({ ok: true }),
-        saveLocalImage: async () => ({ relativeMarkdownPath: './assets/up.png', fullPath: '/tmp/vmark-content/assets/up.png' }),
+        saveLocalImage: async () => ({ relativeMarkdownPath: image, fullPath: '/tmp/vmark-content/assets/up.png' }),
         setRecentFiles: () => {},
         onMenuAction: () => () => {},
         onPlatformAuthUpdated: () => () => {},
@@ -56,7 +62,7 @@ export async function openPublishWith(page: Page, s: PublishSetup): Promise<void
       };
       localStorage.setItem('vmark.publishDraft.v1:content.md', JSON.stringify({ ...saved, selected }));
     },
-    { md: s.md, auth: s.auth, selected: s.selected, saved: s.saved ?? {}, theme }
+    { md: s.md, auth: s.auth, selected: s.selected, saved: s.saved ?? {}, theme, image: s.sampleImage ? SAMPLE_URL : './assets/up.png' }
   );
   await page.goto('/');
   await page.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 15_000 });

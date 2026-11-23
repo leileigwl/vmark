@@ -30,9 +30,8 @@ export interface PublishDraft {
   includeRemoteImages: boolean;
   /** 掘金文章分类 id；空字符串表示还没选。 */
   juejinCategoryId: string;
-  /** 公众号专属：作者、阅读原文链接（空字符串=不填）。 */
-  weixinAuthor: string;
-  weixinSourceUrl: string;
+  /** 公众号块里单独上传的封面（空字符串=没传，沿用通用封面或正文首图）与它的焦点。 */
+  weixin: { cover: string; focus: { x: number; y: number } };
   social: SocialDraft;
 }
 
@@ -94,24 +93,24 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     socialThemeId: null,
     includeRemoteImages: true,
     juejinCategoryId: '',
-    weixinAuthor: '',
-    weixinSourceUrl: '',
+    weixin: { cover: '', focus: { x: 50, y: 50 } },
     social: { cover: '' },
   };
 }
 
 const KNOWN_KEYS: Array<keyof PublishDraft> = [
   'title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId',
-  'weixinAuthor', 'weixinSourceUrl', 'social',
+  'weixin', 'social',
 ];
 
-/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops）丢弃。 */
+/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文）丢弃。 */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
   if (!saved) return base;
   const out: PublishDraft = { ...base };
   for (const k of KNOWN_KEYS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   out.selected = out.selected.filter((id) => SPEC_BY_ID[id]);
   out.social = { ...out.social, cover: out.social?.cover ?? '' };
+  out.weixin = { ...base.weixin, ...out.weixin };
   return out;
 }
 
@@ -132,9 +131,18 @@ export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: str
   if (!spec.cover) return null;
   // 卡片平台只认它们分区里上传的封面，通用封面不插进卡片。
   if (spec.cover.mode === 'card') return draft.social.cover ? { kind: 'upload', src: draft.social.cover } : { kind: 'card' };
+  // 公众号块里单独上传的封面只给公众号；没传就和其他平台一样沿用通用封面。
+  if (spec.cover.mode === 'weixin' && draft.weixin.cover) return { kind: 'upload', src: draft.weixin.cover };
   if (draft.coverUpload) return { kind: 'upload', src: draft.coverUpload };
   if (spec.cover.mode === 'optional' || !bodyImage) return { kind: 'none' };
   return { kind: 'body', src: bodyImage };
+}
+
+/** 裁切上传封面时用的焦点：卡片封面取中心，公众号单独上传的用公众号块的焦点，其余用通用封面的焦点。 */
+export function coverFocusFor(draft: PublishDraft, spec: PlatformSpec): { x: number; y: number } {
+  if (spec.cover?.mode === 'card') return { x: 50, y: 50 };
+  if (spec.cover?.mode === 'weixin' && draft.weixin.cover) return draft.weixin.focus;
+  return draft.coverFocus;
 }
 
 /** 某平台最终使用的值：小红书/抖音用自己分区的值（标题默认截取通用标题）；其他平台单独改写优先，否则用通用值。 */

@@ -34,17 +34,15 @@ test('小红书/抖音封面只认它们分区里上传的图（插到第一张�
   assert.deepEqual(coverFor(d, SPEC_BY_ID.zhihu!, ''), { kind: 'upload', src: 'assets/general.jpg' });
 });
 
-test('推送内容：公众号带作者与阅读原文；小红书带自己的标题/正文/话题/封面；知乎只用通用值', async () => {
+test('推送内容：公众号不带作者与阅读原文；小红书带自己的标题/正文/话题/封面；知乎只用通用值', async () => {
   const d = draft({
     coverUpload: 'assets/general.jpg',
-    weixinAuthor: '维磊',
-    weixinSourceUrl: 'https://example.com/post',
     social: { title: '卡片标题', body: '  我自己写的正文  ', topics: ['话题'], cover: 'assets/xhs.jpg' },
   });
   const cache = new Map();
   const wx = await buildPayload(d, MD, 'weixin', './assets/a.png', crop, cache);
-  assert.equal(wx.author, '维磊');
-  assert.equal(wx.sourceUrl, 'https://example.com/post');
+  assert.equal(wx.author, undefined);
+  assert.equal(wx.sourceUrl, undefined);
   const zh = await buildPayload(d, MD, 'zhihu', './assets/a.png', crop, cache);
   assert.equal(zh.author, undefined);
   assert.equal(zh.sourceUrl, undefined);
@@ -66,9 +64,10 @@ test('通用封面只留一句短提示，比例取自 platformSpecs；没有需
   assert.equal(generalCoverHint(specs('weixin', 'xiaohongshu', 'cnblogs')), null);
 });
 
-test('合并本地记住的设置：保留公众号作者/阅读原文与小红书抖音分区', () => {
-  const merged = mergeSaved(draft(), { weixinAuthor: 'A', weixinSourceUrl: 'https://x', social: { title: 'T', cover: '' } });
-  assert.equal(merged.weixinAuthor, 'A');
-  assert.equal(merged.weixinSourceUrl, 'https://x');
+test('合并本地记住的设置：保留小红书抖音分区，丢弃旧版的公众号作者/阅读原文', () => {
+  const legacy: Record<string, unknown> = { weixinAuthor: 'A', weixinSourceUrl: 'https://x', social: { title: 'T', cover: '' } };
+  const merged = mergeSaved(draft(), legacy as Partial<PublishDraft>);
+  assert.equal('weixinAuthor' in merged, false);
+  assert.equal('weixinSourceUrl' in merged, false);
   assert.equal(merged.social.title, 'T');
 });

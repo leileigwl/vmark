@@ -9,7 +9,7 @@ export function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: s
   return (
     <Tooltip content="点图片设置焦点，各比例以焦点为中心裁切">
       <div
-        className={`relative shrink-0 cursor-crosshair overflow-hidden rounded-md border border-line bg-hover ${className}`}
+        className={`relative w-fit shrink-0 cursor-crosshair overflow-hidden rounded-md border border-line bg-hover ${className}`}
         data-testid="cover-focus"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();

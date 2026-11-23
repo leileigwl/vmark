@@ -1,5 +1,5 @@
 import type { MultiPlatformPublishPayload, MultiPlatformPublishResultItem, PlatformId } from '@vcat/shared';
-import { coverFor, resolveFor, type PublishDraft } from './draftModel.ts';
+import { coverFocusFor, coverFor, resolveFor, type PublishDraft } from './draftModel.ts';
 import { SPEC_BY_ID, type CoverRatio } from './platformSpecs.ts';
 
 export type RunState = 'pending' | 'running' | 'ok' | 'failed';
@@ -35,10 +35,9 @@ export async function buildPayload(
   let coverPath: string | undefined;
   let squarePath: string | undefined;
   if (cover?.kind === 'upload' && spec?.cover) {
-    // 卡片平台的封面是它们分区里单独上传的图，焦点取中心；其余平台共用通用封面与焦点。
-    const focus = spec.cover.mode === 'card' ? { x: 50, y: 50 } : draft.coverFocus;
+    const focus = coverFocusFor(draft, spec);
     const cropOnce = (ratio: CoverRatio) => {
-      const key = `${cover.src}|${ratio}`;
+      const key = `${cover.src}|${ratio}|${focus.x},${focus.y}`;
       if (!cache.has(key)) cache.set(key, crop(cover.src, ratio, focus).catch(() => cover.src));
       return cache.get(key);
     };
@@ -49,11 +48,8 @@ export async function buildPayload(
     coverPath = cover.src;
   }
   const isCards = spec?.kind === 'cards';
-  const isWeixin = id === 'weixin';
   return {
     title: v.title,
-    author: isWeixin && draft.weixinAuthor.trim() ? draft.weixinAuthor.trim() : undefined,
-    sourceUrl: isWeixin && draft.weixinSourceUrl.trim() ? draft.weixinSourceUrl.trim() : undefined,
     socialBody: isCards && v.digest.trim() ? v.digest.trim() : undefined,
     markdown,
     digest: !isCards && v.digest ? v.digest : undefined,

@@ -156,7 +156,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
             {weixinOn || cardSpecs.length ? (
               <section className="space-y-3">
                 <h3 className="text-xs font-medium text-muted">平台专属</h3>
-                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field !== 'auth')} onChange={update} /> : null}
+                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} onChange={update} /> : null}
                 {cardSpecs.length ? <SocialSection draft={draft} specs={cardSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} /> : null}
               </section>
             ) : null}
