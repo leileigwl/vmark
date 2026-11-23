@@ -16,7 +16,8 @@ interface AttentionListProps {
   coverInputRef: RefObject<HTMLInputElement>;
 }
 
-const fieldIssues = (issues: Issue[]) => issues.filter((i) => i.level === 'error' && i.field !== 'auth');
+/** 行里列出的问题：会挡推送的 error，以及只提示不挡的 warn（如摘要超长会自动截取）。 */
+const fieldIssues = (issues: Issue[]) => issues.filter((i) => i.field !== 'auth');
 
 interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   spec: PlatformSpec;
@@ -45,7 +46,7 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
   const liRef = useRef<HTMLLIElement>(null);
   const closeRef = useRef(() => setOpen(false));
   closeRef.current = () => setOpen(false);
-  const done = open && issues.length === 0;
+  const done = open && !issues.some((i) => i.level === 'error');
   useEffect(() => {
     if (!done) return;
     let pointer = false;
@@ -84,7 +85,7 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
         <span className={cn('min-w-0 flex-1 truncate', issues.length ? 'text-warning' : 'text-muted')}>
           {issues.length ? summary.join(' · ') : '已就绪'}
         </span>
-        {!issues.length ? <CheckCircle2 className="size-4 text-success" aria-hidden /> : null}
+        {!issues.some((i) => i.level === 'error') ? <CheckCircle2 className="size-4 text-success" aria-hidden /> : null}
         <ChevronDown className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
       {open ? (
@@ -95,8 +96,13 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
             </Field>
           ) : null}
           {spec.digest && (show('digest') || o.digest !== undefined) ? (
-            <Field label={`${spec.short}摘要`} htmlFor={`d-${spec.id}`} count={{ value: [...v.digest.trim()].length, max: spec.digest.max, min: spec.digest.min }}>
-              <Textarea id={`d-${spec.id}`} value={v.digest} onChange={(e) => override({ digest: e.target.value })} aria-invalid={has('digest')} />
+            <Field
+              label={`${spec.short}摘要`}
+              htmlFor={`d-${spec.id}`}
+              count={{ value: [...v.digest.trim()].length, max: spec.digest.max, min: spec.digest.min }}
+              hint={o.digest === undefined && v.digest !== draft.digest ? `已自动截取到 ${spec.digest.max} 字，可在这里改写` : undefined}
+            >
+              <Textarea id={`d-${spec.id}`} value={v.digest} onChange={(e) => override({ digest: e.target.value })} aria-invalid={issues.some((i) => i.field === 'digest' && i.level === 'error')} />
             </Field>
           ) : null}
           {spec.tags && show('tags') ? (

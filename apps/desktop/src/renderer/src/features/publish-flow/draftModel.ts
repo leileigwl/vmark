@@ -146,10 +146,16 @@ export function resolveFor(draft: PublishDraft, id: PlatformId) {
     const title = s.title?.trim() ? s.title : o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join('');
     return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? draft.tags };
   }
-  return { title: o.title ?? draft.title, digest: o.digest ?? draft.digest, tags: o.tags ?? draft.tags };
+  return { title: o.title ?? draft.title, digest: o.digest ?? fitDigest(draft.digest, spec?.digest?.max), tags: o.tags ?? draft.tags };
 }
 
 const len = (s: string) => [...s.trim()].length;
+
+/** 通用摘要超出平台上限时自动截取（末尾“…”算在上限内）；平台行里单独改写的摘要不截取。 */
+export function fitDigest(digest: string, max: number | undefined): string {
+  if (max === undefined || len(digest) <= max) return digest;
+  return [...digest.trim()].slice(0, max - 1).join('') + '…';
+}
 
 /** 检查某平台是否可以推送；error 会阻止推送。消息是短句，如“摘要差 12 字”。 */
 export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn: boolean, bodyImage = ''): Issue[] {
@@ -163,6 +169,9 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
   else if (spec.title.min && t < spec.title.min) err('title', `标题差 ${spec.title.min - t} 字`);
   if (spec.digest) {
     const d = len(v.digest);
+    // 沿用通用摘要且超长：只提示，推送时自动截取（resolveFor 已截好），不挡推送。
+    const shared = spec.kind !== 'cards' && draft.overrides[spec.id]?.digest === undefined ? len(draft.digest) : 0;
+    if (shared > spec.digest.max) issues.push({ level: 'warn', field: 'digest', message: `摘要超 ${shared - spec.digest.max} 字（自动截取）` });
     if (spec.digest.required && d === 0) err('digest', '缺摘要');
     else if (d > spec.digest.max) err('digest', `摘要超 ${d - spec.digest.max} 字`);
     else if (spec.digest.min && d > 0 && d < spec.digest.min) err('digest', `摘要差 ${spec.digest.min - d} 字`);
