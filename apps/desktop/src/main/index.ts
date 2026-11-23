@@ -18,6 +18,7 @@ import {
   stopHeartbeatEngine,
 } from './ipc/platform-auth/index';
 import { registerAllIpcHandlers } from './ipc/registry';
+import { protectEditorWindow } from './editorSafety';
 
 export { CHROME_DESKTOP_UA };
 
@@ -65,6 +66,7 @@ function createWindow(): void {
   });
 
   activeMainWindow = mainWindow;
+  protectEditorWindow(mainWindow);
   mainWindow.on('closed', () => {
     if (activeMainWindow === mainWindow) activeMainWindow = null;
   });

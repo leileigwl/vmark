@@ -108,7 +108,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       return;
     }
     const reqId = ++openRequestIdRef.current;
-    flushActiveArticle();
+    void flushActiveArticle();
     loadingArticleRef.current = true;
     setSaveState('已保存');
     setActiveArticle(meta);
@@ -142,20 +142,33 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
    * disk. Reads the editor directly, so input still inside the 320ms change debounce (and
    * input while the state already says 已保存) is not lost when switching articles.
    */
-  function flushActiveArticle() {
-    if (!activeArticle || loadingArticleRef.current) return;
+  function flushActiveArticle(): Promise<void> {
+    if (!activeArticle || loadingArticleRef.current) return Promise.resolve();
     const current = editorRef.current?.getValue();
-    if (current === undefined) return;
-    if (activeArticle.wordCount > 20 && current.trim().length === 0) return;
+    if (current === undefined) return Promise.resolve();
+    if (activeArticle.wordCount > 20 && current.trim().length === 0) return Promise.resolve();
     const next = baseline.contentForDisk(persistedContentRef.current, current);
-    if (next === persistedContentRef.current) return;
+    if (next === persistedContentRef.current) return Promise.resolve();
     const previous = persistedContentRef.current;
     persistedContentRef.current = next;
-    window.electronAPI.saveArticle(activeArticle.relativePath, next).catch((err: unknown) => {
-      if (persistedContentRef.current === next) persistedContentRef.current = previous;
-      reportSaveFailure(err, current);
-    });
+    return window.electronAPI.saveArticle(activeArticle.relativePath, next).then(
+      () => undefined,
+      (err: unknown) => {
+        if (persistedContentRef.current === next) persistedContentRef.current = previous;
+        reportSaveFailure(err, current);
+      }
+    );
   }
+  // The main process calls this before the window closes (main/editorSafety.ts) and waits for it.
+  const flushRef = useRef(flushActiveArticle);
+  flushRef.current = flushActiveArticle;
+  useEffect(() => {
+    const w = window as unknown as { __vmarkFlushBeforeClose?: () => Promise<void> };
+    w.__vmarkFlushBeforeClose = () => flushRef.current();
+    return () => {
+      delete w.__vmarkFlushBeforeClose;
+    };
+  }, []);
 
   /** A failed write never touched the file (atomic save); say so, and keep the text in the editor. */
   function reportSaveFailure(err: unknown, attempted: string) {

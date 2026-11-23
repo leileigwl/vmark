@@ -10,10 +10,8 @@ import { caretAtEnd, launch, makeEnv, shotWin, waitForExit } from './support/int
 const ORIGINAL = '# 笔记\n\n第一段。\n';
 const EXPECTED = '# 笔记\n\n第一段。刚打的字\n';
 
-// 已知失败（preview/latest 4b7aa55 实测）：关窗/退出时没有把防抖里的输入写盘。修复见 stacked PR 分支 fix/integrity-flush-on-close；
-// 修复合入后 test.fail 必须改回 test。
 test.describe('@smoke 数据完整性 C1：关窗 / 退出不丢最后输入（真 Electron）', () => {
-  test.fail('输入后立刻关闭窗口：最后输入写入磁盘，且只多这几个字', async () => {
+  test('输入后立刻关闭窗口：最后输入写入磁盘，且只多这几个字', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);
     try {
@@ -29,7 +27,7 @@ test.describe('@smoke 数据完整性 C1：关窗 / 退出不丢最后输入（�
     }
   });
 
-  test.fail('输入后立刻退出应用（⌘Q / app.quit）：最后输入写入磁盘', async () => {
+  test('输入后立刻退出应用（⌘Q / app.quit）：最后输入写入磁盘', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);
     try {
