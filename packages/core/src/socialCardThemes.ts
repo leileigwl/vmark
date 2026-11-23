@@ -1,3 +1,5 @@
+import { cardDesignHeight, contentBoxFor, type CardContentBox, type CardContentInsets } from './socialCardLayout.ts';
+
 /**
  * Social Card Templates & Design Tokens
  * Modeled after xhs-textcard.site/editor's clean light templates:
@@ -90,9 +92,9 @@ export const PLATFORM_COVER_SPECS: Record<
   { width: number; height: number; label: string; platforms: string }
 > = {
   '3:4': {
-    width: 1080,
-    height: 1440,
-    label: '小红书 3:4 (1080×1440)',
+    width: 1242,
+    height: 1656,
+    label: '小红书 3:4 (1242×1656)',
     platforms: '小红书标准 3:4 图文 / 抖音图文',
   },
   '2:3': {
@@ -278,4 +280,19 @@ export function getSocialCardTheme(id?: string): SocialCardTokens {
     }
   }
   return SOCIAL_CARD_PRESETS['ios-memo'];
+}
+
+/** Content-box insets per template chrome (design px on the 1242px-wide canvas). */
+export const CARD_CHROME_INSETS: Record<CardTemplateChrome, CardContentInsets> = {
+  'ios-memo': { x: 100, top: 186, bottom: 150 },
+  'minimalist-magazine': { x: 104, top: 168, bottom: 150 },
+  blank: { x: 100, top: 128, bottom: 140 },
+  'elegant-book': { x: 120, top: 160, bottom: 150 },
+};
+
+/** Size of the flowing content box for a theme and output ratio (design px). */
+export function getCardContentBox(themeId?: string, ratio: PlatformCoverRatio = '3:4'): CardContentBox {
+  const spec = PLATFORM_COVER_SPECS[ratio] || PLATFORM_COVER_SPECS['3:4'];
+  const insets = CARD_CHROME_INSETS[getSocialCardTheme(themeId).chrome];
+  return contentBoxFor(insets, cardDesignHeight(spec.width, spec.height));
 }

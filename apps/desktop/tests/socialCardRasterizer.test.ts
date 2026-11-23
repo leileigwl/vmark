@@ -24,9 +24,10 @@ console.log(greet('Vmark'));
 
   const payload = renderXiaohongshuCards(md);
   assert.equal(payload.title, '测试长文卡片');
-  assert.ok(payload.cards.length >= 3);
+  // Short sections flow onto one card instead of one near-empty card per heading.
+  assert.ok(payload.cards.length >= 2);
   assert.equal(payload.cards[0].type, 'cover');
-  assert.ok(payload.cards.some((c) => c.type === 'code'));
+  assert.ok(payload.cards.some((c) => c.type === 'code' && (c.blocks ?? []).some((p) => p.block.kind === 'code')));
   assert.ok(payload.captionText.includes('#前端'));
 });
 

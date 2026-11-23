@@ -96,8 +96,10 @@ const x: number = 42;
   assert.ok(bjh.html.includes('<code class="language-typescript">'));
 
   const xhs = renderXiaohongshuCards(md);
-  assert.ok(xhs.cards.some((c) => c.type === 'code' && c.codeLang === 'c++'));
-  assert.ok(xhs.cards.some((c) => c.type === 'code' && c.codeLang === 'typescript'));
+  // Code now flows inside content cards; each fenced block keeps its own language.
+  const codeLangs = xhs.cards.flatMap((c) => (c.blocks ?? []).map((p) => (p.block.kind === 'code' ? p.block.lang : '')));
+  assert.ok(xhs.cards.some((c) => c.type === 'code') && codeLangs.includes('c++'));
+  assert.ok(codeLangs.includes('typescript'));
 });
 
 test('renderXiaohongshuCards creates cover, content, code cards and caption text', () => {
