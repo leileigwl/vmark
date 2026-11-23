@@ -29,10 +29,11 @@ function resolveUploadImages(platformId: 'xiaohongshu' | 'douyin', workspacePath
   );
 }
 
-function buildSocialCaption(markdown: string, title?: string, tags: string[] = []): string {
-  const rendered = renderXiaohongshuCards(markdown, title);
+/** 正文：用户在小红书/抖音分区里写了就用他写的（socialBody），否则从 Markdown 生成。 */
+function buildSocialCaption(markdown: string, title?: string, tags: string[] = [], body?: string): string {
+  const base = body?.trim() || renderXiaohongshuCards(markdown, title).captionText.trim();
   const tagLine = tags.length > 0 ? `\n${tags.map((t) => `#${t}`).join(' ')}` : '';
-  const text = `${rendered.captionText.trim()}${tagLine}`.trim();
+  const text = `${base}${tagLine}`.trim();
   return text.length > 950 ? `${text.slice(0, 947)}...` : text;
 }
 
@@ -162,7 +163,7 @@ export async function publishXiaohongshuDraft(params: {
 
     await sleep(1500);
     const shortTitle = (payload.title || '无标题').trim().slice(0, 20);
-    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags);
+    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags, payload.socialBody);
 
     await win.webContents.executeJavaScript(`((title, caption) => {
       const knowBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === '我知道了');
@@ -295,7 +296,7 @@ export async function publishDouyinDraft(params: {
 
     await sleep(5000);
     const shortTitle = (payload.title || '无标题').trim().slice(0, 20);
-    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags);
+    const caption = buildSocialCaption(payload.markdown, shortTitle, payload.tags, payload.socialBody);
 
     await win.webContents.executeJavaScript(`((title, caption) => {
       const titleInput = document.querySelector('input[placeholder="添加作品标题"]');

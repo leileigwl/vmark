@@ -183,6 +183,8 @@ export interface MultiPlatformPublishPayload {
   weixinSquareCoverImagePath?: string;
   /** 掘金：文章分类 id（见 adapters 的 JUEJIN_CATEGORIES）；不传时草稿分类为空。 */
   juejinCategoryId?: string;
+  /** 小红书/抖音：用户在分区里单独写的纯文本正文；不传时由主进程从 Markdown 生成。 */
+  socialBody?: string;
   targets: MultiPlatformPublishTarget[];
 }
 

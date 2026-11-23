@@ -23,7 +23,8 @@ const draft = (patch: Partial<PublishDraft> = {}): PublishDraft => ({ ...createD
 test('问题是短句：掘金“摘要差 N 字”“缺标签”，小红书“标题超 N 字”', () => {
   const d = draft({ digest: '一'.repeat(38), title: '一二三四五六七八九十一二三四五六七八九十一二' });
   assert.deepEqual(checkPlatform(d, spec('juejin'), true).map((i) => i.message), ['摘要差 12 字', '缺标签', '缺分类']);
-  assert.deepEqual(checkPlatform(d, spec('xiaohongshu'), true).map((i) => i.message), ['标题超 2 字']);
+  // 小红书标题默认从通用标题截取；用户在小红书分区里自己填的超长才报
+  assert.deepEqual(checkPlatform({ ...d, social: { title: d.title, cover: '' } }, spec('xiaohongshu'), true).map((i) => i.message), ['标题超 2 字']);
   assert.deepEqual(checkPlatform(d, spec('zhihu'), false).map((i) => i.message), ['未登录']);
   assert.deepEqual(checkPlatform(d, spec('github_static'), false), []);
 });
@@ -40,7 +41,9 @@ test('封面默认值按平台：公众号/百家号/微博用正文首图，知
   assert.equal(coverFor(d, spec('cnblogs'), body), null);
   assert.equal(coverFor(d, spec('github_static'), body), null);
   const up = draft({ coverUpload: 'assets/up.jpg' });
-  for (const id of ['weixin', 'zhihu', 'xiaohongshu']) assert.deepEqual(coverFor(up, spec(id), body), { kind: 'upload', src: 'assets/up.jpg' });
+  for (const id of ['weixin', 'zhihu']) assert.deepEqual(coverFor(up, spec(id), body), { kind: 'upload', src: 'assets/up.jpg' });
+  // 小红书/抖音单独一个分区：通用封面不插进卡片，只认它们自己上传的封面
+  for (const id of ['xiaohongshu', 'douyin']) assert.deepEqual(coverFor(up, spec(id), body), { kind: 'card' });
 });
 
 test('正文没图又没上传：公众号/百家号缺封面，知乎不报', () => {
@@ -68,7 +71,7 @@ test('合并本地记住的设置时丢弃旧字段与未知平台', () => {
   assert.ok(!('coverCrops' in merged));
 });
 
-test('推送内容：上传封面按平台比例裁一次并复用；卡片平台走 socialCoverImagePath', async () => {
+test('推送内容：上传封面按平台比例裁一次并复用；通用封面不进卡片平台', async () => {
   const crops: string[] = [];
   const crop: CoverCropper = async (_src, ratio) => {
     crops.push(ratio);
@@ -84,9 +87,9 @@ test('推送内容：上传封面按平台比例裁一次并复用；卡片平�
   assert.equal(csdn.coverImageUrl, 'assets/crop-16:9.jpg');
   assert.equal(wx.coverImageUrl, 'assets/crop-2.35:1.jpg');
   assert.equal(xhs.coverImageUrl, undefined);
-  assert.equal(xhs.socialCoverImagePath, 'assets/crop-3:4.jpg');
+  assert.equal(xhs.socialCoverImagePath, undefined);
   assert.equal(xhs.socialCoverRatio, '3:4');
-  assert.deepEqual(crops, ['16:9', '2.35:1', '1:1', '3:4']);
+  assert.deepEqual(crops, ['16:9', '2.35:1', '1:1']);
   assert.equal(wx.targets[0].mode, 'draft');
 });
 

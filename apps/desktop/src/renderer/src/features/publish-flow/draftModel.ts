@@ -3,6 +3,18 @@ import { SPEC_BY_ID, type PlatformSpec } from './platformSpecs.ts';
 
 type Override = { title?: string; digest?: string; tags?: string[] };
 
+/** 小红书 + 抖音单独一个分区：自己的标题 / 纯文本正文 / 话题 / 封面（插到第一张卡前）。没填的用默认。 */
+export interface SocialDraft {
+  /** 空=从通用标题截取到平台上限。 */
+  title?: string;
+  /** 空=主进程从正文生成纯文本。 */
+  body?: string;
+  /** 空=用通用标签。 */
+  topics?: string[];
+  /** 上传的封面（工作区相对路径），空字符串=第一张卡片就是封面。 */
+  cover: string;
+}
+
 /** 一篇文章的发布设置：所有平台共用的标题/摘要/标签/封面，个别平台需要时单独改写。 */
 export interface PublishDraft {
   title: string;
@@ -18,6 +30,10 @@ export interface PublishDraft {
   includeRemoteImages: boolean;
   /** 掘金文章分类 id；空字符串表示还没选。 */
   juejinCategoryId: string;
+  /** 公众号专属：作者、阅读原文链接（空字符串=不填）。 */
+  weixinAuthor: string;
+  weixinSourceUrl: string;
+  social: SocialDraft;
 }
 
 export type IssueField = 'title' | 'digest' | 'cover' | 'tags' | 'category' | 'auth';
@@ -78,10 +94,16 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     socialThemeId: null,
     includeRemoteImages: true,
     juejinCategoryId: '',
+    weixinAuthor: '',
+    weixinSourceUrl: '',
+    social: { cover: '' },
   };
 }
 
-const KNOWN_KEYS: Array<keyof PublishDraft> = ['title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId'];
+const KNOWN_KEYS: Array<keyof PublishDraft> = [
+  'title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId',
+  'weixinAuthor', 'weixinSourceUrl', 'social',
+];
 
 /** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops）丢弃。 */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
@@ -89,6 +111,7 @@ export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | nu
   const out: PublishDraft = { ...base };
   for (const k of KNOWN_KEYS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   out.selected = out.selected.filter((id) => SPEC_BY_ID[id]);
+  out.social = { ...out.social, cover: out.social?.cover ?? '' };
   return out;
 }
 
@@ -107,15 +130,22 @@ export function setOverride(draft: PublishDraft, id: PlatformId, patch: Override
 /** 某平台的封面来源，按“用户在信息流里怎么看到它”决定默认值。没有封面项的平台返回 null。 */
 export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: string): CoverSource | null {
   if (!spec.cover) return null;
+  // 卡片平台只认它们分区里上传的封面，通用封面不插进卡片。
+  if (spec.cover.mode === 'card') return draft.social.cover ? { kind: 'upload', src: draft.social.cover } : { kind: 'card' };
   if (draft.coverUpload) return { kind: 'upload', src: draft.coverUpload };
-  if (spec.cover.mode === 'card') return { kind: 'card' };
   if (spec.cover.mode === 'optional' || !bodyImage) return { kind: 'none' };
   return { kind: 'body', src: bodyImage };
 }
 
-/** 某平台最终使用的值（单独改写优先，否则用通用值）。 */
+/** 某平台最终使用的值：小红书/抖音用自己分区的值（标题默认截取通用标题）；其他平台单独改写优先，否则用通用值。 */
 export function resolveFor(draft: PublishDraft, id: PlatformId) {
   const o = draft.overrides[id] ?? {};
+  const spec = SPEC_BY_ID[id];
+  if (spec?.kind === 'cards') {
+    const s = draft.social;
+    const title = s.title?.trim() ? s.title : o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join('');
+    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? draft.tags };
+  }
   return { title: o.title ?? draft.title, digest: o.digest ?? draft.digest, tags: o.tags ?? draft.tags };
 }
 

@@ -37,8 +37,8 @@ async function openWithMarkdown(page: Page, md: string, theme = 'apple-light') {
   await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
   await page.getByRole('button', { name: '发布', exact: true }).click();
   await page.getByTestId('platform-row-xiaohongshu').getByRole('checkbox').click();
-  // 精简后的发布弹窗：卡片缩略图在「需要单独处理」里小红书这一行展开后出现
-  await page.getByTestId('attention-xiaohongshu').getByRole('button', { expanded: false }).click();
+  // 卡片缩略图在「小红书 · 抖音」专属分区里，展开后出现
+  await page.getByTestId('section-social').getByRole('button', { expanded: false }).click();
 }
 
 /** 截图只在设置了 PW_SCREENSHOT_DIR 时写入，且失败不影响用例结果。 */
