@@ -160,7 +160,7 @@ export { WeixinAdapter, type FetchLike, type WeixinAuthMeta, type WeixinDraftPay
 export { GitHubStaticAdapter, type GitHubStaticOptions } from './githubStatic.ts';
 export { CnblogsAdapter, type CnblogsOptions } from './cnblogs.ts';
 export { ZhihuAdapter, type ZhihuOptions } from './zhihu.ts';
-export { JuejinAdapter, type JuejinOptions } from './juejin.ts';
+export { JUEJIN_CATEGORIES, JuejinAdapter, type JuejinCategory, type JuejinOptions } from './juejin.ts';
 export { CsdnAdapter, type CsdnOptions } from './csdn.ts';
 export { BaijiahaoAdapter, type BaijiahaoOptions, type BaijiahaoUserInfo } from './baijiahao.ts';
 export { BilibiliAdapter, type BilibiliOptions } from './bilibili.ts';

@@ -5,6 +5,27 @@ import type { FetchLike } from './weixin.ts';
 const IMAGEX_AID = '2608';
 const IMAGEX_SERVICE_ID = '73owjymdk6';
 
+export interface JuejinCategory {
+  id: string;
+  name: string;
+}
+
+/**
+ * 掘金文章分类（草稿创建请求里的 category_id）。
+ * 来源：POST https://api.juejin.cn/tag_api/v1/query_category_list（2026-11-23 抓取，err_no=0）。
+ * 运行时优先用 listCategories() 拉最新列表，拉不到时用这一份。
+ */
+export const JUEJIN_CATEGORIES: readonly JuejinCategory[] = [
+  { id: '6809637769959178254', name: '后端' },
+  { id: '6809637767543259144', name: '前端' },
+  { id: '6809635626879549454', name: 'Android' },
+  { id: '6809635626661445640', name: 'iOS' },
+  { id: '6809637773935378440', name: '人工智能' },
+  { id: '6809637771511070734', name: '开发工具' },
+  { id: '6809637776263217160', name: '代码人生' },
+  { id: '6809637772874219534', name: '阅读' },
+];
+
 export interface JuejinOptions {
   fetchFn?: FetchLike;
 }
@@ -48,6 +69,28 @@ export class JuejinAdapter implements PlatformAdapter {
       return data.err_no === 0 && Boolean(userId) && userId !== '0';
     } catch {
       return false;
+    }
+  }
+
+  /** 拉取掘金文章分类；接口失败或返回空时退回内置 JUEJIN_CATEGORIES。 */
+  async listCategories(): Promise<JuejinCategory[]> {
+    try {
+      const res = await this.fetchFn('https://api.juejin.cn/tag_api/v1/query_category_list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: 'https://juejin.cn', Referer: 'https://juejin.cn/' },
+        body: '{}',
+      });
+      if (!res.ok) return [...JUEJIN_CATEGORIES];
+      const data = (await res.json()) as {
+        err_no?: number;
+        data?: Array<{ category_id?: string; category?: { category_name?: string } }>;
+      };
+      const list = (Array.isArray(data.data) ? data.data : [])
+        .map((c) => ({ id: String(c.category_id ?? ''), name: c.category?.category_name ?? '' }))
+        .filter((c) => c.id && c.name);
+      return data.err_no === 0 && list.length > 0 ? list : [...JUEJIN_CATEGORIES];
+    } catch {
+      return [...JUEJIN_CATEGORIES];
     }
   }
 
