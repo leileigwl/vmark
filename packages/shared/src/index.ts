@@ -177,8 +177,17 @@ export interface MultiPlatformPublishPayload {
   includeRemoteImages?: boolean;
   socialThemeId?: string;
   socialCoverRatio?: SocialCoverRatio;
+  /** 卡片类平台（小红书/抖音）：用户上传的封面，工作区相对路径；作为第 1 张图插在卡片前。 */
+  socialCoverImagePath?: string;
+  /** 公众号：按焦点裁好的 1:1 转发图，工作区相对路径；不传时由公众号从 2.35:1 封面居中裁。 */
+  weixinSquareCoverImagePath?: string;
+  /** 掘金：文章分类 id（见 adapters 的 JUEJIN_CATEGORIES）；不传时草稿分类为空。 */
+  juejinCategoryId?: string;
   targets: MultiPlatformPublishTarget[];
 }
+
+/** 卡片类平台单篇最多可上传的图片张数（含封面）。界面与主进程共用这一份。 */
+export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 35 };
 
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;
