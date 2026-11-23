@@ -7,6 +7,8 @@ import { IPC_INVOKE_CHANNELS } from '@vcat/shared';
 import type { MainIpcContext } from '../context';
 import { writeFileAtomic } from './atomicWrite';
 
+export { writeFileAtomic };
+
 /** Registers article and folder CRUD/search IPC handlers. */
 export function registerArticleIpc(ctx: MainIpcContext): void {
   const { ipcMain, readAppConfig, resolveSafePath } = ctx;

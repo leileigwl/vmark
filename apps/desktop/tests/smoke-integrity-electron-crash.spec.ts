@@ -1,5 +1,6 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import fs from 'node:fs';
+import path from 'node:path';
 import { caretAtEnd, editorText, hardKill, launch, makeEnv, shotWin, waitForExit, type IntegrityEnv } from './support/integrityElectron';
 
 /**
@@ -53,10 +54,8 @@ async function run(abrupt: (app: ElectronApplication, win: Page) => Promise<void
   }
 }
 
-// 已知失败（preview/latest 4b7aa55 实测）：没有崩溃恢复备份，自动保存要停手约 1.8 秒才写盘。修复见 stacked PR 分支 fix/integrity-crash-backup；
-// 修复合入后 test.fail 必须改回 test。
 test.describe('@smoke 数据完整性 C2：崩溃 / 强杀 / 卡死后可恢复（真 Electron）', () => {
-  test.fail('渲染进程崩溃（forcefullyCrashRenderer）后退出再打开：输入可找回', async () => {
+  test('渲染进程崩溃（forcefullyCrashRenderer）后退出再打开：输入可找回', async () => {
     await run(async (app) => {
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.forcefullyCrashRenderer());
       await new Promise((r) => setTimeout(r, 500));
@@ -65,13 +64,13 @@ test.describe('@smoke 数据完整性 C2：崩溃 / 强杀 / 卡死后可恢复�
     }, 'C2-renderer-crash-relaunch');
   });
 
-  test.fail('主进程被 SIGKILL（强制退出 / 断电）后再打开：输入可找回', async () => {
+  test('主进程被 SIGKILL（强制退出 / 断电）后再打开：输入可找回', async () => {
     await run(async (app) => {
       await hardKill(app);
     }, 'C2-sigkill-relaunch');
   });
 
-  test.fail('渲染进程卡死（死循环）后被强制结束再打开：输入可找回', async () => {
+  test('渲染进程卡死（死循环）后被强制结束再打开：输入可找回', async () => {
     await run(async (app, win) => {
       await win.evaluate(() => {
         setTimeout(() => {
@@ -83,5 +82,28 @@ test.describe('@smoke 数据完整性 C2：崩溃 / 强杀 / 卡死后可恢复�
       await new Promise((r) => setTimeout(r, 1500));
       await hardKill(app);
     }, 'C2-frozen-relaunch');
+  });
+
+  test('强杀后文件被外部改动（如 git pull）再打开：外部改动保留，崩溃前的输入另存为 .recovered 副本', async () => {
+    const env = makeEnv(ORIGINAL);
+    const EXTERNAL = '# 笔记\n\n外部改过的内容。\n';
+    try {
+      const first = await launch(env);
+      await typeThenPause(first.win);
+      await hardKill(first.app);
+      fs.writeFileSync(env.file, EXTERNAL, 'utf8');
+      const { app, win } = await launch(env);
+      try {
+        expect(fs.readFileSync(env.file, 'utf8')).toBe(EXTERNAL);
+        const copies = fs.readdirSync(env.workspace).filter((n) => /^a\.recovered-\d{8}-\d{6}\.md$/.test(n));
+        expect(copies).toHaveLength(1);
+        expect(fs.readFileSync(path.join(env.workspace, copies[0]), 'utf8')).toBe(ORIGINAL.replace('第一段。', `第一段。${MARK}`));
+        await shotWin(win, 'C2-changed-on-disk');
+      } finally {
+        await app.close().catch(() => undefined);
+      }
+    } finally {
+      env.cleanup();
+    }
   });
 });

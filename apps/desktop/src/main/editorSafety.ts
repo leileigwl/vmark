@@ -1,4 +1,5 @@
 import { app, type BrowserWindow } from 'electron';
+import { restoreEditorBackupsOnce, startEditorBackups } from './editorRecovery';
 
 const FLUSH_TIMEOUT_MS = 3000;
 let quitRequested = false;
@@ -9,8 +10,12 @@ let quitHookInstalled = false;
  * ⌘W, ⌘Q / app.quit — ask its renderer to write the editor's unsaved text to disk and wait for
  * that write (at most 3s, so a hung renderer can never block quitting). A crashed renderer has
  * nothing to flush and closes at once.
+ * It also puts back crash backups left by the last run (before the window loads any file) and
+ * starts taking new ones for this window (main/editorRecovery.ts).
  */
 export function protectEditorWindow(win: BrowserWindow): void {
+  restoreEditorBackupsOnce();
+  startEditorBackups(win);
   if (!quitHookInstalled) {
     quitHookInstalled = true;
     app.on('before-quit', () => {
