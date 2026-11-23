@@ -3,8 +3,8 @@ import type { PlatformId } from '@vcat/shared';
 import { JUEJIN_CATEGORIES } from '@vcat/adapters';
 import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
 import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
-import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
-import { requirementText, type PlatformSpec } from './platformSpecs';
+import { coverFor, resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
+import { requirementText, rowCoverHint, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
 import { TagPicker } from './TagPicker';
 import { CategoryPicker } from './CategoryPicker';
@@ -15,6 +15,8 @@ interface AttentionListProps {
   issuesOf: (id: PlatformId) => Issue[];
   onChange: (patch: Partial<PublishDraft> | ((d: PublishDraft) => Partial<PublishDraft>)) => void;
   coverInputRef: RefObject<HTMLInputElement>;
+  /** 正文首图，用来说明必需封面的平台会用哪张图裁。 */
+  bodyImage: string;
 }
 
 /** 行里列出的问题：会挡推送的 error，以及只提示不挡的 warn（如摘要超长会自动截取）。 */
@@ -27,7 +29,7 @@ interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   setOpen: (open: boolean) => void;
 }
 
-function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef }: RowProps) {
+function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef, bodyImage }: RowProps) {
   const v = resolveFor(draft, spec.id);
   const o = draft.overrides[spec.id] ?? {};
   const has = (f: Issue['field']) => issues.some((i) => i.field === f);
@@ -37,6 +39,7 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
   if (fresh.length) setSeen([...seen, ...fresh]);
   if (!open && seen.length) setSeen([]);
   const show = (f: Issue['field']) => has(f) || seen.includes(f);
+  const coverHint = rowCoverHint(spec, coverFor(draft, spec, bodyImage));
   const override = (patch: Parameters<typeof setOverride>[2]) => onChange((d) => ({ overrides: setOverride(d, spec.id, patch) }));
   // 标签默认全部平台共用；只有平台有个数上限且通用标签超出（或已单独挑过）时，才在行里挑该平台用哪几个。
   const pickTags = !!spec.tags && (o.tags !== undefined || draft.tags.length > spec.tags.max);
@@ -123,13 +126,17 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
           {spec.category && show('category') ? (
             <CategoryPicker label={`${spec.short}分类`} options={JUEJIN_CATEGORIES} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
           ) : null}
-          {show('cover') && !draft.coverUpload ? (
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-xs text-muted">正文里没有图片，{spec.short}需要一张封面。</span>
-              <Button className="h-9" onClick={() => coverInputRef.current?.click()}>
-                <ImagePlus />
-                上传封面
-              </Button>
+          {coverHint ? (
+            <div className="flex min-h-9 items-center justify-between gap-4">
+              <span className="text-xs text-muted" data-testid={`cover-rule-${spec.id}`}>
+                {coverHint}
+              </span>
+              {show('cover') && !draft.coverUpload ? (
+                <Button className="h-9" onClick={() => coverInputRef.current?.click()}>
+                  <ImagePlus />
+                  上传封面
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>

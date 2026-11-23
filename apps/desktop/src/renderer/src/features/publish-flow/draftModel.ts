@@ -193,7 +193,9 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
     else if (d > spec.digest.max) err('digest', `摘要超 ${d - spec.digest.max} 字`);
     else if (spec.digest.min && d > 0 && d < spec.digest.min) err('digest', `摘要差 ${spec.digest.min - d} 字`);
   }
-  if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover?.mode !== 'optional') err('cover', '缺封面');
+  if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover && spec.cover.mode !== 'optional') {
+    err('cover', spec.cover.mode === 'required' ? `缺封面（${spec.cover.ratios.join('/')} 必需）` : '缺封面');
+  }
   if (spec.tags && usesSharedTags(draft, spec) && draft.tags.length > spec.tags.max) {
     issues.push({ level: 'warn', field: 'tags', message: `标签超 ${draft.tags.length - spec.tags.max} 个（取前 ${spec.tags.max} 个）` });
   }

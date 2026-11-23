@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PlatformId } from '@vcat/shared';
 import { checkPlatform, coverFor, createDraft, mergeSaved, resolveFor, type PublishDraft } from '../src/renderer/src/features/publish-flow/draftModel.ts';
-import { PLATFORM_SPECS, SPEC_BY_ID, generalCoverHint } from '../src/renderer/src/features/publish-flow/platformSpecs.ts';
+import { PLATFORM_SPECS, SPEC_BY_ID, coverGuide } from '../src/renderer/src/features/publish-flow/platformSpecs.ts';
 import { buildPayload, type CoverCropper } from '../src/renderer/src/features/publish-flow/runPublish.ts';
 
 const MD = '# 一篇关于多平台内容分发流程设计与实现的长文\n\n正文。\n\n![图](./assets/a.png)\n';
@@ -59,9 +59,10 @@ test('推送内容：公众号不带作者与阅读原文；小红书带自己�
   assert.equal(plain.socialCoverImagePath, undefined);
 });
 
-test('通用封面只留一句短提示，比例取自 platformSpecs；没有需要自动裁的平台时不显示', () => {
-  assert.equal(generalCoverHint(specs('weixin', 'zhihu', 'baijiahao', 'xiaohongshu')), '其他平台按需自动裁 16:9');
-  assert.equal(generalCoverHint(specs('weixin', 'xiaohongshu', 'cnblogs')), null);
+test('各平台封面比例取自 platformSpecs：公众号 2.35:1 + 1:1，小红书/抖音 3:4，百家号/微博 16:9 必需', () => {
+  assert.deepEqual(coverGuide(SPEC_BY_ID.weixin!, 'x')?.slots, [{ ratio: '2.35:1', label: '列表大图' }, { ratio: '1:1', label: '转发小图' }]);
+  for (const s of specs('xiaohongshu', 'douyin')) assert.deepEqual(s.cover?.ratios, ['3:4']);
+  for (const s of specs('baijiahao', 'weibo')) assert.deepEqual(s.cover, { ratios: ['16:9'], mode: 'required' });
 });
 
 test('合并本地记住的设置：保留小红书抖音分区，丢弃旧版的公众号作者/阅读原文', () => {

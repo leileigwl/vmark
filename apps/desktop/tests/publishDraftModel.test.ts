@@ -49,7 +49,7 @@ test('封面默认值按平台：公众号/百家号/微博用正文首图，知
 test('正文没图又没上传：公众号/百家号缺封面，知乎不报', () => {
   const d = draft();
   assert.deepEqual(checkPlatform(d, spec('weixin'), true, '').map((i) => i.message), ['缺封面']);
-  assert.ok(checkPlatform(d, spec('baijiahao'), true, '').some((i) => i.field === 'cover' && i.message === '缺封面'));
+  assert.ok(checkPlatform(d, spec('baijiahao'), true, '').some((i) => i.field === 'cover' && i.message === '缺封面（16:9 必需）'));
   assert.deepEqual(checkPlatform(d, spec('zhihu'), true, ''), []);
   assert.deepEqual(checkPlatform(draft({ coverUpload: 'assets/up.jpg' }), spec('weixin'), true, ''), []);
 });

@@ -117,13 +117,13 @@ export function coverGuideLines(specs: PlatformSpec[], bodyImage: string): Cover
 }
 
 /**
- * 通用封面下的一句短提示（不再逐平台列长列表）：已勾选平台里需要从通用封面自动裁的比例，
- * 公众号与小红书/抖音在各自分区里处理，不算在内。比例取自 spec.cover.ratios。
+ * 必需封面的平台（百家号、微博）在「需要单独处理」行里的一句提示：比例 + 用哪张图裁。
+ * 通用区只放一个通用封面，不列比例；公众号、小红书/抖音的比例在它们自己的块里。其余平台返回 null。
  */
-export function generalCoverHint(specs: PlatformSpec[]): string | null {
-  const ratios = new Set<CoverRatio>();
-  for (const s of specs) if (s.cover && (s.cover.mode === 'optional' || s.cover.mode === 'required')) s.cover.ratios.forEach((r) => ratios.add(r));
-  return ratios.size ? `其他平台按需自动裁 ${[...ratios].join('、')}` : null;
+export function rowCoverHint(spec: PlatformSpec, source: { kind: 'upload' | 'body' | 'card' | 'none' } | null): string | null {
+  if (spec.cover?.mode !== 'required') return null;
+  const from = source?.kind === 'upload' ? '用通用封面按焦点裁' : source?.kind === 'body' ? '用正文首图自动裁' : '正文没有图片，请上传一张';
+  return `封面必需 ${spec.cover.ratios.join('/')} · ${from}`;
 }
 
 function coverRule(spec: PlatformSpec): string {

@@ -313,11 +313,11 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
   });
 
-  test('通用封面下只有一句短提示，不再逐平台列规则；比例悬停仍可在平台行看到', async ({ page }) => {
+  test('通用封面下只有一句短提示，不列比例；比例悬停仍可在平台行看到', async ({ page }) => {
     await openEditor(page, { weixin: true, zhihu: true, juejin: true, baijiahao: true, xiaohongshu: true, douyin: true, cnblogs: true });
     await openPublish(page);
     for (const id of ['zhihu', 'juejin', 'baijiahao', 'xiaohongshu', 'douyin', 'cnblogs']) await row(page, id).getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-hint')).toHaveText('其他平台按需自动裁 16:9');
+    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面'); // 通用区不列比例
     await expect(page.getByTestId('cover-guide')).toHaveCount(0);
     await expect(page.getByTestId('general-section')).not.toContainText('列表右侧小图');
     await expect(page.getByTestId('general-section')).not.toContainText('第一张卡片就是封面');
@@ -330,7 +330,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await openPublish(page);
     await row(page, 'weixin').getByRole('checkbox').click();
     for (const id of ['baijiahao', 'weibo', 'zhihu']) await row(page, id).getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-hint')).toHaveText('其他平台按需自动裁 16:9');
+    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面'); // 通用区不列比例
     await expect(attention(page, 'baijiahao')).toContainText('百家号：缺封面');
     await expect(attention(page, 'weibo')).toContainText('微博：缺封面');
     await expect(attention(page, 'zhihu')).toHaveCount(0);
