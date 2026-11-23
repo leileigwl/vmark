@@ -5,6 +5,9 @@ import path from 'node:path';
 import { buildArticleMeta, scanWorkspaceArticles } from '@vcat/core';
 import { IPC_INVOKE_CHANNELS } from '@vcat/shared';
 import type { MainIpcContext } from '../context';
+import { writeFileAtomic } from './atomicWrite';
+
+export { writeFileAtomic };
 
 /** Registers article and folder CRUD/search IPC handlers. */
 export function registerArticleIpc(ctx: MainIpcContext): void {
@@ -105,7 +108,7 @@ export function registerArticleIpc(ctx: MainIpcContext): void {
     const cfg = await readAppConfig();
     if (!cfg.workspacePath) throw new Error('Workspace not configured');
     const target = resolveSafePath(cfg.workspacePath, relativePath);
-    await fs.writeFile(target, content, 'utf-8');
+    await writeFileAtomic(target, content);
     const stat = await fs.stat(target);
     return { updatedAt: stat.mtimeMs };
   });

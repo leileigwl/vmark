@@ -263,7 +263,7 @@ export default function App() {
                 preferences={ed.editorPrefs}
                 onChange={(md) => {
                   ws.setMarkdown(md);
-                  ws.setSaveState('未保存');
+                  ws.markEdited(md);
                 }}
                 onSave={(md) => void ws.handleSaveArticle(md)}
                 onOpenLink={ed.handleOpenLink}
