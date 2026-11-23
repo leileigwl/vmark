@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
+import { PLATFORM_COVER_SPECS, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import { cn } from '../../ui';
 
 const THUMB_W = 132;
-const CARD_W = 1080;
-const CARD_H = 1440;
+/** 缩略图按真实输出尺寸（3:4 → 1242×1656）排版后整体缩放，与光栅化出图保持一致。 */
+const { width: CARD_W, height: CARD_H } = PLATFORM_COVER_SPECS['3:4'];
 const THEMES = Object.values(SOCIAL_CARD_PRESETS);
 
 interface CardStripProps {
@@ -22,7 +22,7 @@ export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }:
   const shown = payload.cards.slice(0, 4);
   const scale = THUMB_W / CARD_W;
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="card-strip">
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="卡片模板">
         {THEMES.map((t) => (
           <button

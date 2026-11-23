@@ -299,7 +299,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await expect(templates).toHaveCount(0);
     await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
     await expect(page.getByText(/共 \d+ 张 3:4 卡片，平台上限 18 张/)).toBeVisible();
-    await expect(templates).toHaveCount(4);
+    await expect(templates).toHaveCount(5);
     await templates.nth(1).click();
     await expect(templates.nth(1)).toHaveAttribute('aria-checked', 'true');
     await expect(templates.nth(0)).toHaveAttribute('aria-checked', 'false');
