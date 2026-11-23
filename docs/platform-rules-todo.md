@@ -48,3 +48,17 @@
 | 抖音 | 存草稿按钮文案（「暂存离开」/「存草稿」/「保存草稿」）；图文草稿在哪个列表页 | 三个文案都试；「打开草稿」先用 `content/manage` |
 | 抖音 | 单篇上限 35 还是 30 | `SOCIAL_MAX_CARDS.douyin = 30`（保守） |
 
+## 真机清单：「打开草稿」地址（问题 C，`main/draftLinks.ts`，在 C 的 PR 里）
+
+| 平台 | 有草稿 id 时（编辑页） | 无 id 兜底（列表页） | 待确认 |
+| --- | --- | --- | --- |
+| 公众号 | 适配器返回 `appmsg_edit&appmsgid=<id>&token=…` | `mp.weixin.qq.com/` | — |
+| 掘金 | `juejin.cn/editor/drafts/<id>` | `juejin.cn/creator/content/article/drafts` | 推送后回查 `article_draft/detail`，查不到时提示「草稿箱暂未查到」；确认回查接口不带 csrf 也能用 |
+| CSDN | `editor.csdn.net/md?articleId=<id>` | `mp.csdn.net/mp_blog/manage/article` | 列表页是否默认显示草稿 |
+| 知乎 | `zhuanlan.zhihu.com/p/<id>/edit` | `www.zhihu.com/creator` | 列表页未核实 |
+| 博客园 | `i.cnblogs.com/posts/edit;postId=<id>` | `i.cnblogs.com/posts` | — |
+| 百家号 | `builder/rc/edit?type=news&article_id=<id>` | `baijiahao.baidu.com/` | 列表页未核实 |
+| 微博 | `card.weibo.com/article/v5/editor#/draft/<id>` | `card.weibo.com/article/v5/editor` | 列表页未核实 |
+| B 站 | `member.bilibili.com/platform/upload/text/new-edit?aid=<id>` | `member.bilibili.com/platform/home` | 列表页未核实 |
+| 小红书 | 无（草稿在本地） | 图文发布页 | 见上表 |
+| 抖音 | 无 | `creator.douyin.com/creator-micro/content/manage` | 图文草稿实际所在页面 |
