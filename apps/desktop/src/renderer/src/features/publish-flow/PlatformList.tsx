@@ -1,5 +1,5 @@
 import type { PlatformId } from '@vcat/shared';
-import { RefreshCw } from 'lucide-react';
+import { Globe, RefreshCw } from 'lucide-react';
 import { Button, Checkbox, Tooltip, cn } from '../../ui';
 import type { AuthStatus } from '../platform-auth';
 import { PLATFORM_SPECS, requirementText } from './platformSpecs';
@@ -11,6 +11,8 @@ interface PlatformListProps {
   issuesOf: (id: PlatformId) => Issue[];
   statusOf: (id: PlatformId) => AuthStatus;
   onSignIn: (id: PlatformId) => void;
+  /** 在内置浏览器（带跨平台 Tab 的同一个窗口）打开该平台后台；登录状态与列表共用 usePlatformAuth。 */
+  onOpenBrowser: (id: PlatformId) => void;
   checking: boolean;
   onRefresh: () => void;
 }
@@ -38,7 +40,7 @@ function RowStatus({ on, status, issues, onSignIn }: { on: boolean; status: Auth
   return n ? <span className="text-xs text-warning">差 {n} 项</span> : <span className="text-xs text-success">就绪</span>;
 }
 
-/** 左侧：勾选要发的平台。每行只有勾选框、名称、状态；点整行即可勾选。 */
+/** 左侧：勾选要发的平台。每行只有勾选框、名称、状态和「内置浏览器」按钮；点整行即可勾选。 */
 export function PlatformList(props: PlatformListProps) {
   return (
     <div className="flex h-full flex-col">
@@ -65,6 +67,22 @@ export function PlatformList(props: PlatformListProps) {
                     </Tooltip>
                   </span>
                   <RowStatus on={on} status={status} issues={props.issuesOf(spec.id)} onSignIn={() => props.onSignIn(spec.id)} />
+                  {spec.kind !== 'site' ? (
+                    <Tooltip content="内置浏览器">
+                      <Button
+                        variant="ghost"
+                        className="size-9 shrink-0 p-0 text-muted hover:text-ink"
+                        aria-label={`在内置浏览器打开${spec.name}`}
+                        data-testid={`open-browser-${spec.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          props.onOpenBrowser(spec.id);
+                        }}
+                      >
+                        <Globe />
+                      </Button>
+                    </Tooltip>
+                  ) : null}
                 </div>
             </li>
           );

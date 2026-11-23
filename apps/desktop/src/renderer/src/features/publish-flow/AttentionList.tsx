@@ -9,6 +9,7 @@ import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagInput } from './TagInput';
 import { CardStrip } from './CardStrip';
 import { CategoryPicker } from './CategoryPicker';
+import { WeixinPreview } from './WeixinPreview';
 
 interface AttentionListProps {
   draft: PublishDraft;
@@ -40,8 +41,9 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
   const show = (f: Issue['field']) => has(f) || seen.includes(f);
   const errorOf = (f: Issue['field']) => issues.find((i) => i.field === f)?.message ?? null;
   const cards = useMemo(
-    () => (spec.kind === 'cards' ? renderXiaohongshuCards(markdown, { fallbackTitle: v.title, coverRatio: '3:4' }).cards.length : 0),
-    [spec.kind, markdown, v.title]
+    () =>
+      spec.kind === 'cards' ? renderXiaohongshuCards(markdown, { fallbackTitle: v.title, coverRatio: '3:4', maxCards: spec.maxCards }).totalCards : 0,
+    [spec.kind, spec.maxCards, markdown, v.title]
   );
   const total = cards + (draft.coverUpload ? 1 : 0);
   const over = spec.maxCards && total > spec.maxCards ? total - spec.maxCards : 0;
@@ -94,7 +96,7 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
           <span className="font-medium text-ink">{spec.short}：</span>
         </Tooltip>
         <span className={cn('min-w-0 flex-1 truncate', issues.length ? 'text-warning' : 'text-muted')}>
-          {issues.length || spec.kind === 'cards' ? summary.join(' · ') : '已就绪'}
+          {issues.length || spec.kind === 'cards' ? summary.join(' · ') : spec.id === 'weixin' ? '已就绪 · 点开看排版' : '已就绪'}
         </span>
         {!issues.length && spec.kind !== 'cards' ? <CheckCircle2 className="size-4 text-success" aria-hidden /> : null}
         <ChevronDown className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} aria-hidden />
@@ -133,6 +135,7 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
               </Button>
             </div>
           ) : null}
+          {spec.id === 'weixin' ? <WeixinPreview markdown={markdown} /> : null}
           {spec.kind === 'cards' ? (
             <div className="space-y-2">
               {draft.coverUpload ? <p className="text-xs text-muted">上传的封面会作为第 1 张图。</p> : null}
@@ -153,7 +156,7 @@ function AttentionRow({ spec, draft, markdown, issues, open, setOpen, onChange, 
 
 /**
  * 只列出需要单独处理的平台，一行一个（如“掘金：摘要差 12 字”）。
- * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。卡片平台常驻一行，缩略图默认收起。
+ * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。卡片平台、公众号常驻一行，缩略图 / 排版预览默认收起。
  */
 export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) {
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
@@ -166,7 +169,8 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
     });
   const rows = specs
     .map((spec) => ({ spec, issues: fieldIssues(issuesOf(spec.id)) }))
-    .filter(({ spec, issues }) => issues.length || spec.kind === 'cards' || open.has(spec.id));
+    // 卡片平台与公众号常驻一行（默认收起），点开看卡片缩略图 / 公众号排版。
+    .filter(({ spec, issues }) => issues.length || spec.kind === 'cards' || spec.id === 'weixin' || open.has(spec.id));
 
   if (specs.length === 0) return <p className="text-xs text-muted">在左侧勾选要发布的平台。</p>;
   if (rows.length === 0)

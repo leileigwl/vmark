@@ -8,6 +8,8 @@ export interface RunRow {
   state: RunState;
   message?: string;
   url?: string;
+  /** draft：url 是这篇草稿的编辑页；list：拿不到草稿 id，url 是草稿箱列表页。 */
+  urlKind?: 'draft' | 'list';
 }
 
 /** 按焦点把上传的封面裁成某比例，返回工作区相对路径。 */
@@ -77,7 +79,7 @@ export async function runPublish(
       const payload = await buildPayload(draft, markdown, id, deps.bodyImage, deps.crop, cache);
       const res = await api.publishMultiPlatform(payload);
       const item: MultiPlatformPublishResultItem | undefined = res.results?.find((r) => r.platformId === id) ?? res.results?.[0];
-      if (item?.ok) onRow({ id, state: 'ok', message: item.message, url: item.url });
+      if (item?.ok) onRow({ id, state: 'ok', message: item.message, url: item.url, urlKind: item.urlKind });
       else onRow({ id, state: 'failed', message: item?.message ?? '平台没有返回结果' });
     } catch (err) {
       onRow({ id, state: 'failed', message: err instanceof Error ? err.message : String(err) });

@@ -23,8 +23,9 @@ async function openEditor(page: Page, auth: Record<string, boolean>, md: string 
         hasFrontmatter: false,
         excerpt: '',
       };
-      const w = window as unknown as { __calls: unknown[]; electronAPI: Record<string, unknown> };
+      const w = window as unknown as { __calls: unknown[]; __opened: string[][]; electronAPI: Record<string, unknown> };
       w.__calls = [];
+      w.__opened = [];
       w.electronAPI = {
         getWorkspacePath: async () => '/tmp/vmark-pub-test',
         getRecentWorkspaces: async () => ['/tmp/vmark-pub-test'],
@@ -41,7 +42,8 @@ async function openEditor(page: Page, auth: Record<string, boolean>, md: string 
         setRecentFiles: () => {},
         onMenuAction: () => () => {},
         onPlatformAuthUpdated: () => () => {},
-        openPlatformLogin: async (pid: string) => {
+        openPlatformLogin: async (pid: string, url: string) => {
+          w.__opened.push([pid, url]);
           authMap[pid] = true;
           return true;
         },
@@ -61,6 +63,7 @@ async function openEditor(page: Page, auth: Record<string, boolean>, md: string 
               ok: !fail,
               mode: t.mode,
               url: `https://example.com/draft/${t.platformId}`,
+              urlKind: (window as unknown as { __urlKind?: Record<string, string> }).__urlKind?.[t.platformId],
               message: fail ? '登录已过期' : '已推送',
               };
             }),
@@ -103,7 +106,8 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(row(page, 'weixin').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
     await expect(row(page, 'weixin')).toContainText('就绪');
     await expect(page.getByTestId('cover-field')).toContainText('默认：正文首图');
-    await expect(page.getByTestId('attention-empty')).toBeVisible();
+    await expect(attention(page, 'weixin')).toContainText('已就绪 · 点开看排版');
+    await expect(page.getByTestId('weixin-preview')).toHaveCount(0); // 排版预览默认收起
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
@@ -130,7 +134,7 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await row(page, 'xiaohongshu').getByRole('checkbox').click();
     await expect(row(page, 'xiaohongshu')).toContainText('差 1 项');
     await expect(attention(page, 'xiaohongshu')).toContainText(/小红书：标题超 \d+ 字 · \d+ 张卡片/);
-    await expect(attention(page, 'weixin')).toHaveCount(0);
+    await expect(attention(page, 'weixin')).toContainText('已就绪 · 点开看排版'); // 公众号行常驻（收起），只放排版预览
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
 
     await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
@@ -166,7 +170,8 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(box).toHaveAttribute('data-state', 'checked');
     await row(page, 'zhihu').getByText('知乎专栏').click();
     await expect(box).toHaveAttribute('data-state', 'unchecked');
-    await row(page, 'zhihu').click({ position: { x: 200, y: 12 } });
+    // 行右侧是「内置浏览器」按钮，点名称后的空白处切换勾选
+    await row(page, 'zhihu').click({ position: { x: 150, y: 12 } });
     await expect(box).toHaveAttribute('data-state', 'checked');
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
   });
@@ -332,5 +337,63 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await openPublish(page);
     await expect(page.locator('#pub-title')).toHaveValue('改过的标题');
     await expect(row(page, 'zhihu').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
+  });
+});
+
+const openedOf = (page: Page) => page.evaluate(() => (window as unknown as { __opened: string[][] }).__opened);
+
+test.describe('预览收进平台行、内置浏览器入口与打开草稿', () => {
+  test('公众号排版预览收在公众号行里，点开才出现，并带「复制富文本」', async ({ page }) => {
+    await openEditor(page, { weixin: true });
+    await openPublish(page);
+    await expect(page.getByRole('dialog').getByRole('tab')).toHaveCount(0); // 顶部没有「公众号排版」「平台快捷浏览器」标签页
+    await attention(page, 'weixin').getByRole('button', { name: /公众号/ }).click();
+    const preview = page.getByTestId('weixin-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview.getByRole('button', { name: '复制富文本' })).toBeVisible();
+    await expect(preview.locator('iframe')).toHaveAttribute('srcdoc', /外部资料/);
+  });
+
+  test('每个平台行有「内置浏览器」按钮：打开该平台后台，不改动勾选', async ({ page }) => {
+    await openEditor(page, { weixin: true, juejin: true });
+    await openPublish(page);
+    const btn = page.getByTestId('open-browser-juejin');
+    await expect(btn).toBeVisible();
+    const box = await btn.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(36);
+    await btn.click();
+    await expect(row(page, 'juejin').getByRole('checkbox')).toHaveAttribute('data-state', 'unchecked');
+    expect(await openedOf(page)).toEqual([['juejin', 'https://juejin.cn/creator/content/article/drafts']]);
+  });
+
+  test('推送成功且拿到草稿 id：「打开草稿」用内置浏览器打开这篇草稿；没有 id 时显示「去草稿箱」', async ({ page }) => {
+    await openEditor(page, { weixin: true, juejin: true });
+    await page.evaluate(() => {
+      (window as unknown as { __urlKind: Record<string, string> }).__urlKind = { weixin: 'list', juejin: 'draft' };
+    });
+    await openPublish(page);
+    await row(page, 'juejin').getByRole('checkbox').click();
+    await attention(page, 'juejin').getByRole('button', { name: /掘金/ }).click();
+    await page.locator('#d-juejin').fill(JUEJIN_DIGEST);
+    await page.locator('#g-juejin').fill('前端');
+    await page.locator('#g-juejin').press('Enter');
+    await page.getByRole('radio', { name: '前端' }).click();
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);
+    await expect(page.getByTestId('open-result-weixin')).toHaveText('去草稿箱');
+    await page.getByTestId('open-result-juejin').click();
+    await expect(page.getByTestId('open-result-juejin')).toHaveText('打开草稿');
+    expect((await openedOf(page)).at(-1)).toEqual(['juejin', 'https://example.com/draft/juejin']);
+  });
+
+  test('发布弹窗打开时 Cmd/Ctrl+B、1、K、F 不作用于背后的正文，也不打开查找', async ({ page }) => {
+    await openEditor(page, { weixin: true });
+    const before = await page.locator('.vditor-ir .vditor-reset').innerHTML();
+    await openPublish(page);
+    await page.getByTestId('open-browser-weixin').focus();
+    for (const k of ['b', '1', 'k', 'f']) await page.keyboard.press(`ControlOrMeta+${k}`);
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.locator('input[placeholder*="查找"]')).toHaveCount(0);
+    expect(await page.locator('.vditor-ir .vditor-reset').innerHTML()).toBe(before);
   });
 });

@@ -26,7 +26,6 @@ export interface WorkspaceTreeParams {
   startupConfig: StartupConfig;
   setStartupConfig: (cfg: StartupConfig) => void;
   setImageBed: (cfg: ImageBedConfig) => void;
-  setAuthStates: (states: Partial<Record<PlatformId, boolean>>) => void;
   setActiveViewEditor: () => void;
   showToast: (errOrMsg: unknown) => void;
 }
@@ -38,7 +37,6 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     startupConfig,
     setStartupConfig,
     setImageBed,
-    setAuthStates,
     setActiveViewEditor,
     showToast,
   } = params;
@@ -151,14 +149,13 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, recent, list, folderList, imgCfg, startupCfg, auths, git] = await Promise.all([
+    const [wsPath, recent, list, folderList, imgCfg, startupCfg, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.getRecentWorkspaces(),
       window.electronAPI.listArticles(),
       window.electronAPI.listFolders(),
       window.electronAPI.getImageBedConfig(),
       window.electronAPI.getStartupConfig(),
-      window.electronAPI.getPlatformAuthStates(),
       window.electronAPI.getGitStatus(),
     ]);
     setWorkspacePath(wsPath);
@@ -167,7 +164,6 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     setFolders(folderList);
     setImageBed(imgCfg);
     setStartupConfig(startupCfg);
-    setAuthStates(auths);
     setGitStatus(git);
     if (!activeArticle) {
       if (startupCfg.mode === 'new_file' && wsPath) {

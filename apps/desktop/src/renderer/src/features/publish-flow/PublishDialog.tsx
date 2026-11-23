@@ -112,6 +112,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
               issuesOf={issuesOf}
               statusOf={auth.status}
               onSignIn={(id) => void auth.signIn(id)}
+              onOpenBrowser={(id) => void auth.openDashboard(id)}
               checking={auth.snapshot.checking}
               onRefresh={() => void auth.refresh()}
             />

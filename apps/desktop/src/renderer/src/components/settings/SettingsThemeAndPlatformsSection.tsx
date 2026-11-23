@@ -92,11 +92,7 @@ export function SettingsThemeSection({
 }
 
 /** 设置 → 平台账号。状态统一来自 usePlatformAuth，与发布窗口一致。 */
-export function SettingsPlatformsSection(_props: {
-  authStates?: Partial<Record<PlatformId, boolean>>;
-  onPlatformLogin?: (platformId: PlatformId) => void;
-  onPlatformLogout?: (platformId: PlatformId) => void;
-}) {
+export function SettingsPlatformsSection() {
   const auth = usePlatformAuth();
   const platforms = VISIBLE_PLATFORM_CATALOG.filter((p) => p.id !== 'github_static').map((p) => ({
     id: p.id,

@@ -4,8 +4,6 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { IPC_EVENT_CHANNELS } from '@vcat/shared';
-import { batchSyncHeartbeatResults } from './accountStore';
-import { checkPlatformAuthStates } from './publishHandlers';
 import {
   readAppConfig,
   recordRecentWorkspace,
@@ -15,6 +13,7 @@ import {
 } from './ipc/context';
 import {
   CHROME_DESKTOP_UA,
+  checkAuthStatesOnce,
   startHeartbeatEngine,
   stopHeartbeatEngine,
 } from './ipc/platform-auth/index';
@@ -83,10 +82,7 @@ function createWindow(): void {
   });
 
   mainWindow.on('focus', () => {
-    void checkPlatformAuthStates({ session, getAppConfig: readAppConfig }).then(async (states) => {
-      await batchSyncHeartbeatResults(states);
-      activeMainWindow?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, states);
-    });
+    void checkAuthStatesOnce({ readAppConfig, getMainWindow: () => activeMainWindow }).catch((err) => console.warn('[platform-auth] 聚焦时检测失败', err));
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

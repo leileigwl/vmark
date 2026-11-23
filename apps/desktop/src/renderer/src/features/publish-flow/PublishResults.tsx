@@ -17,6 +17,12 @@ const ICON = {
   failed: <XCircle className="size-4 text-danger" />,
 };
 
+/** 成功后才有打开按钮：拿到草稿 id 时打开这篇草稿，拿不到时去草稿箱列表。 */
+export function openLabel(r: RunRow): string {
+  if (SPEC_BY_ID[r.id]?.mode === 'direct') return '查看';
+  return r.urlKind === 'draft' ? '打开草稿' : '去草稿箱';
+}
+
 /** 推送进度与结果：每个平台一行，成功给“去后台查看”，失败写清原因。 */
 export function PublishResults({ rows, onOpen }: PublishResultsProps) {
   const done = rows.filter((r) => r.state === 'ok').length;
@@ -40,9 +46,9 @@ export function PublishResults({ rows, onOpen }: PublishResultsProps) {
               {r.message && r.state !== 'ok' ? <div className="truncate text-[11px] text-danger" title={r.message}>{r.message}</div> : null}
             </div>
             {r.state === 'ok' ? (
-              <Button variant="ghost" size="sm" onClick={() => onOpen(r.id, r.url)}>
+              <Button variant="ghost" className="h-9" onClick={() => onOpen(r.id, r.url)} data-testid={`open-result-${r.id}`}>
                 <ExternalLink />
-                {SPEC_BY_ID[r.id]?.mode === 'direct' ? '查看' : '去草稿箱'}
+                {openLabel(r)}
               </Button>
             ) : null}
           </li>

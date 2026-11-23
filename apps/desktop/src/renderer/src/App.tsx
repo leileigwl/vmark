@@ -51,7 +51,6 @@ export default function App() {
     startupConfig: auth.startupConfig,
     setStartupConfig: auth.setStartupConfig,
     setImageBed: auth.setImageBed,
-    setAuthStates: auth.setAuthStates,
     setActiveViewEditor: () => setActiveView('editor'),
     showToast,
   });
@@ -320,9 +319,6 @@ export default function App() {
               customThemeName={customThemeName}
               onSelectTheme={setTheme}
               onImportTyporaTheme={() => void handleImportTyporaTheme()}
-              authStates={auth.authStates}
-              onPlatformLogin={auth.loginPlatform}
-              onPlatformLogout={auth.logoutPlatform}
               workspacePath={ws.workspacePath}
               gitStatus={ws.gitStatus}
               gitPushLog={ws.gitPushLog}

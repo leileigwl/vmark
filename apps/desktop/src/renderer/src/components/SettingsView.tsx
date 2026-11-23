@@ -33,9 +33,6 @@ interface SettingsViewProps {
   customThemeName: string;
   onSelectTheme: (t: ThemeId) => void;
   onImportTyporaTheme: () => void;
-  authStates: Partial<Record<PlatformId, boolean>>;
-  onPlatformLogin: (platformId: PlatformId) => void;
-  onPlatformLogout?: (platformId: PlatformId) => void;
   workspacePath: string | null;
   gitStatus: GitStatusInfo;
   gitPushLog: string;
@@ -60,9 +57,6 @@ export function SettingsView({
   customThemeName,
   onSelectTheme,
   onImportTyporaTheme,
-  authStates,
-  onPlatformLogin,
-  onPlatformLogout,
   workspacePath,
   gitStatus,
   gitPushLog,
@@ -281,11 +275,7 @@ export function SettingsView({
         )}
 
         {settingCategory === 'platforms' && (
-          <SettingsPlatformsSection
-            authStates={authStates}
-            onPlatformLogin={onPlatformLogin}
-            onPlatformLogout={onPlatformLogout}
-          />
+          <SettingsPlatformsSection />
         )}
 
         {settingCategory === 'github' && (
