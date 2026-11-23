@@ -36,7 +36,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: './tests',
   testMatch: ['**/*.spec.ts'],
-  testIgnore: ['**/electron-smoke.spec.ts'],
+  testIgnore: ['**/electron-smoke.spec.ts', '**/smoke-integrity-electron-*.spec.ts'],
   outputDir: path.join(tmpDir, 'test-results'),
   timeout: 30_000,
   retries: 0,
