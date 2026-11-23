@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:ipc": "node --experimental-strip-types --test tests/*.test.ts",
     "test:electron-smoke": "playwright test -c playwright.electron.config.ts --reporter=list",
+    "test:smoke": "playwright test --grep @smoke --reporter=list && pnpm run test:electron-smoke",
     "test": "pnpm run test:ipc",
     "package:mac": "pnpm run copy-vditor && electron-vite build && electron-builder --mac --publish never",
     "package:win": "pnpm run copy-vditor && electron-vite build && electron-builder --win --publish never",
