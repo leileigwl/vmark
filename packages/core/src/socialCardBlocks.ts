@@ -1,4 +1,5 @@
 import { preserveRichInlineMarkdown, stripInlineMarkdown } from './socialMarkdownUtils.ts';
+import { CALLOUT_LABELS, closesFence, matchCallout, matchFence, takeQuoteRun } from './markdownQuote.ts';
 
 /** One atomic (or splittable) unit of card content, in document order. */
 export type CardBlock =
@@ -22,7 +23,6 @@ export interface ParseCardBlocksOptions {
   maxTableRows?: number;
 }
 
-const FENCE = /^(`{3,}|~{3,})(.*)$/;
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*$/;
 const HR = /^(?:-{3,}|\*{3,}|_{3,})$/;
 const LIST = /^(\s*)([-*+]|\d{1,3}[.)])\s+(.*)$/;
@@ -91,7 +91,6 @@ export function parseCardBlocks(markdown: string, opts: ParseCardBlocksOptions =
   const lines = markdown.replace(/<!--[\s\S]*?-->/g, '').split(/\r?\n/);
   const blocks: CardBlock[] = [];
   let para: string[] = [];
-  let quote: string[] = [];
 
   const pushText = (text: string, make: (t: string) => CardBlock) => {
     const images = [...text.matchAll(INLINE_IMAGE)];
@@ -103,27 +102,19 @@ export function parseCardBlocks(markdown: string, opts: ParseCardBlocksOptions =
     if (para.length) pushText(joinLines(para), (text) => ({ kind: 'paragraph', text }));
     para = [];
   };
-  const flushQuote = () => {
-    const text = joinLines(quote.map((q) => q.replace(/^\[![A-Z]+\]\s*/, '')).filter(Boolean));
-    if (text) pushText(text, (t) => ({ kind: 'quote', text: t }));
-    quote = [];
-  };
-  const flush = () => {
-    flushPara();
-    flushQuote();
-  };
+  const flush = flushPara;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const t = raw.trim();
-    const fence = t.match(FENCE);
+    const fence = matchFence(t);
     if (fence) {
       flush();
-      const marker = fence[1];
-      const lang = (fence[2].trim().split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z0-9_+#.-]/g, '');
+      const marker = fence.marker;
+      const lang = (fence.info.split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z0-9_+#.-]/g, '');
       const body: string[] = [];
       let j = i + 1;
-      while (j < lines.length && !lines[j].trim().startsWith(marker)) body.push(lines[j++].replace(/\t/g, '  '));
+      while (j < lines.length && !closesFence(lines[j].trim(), marker)) body.push(lines[j++].replace(/\t/g, '  '));
       i = j;
       while (body.length && !body[body.length - 1].trim()) body.pop();
       if (body.length) chunk(body, maxCode).forEach((part, k) => blocks.push(k ? { kind: 'code', lang, lines: part, start: k * maxCode + 1 } : { kind: 'code', lang, lines: part }));
@@ -148,10 +139,11 @@ export function parseCardBlocks(markdown: string, opts: ParseCardBlocksOptions =
     }
     if (t.startsWith('>')) {
       flushPara();
-      quote.push(t.replace(/^>\s?/, '').trim());
+      const run = takeQuoteRun(lines, i);
+      i = run.next - 1;
+      blocks.push(...quoteBlocks(run.inner, opts));
       continue;
     }
-    flushQuote();
     if (HR.test(t)) {
       flushPara();
       continue;
@@ -203,6 +195,27 @@ export function parseCardBlocks(markdown: string, opts: ParseCardBlocksOptions =
   }
   flush();
   return blocks;
+}
+
+/**
+ * 引用内容（已去掉一层 `>`）按普通 Markdown 递归解析：嵌套引用、引用里的围栏代码块都能正确识别；
+ * 段落/列表变成引用块，代码/表格/图片原样保留。GitHub callout（[!TIP]）变成「💡 技巧：」前缀。
+ */
+function quoteBlocks(inner: string[], opts: ParseCardBlocksOptions): CardBlock[] {
+  const callout = matchCallout(inner[0]);
+  const body = callout ? [callout.rest, ...inner.slice(1)] : inner;
+  const parsed = parseCardBlocks(body.join('\n'), { ...opts, title: undefined });
+  let label = callout ? `${CALLOUT_LABELS[callout.kind]}：` : '';
+  const out: CardBlock[] = [];
+  for (const b of parsed) {
+    if (b.kind === 'paragraph' || b.kind === 'quote' || b.kind === 'list-item' || b.kind === 'heading') {
+      const text = b.kind === 'list-item' ? `${b.marker} ${b.text}` : b.text;
+      out.push({ kind: 'quote', text: `${label}${text}` });
+      label = '';
+    } else out.push(b);
+  }
+  if (label) out.unshift({ kind: 'quote', text: label.replace(/：$/, '') });
+  return out;
 }
 
 /** Flattens a block to a single plain line (legacy `bodyLines` and captions). */

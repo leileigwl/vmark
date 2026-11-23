@@ -1,6 +1,7 @@
 import { GENRE_META, getCardContentBox, type ContentGenre, type PlatformCoverRatio } from './socialCardThemes.ts';
 import { stripInlineMarkdown } from './socialMarkdownUtils.ts';
 import { blockToLine, parseCardBlocks, type CardBlock } from './socialCardBlocks.ts';
+import { markdownToPlainText } from './socialPlainText.ts';
 import { estimateCardBlockHeight, paginateCardBlocks, type PlacedCardBlock } from './socialCardPaginate.ts';
 
 export type UgcCoverTemplate =
@@ -245,22 +246,15 @@ export function renderXiaohongshuCards(
     });
   }
 
-  // Plain-text caption: prose only (no tables, code, or images).
-  const prose = flowBlocks
-    .filter((b) => b.kind === 'paragraph' || b.kind === 'list-item' || b.kind === 'quote')
-    .map((b) => stripInlineMarkdown(blockToLine(b).replace(/^>\s*/, '')))
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const plainText = [!fmSubtitle && leadQuote ? stripInlineMarkdown(leadQuote) : '', prose].filter(Boolean).join(' ');
-
-  const shortSummary = plainText.length > 600 ? `${plainText.slice(0, 599)}…` : plainText;
+  // 纯文本正文：去掉 Markdown 标记、保留段落换行、不含表格/代码/图片；标题平台单独填写，不在正文里重复。
+  const plainText = markdownToPlainText(cleanMd, { title });
+  const shortSummary = [...plainText].length > 600 ? `${[...plainText].slice(0, 599).join('')}…` : plainText;
   const hashTagStr = mergedTags
     .slice(0, 6)
     .map((t) => `#${t.replace(/\s+/g, '')}`)
     .join(' ');
 
-  const captionText = `${title}\n\n${shortSummary}\n\n${hashTagStr}`;
+  const captionText = [shortSummary, hashTagStr].filter(Boolean).join('\n\n');
   const limit = Math.max(0, opts.maxCards ?? DEFAULT_MAX_SOCIAL_CARDS);
 
   return {
