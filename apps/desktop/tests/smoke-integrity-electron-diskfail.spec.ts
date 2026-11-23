@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { caretAtEnd, launch, makeEnv, shotWin } from './support/integrityElectron';
 
@@ -11,10 +11,18 @@ import { caretAtEnd, launch, makeEnv, shotWin } from './support/integrityElectro
  */
 const ORIGINAL = '# 重要文档\n\n这一段绝对不能丢。\n';
 
-// 已知失败（preview/latest 4b7aa55 实测）：主进程原地 fs.writeFile 会先截断原文件；保存失败时界面无任何提示。修复见 stacked PR 分支 fix/integrity-atomic-save；
-// 修复合入后 test.fail 必须改回 test。
+/** 顶栏状态必须一直是「保存失败」，不能在编辑器的延迟 onChange 后变回普通的「未保存」。 */
+async function expectStatusStaysFailed(win: Page): Promise<void> {
+  const seen = new Set<string>();
+  for (let i = 0; i < 25; i += 1) {
+    seen.add(await win.evaluate(() => (document.body.innerText.match(/词 · (\S+)/) ?? ['', ''])[1]));
+    await win.waitForTimeout(100);
+  }
+  expect([...seen]).toEqual(['保存失败']);
+}
+
 test.describe('@smoke 数据完整性 C3：写盘失败不截断原文件并提示（真 Electron）', () => {
-  test.fail('磁盘写满（ENOSPC，写到一半失败）：原文件完好，界面提示保存失败', async () => {
+  test('磁盘写满（ENOSPC，写到一半失败）：原文件完好，界面提示保存失败', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);
     try {
@@ -38,6 +46,7 @@ test.describe('@smoke 数据完整性 C3：写盘失败不截断原文件并提�
       await win.waitForTimeout(800);
       expect(fs.readFileSync(env.file, 'utf8')).toBe(ORIGINAL);
       await expect(win.getByText(/保存失败/).first()).toBeVisible({ timeout: 3000 });
+      await expectStatusStaysFailed(win);
       await shotWin(win, 'C3-enospc');
       await app.evaluate(() => {
         const req = (process as unknown as { getBuiltinModule: (id: string) => unknown }).getBuiltinModule.bind(process);
@@ -52,7 +61,7 @@ test.describe('@smoke 数据完整性 C3：写盘失败不截断原文件并提�
     }
   });
 
-  test.fail('文件只读（EACCES）：原文件完好、不被绕过权限覆盖，界面提示保存失败', async () => {
+  test('文件只读（EACCES）：原文件完好、不被绕过权限覆盖，界面提示保存失败', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);
     try {
@@ -65,6 +74,7 @@ test.describe('@smoke 数据完整性 C3：写盘失败不截断原文件并提�
       expect(fs.readFileSync(env.file, 'utf8')).toBe(ORIGINAL);
       expect(fs.statSync(env.file).mode & 0o777).toBe(0o444);
       await expect(win.getByText(/保存失败/).first()).toBeVisible({ timeout: 3000 });
+      await expectStatusStaysFailed(win);
       await shotWin(win, 'C3-eacces');
     } finally {
       fs.chmodSync(env.file, 0o644);
