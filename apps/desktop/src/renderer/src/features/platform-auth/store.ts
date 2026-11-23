@@ -1,4 +1,5 @@
 import type { PlatformId } from '@vcat/shared';
+import { PLATFORM_LINKS } from './platformLinks.ts';
 
 /** 登录状态：只有这四种。所有界面都从这里读，不再各自判断。 */
 export type AuthStatus = 'checking' | 'signedIn' | 'signedOut' | 'error';
@@ -10,7 +11,8 @@ export interface PlatformAuthSnapshot {
   error: string | null;
 }
 
-const CHECK_TIMEOUT_MS = 15_000;
+/** 整轮兜底超时：主进程每个平台 8s 独立超时，这里只防 IPC 本身卡死。 */
+const CHECK_TIMEOUT_MS = 12_000;
 
 let snapshot: PlatformAuthSnapshot = { statuses: {}, checking: false, lastCheckedAt: null, error: null };
 const listeners = new Set<() => void>();
@@ -28,37 +30,53 @@ function toStatuses(raw: Partial<Record<PlatformId, boolean>>): Partial<Record<P
   return out;
 }
 
+/** 主进程逐平台推送（每个平台一出结果就推一次）与心跳广播都走这里：收到哪个平台就立即更新哪个。 */
 function ensureMainSubscription() {
   if (subscribedToMain) return;
   const api = window.electronAPI;
   if (!api?.onPlatformAuthUpdated) return;
   subscribedToMain = true;
   api.onPlatformAuthUpdated((states) => {
-    emit({ statuses: { ...snapshot.statuses, ...toStatuses(states) }, lastCheckedAt: Date.now() });
+    emit({ statuses: { ...snapshot.statuses, ...toStatuses(states) } });
   });
 }
 
-/** 重新检测全部平台；并发调用会复用同一次请求。超时标记为 error，不会一直“检测中”。 */
+/**
+ * 重新检测全部平台；并发调用会复用同一次请求。
+ * 开始时每个平台立刻显示「检测中」（不留旧值）；各平台结果由主进程逐个推回、各自更新；
+ * 这一轮结束仍没回来的平台（单平台超时）标为 error，不会一直「检测中」。
+ */
 export function refreshPlatformAuth(): Promise<void> {
   ensureMainSubscription();
   if (inflight) return inflight;
   const api = window.electronAPI;
   if (!api?.getPlatformAuthStates) return Promise.resolve();
-  const previous = snapshot.statuses;
-  emit({ checking: true, error: null });
+  const ids = new Set<PlatformId>([...(Object.keys(PLATFORM_LINKS) as PlatformId[]), ...(Object.keys(snapshot.statuses) as PlatformId[])]);
+  const checkingAll: Partial<Record<PlatformId, AuthStatus>> = {};
+  for (const id of ids) checkingAll[id] = 'checking';
+  emit({ checking: true, error: null, statuses: checkingAll });
   inflight = (async () => {
+    let error: string | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('检测超时，请检查网络后重试')), CHECK_TIMEOUT_MS)
-      );
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('检测超时，请检查网络后重试')), CHECK_TIMEOUT_MS);
+      });
       const raw = await Promise.race([api.getPlatformAuthStates(), timeout]);
-      emit({ statuses: toStatuses(raw ?? {}), lastCheckedAt: Date.now(), error: null });
+      emit({ statuses: { ...snapshot.statuses, ...toStatuses(raw ?? {}) } });
     } catch (err) {
-      const marked: Partial<Record<PlatformId, AuthStatus>> = {};
-      for (const id of Object.keys(previous) as PlatformId[]) marked[id] = previous[id] === 'signedIn' ? 'signedIn' : 'error';
-      emit({ statuses: marked, error: err instanceof Error ? err.message : String(err) });
+      error = err instanceof Error ? err.message : String(err);
     } finally {
-      emit({ checking: false });
+      clearTimeout(timer);
+      const statuses = { ...snapshot.statuses };
+      const late: PlatformId[] = [];
+      for (const id of Object.keys(statuses) as PlatformId[]) {
+        if (statuses[id] !== 'checking') continue;
+        statuses[id] = 'error';
+        late.push(id);
+      }
+      if (!error && late.length) error = `${late.length} 个平台检测超时，可稍后再刷新`;
+      emit({ statuses, checking: false, lastCheckedAt: Date.now(), error });
       inflight = null;
     }
   })();

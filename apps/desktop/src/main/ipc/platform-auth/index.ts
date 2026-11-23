@@ -16,20 +16,31 @@ export { CHROME_DESKTOP_UA };
 
 let heartbeatTimer: NodeJS.Timeout | null = null;
 const browserManager = new InternalBrowserManager();
-let sharedCheck: (() => Promise<Partial<Record<PlatformId, boolean>>>) | null = null;
+let sharedCheck: ((opts?: { fresh?: boolean }) => Promise<Partial<Record<PlatformId, boolean>>>) | null = null;
 
 /**
  * 全部平台账号检测的唯一入口（心跳、窗口聚焦、渲染层刷新共用）：并发时只检测一次，
- * 结果落库并广播给渲染层的同一个 store。
+ * 每个平台一出结果就单独推给渲染层（不等最慢的平台），结束后落库并广播整份结果。
+ * fresh=true（用户点「刷新」/打开发布弹窗）时不复用已在跑的那一轮，旧一轮的结果不再广播。
  */
-export function checkAuthStatesOnce(ctx: Pick<MainIpcContext, 'readAppConfig' | 'getMainWindow'>): Promise<Partial<Record<PlatformId, boolean>>> {
-  sharedCheck ??= createSharedCheck(async () => {
-    const states = await checkPlatformAuthStates({ session, getAppConfig: ctx.readAppConfig });
-    await batchSyncHeartbeatResults(states);
-    ctx.getMainWindow()?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, states);
+export function checkAuthStatesOnce(
+  ctx: Pick<MainIpcContext, 'readAppConfig' | 'getMainWindow'>,
+  opts?: { fresh?: boolean }
+): Promise<Partial<Record<PlatformId, boolean>>> {
+  sharedCheck ??= createSharedCheck(async ({ isLatest }) => {
+    const send = (states: Partial<Record<PlatformId, boolean>>) => {
+      if (isLatest()) ctx.getMainWindow()?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, states);
+    };
+    const states = await checkPlatformAuthStates({
+      session,
+      getAppConfig: ctx.readAppConfig,
+      onResult: (id, ok) => send({ [id]: ok }),
+    });
+    if (isLatest()) await batchSyncHeartbeatResults(states);
+    send(states);
     return states;
   });
-  return sharedCheck();
+  return sharedCheck(opts);
 }
 
 /** Starts periodic background heartbeat sync for platform session cookies. */
@@ -112,7 +123,8 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
     return true;
   });
 
-  ipcMain.handle(IPC_INVOKE_CHANNELS.getPlatformAuthStates, () => checkAuthStatesOnce(ctx));
+  // 渲染层主动刷新：强制开新一轮，避免拿到用户登录前就开始的旧检测。
+  ipcMain.handle(IPC_INVOKE_CHANNELS.getPlatformAuthStates, () => checkAuthStatesOnce(ctx, { fresh: true }));
 
   ipcMain.handle(IPC_INVOKE_CHANNELS.getPlatformAccounts, async () => readAccountDatabase());
 }
