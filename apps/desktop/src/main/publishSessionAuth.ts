@@ -38,6 +38,7 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
     return {
       ok: res.ok,
       status: res.status,
+      url: res.url,
       headers: res.headers,
       text: () => res.text(),
       json: () => res.json(),
@@ -163,9 +164,10 @@ export async function verifyPlatformAuth(params: {
     if (platformId === 'weixin') {
       const wxSession = session.fromPartition('persist:platform_weixin');
       const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+      // 两次请求：首页取 token + 带 token 复核后台首页（会话失效会被跳回登录页）
       return await Promise.race([
         adapter.checkAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
