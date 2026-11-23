@@ -7,6 +7,7 @@ import {
 } from '../../accountStore';
 import { CHROME_DESKTOP_UA } from '../../browserStealth';
 import { InternalBrowserManager } from '../../internalBrowserManager';
+import { RENDERER_THEME_PROBE } from '../../loginWindowBar';
 import { checkPlatformAuthStates, verifyPlatformAuth } from '../../publishHandlers';
 import type { MainIpcContext } from '../context';
 
@@ -45,12 +46,18 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
 
   ipcMain.handle(
     IPC_INVOKE_CHANNELS.openPlatformLogin,
-    async (_event, platformId: PlatformId, loginUrl: string) => {
+    async (event, platformId: PlatformId, loginUrl: string) => {
+      // 登录窗口顶栏跟随 app 内主题：从发起调用的 Vmark 界面读当前主题，读不到就用默认浅色。
+      const appTheme = await Promise.race([
+        event.sender.executeJavaScript(RENDERER_THEME_PROBE).catch(() => null),
+        new Promise((r) => setTimeout(() => r(null), 500)),
+      ]);
       const targetSession = session.fromPartition(`persist:platform_${platformId}`);
       const isAuthorized = await browserManager.openPlatformBrowser({
         platformId,
         loginUrl,
         targetSession,
+        appTheme,
         checkAuth: () => verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig }),
         onAuthorized: async () => {
           await upsertAccountRecord(platformId, {

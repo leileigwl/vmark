@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction } from '../src/main/loginWindowBar.ts';
+import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction, resolveLoginBarTheme } from '../src/main/loginWindowBar.ts';
 
 test('顶栏：平台名、「登录完成」、关闭；不出现标签页、地址栏和技术术语', () => {
   const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false });
@@ -10,7 +10,7 @@ test('顶栏：平台名、「登录完成」、关闭；不出现标签页、�
   assert.match(html, /vmark-nav:\/\/close/);
   assert.match(html, /aria-label="关闭"/);
   for (const banned of ['沙箱', 'persist:', 'Cookie', 'data-platform-tab', 'url-pill']) assert.ok(!html.includes(banned), banned);
-  assert.match(html, /prefers-color-scheme: dark/);
+  assert.match(html, /color-scheme:light/); // 未传 app 主题时默认浅色（apple-light），不再读系统 prefers-color-scheme
   assert.match(html, new RegExp(`height:${LOGIN_BAR_HEIGHT}px`));
 });
 
@@ -38,4 +38,30 @@ test('点「登录完成」：已登录就关闭，否则提示继续登录', ()
     status: '还没检测到登录，请在下方页面完成登录',
   });
   assert.deepEqual(nextLoginBarAction({ signedInAtOpen: true, signedIn: false, trigger: 'done' }), { close: true, status: null });
+});
+
+test('顶栏配色跟随 app 内主题，不跟随系统 prefers-color-scheme', () => {
+  const dark = buildLoginBarHtml({
+    platformId: 'juejin',
+    signedInAtOpen: false,
+    appTheme: { themeId: 'bloom-ink-dark', tokens: { surface: '#232428', ink: '#e6e8eb', primary: '#7f91a8' } },
+  });
+  assert.ok(!dark.includes('prefers-color-scheme'));
+  assert.match(dark, /color-scheme:dark/);
+  assert.match(dark, /--bg:#232428/);
+  assert.match(dark, /--primary:#7f91a8/);
+  const light = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false, appTheme: { themeId: 'apple-light' } });
+  assert.match(light, /color-scheme:light/);
+  assert.match(light, /--bg:#fafafa/);
+});
+
+test('app 主题读取失败或值可疑时回落到对应深浅的默认色，不能注入 CSS', () => {
+  assert.equal(resolveLoginBarTheme(null).scheme, 'light');
+  assert.equal(resolveLoginBarTheme({ themeId: 'bloom-mist-dark' }).scheme, 'dark');
+  assert.equal(resolveLoginBarTheme({ themeId: 'custom-typora' }).scheme, 'light');
+  const t = resolveLoginBarTheme({ themeId: 'bloom-ink-dark', tokens: { surface: 'red}body{background:url(x)', ink: 42 } });
+  assert.equal(t.tokens.surface, '#1a1c1f');
+  assert.equal(t.tokens.ink, '#dde1e6');
+  const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false, appTheme: { tokens: { surface: '</style><script>' } } });
+  assert.ok(!html.includes('<script>'));
 });
