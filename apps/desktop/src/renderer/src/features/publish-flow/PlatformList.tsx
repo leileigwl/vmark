@@ -1,5 +1,5 @@
 import type { PlatformId } from '@vcat/shared';
-import { Globe, Loader2, RefreshCw } from 'lucide-react';
+import { CheckCheck, Globe, Loader2, RefreshCw, SquareMinus } from 'lucide-react';
 import { Button, Checkbox, Tooltip, cn } from '../../ui';
 import type { AuthStatus } from '../platform-auth';
 import { PLATFORM_SPECS, requirementText, type PlatformSpec } from './platformSpecs';
@@ -15,8 +15,10 @@ interface PlatformListProps {
   onOpenBrowser: (id: PlatformId) => void;
   checking: boolean;
   onRefresh: () => void;
-  /** 一键勾选所有已登录的平台。 */
+  /** 切换：没全选时勾选所有已登录的平台；已全选时全部取消。 */
   onSelectPushable: () => void;
+  /** 已登录的平台是否都已勾上（决定按钮文案）。 */
+  allPushableSelected: boolean;
 }
 
 /** 登录状态：所有平台都显示（不管勾没勾）。 */
@@ -65,10 +67,17 @@ export function PlatformList(props: PlatformListProps) {
   const signedIn = accounts.filter((s) => props.statusOf(s.id) === 'signedIn').length;
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-5 pb-1 pt-4">
-        <span className="text-xs font-medium text-ink">平台</span>
-        <Button variant="ghost" className="h-8 px-2 text-xs" onClick={props.onSelectPushable} disabled={signedIn === 0} data-testid="select-pushable">
-          全选可推送
+      <div className="space-y-2.5 px-5 pb-2 pt-4">
+        <span className="block text-xs font-medium text-ink">平台</span>
+        <Button
+          variant="secondary"
+          className="h-9 w-full text-[13px]"
+          onClick={props.onSelectPushable}
+          disabled={signedIn === 0}
+          data-testid="select-pushable"
+        >
+          {props.allPushableSelected ? <SquareMinus aria-hidden /> : <CheckCheck aria-hidden />}
+          {props.allPushableSelected ? '取消全选' : '全选可推送'}
         </Button>
       </div>
       <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3">
