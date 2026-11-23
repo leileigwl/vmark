@@ -7,6 +7,7 @@ import { cardDesignHeight, contentBoxFor, type CardContentBox, type CardContentI
  * 2. minimalist-magazine (极简杂志 — 现代社论排版美学)
  * 3. blank (空白模板 — 纯净极简背景，回归文字本质)
  * 4. elegant-book (书籍内页 — 优雅泛黄纸张与衬线体出版物)
+ * 5. fresh-gradient (清新渐变 — 薄荷到淡紫的柔和渐变底 + 半透明白卡)
  */
 
 export type ContentGenre = 'essay' | 'travel' | 'reading' | 'tech';
@@ -17,7 +18,8 @@ export type CardTemplateChrome =
   | 'ios-memo'
   | 'minimalist-magazine'
   | 'blank'
-  | 'elegant-book';
+  | 'elegant-book'
+  | 'fresh-gradient';
 
 export interface SocialCardTokens {
   id: string;
@@ -135,7 +137,7 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     sheetBg: '#FFFFFF',
     ruledLineColor: '#F2F2F7',
     ink: '#1C1C1E',
-    headingInk: '#FF9500',
+    headingInk: '#1C1C1E',
     textSecondary: '#3A3A3C',
     textMuted: '#8E8E93',
     line: 'rgba(28, 28, 30, 0.08)',
@@ -152,9 +154,9 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
-    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    fontDisplay: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontBody: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     letterSpacing: '0px',
   },
   'minimalist-magazine': {
@@ -185,9 +187,9 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif",
-    fontBody: "'Noto Serif SC', 'Songti SC', 'PingFang SC', serif",
-    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    fontDisplay: "'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', Georgia, serif",
+    fontBody: "'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', Georgia, serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     letterSpacing: '0.4px',
   },
   blank: {
@@ -201,7 +203,7 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     sheetBg: '#FFFFFF',
     ruledLineColor: 'transparent',
     ink: '#1A1A1A',
-    headingInk: '#8A8A8A',
+    headingInk: '#111111',
     textSecondary: '#4A4A4A',
     textMuted: '#B0B0B0',
     line: 'rgba(26, 26, 26, 0.08)',
@@ -218,9 +220,9 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     windowDotRed: '#d4d4d4',
     windowDotYellow: '#bdbdbd',
     windowDotGreen: '#9e9e9e',
-    fontDisplay: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
-    fontBody: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif",
-    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    fontDisplay: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontBody: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     letterSpacing: '0.3px',
   },
   'elegant-book': {
@@ -251,10 +253,43 @@ export const SOCIAL_CARD_PRESETS: Record<string, SocialCardTokens> = {
     windowDotRed: '#ff5f56',
     windowDotYellow: '#ffbd2e',
     windowDotGreen: '#27c93f',
-    fontDisplay: "'Noto Serif SC', 'Songti SC', 'STSong', serif",
-    fontBody: "'Noto Serif SC', 'Songti SC', 'PingFang SC', serif",
-    fontCode: "'JetBrains Mono', 'SF Mono', Consolas, monospace",
+    fontDisplay: "'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', Georgia, serif",
+    fontBody: "'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', Georgia, serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     letterSpacing: '0.8px',
+  },
+  'fresh-gradient': {
+    id: 'fresh-gradient',
+    name: '清新渐变 (Fresh Gradient)',
+    chrome: 'fresh-gradient',
+    kicker: 'FRESH NOTES',
+    footerSignature: 'Fresh Gradient • 清新渐变',
+    description: '薄荷绿到淡紫的柔和弥散渐变背景，正文放在半透明白色圆角卡片里，青绿色强调，适合生活方式与干货清单',
+    paper: 'linear-gradient(160deg, #DDF6EE 0%, #E3EEFF 55%, #F1E6FF 100%)',
+    sheetBg: 'rgba(255, 255, 255, 0.82)',
+    ruledLineColor: 'transparent',
+    ink: '#1F2A37',
+    headingInk: '#0F766E',
+    textSecondary: '#3B4A5A',
+    textMuted: '#7C8A99',
+    line: 'rgba(15, 118, 110, 0.14)',
+    lineStrong: '#14B8A6',
+    accent: '#0D9488',
+    accentInk: '#0F766E',
+    accentSurface: 'rgba(20, 184, 166, 0.12)',
+    highlightBg: 'rgba(250, 204, 21, 0.38)',
+    cardBg: 'rgba(255, 255, 255, 0.82)',
+    quoteBg: 'rgba(20, 184, 166, 0.08)',
+    codeBg: '#F4FAF9',
+    codeInk: '#1F2A37',
+    codeBorder: 'rgba(15, 118, 110, 0.16)',
+    windowDotRed: '#ff5f56',
+    windowDotYellow: '#ffbd2e',
+    windowDotGreen: '#27c93f',
+    fontDisplay: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontBody: "'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', -apple-system, sans-serif",
+    fontCode: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+    letterSpacing: '0.3px',
   },
 };
 
@@ -265,6 +300,7 @@ const THEME_ALIASES: Record<string, string> = {
   'modern-minimal': 'blank',
   'forest-journal': 'elegant-book',
   'travel-forest': 'elegant-book',
+  'mint-gradient': 'fresh-gradient',
   'swiss-slate': 'minimalist-magazine',
   'academic-blue': 'minimalist-magazine',
 };
@@ -288,6 +324,7 @@ export const CARD_CHROME_INSETS: Record<CardTemplateChrome, CardContentInsets> =
   'minimalist-magazine': { x: 104, top: 168, bottom: 150 },
   blank: { x: 100, top: 128, bottom: 140 },
   'elegant-book': { x: 120, top: 160, bottom: 150 },
+  'fresh-gradient': { x: 112, top: 160, bottom: 196 },
 };
 
 /** Size of the flowing content box for a theme and output ratio (design px). */
