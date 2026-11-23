@@ -40,7 +40,14 @@ export interface XhsNotePayload {
   coverRatio: PlatformCoverRatio;
   coverTemplate: UgcCoverTemplate;
   cards: XhsCardSection[];
+  /** Cards the article produced before the limit was applied (cover included). */
+  totalCards: number;
+  /** Cards cut off by the limit: `totalCards - cards.length`. Never drop silently; show this to the user. */
+  droppedCards: number;
 }
+
+/** Default per-note card limit (小红书 18 张). Platforms with a different limit pass `maxCards`. */
+export const DEFAULT_MAX_SOCIAL_CARDS = 18;
 
 export interface RenderXiaohongshuOptions {
   fallbackTitle?: string;
@@ -54,6 +61,8 @@ export interface RenderXiaohongshuOptions {
   pageHeight?: number;
   /** Real rendered block heights (design px, margins included); falls back to an estimate. */
   measure?: (block: CardBlock) => number;
+  /** Platform card limit (cover included); defaults to DEFAULT_MAX_SOCIAL_CARDS. */
+  maxCards?: number;
 }
 
 /** Detects article genre by scoring title/tags (high weight) and markdown body features. */
@@ -252,6 +261,7 @@ export function renderXiaohongshuCards(
     .join(' ');
 
   const captionText = `${title}\n\n${shortSummary}\n\n${hashTagStr}`;
+  const limit = Math.max(0, opts.maxCards ?? DEFAULT_MAX_SOCIAL_CARDS);
 
   return {
     title,
@@ -261,6 +271,8 @@ export function renderXiaohongshuCards(
     coverImage: fmCoverImage,
     coverRatio,
     coverTemplate,
-    cards: cards.slice(0, 18),
+    cards: cards.slice(0, limit),
+    totalCards: cards.length,
+    droppedCards: Math.max(0, cards.length - limit),
   };
 }

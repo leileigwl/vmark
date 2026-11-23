@@ -3,9 +3,15 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 const SHORT_MD = ['# 卡片缩略图', '', '第一段正文，用来生成小红书 3:4 卡片。', '', '## 小节', '', '- 要点一', '- 要点二'].join('\n');
 
+const LONG_MD = [
+  '# 超长文章',
+  '',
+  ...Array.from({ length: 60 }, (_, i) => `## 第 ${i + 1} 节\n\n${'这一节用很多句子来填满卡片，确保排版器会生成足够多的页面。'.repeat(6)}\n`),
+].join('\n');
+
 /** 只为卡片相关用例提供最小的 electronAPI 桩：一篇文章、小红书已登录。 */
-async function openWithMarkdown(page: Page, md: string) {
-  await page.addInitScript((source: string) => {
+async function openWithMarkdown(page: Page, md: string, theme = 'apple-light') {
+  await page.addInitScript(({ source, theme }: { source: string; theme: string }) => {
     const meta = { id: 'c-1', title: 'cards', relativePath: 'cards.md', folder: '', wordCount: 10, updatedAt: Date.now(), imageCount: 0, hasFrontmatter: false, excerpt: '' };
     const noop = () => () => {};
     (window as unknown as { electronAPI: Record<string, unknown> }).electronAPI = {
@@ -14,7 +20,7 @@ async function openWithMarkdown(page: Page, md: string) {
       listArticles: async () => [meta],
       listFolders: async () => [],
       getImageBedConfig: async () => ({ strategy: 'platform_private' }),
-      getStartupConfig: async () => ({ lastArticlePath: 'cards.md', theme: 'apple-light' }),
+      getStartupConfig: async () => ({ lastArticlePath: 'cards.md', theme }),
       getPlatformAuthStates: async () => ({ xiaohongshu: true }),
       getGitStatus: async () => ({ isGitRepo: false, branch: '', changedFiles: 0 }),
       readArticle: async () => source,
@@ -24,9 +30,11 @@ async function openWithMarkdown(page: Page, md: string) {
       onMenuAction: noop,
       onPlatformAuthUpdated: noop,
     };
-  }, md);
+  }, { source: md, theme });
   await page.goto('/');
   await page.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 15_000 });
+  // 与设置页切换主题相同：主题只靠 <html data-theme> 生效
+  await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
   await page.getByRole('button', { name: '发布', exact: true }).click();
   await page.getByTestId('platform-row-xiaohongshu').getByRole('checkbox').click();
   await page.getByTestId('platform-row-xiaohongshu').click();
@@ -63,5 +71,29 @@ test.describe('小红书卡片缩略图', () => {
     const box = await thumb.locator('..').boundingBox();
     expect(Math.round(box!.width)).toBe(132);
     expect(Math.round(box!.height)).toBe(Math.round((132 * 1656) / 1242));
+  });
+});
+
+test.describe('超出平台卡片上限', () => {
+  for (const theme of ['apple-light', 'bloom-ink-dark']) {
+  test(`超过 18 张时明确提示有几张不会发布，而不是悄悄丢掉（${theme}）`, async ({ page }, testInfo) => {
+    await openWithMarkdown(page, LONG_MD, theme);
+    await expect(page.locator('iframe[title="卡片 1"]')).toBeVisible();
+    await snap(page, testInfo, `card-overflow-notice-${theme}`);
+    const count = page.getByText(/共 \d+ 张 3:4 卡片/);
+    await expect(count).toBeVisible();
+    const total = Number((await count.textContent())!.match(/共 (\d+) 张/)![1]);
+    expect(total).toBeGreaterThan(18);
+    const notice = page.getByRole('status').filter({ hasText: '不会发布' });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(`只发布前 18 张`);
+    await expect(notice).toContainText(`后 ${total - 18} 张（第 19–${total} 张）不会发布`);
+  });
+  }
+
+  test('未超过上限时不显示提示', async ({ page }) => {
+    await openWithMarkdown(page, SHORT_MD);
+    await expect(page.getByText(/共 \d+ 张 3:4 卡片，平台上限 18 张/)).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: '不会发布' })).toHaveCount(0);
   });
 });

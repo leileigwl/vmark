@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { PLATFORM_COVER_SPECS, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import { cn } from '../../ui';
 
@@ -17,8 +18,12 @@ interface CardStripProps {
 
 /** 卡片平台：选模板 + 看前几张卡片缩略图和总张数。卡片 HTML 自带全局样式，放进 iframe 隔离。 */
 export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }: CardStripProps) {
-  const payload = useMemo(() => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4' }), [markdown, title]);
-  const total = payload.cards.length;
+  const payload = useMemo(
+    () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', maxCards }),
+    [markdown, title, maxCards]
+  );
+  const total = payload.totalCards;
+  const kept = payload.cards.length;
   const shown = payload.cards.slice(0, 4);
   const scale = THUMB_W / CARD_W;
   return (
@@ -53,15 +58,22 @@ export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }:
               sandbox=""
               className="pointer-events-none origin-top-left border-0"
               style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})` }}
-              srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: total, aspectRatio: '3:4' })}
+              srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: kept, aspectRatio: '3:4' })}
             />
           </div>
         ))}
       </div>
-      <p className={cn('text-[11px]', maxCards && total > maxCards ? 'text-danger' : 'text-muted')}>
+      <p className="text-[11px] text-muted">
         共 {total} 张 3:4 卡片{maxCards ? `，平台上限 ${maxCards} 张` : ''}
-        {maxCards && total > maxCards ? '，请精简正文或拆成两篇' : ''}
       </p>
+      {payload.droppedCards > 0 ? (
+        <p role="status" className="flex items-start gap-1.5 rounded-[var(--radius-ui)] bg-warning-soft px-3 py-2 text-xs text-ink">
+          <AlertTriangle className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
+          <span>
+            超出平台上限：只发布前 {kept} 张，后 {payload.droppedCards} 张（第 {kept + 1}–{total} 张）不会发布。请精简正文或拆成两篇。
+          </span>
+        </p>
+      ) : null}
     </div>
   );
 }
