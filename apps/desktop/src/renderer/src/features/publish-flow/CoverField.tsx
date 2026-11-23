@@ -9,7 +9,7 @@ export function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: s
   return (
     <Tooltip content="点图片设置焦点，各比例以焦点为中心裁切">
       <div
-        className={`relative shrink-0 cursor-crosshair overflow-hidden rounded-md border border-line bg-hover ${className}`}
+        className={`relative w-fit shrink-0 cursor-crosshair overflow-hidden rounded-md border border-line bg-hover ${className}`}
         data-testid="cover-focus"
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
@@ -48,15 +48,13 @@ export function useImageUpload(onDone: (path: string) => void, inputRef: RefObje
 
 interface CoverFieldProps {
   draft: PublishDraft;
-  /** 一句短提示，如「其他平台按需自动裁 16:9」（来自 platformSpecs）。 */
-  hint: string | null;
   onChange: (patch: Partial<PublishDraft>) => void;
   /** 文件选择框；“需要单独处理”里的上传按钮也用它。 */
   inputRef: RefObject<HTMLInputElement>;
 }
 
-/** 通用封面：一张图铺给所有平台。只有上传按钮、缩略图和一句提示，不再逐平台列规则。 */
-export function CoverField({ draft, hint, onChange, inputRef }: CoverFieldProps) {
+/** 通用封面：一张图铺给所有平台，各平台按自己的比例裁。这里不列比例——比例在公众号块、小红书/抖音块和百家号/微博行里。 */
+export function CoverField({ draft, onChange, inputRef }: CoverFieldProps) {
   const src = draft.coverUpload;
   const { upload, error, busy } = useImageUpload((path) => onChange({ coverUpload: path, coverFocus: { x: 50, y: 50 } }), inputRef);
   return (
@@ -65,8 +63,7 @@ export function CoverField({ draft, hint, onChange, inputRef }: CoverFieldProps)
         <div className="min-w-0">
           <div className="text-xs font-medium text-ink">封面</div>
           <p className="mt-0.5 text-[11px] text-muted" data-testid="cover-hint">
-            {src ? '点图片设置焦点' : hint ?? '不上传则各平台用默认封面'}
-            {src && hint ? ` · ${hint}` : ''}
+            {src ? '点图片设置焦点，各平台按自己的比例以焦点为中心裁' : '不上传则各平台用默认封面'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

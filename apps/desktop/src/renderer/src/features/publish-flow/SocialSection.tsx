@@ -51,7 +51,7 @@ export function SocialSection({ draft, specs, markdown, issuesOf, onChange }: So
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-medium text-ink">卡片</div>
-            <p className="mt-0.5 text-[11px] text-muted">{s.cover ? '上传的封面是第 1 张，后面接正文卡片' : '第一张卡片就是封面；可上传一张图插到最前'}</p>
+            <p className="mt-0.5 text-[11px] text-muted">封面 {first.cover?.ratios.join('/')} · {s.cover ? '上传的封面是第 1 张，后面接正文卡片' : '第一张卡片就是封面；可上传一张图插到最前'}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {s.cover ? (

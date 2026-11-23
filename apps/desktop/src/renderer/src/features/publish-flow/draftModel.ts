@@ -30,9 +30,8 @@ export interface PublishDraft {
   includeRemoteImages: boolean;
   /** 掘金文章分类 id；空字符串表示还没选。 */
   juejinCategoryId: string;
-  /** 公众号专属：作者、阅读原文链接（空字符串=不填）。 */
-  weixinAuthor: string;
-  weixinSourceUrl: string;
+  /** 公众号块里单独上传的封面（空字符串=没传，沿用通用封面或正文首图）与它的焦点。 */
+  weixin: { cover: string; focus: { x: number; y: number } };
   social: SocialDraft;
 }
 
@@ -94,24 +93,24 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     socialThemeId: null,
     includeRemoteImages: true,
     juejinCategoryId: '',
-    weixinAuthor: '',
-    weixinSourceUrl: '',
+    weixin: { cover: '', focus: { x: 50, y: 50 } },
     social: { cover: '' },
   };
 }
 
 const KNOWN_KEYS: Array<keyof PublishDraft> = [
   'title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId',
-  'weixinAuthor', 'weixinSourceUrl', 'social',
+  'weixin', 'social',
 ];
 
-/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops）丢弃。 */
+/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文）丢弃。 */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
   if (!saved) return base;
   const out: PublishDraft = { ...base };
   for (const k of KNOWN_KEYS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   out.selected = out.selected.filter((id) => SPEC_BY_ID[id]);
   out.social = { ...out.social, cover: out.social?.cover ?? '' };
+  out.weixin = { ...base.weixin, ...out.weixin };
   return out;
 }
 
@@ -132,9 +131,18 @@ export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: str
   if (!spec.cover) return null;
   // 卡片平台只认它们分区里上传的封面，通用封面不插进卡片。
   if (spec.cover.mode === 'card') return draft.social.cover ? { kind: 'upload', src: draft.social.cover } : { kind: 'card' };
+  // 公众号块里单独上传的封面只给公众号；没传就和其他平台一样沿用通用封面。
+  if (spec.cover.mode === 'weixin' && draft.weixin.cover) return { kind: 'upload', src: draft.weixin.cover };
   if (draft.coverUpload) return { kind: 'upload', src: draft.coverUpload };
   if (spec.cover.mode === 'optional' || !bodyImage) return { kind: 'none' };
   return { kind: 'body', src: bodyImage };
+}
+
+/** 裁切上传封面时用的焦点：卡片封面取中心，公众号单独上传的用公众号块的焦点，其余用通用封面的焦点。 */
+export function coverFocusFor(draft: PublishDraft, spec: PlatformSpec): { x: number; y: number } {
+  if (spec.cover?.mode === 'card') return { x: 50, y: 50 };
+  if (spec.cover?.mode === 'weixin' && draft.weixin.cover) return draft.weixin.focus;
+  return draft.coverFocus;
 }
 
 /** 某平台最终使用的值：小红书/抖音用自己分区的值（标题默认截取通用标题）；其他平台单独改写优先，否则用通用值。 */
@@ -144,12 +152,27 @@ export function resolveFor(draft: PublishDraft, id: PlatformId) {
   if (spec?.kind === 'cards') {
     const s = draft.social;
     const title = s.title?.trim() ? s.title : o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join('');
-    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? draft.tags };
+    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? fitTags(draft.tags, spec.tags?.max) };
   }
-  return { title: o.title ?? draft.title, digest: o.digest ?? draft.digest, tags: o.tags ?? draft.tags };
+  return { title: o.title ?? draft.title, digest: o.digest ?? fitDigest(draft.digest, spec?.digest?.max), tags: o.tags ?? fitTags(draft.tags, spec?.tags?.max) };
+}
+
+/** 沿用通用标签时：超出平台上限默认取前 max 个。 */
+const fitTags = (tags: string[], max: number | undefined) => (max !== undefined && tags.length > max ? tags.slice(0, max) : tags);
+
+/** 该平台是否沿用通用标签（没在平台行 / 小红书抖音分区里单独挑选）。 */
+export function usesSharedTags(draft: PublishDraft, spec: PlatformSpec): boolean {
+  if (draft.overrides[spec.id]?.tags !== undefined) return false;
+  return spec.kind !== 'cards' || draft.social.topics === undefined;
 }
 
 const len = (s: string) => [...s.trim()].length;
+
+/** 通用摘要超出平台上限时自动截取（末尾“…”算在上限内）；平台行里单独改写的摘要不截取。 */
+export function fitDigest(digest: string, max: number | undefined): string {
+  if (max === undefined || len(digest) <= max) return digest;
+  return [...digest.trim()].slice(0, max - 1).join('') + '…';
+}
 
 /** 检查某平台是否可以推送；error 会阻止推送。消息是短句，如“摘要差 12 字”。 */
 export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn: boolean, bodyImage = ''): Issue[] {
@@ -163,11 +186,19 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
   else if (spec.title.min && t < spec.title.min) err('title', `标题差 ${spec.title.min - t} 字`);
   if (spec.digest) {
     const d = len(v.digest);
+    // 沿用通用摘要且超长：只提示，推送时自动截取（resolveFor 已截好），不挡推送。
+    const shared = spec.kind !== 'cards' && draft.overrides[spec.id]?.digest === undefined ? len(draft.digest) : 0;
+    if (shared > spec.digest.max) issues.push({ level: 'warn', field: 'digest', message: `摘要超 ${shared - spec.digest.max} 字（自动截取）` });
     if (spec.digest.required && d === 0) err('digest', '缺摘要');
     else if (d > spec.digest.max) err('digest', `摘要超 ${d - spec.digest.max} 字`);
     else if (spec.digest.min && d > 0 && d < spec.digest.min) err('digest', `摘要差 ${spec.digest.min - d} 字`);
   }
-  if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover?.mode !== 'optional') err('cover', '缺封面');
+  if (coverFor(draft, spec, bodyImage)?.kind === 'none' && spec.cover && spec.cover.mode !== 'optional') {
+    err('cover', spec.cover.mode === 'required' ? `缺封面（${spec.cover.ratios.join('/')} 必需）` : '缺封面');
+  }
+  if (spec.tags && usesSharedTags(draft, spec) && draft.tags.length > spec.tags.max) {
+    issues.push({ level: 'warn', field: 'tags', message: `标签超 ${draft.tags.length - spec.tags.max} 个（取前 ${spec.tags.max} 个）` });
+  }
   if (spec.tags?.required && v.tags.length === 0) err('tags', '缺标签');
   else if (spec.tags && v.tags.length > spec.tags.max) err('tags', `标签多 ${v.tags.length - spec.tags.max} 个`);
   if (spec.category?.required && !draft.juejinCategoryId) err('category', '缺分类');

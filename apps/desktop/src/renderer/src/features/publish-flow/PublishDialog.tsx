@@ -3,7 +3,7 @@ import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
 import { usePlatformAuth } from '../platform-auth';
 import { checkPlatform, type Issue } from './draftModel';
-import { PLATFORM_SPECS, SPEC_BY_ID, generalCoverHint } from './platformSpecs';
+import { PLATFORM_SPECS, SPEC_BY_ID } from './platformSpecs';
 import { PlatformList } from './PlatformList';
 import { AttentionList } from './AttentionList';
 import { CoverField } from './CoverField';
@@ -149,14 +149,14 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
                 </Field>
               ) : null}
               {articleSpecs.some((s) => s.cover) ? (
-                <CoverField draft={draft} hint={generalCoverHint(articleSpecs)} onChange={update} inputRef={coverInputRef} />
+                <CoverField draft={draft} onChange={update} inputRef={coverInputRef} />
               ) : null}
             </section>
-            <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} />
+            <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} bodyImage={bodyImage} />
             {weixinOn || cardSpecs.length ? (
               <section className="space-y-3">
                 <h3 className="text-xs font-medium text-muted">平台专属</h3>
-                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field !== 'auth')} onChange={update} /> : null}
+                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} onChange={update} /> : null}
                 {cardSpecs.length ? <SocialSection draft={draft} specs={cardSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} /> : null}
               </section>
             ) : null}
