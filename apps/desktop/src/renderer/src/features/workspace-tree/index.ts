@@ -18,7 +18,6 @@ import {
   type ArticleOpsCtx,
 } from './articleOps';
 import { executeRedoOp, executeUndoOp, type FileHistoryOp } from './fileHistory';
-import { useRecoverySnapshot } from './recoverySnapshot';
 import { useSaveBaseline } from './saveBaseline';
 
 export type { FileHistoryOp };
@@ -170,18 +169,6 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       delete w.__vmarkFlushBeforeClose;
     };
   }, []);
-  // Crash-recovery backups: main pulls the unsaved text every 500ms (main/editorRecovery.ts).
-  useRecoverySnapshot(() => {
-    const editor = editorRef.current;
-    const base = persistedContentRef.current;
-    if (!activeArticle || loadingArticleRef.current || !editor || base === null) return null;
-    return {
-      rel: activeArticle.relativePath,
-      base,
-      dirty: saveState === '未保存' || saveState === '保存失败',
-      content: () => baseline.contentForDisk(base, editor.getValue()),
-    };
-  });
 
   /** A failed write never touched the file (atomic save); say so, and keep the text in the editor. */
   function reportSaveFailure(err: unknown, attempted: string) {
