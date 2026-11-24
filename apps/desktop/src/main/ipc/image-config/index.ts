@@ -15,6 +15,7 @@ import {
   type ImageBedConfig,
   type StartupConfig,
 } from '@vcat/shared';
+import { fillStoredSecrets, stripSecrets } from '../../secretStore';
 import type { MainIpcContext } from '../context';
 
 const execFileAsync = promisify(execFile);
@@ -41,13 +42,14 @@ export function registerImageConfigIpc(ctx: MainIpcContext): void {
   });
 
   ipcMain.handle(IPC_INVOKE_CHANNELS.getImageBedConfig, async () => {
+    // 凭据零外泄：渲染进程只拿非密钥字段，密钥留在主进程。
     const cfg = await readAppConfig();
-    return cfg.imageBed;
+    return stripSecrets(cfg.imageBed);
   });
 
   ipcMain.handle(IPC_INVOKE_CHANNELS.saveImageBedConfig, async (_event, imageBed: ImageBedConfig) => {
     const cfg = await readAppConfig();
-    cfg.imageBed = imageBed;
+    cfg.imageBed = fillStoredSecrets(imageBed, cfg.imageBed);
     await writeAppConfig(cfg);
   });
 
@@ -62,7 +64,8 @@ export function registerImageConfigIpc(ctx: MainIpcContext): void {
     await writeAppConfig(cfg);
   });
 
-  ipcMain.handle(IPC_INVOKE_CHANNELS.testImageBedUpload, async (_event, imageBed: ImageBedConfig) => {
+  ipcMain.handle(IPC_INVOKE_CHANNELS.testImageBedUpload, async (_event, fromRenderer: ImageBedConfig) => {
+    const imageBed = fillStoredSecrets(fromRenderer, (await readAppConfig()).imageBed);
     const TINY_1X1_PNG = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
       'base64'

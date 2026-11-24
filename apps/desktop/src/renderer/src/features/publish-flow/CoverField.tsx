@@ -53,7 +53,7 @@ interface CoverFieldProps {
   inputRef: RefObject<HTMLInputElement>;
 }
 
-/** 通用封面：一张图铺给所有平台，各平台按自己的比例裁。这里不列比例——比例在公众号块、小红书/抖音块和百家号/微博行里。 */
+/** 通用封面：一张图铺给所有平台，各平台按自己的比例裁。这里不列比例——比例在公众号块、小红书/抖音块和百家号/微博行里；比例不同的平台在各自的块里可单独设封面。 */
 export function CoverField({ draft, onChange, inputRef }: CoverFieldProps) {
   const src = draft.coverUpload;
   const { upload, error, busy } = useImageUpload((path) => onChange({ coverUpload: path, coverFocus: { x: 50, y: 50 } }), inputRef);
