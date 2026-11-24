@@ -23,7 +23,7 @@
 
 ## 下一批（维护者要做）
 
-### ~~2. 掘金分类运行时拉取~~（运行时通过 `publish:juejinCategories` 拉取，超时/失败退回内置列表）
+### ~~2. 掘金分类运行时拉取~~（#127；运行时通过 `publish:juejinCategories` 拉取，超时/失败退回内置列表）
 - **要做什么**：发布弹窗里掘金的分类列表从掘金实时获取，拿不到时用内置列表。
 - **为什么**：掘金调整分类后，内置列表会过时，选了不存在的分类草稿会出错。
 - **改哪些文件**：`packages/shared/`、`apps/desktop/src/preload/index.ts`、`apps/desktop/src/main/juejinCategoryRuntime.ts`、`apps/desktop/src/main/publishHandlers.ts`、`features/publish-flow/useJuejinCategories.ts`、`features/publish-flow/AttentionList.tsx`。
