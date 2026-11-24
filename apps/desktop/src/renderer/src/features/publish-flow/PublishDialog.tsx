@@ -3,10 +3,11 @@ import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
 import { usePlatformAuth } from '../platform-auth';
 import { checkPlatform, type Issue } from './draftModel';
-import { PLATFORM_SPECS, SPEC_BY_ID } from './platformSpecs';
+import { PLATFORM_SPECS, SPEC_BY_ID, ownCoverEligible } from './platformSpecs';
 import { PlatformList } from './PlatformList';
 import { AttentionList } from './AttentionList';
 import { CoverField } from './CoverField';
+import { OwnCoverEntries } from './OwnCoverField';
 import { TagInput } from './TagInput';
 import { WeixinSection } from './WeixinSection';
 import { SocialSection } from './SocialSection';
@@ -45,6 +46,8 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   // 通用内容铺给所有勾选的平台；小红书/抖音分区只选卡片模板。
   const cardSpecs = selectedSpecs.filter((s) => s.kind === 'cards');
   const weixinOn = draft.selected.includes('weixin');
+  // 封面比例与通用封面不同的文章平台（公众号除外，它在自己的块里）：单独封面入口放在「平台专属」里，按 spec 决定。
+  const ownCoverArticles = selectedSpecs.filter((s) => s.kind === 'article' && s.id !== 'weixin' && ownCoverEligible(s));
   const showTags = selectedSpecs.some((s) => s.tags);
 
   const toggle = (id: PlatformId, on: boolean) =>
@@ -153,10 +156,11 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
               ) : null}
             </section>
             <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} bodyImage={bodyImage} />
-            {weixinOn || cardSpecs.length ? (
+            {weixinOn || cardSpecs.length || ownCoverArticles.length ? (
               <section className="space-y-3">
                 <h3 className="text-xs font-medium text-muted">平台专属</h3>
-                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} /> : null}
+                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} onChange={update} /> : null}
+                <OwnCoverEntries draft={draft} specs={ownCoverArticles} onChange={update} />
                 {cardSpecs.length ? <SocialSection draft={draft} specs={cardSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} /> : null}
               </section>
             ) : null}

@@ -5,8 +5,8 @@ const MD = '# 公众号文章：多平台发布流程\n\n正文。\n\n![配图](
 const PNG = { name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') };
 const base = { md: MD, auth: { weixin: true, zhihu: true }, selected: ['weixin', 'zhihu'] };
 
-test.describe('公众号块：只看封面裁剪（通用封面或正文首图按 2.35:1 + 1:1 裁切的预览）', () => {
-  test('没有作者、阅读原文等字段，也没有单独的上传封面入口；上传通用封面后公众号块显示两种比例的裁切', async ({ page }) => {
+test.describe('公众号块：可选的单独封面 + 封面裁剪预览（单独封面 / 通用封面 / 正文首图按 2.35:1 + 1:1 裁）', () => {
+  test('没有作者、阅读原文等字段；只有一个可选的单独封面入口；上传通用封面后公众号块显示两种比例的裁切', async ({ page }) => {
     await openPublishWith(page, base);
     const wx = page.getByTestId('section-weixin');
     await wx.getByRole('button', { expanded: false }).click();
@@ -16,9 +16,10 @@ test.describe('公众号块：只看封面裁剪（通用封面或正文首图�
     await expect(wx).toContainText('列表大图 2.35:1');
     await expect(wx).toContainText('转发小图 1:1');
     await expect(wx).toContainText('用正文首图自动裁');
-    await expect(wx.locator('input[type=file]')).toHaveCount(0);
-    await expect(wx.getByRole('button', { name: /上传|更换|移除/ })).toHaveCount(0);
+    await expect(wx.locator('input[type=file]')).toHaveCount(1);
+    await expect(wx.getByRole('button', { name: /上传|更换|移除/ })).toHaveText(['上传公众号封面']);
     await page.getByTestId('cover-input').setInputFiles(PNG);
+    await expect(wx.getByTestId('own-cover-weixin').getByTestId('cover-focus')).toHaveCount(0); // 通用封面不会写进公众号单独封面
     await expect(page.getByTestId('cover-field').getByTestId('cover-focus')).toBeVisible();
     for (const r of ['2.35:1', '1:1']) await expect(wx.getByAltText(`${r} 封面预览`)).toBeVisible();
     await expect(wx).toContainText('用通用封面按焦点裁');
@@ -41,7 +42,7 @@ test.describe('公众号块：只看封面裁剪（通用封面或正文首图�
   });
 
   for (const [mode, theme] of THEMES) {
-    test(`截图（${mode}）：公众号块只有封面裁剪与排版`, async ({ page }, testInfo) => {
+    test(`截图（${mode}）：公众号块（没传单独封面，用通用封面裁）`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: 1280, height: 860 });
       await openPublishWith(page, { ...base, theme, sampleImage: true });
       await page.getByTestId('cover-input').setInputFiles(PNG);

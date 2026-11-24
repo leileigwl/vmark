@@ -5,7 +5,7 @@ import { importLocalImage, previewSrc } from './coverCrop';
 import type { PublishDraft } from './draftModel';
 
 /** 上传的封面缩略图，点图设焦点（各比例以焦点为中心裁切）。 */
-function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: string; focus: { x: number; y: number }; onFocus: (f: { x: number; y: number }) => void; className?: string }) {
+export function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: string; focus: { x: number; y: number }; onFocus: (f: { x: number; y: number }) => void; className?: string }) {
   return (
     <Tooltip content="点图片设置焦点，各比例以焦点为中心裁切">
       <div
@@ -27,7 +27,7 @@ function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: string; 
 }
 
 /** 选图并存进工作区；返回上传函数与状态。 */
-function useImageUpload(onDone: (path: string) => void, inputRef: RefObject<HTMLInputElement>) {
+export function useImageUpload(onDone: (path: string) => void, inputRef: RefObject<HTMLInputElement>) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const upload = async (file?: File) => {
@@ -53,7 +53,7 @@ interface CoverFieldProps {
   inputRef: RefObject<HTMLInputElement>;
 }
 
-/** 通用封面：一张图铺给所有平台，各平台按自己的比例裁。这里不列比例——比例在公众号块、小红书/抖音块和百家号/微博行里。 */
+/** 通用封面：一张图铺给所有平台，各平台按自己的比例裁。这里不列比例——比例在公众号块、小红书/抖音块和百家号/微博行里；比例不同的平台在各自的块里可单独设封面。 */
 export function CoverField({ draft, onChange, inputRef }: CoverFieldProps) {
   const src = draft.coverUpload;
   const { upload, error, busy } = useImageUpload((path) => onChange({ coverUpload: path, coverFocus: { x: 50, y: 50 } }), inputRef);
