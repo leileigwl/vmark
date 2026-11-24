@@ -117,6 +117,24 @@ test.describe('公众号「复制富文本」：粘贴进公众号编辑器后�
     expect(r.rawDollar).toBe(false);
   });
 
+  test('MathJax 还没加载完就点复制：等公式渲染成 SVG 后再写剪贴板，不会复制出 $ 源码', async ({ page }) => {
+    await captureClipboard(page);
+    // 让 MathJax 脚本晚 2 秒到达，模拟 CI 负载高或真机首次加载慢时用户立刻点复制。
+    await page.route('**/mathjax/tex-svg-full.js', async (route) => {
+      await new Promise((r) => setTimeout(r, 2000));
+      await route.continue();
+    });
+    await openPublishWith(page, base);
+    await page.getByTestId('section-weixin').getByRole('button', { expanded: false }).click();
+    const preview = page.getByTestId('weixin-preview');
+    await preview.getByRole('button', { name: '复制富文本' }).click();
+    await expect(preview.getByRole('button', { name: '已复制' })).toBeVisible({ timeout: 15_000 });
+    const html = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? '');
+    const r = await page.evaluate(auditPasted, html);
+    expect(r.svgCount).toBe(2);
+    expect(r.rawDollar).toBe(false);
+  });
+
   for (const [mode, theme] of THEMES) {
     test(`截图（${mode}）：公众号排版预览（引用、代码、列表、表格、公式）`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: 1280, height: 1000 });
