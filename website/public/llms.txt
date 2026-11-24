@@ -2,10 +2,10 @@
 
 > Local-First desktop Markdown note-taking editor and multi-platform publishing workbench for macOS, Windows, and Linux.
 
-Official Site: https://vmark.pages.dev/
+Official Site: https://vmark-6cc.pages.dev/
 Source Repository: https://github.com/leileigwl/vmark
 Latest Releases (macOS / Windows / Linux): https://github.com/leileigwl/vmark/releases/latest
-Full Documentation for AI Systems: https://vmark.pages.dev/llms-full.txt
+Full Documentation for AI Systems: https://vmark-6cc.pages.dev/llms-full.txt
 
 Vmark (`V` = Verified, `Mark` = Markdown) is an open-source, offline-first desktop application designed first and foremost for calm, reliable Markdown note-taking and long-form technical writing — with one-click, draft-first publishing and 3:4 visual card generation built in when you are ready to share.
 

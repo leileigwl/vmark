@@ -15,7 +15,7 @@
 [![Local-First](https://img.shields.io/badge/Storage-100%25%20Local--First-2ea44f.svg)](#-为什么选择-vmark-做笔记)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Monorepo-3178C6.svg)](#-系统架构与-monorepo-目录)
 
-[下载最新版](https://github.com/leileigwl/vmark/releases/latest) · [核心笔记体验](#-为什么选择-vmark-做笔记) · [多平台分发与卡片](#-写完之后一键分发到-10-平台) · [官网与部署](website/DEPLOY.md) · [常见问题](#-常见问题-faq)
+[官方网站](https://vmark-6cc.pages.dev) · [下载最新版](https://github.com/leileigwl/vmark/releases/latest) · [核心笔记体验](#-为什么选择-vmark-做笔记) · [多平台分发与卡片](#-写完之后一键分发到-10-平台) · [常见问题](#-常见问题-faq)
 
 <br />
 

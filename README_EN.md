@@ -15,7 +15,7 @@
 [![Local-First](https://img.shields.io/badge/Storage-100%25%20Local--First-2ea44f.svg)](#-why-vmark-for-note-taking)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Monorepo-3178C6.svg)](#-architecture--monorepo-layout)
 
-[Download Latest](https://github.com/leileigwl/vmark/releases/latest) · [Note-Taking Core](#-why-vmark-for-note-taking) · [Multi-Platform Publishing](#-publish-to-10-platforms--34-visual-cards) · [Website & Deploy](website/DEPLOY.md) · [FAQ](#-faq)
+[Official Website](https://vmark-6cc.pages.dev) · [Download Latest](https://github.com/leileigwl/vmark/releases/latest) · [Note-Taking Core](#-why-vmark-for-note-taking) · [Multi-Platform Publishing](#-publish-to-10-platforms--34-visual-cards) · [FAQ](#-faq)
 
 <br />
 

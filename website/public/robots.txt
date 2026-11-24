@@ -13,5 +13,5 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-Sitemap: https://vmark.pages.dev/sitemap.xml
-# LLMs dossier: https://vmark.pages.dev/llms.txt
+Sitemap: https://vmark-6cc.pages.dev/sitemap.xml
+# LLMs dossier: https://vmark-6cc.pages.dev/llms.txt
