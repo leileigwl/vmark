@@ -1,9 +1,8 @@
-import { GENRE_META, type ContentGenre, type PlatformCoverRatio } from './socialCardThemes.ts';
-import {
-  normalizeMarkdownTablesAndRules,
-  preserveRichInlineMarkdown,
-  stripInlineMarkdown,
-} from './socialMarkdownUtils.ts';
+import { GENRE_META, getCardContentBox, type ContentGenre, type PlatformCoverRatio } from './socialCardThemes.ts';
+import { stripInlineMarkdown } from './socialMarkdownUtils.ts';
+import { blockToLine, parseCardBlocks, type CardBlock } from './socialCardBlocks.ts';
+import { markdownToPlainText } from './socialPlainText.ts';
+import { estimateCardBlockHeight, paginateCardBlocks, type PlacedCardBlock } from './socialCardPaginate.ts';
 
 export type UgcCoverTemplate =
   | 'ios-memo'
@@ -27,6 +26,10 @@ export interface XhsCardSection {
   genre?: ContentGenre;
   coverImage?: string;
   coverTemplate?: UgcCoverTemplate;
+  /** Flowing content blocks placed on this card (content cards only). */
+  blocks?: PlacedCardBlock[];
+  /** How full the content box is (0–1), from the measured/estimated block heights. */
+  fill?: number;
 }
 
 export interface XhsNotePayload {
@@ -38,7 +41,14 @@ export interface XhsNotePayload {
   coverRatio: PlatformCoverRatio;
   coverTemplate: UgcCoverTemplate;
   cards: XhsCardSection[];
+  /** Cards the article produced before the limit was applied (cover included). */
+  totalCards: number;
+  /** Cards cut off by the limit: `totalCards - cards.length`. Never drop silently; show this to the user. */
+  droppedCards: number;
 }
+
+/** Default per-note card limit (小红书 18 张). Platforms with a different limit pass `maxCards`. */
+export const DEFAULT_MAX_SOCIAL_CARDS = 18;
 
 export interface RenderXiaohongshuOptions {
   fallbackTitle?: string;
@@ -46,6 +56,14 @@ export interface RenderXiaohongshuOptions {
   coverImage?: string;
   coverRatio?: PlatformCoverRatio;
   coverTemplate?: UgcCoverTemplate;
+  /** Theme whose content box drives pagination (defaults to ios-memo). */
+  themeId?: string;
+  /** Override the content-box height (design px). */
+  pageHeight?: number;
+  /** Real rendered block heights (design px, margins included); falls back to an estimate. */
+  measure?: (block: CardBlock) => number;
+  /** Platform card limit (cover included); defaults to DEFAULT_MAX_SOCIAL_CARDS. */
+  maxCards?: number;
 }
 
 /** Detects article genre by scoring title/tags (high weight) and markdown body features. */
@@ -164,7 +182,6 @@ export function renderXiaohongshuCards(
     }
   }
 
-  const normalizedMd = normalizeMarkdownTablesAndRules(cleanMd);
   const genre =
     opts.genre || detectArticleGenre(cleanMd, title, [...explicitTags, ...inlineHashtags]);
   const genreConfig = GENRE_META[genre];
@@ -176,193 +193,69 @@ export function renderXiaohongshuCards(
   const coverTemplate: UgcCoverTemplate =
     opts.coverTemplate || defaultCoverTemplateForGenre(genre);
 
-  const lines = normalizedMd.split(/\r?\n/);
-  const headings: string[] = [];
-  const quotes: string[] = [];
-  const richParagraphs: string[] = [];
-  const preHeadingParagraphs: string[] = [];
+  // Hashtag-only lines feed the tags, not the card flow.
+  const blocks = parseCardBlocks(cleanMd, { title }).filter(
+    (b) => !(b.kind === 'paragraph' && /^(?:#[^\s#]+\s*)+$/.test(b.text))
+  );
+  const leadQuoteIdx = blocks.findIndex((b) => b.kind === 'quote');
+  const firstHeadingIdx = blocks.findIndex((b) => b.kind === 'heading');
+  const leadQuote =
+    leadQuoteIdx >= 0 && (firstHeadingIdx < 0 || leadQuoteIdx < firstHeadingIdx)
+      ? (blocks[leadQuoteIdx] as { text: string }).text
+      : undefined;
+  const subtitle = fmSubtitle || leadQuote || '';
+  // A lead quote promoted to the cover subtitle is not repeated in the flow.
+  const flowBlocks = !fmSubtitle && leadQuote ? blocks.filter((_, i) => i !== leadQuoteIdx) : blocks;
+  const leadLines = flowBlocks
+    .filter((b) => b.kind === 'paragraph')
+    .slice(0, 2)
+    .map((b) => blockToLine(b));
 
-  let scanCode = false;
-  let passedFirstSubheading = false;
-  for (const rawLine of lines) {
-    const t = rawLine.trim();
-    if (/^(`{3,}|~{3,})/.test(t)) {
-      scanCode = !scanCode;
-      continue;
-    }
-    if (scanCode || !t) continue;
-    const h = t.match(/^#{1,3}\s+(.+)$/);
-    if (h) {
-      const hText = stripInlineMarkdown(h[1]);
-      if (hText !== title) {
-        headings.push(hText);
-        passedFirstSubheading = true;
-      }
-      continue;
-    }
-    if (t.startsWith('>')) {
-      const q = preserveRichInlineMarkdown(t.replace(/^>\s*(\[![A-Z]+\])?\s*/, ''));
-      if (q) quotes.push(q);
-      continue;
-    }
-    if (!t.startsWith('#') && !t.startsWith('![') && t.length >= 6) {
-      const formatted = preserveRichInlineMarkdown(t.replace(/^[-*]\s+/, '• '));
-      richParagraphs.push(formatted);
-      if (!passedFirstSubheading) {
-        preHeadingParagraphs.push(formatted);
-      }
-    }
+  const cards: XhsCardSection[] = [
+    {
+      type: 'cover',
+      title,
+      subtitle: subtitle || genreConfig.badge,
+      bodyLines: leadLines,
+      quote: leadQuote || fmSubtitle || undefined,
+      tags: mergedTags,
+      genre,
+      coverImage: fmCoverImage,
+      coverTemplate,
+    },
+  ];
+
+  const box = getCardContentBox(opts.themeId, coverRatio);
+  const pageHeight = opts.pageHeight ?? box.height;
+  const measure = opts.measure ?? ((b: CardBlock) => estimateCardBlockHeight(b, box.width));
+  const pages = paginateCardBlocks(flowBlocks, { pageHeight, measure });
+  let section = title;
+  for (const page of pages) {
+    const firstHeading = page.blocks.find((p) => p.block.kind === 'heading');
+    const pageTitle = firstHeading ? blockToLine(firstHeading.block) : section;
+    for (const p of page.blocks) if (p.block.kind === 'heading') section = p.block.text;
+    const codeBlock = page.blocks.find((p) => p.block.kind === 'code')?.block;
+    cards.push({
+      type: codeBlock ? 'code' : 'content',
+      title: pageTitle,
+      bodyLines: page.blocks.map((p) => blockToLine(p.block)).filter(Boolean),
+      codeLang: codeBlock && codeBlock.kind === 'code' ? codeBlock.lang || 'text' : undefined,
+      genre,
+      blocks: page.blocks,
+      fill: Math.round((page.used / pageHeight) * 1000) / 1000,
+    });
   }
 
-  // Page 1 (Cover / First Page of Flowing Note)
-  const firstPageLines: string[] =
-    preHeadingParagraphs.length > 0
-      ? preHeadingParagraphs.slice(0, 3)
-      : richParagraphs.slice(0, 3);
-  if (firstPageLines.length === 0 && headings.length > 0) {
-    firstPageLines.push(...headings.slice(0, 3));
-  }
-  if (firstPageLines.length === 0) {
-    firstPageLines.push(
-      '每一段保持短一点，两个回车分隔段落。系统会优先在段落之间自动分页，让阅读节奏更自然。',
-      '**加粗**适合普通关键词，它只改变字重，颜色会和正文一致。',
-      '==高亮==适合真正需要停顿的关键信息，如核心结论、路线节点或转折点。'
-    );
-  }
-
-  const cards: XhsCardSection[] = [];
-  cards.push({
-    type: 'cover',
-    title,
-    subtitle: fmSubtitle || headings[0] || `${genreConfig.badge}`,
-    bodyLines: firstPageLines,
-    quote: quotes[0] || fmSubtitle,
-    closingQuote: quotes[1],
-    tags: mergedTags,
-    genre,
-    coverImage: fmCoverImage,
-    coverTemplate,
-  });
-
-  // Subsequent flowing pages & code cards
-  let currentCard: XhsCardSection = {
-    type: 'content',
-    title: `${title} · 导读`,
-    bodyLines: [],
-    genre,
-  };
-  let seenSubheading = false;
-  const coverLineSet = new Set(firstPageLines);
-
-  let inCode = false;
-  let codeLang = '';
-  let codeMarker = '';
-  let codeBuffer: string[] = [];
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    const codeMatch = trimmedLine.match(/^(`{3,}|~{3,})(.*)$/);
-    if (codeMatch && !inCode) {
-      inCode = true;
-      codeMarker = codeMatch[1];
-      const info = codeMatch[2].trim();
-      const rawLang = info.split(/\s+/)[0] || '';
-      codeLang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '');
-      codeBuffer = [];
-      continue;
-    }
-    if (codeMarker && trimmedLine.startsWith(codeMarker[0].repeat(codeMarker.length)) && inCode) {
-      inCode = false;
-      cards.push({
-        type: 'code',
-        title: seenSubheading ? currentCard.title : `代码实现 (${codeLang || 'Snippet'})`,
-        bodyLines: codeBuffer.slice(0, 18),
-        codeLang: codeLang || 'typescript',
-        genre,
-      });
-      codeBuffer = [];
-      codeLang = '';
-      codeMarker = '';
-      continue;
-    }
-
-    if (inCode) {
-      codeBuffer.push(line);
-      continue;
-    }
-
-    const hMatch = line.match(/^#{1,3}\s+(.+)$/);
-    if (hMatch) {
-      const hTitle = stripInlineMarkdown(hMatch[1]);
-      if (hTitle === title) continue;
-      seenSubheading = true;
-      if (currentCard.bodyLines.length > 0) {
-        cards.push(currentCard);
-      }
-      currentCard = {
-        type: 'content',
-        title: hTitle,
-        bodyLines: [],
-        genre,
-      };
-      continue;
-    }
-
-    if (trimmedLine.startsWith('>')) {
-      const qText = preserveRichInlineMarkdown(trimmedLine.replace(/^>\s*(\[![A-Z]+\])?\s*/, ''));
-      if (qText && qText !== quotes[0]) {
-        if (!currentCard.quote) {
-          currentCard.quote = qText;
-        } else if (!currentCard.closingQuote) {
-          currentCard.closingQuote = qText;
-        } else {
-          currentCard.bodyLines.push(`> ${qText}`);
-        }
-      }
-      continue;
-    }
-
-    if (trimmedLine && !trimmedLine.startsWith('![')) {
-      const richLine = preserveRichInlineMarkdown(trimmedLine.replace(/^[-*]\s+/, '• '));
-      if (!seenSubheading && coverLineSet.has(richLine)) {
-        continue;
-      }
-      if (richLine) {
-        currentCard.bodyLines.push(richLine);
-        if (currentCard.bodyLines.length >= 4) {
-          cards.push(currentCard);
-          currentCard = {
-            type: 'content',
-            title: `${currentCard.title.replace(/ \(续\)$/, '')} (续)`,
-            bodyLines: [],
-            genre,
-          };
-        }
-      }
-    }
-  }
-
-  if (currentCard.bodyLines.length > 0) {
-    cards.push(currentCard);
-  }
-
-  // Plain-text caption
-  const plainText = normalizedMd
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, ' ')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/==([^=]+)==/g, '$1')
-    .replace(/[*_~`]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const shortSummary = plainText.length > 600 ? `${plainText.slice(0, 599)}…` : plainText;
+  // 纯文本正文：去掉 Markdown 标记、保留段落换行、不含表格/代码/图片；标题平台单独填写，不在正文里重复。
+  const plainText = markdownToPlainText(cleanMd, { title });
+  const shortSummary = [...plainText].length > 600 ? `${[...plainText].slice(0, 599).join('')}…` : plainText;
   const hashTagStr = mergedTags
     .slice(0, 6)
     .map((t) => `#${t.replace(/\s+/g, '')}`)
     .join(' ');
 
-  const captionText = `${title}\n\n${shortSummary}\n\n${hashTagStr}`;
+  const captionText = [shortSummary, hashTagStr].filter(Boolean).join('\n\n');
+  const limit = Math.max(0, opts.maxCards ?? DEFAULT_MAX_SOCIAL_CARDS);
 
   return {
     title,
@@ -372,6 +265,8 @@ export function renderXiaohongshuCards(
     coverImage: fmCoverImage,
     coverRatio,
     coverTemplate,
-    cards: cards.slice(0, 18),
+    cards: cards.slice(0, limit),
+    totalCards: cards.length,
+    droppedCards: Math.max(0, cards.length - limit),
   };
 }

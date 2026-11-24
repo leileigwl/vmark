@@ -11,12 +11,11 @@ import {
   cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
   cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
   ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
-  normalizeEmojiAndCalloutIcons,
   renderLatexBlocks as renderLatexBlocksInEl,
   rerenderBrokenMermaid as rerenderBrokenMermaidInEl,
 } from '../editor/vditorDomEnhancer';
 import type { FindOptions } from '../editor/vditorFindHelpers';
-import { createVditorImperativeHandle } from '../editor/vditorHandleFactory';
+import { createVditorImperativeHandle, type EditorHandleExtras } from '../editor/vditorHandleFactory';
 import {
   collapseExpandedCodeBlocksInEl,
   collectCodeCopyOverlays,
@@ -36,7 +35,7 @@ import { TableSizePicker } from './TableSizePicker';
 
 export type { FindOptions };
 
-export interface VditorEditorHandle {
+export interface VditorEditorHandle extends EditorHandleExtras {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
   applyImageAction: (action: string) => void;
@@ -265,7 +264,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         ensureCodeBlockInfoMarkers();
         cleanStrayCodeBlockFences();
         cleanEmptyInlineNodes(el);
-        normalizeEmojiAndCalloutIcons(el);
         syncCodeCopyOverlays();
         applyCodeSyntaxHighlights(el);
         renderLatexBlocks();

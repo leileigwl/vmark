@@ -236,7 +236,7 @@ export function Sidebar({
   return (
     <>
       <aside
-        ref={asideRef}
+        ref={asideRef} data-vcat-file-tree={sideTab === 'files' ? '1' : '0'}
         onKeyDown={(e) =>
           handleSidebarAsideKeyDown({
             e,

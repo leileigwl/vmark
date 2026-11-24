@@ -8,6 +8,7 @@ import {
   type FetchLike,
 } from '@vcat/adapters';
 import type { ImageBedConfig, PlatformId } from '@vcat/shared';
+import { checkEachWithTimeout, PER_PLATFORM_TIMEOUT_MS } from './authCheckOnce.ts';
 import { buildChromeBrowserHeaders, CHROME_DESKTOP_UA } from './browserStealth.ts';
 
 export interface PublishAppConfig {
@@ -37,6 +38,7 @@ export function createSessionFetch(targetSession: Electron.Session): FetchLike {
     return {
       ok: res.ok,
       status: res.status,
+      url: res.url,
       headers: res.headers,
       text: () => res.text(),
       json: () => res.json(),
@@ -162,9 +164,10 @@ export async function verifyPlatformAuth(params: {
     if (platformId === 'weixin') {
       const wxSession = session.fromPartition('persist:platform_weixin');
       const adapter = new WeixinAdapter(createSessionFetch(wxSession));
+      // 两次请求：首页取 token + 带 token 复核后台首页（会话失效会被跳回登录页）
       return await Promise.race([
         adapter.checkAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3500)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
       ]);
     }
 
@@ -352,8 +355,10 @@ export async function verifyPlatformAuth(params: {
 export async function checkPlatformAuthStates(params: {
   session: typeof Electron.session;
   getAppConfig: () => Promise<PublishAppConfig>;
+  /** 某个平台一出结果就回调（用于逐平台推给界面）。 */
+  onResult?: (id: PlatformId, ok: boolean) => void;
 }): Promise<Partial<Record<PlatformId, boolean>>> {
-  const { session, getAppConfig } = params;
+  const { session, getAppConfig, onResult } = params;
   const ids: PlatformId[] = [
     'github_static',
     'weixin',
@@ -370,12 +375,11 @@ export async function checkPlatformAuthStates(params: {
     'xiaohongshu',
   ];
 
-  const entries = await Promise.all(
-    ids.map(async (id): Promise<[PlatformId, boolean]> => {
-      const ok = await verifyPlatformAuth({ session, platformId: id, getAppConfig });
-      return [id, ok];
-    })
-  );
-
-  return Object.fromEntries(entries) as Partial<Record<PlatformId, boolean>>;
+  // 每个平台独立超时：某个平台（如微博）卡住时只有它缺席，不拖住整批结果。
+  const { states, timedOut } = await checkEachWithTimeout(ids, (platformId) => verifyPlatformAuth({ session, platformId, getAppConfig }), {
+    timeoutMs: PER_PLATFORM_TIMEOUT_MS,
+    onResult,
+  });
+  if (timedOut.length) console.warn('[platform-auth] 检测超时：', timedOut.join(', '));
+  return states;
 }

@@ -18,6 +18,7 @@ import {
   type ArticleOpsCtx,
 } from './articleOps';
 import { executeRedoOp, executeUndoOp, type FileHistoryOp } from './fileHistory';
+import { useSaveBaseline } from './saveBaseline';
 
 export type { FileHistoryOp };
 
@@ -26,7 +27,6 @@ export interface WorkspaceTreeParams {
   startupConfig: StartupConfig;
   setStartupConfig: (cfg: StartupConfig) => void;
   setImageBed: (cfg: ImageBedConfig) => void;
-  setAuthStates: (states: Partial<Record<PlatformId, boolean>>) => void;
   setActiveViewEditor: () => void;
   showToast: (errOrMsg: unknown) => void;
 }
@@ -38,7 +38,6 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     startupConfig,
     setStartupConfig,
     setImageBed,
-    setAuthStates,
     setActiveViewEditor,
     showToast,
   } = params;
@@ -67,6 +66,13 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
   const fileOpBusyRef = useRef(false);
   const openRequestIdRef = useRef(0);
+  /** True while openArticle awaits readArticle: the editor still shows the previous article. */
+  const loadingArticleRef = useRef(false);
+  /** Editor text of the last write that failed; its late onChange echo must not hide the failure. */
+  const failedContentRef = useRef<string | null>(null);
+  /** Content last read from or written to disk for the article in the editor. */
+  const persistedContentRef = useRef<string | null>(null);
+  const baseline = useSaveBaseline(editorRef, loadSeq);
   const undoFileOpRef = useRef<() => Promise<void>>(async () => {});
   const redoFileOpRef = useRef<() => Promise<void>>(async () => {});
 
@@ -102,16 +108,15 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       return;
     }
     const reqId = ++openRequestIdRef.current;
-    if (activeArticle && saveState === '未保存') {
-      const unsaved = editorRef.current?.getValue() ?? markdown;
-      if (!(activeArticle.wordCount > 20 && unsaved.trim().length === 0)) {
-        void window.electronAPI.saveArticle(activeArticle.relativePath, unsaved);
-      }
-    }
+    void flushActiveArticle();
+    loadingArticleRef.current = true;
+    setSaveState('已保存');
     setActiveArticle(meta);
     const content = await window.electronAPI.readArticle(meta.relativePath);
     if (reqId !== openRequestIdRef.current) return;
 
+    loadingArticleRef.current = false;
+    persistedContentRef.current = content;
     setMarkdown(content);
     setLoadSeq((s) => s + 1);
     setSaveState('已保存');
@@ -132,16 +137,61 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     });
   }
 
+  /**
+   * Writes the editor's current text to the active article when it differs from what is on
+   * disk. Reads the editor directly, so input still inside the 320ms change debounce (and
+   * input while the state already says 已保存) is not lost when switching articles.
+   */
+  function flushActiveArticle(): Promise<void> {
+    if (!activeArticle || loadingArticleRef.current) return Promise.resolve();
+    const current = editorRef.current?.getValue();
+    if (current === undefined) return Promise.resolve();
+    if (activeArticle.wordCount > 20 && current.trim().length === 0) return Promise.resolve();
+    const next = baseline.contentForDisk(persistedContentRef.current, current);
+    if (next === persistedContentRef.current) return Promise.resolve();
+    const previous = persistedContentRef.current;
+    persistedContentRef.current = next;
+    return window.electronAPI.saveArticle(activeArticle.relativePath, next).then(
+      () => undefined,
+      (err: unknown) => {
+        if (persistedContentRef.current === next) persistedContentRef.current = previous;
+        reportSaveFailure(err, current);
+      }
+    );
+  }
+  // The main process calls this before the window closes (main/editorSafety.ts) and waits for it.
+  const flushRef = useRef(flushActiveArticle);
+  flushRef.current = flushActiveArticle;
+  useEffect(() => {
+    const w = window as unknown as { __vmarkFlushBeforeClose?: () => Promise<void> };
+    w.__vmarkFlushBeforeClose = () => flushRef.current();
+    return () => {
+      delete w.__vmarkFlushBeforeClose;
+    };
+  }, []);
+
+  /** A failed write never touched the file (atomic save); say so, and keep the text in the editor. */
+  function reportSaveFailure(err: unknown, attempted: string) {
+    failedContentRef.current = attempted;
+    const reason = err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/i, '') : String(err);
+    setSaveState('保存失败');
+    showToast(`保存失败：${reason}。磁盘上的原文件没有被改动，内容仍在编辑器里。`);
+  }
+
+  /** Editor changed: 未保存, unless it only re-reports the text whose save just failed. */
+  function markEdited(md: string) {
+    setSaveState(md === failedContentRef.current ? '保存失败' : '未保存');
+  }
+
   async function refreshWorkspace() {
     if (!window.electronAPI) return;
-    const [wsPath, recent, list, folderList, imgCfg, startupCfg, auths, git] = await Promise.all([
+    const [wsPath, recent, list, folderList, imgCfg, startupCfg, git] = await Promise.all([
       window.electronAPI.getWorkspacePath(),
       window.electronAPI.getRecentWorkspaces(),
       window.electronAPI.listArticles(),
       window.electronAPI.listFolders(),
       window.electronAPI.getImageBedConfig(),
       window.electronAPI.getStartupConfig(),
-      window.electronAPI.getPlatformAuthStates(),
       window.electronAPI.getGitStatus(),
     ]);
     setWorkspacePath(wsPath);
@@ -150,7 +200,6 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     setFolders(folderList);
     setImageBed(imgCfg);
     setStartupConfig(startupCfg);
-    setAuthStates(auths);
     setGitStatus(git);
     if (!activeArticle) {
       if (startupCfg.mode === 'new_file' && wsPath) {
@@ -186,10 +235,25 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
   async function handleSaveArticle(nextContent: string, silent = false) {
     if (!activeArticle) return;
+    // While the next article is loading the editor still holds the previous one's text.
+    if (loadingArticleRef.current) return;
     if (silent && activeArticle.wordCount > 20 && nextContent.trim().length === 0) return;
     if (!silent) setSaveState('保存中...');
-    await window.electronAPI.saveArticle(activeArticle.relativePath, nextContent);
-    setSaveState('已保存');
+    const reqId = openRequestIdRef.current;
+    const toWrite = baseline.contentForDisk(persistedContentRef.current, nextContent);
+    try {
+      await window.electronAPI.saveArticle(activeArticle.relativePath, toWrite);
+    } catch (err) {
+      if (reqId === openRequestIdRef.current) reportSaveFailure(err, nextContent);
+      return;
+    }
+    if (reqId !== openRequestIdRef.current) return;
+    persistedContentRef.current = toWrite;
+    failedContentRef.current = null;
+    baseline.markSaved(nextContent);
+    // Input typed while the save was in flight must stay 未保存, or it is never saved.
+    const latest = editorRef.current?.getValue();
+    setSaveState(latest === undefined || latest === nextContent ? '已保存' : '未保存');
     if (silent) return;
     const [list, git] = await Promise.all([
       window.electronAPI.listArticles(),
@@ -370,6 +434,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     setMarkdown,
     saveState,
     setSaveState,
+    markEdited,
     gitStatus,
     gitPushLog,
     fileUndoStack,

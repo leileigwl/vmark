@@ -177,15 +177,31 @@ export interface MultiPlatformPublishPayload {
   includeRemoteImages?: boolean;
   socialThemeId?: string;
   socialCoverRatio?: SocialCoverRatio;
+  /** 卡片类平台（小红书/抖音）：用户上传的封面，工作区相对路径；作为第 1 张图插在卡片前。 */
+  socialCoverImagePath?: string;
+  /** 公众号：按焦点裁好的 1:1 转发图，工作区相对路径；不传时由公众号从 2.35:1 封面居中裁。 */
+  weixinSquareCoverImagePath?: string;
+  /** 掘金：文章分类 id（见 adapters 的 JUEJIN_CATEGORIES）；不传时草稿分类为空。 */
+  juejinCategoryId?: string;
+  /** 小红书/抖音：用户在分区里单独写的纯文本正文；不传时由主进程从 Markdown 生成。 */
+  socialBody?: string;
   targets: MultiPlatformPublishTarget[];
 }
+
+/**
+ * 卡片类平台单篇最多可上传的图片张数（含封面）。界面、卡片生成与主进程共用这一份。
+ * 抖音：创作者中心网页提示 35 张、开放平台接口写 30 张，未真机核实前取保守值 30（见 docs/platform-rules-todo.md）。
+ */
+export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 30 };
 
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;
   ok: boolean;
   mode: PublishMode;
   postId?: string;
+  /** 推送成功后「打开草稿」的地址：urlKind 为 draft 时是这篇草稿的编辑页，为 list 时是草稿列表页（拿不到草稿 id 时的兜底）。 */
   url?: string;
+  urlKind?: 'draft' | 'list';
   verified?: boolean;
   uploadedImagesCount?: number;
   message: string;

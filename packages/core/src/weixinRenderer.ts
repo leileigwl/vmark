@@ -1,10 +1,18 @@
-const CALLOUT_STYLES: Record<string, { label: string; color: string; bg: string }> = {
-  NOTE: { label: 'ℹ️ 提示', color: '#0969da', bg: 'rgba(9, 105, 218, 0.06)' },
-  TIP: { label: '💡 技巧', color: '#1a7f37', bg: 'rgba(26, 127, 55, 0.06)' },
-  IMPORTANT: { label: '📌 重要', color: '#8250df', bg: 'rgba(130, 80, 223, 0.06)' },
-  WARNING: { label: '⚠️ 注意', color: '#9a6700', bg: 'rgba(154, 103, 0, 0.07)' },
-  CAUTION: { label: '🚨 警告', color: '#cf222e', bg: 'rgba(207, 34, 46, 0.06)' },
+import { CALLOUT_LABELS, closesFence, matchCallout, matchFence, takeQuoteRun, type CalloutKind } from './markdownQuote.ts';
+
+const CALLOUT_STYLES: Record<CalloutKind, { label: string; color: string; bg: string }> = {
+  NOTE: { label: CALLOUT_LABELS.NOTE, color: '#0969da', bg: 'rgba(9, 105, 218, 0.06)' },
+  TIP: { label: CALLOUT_LABELS.TIP, color: '#1a7f37', bg: 'rgba(26, 127, 55, 0.06)' },
+  IMPORTANT: { label: CALLOUT_LABELS.IMPORTANT, color: '#8250df', bg: 'rgba(130, 80, 223, 0.06)' },
+  WARNING: { label: CALLOUT_LABELS.WARNING, color: '#9a6700', bg: 'rgba(154, 103, 0, 0.07)' },
+  CAUTION: { label: CALLOUT_LABELS.CAUTION, color: '#cf222e', bg: 'rgba(207, 34, 46, 0.06)' },
 };
+
+/** 引用内容递归渲染时共享的脚注/图片收集器；quote=true 时段落用引用样式，且不输出外层包裹与脚注区。 */
+interface NestedRender {
+  footnotes: WeixinFootnote[];
+  imageUrls: string[];
+}
 
 export interface WeixinRenderOptions {
   /** Primary accent color (hex), defaults to #007aff */
@@ -89,15 +97,19 @@ export function extractWeixinDigest(markdown: string, maxLength = 120): string {
 }
 
 /** Renders Markdown into WeChat Official Account compatible inline-styled HTML. */
-export function renderWeixinHtml(
-  markdown: string,
-  options: WeixinRenderOptions = {}
-): WeixinRenderedResult {
+export function renderWeixinHtml(markdown: string, options: WeixinRenderOptions = {}): WeixinRenderedResult {
+  return renderWeixin(markdown, options);
+}
+
+function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: NestedRender): WeixinRenderedResult {
   const accent = options.accentColor || '#007aff';
   const fontSize = options.fontSize || 15;
   const convertLinks = options.convertExternalLinksToFootnotes ?? true;
-  const footnotes: WeixinFootnote[] = [];
-  const imageUrls: string[] = [];
+  const footnotes: WeixinFootnote[] = nested?.footnotes ?? [];
+  const imageUrls: string[] = nested?.imageUrls ?? [];
+  const paragraphStyle = nested
+    ? `margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; line-height: 1.7; color: #4a4a4a;`
+    : `margin: 0 0 14px 0; font-size: ${fontSize}px; line-height: 1.75; color: #333333; letter-spacing: 0.02em;`;
 
   const cleanMd = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   const lines = cleanMd.split(/\r?\n/);
@@ -173,23 +185,22 @@ export function renderWeixinHtml(
     }
 
     // Fenced code block (GFM 3+ backticks or 3+ tildes, optional language, info string, c++, c#)
-    const fenceMatch = trimmed.match(/^(`{3,}|~{3,})(.*)$/);
+    const fenceMatch = matchFence(trimmed);
     if (fenceMatch) {
-      const marker = fenceMatch[1];
-      const info = fenceMatch[2].trim();
+      const marker = fenceMatch.marker;
+      const info = fenceMatch.info;
       const rawLang = info.split(/\s+/)[0] || '';
       const lang = rawLang.toLowerCase().replace(/[^a-zA-Z0-9_+#.-]/g, '') || 'text';
       const codeLines: string[] = [];
       i++;
       while (i < lines.length) {
-        const nextTrimmed = lines[i].trim();
-        if (nextTrimmed.startsWith(marker[0].repeat(marker.length))) {
-          break;
-        }
+        if (closesFence(lines[i].trim(), marker)) break;
         codeLines.push(lines[i]);
         i++;
       }
       i++; // skip closing fence
+      // 空的（含未闭合的）围栏不输出，避免留下一个空代码框或残留的反引号。
+      if (!codeLines.some((l) => l.trim())) continue;
       const codeHtml = highlightWeixinCodeTokens(codeLines.join('\n'), lang);
       blocks.push(
         `<section style="margin: 16px 0; border-radius: 10px; border: 1px solid rgba(0, 0, 0, 0.08); background-color: #f6f8fa; overflow: hidden;">` +
@@ -230,28 +241,19 @@ export function renderWeixinHtml(
 
     // Blockquote / GitHub-style Callout
     if (trimmed.startsWith('>')) {
-      const quoteLines: string[] = [];
-      while (i < lines.length && lines[i].trim().startsWith('>')) {
-        quoteLines.push(lines[i].trim().replace(/^>\s?/, ''));
-        i++;
-      }
-      const calloutMatch = quoteLines[0]?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$/i);
-      const callout = calloutMatch ? CALLOUT_STYLES[calloutMatch[1].toUpperCase()] : undefined;
-      const bodyLines = calloutMatch
-        ? [...(calloutMatch[2].trim() ? [calloutMatch[2].trim()] : []), ...quoteLines.slice(1)]
-        : quoteLines;
-      const headerHtml = callout
-        ? `<p style="margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; font-weight: 700; line-height: 1.5; color: ${callout.color};">${callout.label}</p>`
+      // 去掉一层 `>` 后按普通 Markdown 递归渲染：嵌套引用、引用里的代码块、列表都能正确显示。
+      const run = takeQuoteRun(lines, i);
+      i = run.next;
+      const callout = matchCallout(run.inner[0]);
+      const style = callout ? CALLOUT_STYLES[callout.kind] : undefined;
+      const body = callout ? [callout.rest, ...run.inner.slice(1)] : run.inner;
+      const headerHtml = style
+        ? `<p style="margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; font-weight: 700; line-height: 1.5; color: ${style.color};">${style.label}</p>`
         : '';
-      const innerHtml = bodyLines
-        .filter((ql) => ql.length > 0)
-        .map(
-          (ql) =>
-            `<p style="margin: 0 0 6px 0; font-size: ${fontSize - 0.5}px; line-height: 1.7; color: #4a4a4a;">${renderInlineSafe(ql, accent, convertLinks, footnotes, imageUrls)}</p>`
-        )
-        .join('');
-      const borderColor = callout ? callout.color : accent;
-      const bgColor = callout ? callout.bg : 'rgba(0, 122, 255, 0.05)';
+      const innerHtml = renderWeixin(body.join('\n'), { ...options, showCoverInBody: false }, { footnotes, imageUrls }).html;
+      if (!headerHtml && !innerHtml) continue;
+      const borderColor = style ? style.color : accent;
+      const bgColor = style ? style.bg : 'rgba(0, 122, 255, 0.05)';
       blocks.push(
         `<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid ${borderColor}; border-radius: 8px; background-color: ${bgColor};">${headerHtml}${innerHtml}</blockquote>`
       );
@@ -357,16 +359,17 @@ export function renderWeixinHtml(
     while (
       i < lines.length &&
       lines[i].trim() !== '' &&
+      !matchFence(lines[i].trim()) &&
       !/^(#{1,4}\s+|```|>|[-*]\s+|\d+\.\s+|\||---|\*\*\*)/.test(lines[i].trim())
     ) {
       paraLines.push(lines[i].trim());
       i++;
     }
     const pHtml = renderInlineSafe(paraLines.join(' '), accent, convertLinks, footnotes, imageUrls);
-    blocks.push(
-      `<p style="margin: 0 0 14px 0; font-size: ${fontSize}px; line-height: 1.75; color: #333333; letter-spacing: 0.02em;">${pHtml}</p>`
-    );
+    blocks.push(`<p style="${paragraphStyle}">${pHtml}</p>`);
   }
+
+  if (nested) return { html: blocks.join(''), digest: '', footnotes, imageUrls };
 
   if (footnotes.length > 0) {
     const fnItems = footnotes

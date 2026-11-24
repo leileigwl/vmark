@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { ArticleManagerView } from './components/ArticleManagerView';
 import { FindReplaceBar } from './components/FindReplaceBar';
-import { PublishModal } from './components/PublishModal';
+import { PublishDialog } from './features/publish-flow';
 import { QuickOpenModal } from './components/QuickOpenModal';
 import { SettingsView, type SettingCategory } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
@@ -51,7 +51,6 @@ export default function App() {
     startupConfig: auth.startupConfig,
     setStartupConfig: auth.setStartupConfig,
     setImageBed: auth.setImageBed,
-    setAuthStates: auth.setAuthStates,
     setActiveViewEditor: () => setActiveView('editor'),
     showToast,
   });
@@ -220,7 +219,7 @@ export default function App() {
             )}
 
             {ed.missingLinkTarget && (
-              <div
+              <div role="dialog" aria-modal="true"
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs"
                 onClick={() => ed.setMissingLinkTarget(null)}
               >
@@ -264,7 +263,7 @@ export default function App() {
                 preferences={ed.editorPrefs}
                 onChange={(md) => {
                   ws.setMarkdown(md);
-                  ws.setSaveState('未保存');
+                  ws.markEdited(md);
                 }}
                 onSave={(md) => void ws.handleSaveArticle(md)}
                 onOpenLink={ed.handleOpenLink}
@@ -320,9 +319,6 @@ export default function App() {
               customThemeName={customThemeName}
               onSelectTheme={setTheme}
               onImportTyporaTheme={() => void handleImportTyporaTheme()}
-              authStates={auth.authStates}
-              onPlatformLogin={auth.loginPlatform}
-              onPlatformLogout={auth.logoutPlatform}
               workspacePath={ws.workspacePath}
               gitStatus={ws.gitStatus}
               gitPushLog={ws.gitPushLog}
@@ -333,19 +329,16 @@ export default function App() {
       </div>
 
       {publishModalOpen && (
-        <PublishModal
+        <PublishDialog
+          open={publishModalOpen}
           activeArticle={ws.activeArticle}
-          gitStatus={ws.gitStatus}
-          gitPushLog={ws.gitPushLog}
           markdown={ws.markdown}
           onClose={() => setPublishModalOpen(false)}
-          onGitPush={ws.handleGitPush}
-          onSaveArticle={(content) => void ws.handleSaveArticle(content)}
         />
       )}
 
       {ed.tableModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-xs">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-xs">
           <div className="w-[320px] rounded-xl border border-[var(--border-color)] bg-[var(--bg-main)] p-4 text-[var(--text-main)] shadow-2xl">
             <div className="mb-3 text-center text-sm font-semibold">插入表格</div>
             <div className="mb-4 flex items-center justify-center gap-3 text-xs">

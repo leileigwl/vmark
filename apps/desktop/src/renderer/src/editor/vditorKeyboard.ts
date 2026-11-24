@@ -37,7 +37,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   const { el, instance } = ctx;
   const isImeComposing = e.isComposing || e.keyCode === 229;
   const targetNode = e.target as HTMLElement | null;
-  if (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA')) return;
+  // IME owns composition keys (candidate-confirm Enter, 中文标点 "(" …): never hijack them as newline/pairing.
+  if (isImeComposing || (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA'))) return;
 
   if (ctx.readOnly) {
     if (
@@ -57,7 +58,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   }
 
   if (ctx.slashMenuOpen && ctx.onSlashKeyDown(e)) return;
-
   const selInfo = window.getSelection();
   const selAnchorEl =
     selInfo?.anchorNode instanceof Element ? selInfo.anchorNode : selInfo?.anchorNode?.parentElement;
