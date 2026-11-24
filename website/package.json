@@ -1,0 +1,30 @@
+{
+  "name": "vmark-website",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Official product showcase website for Vmark (维记) - Local-First Markdown Note-Taking & Multi-Platform Publishing Workbench",
+  "scripts": {
+    "sync-seo": "node scripts/sync-seo.mjs",
+    "predev": "node scripts/sync-seo.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/sync-seo.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}
