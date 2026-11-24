@@ -117,7 +117,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
 
     loadingArticleRef.current = false;
     persistedContentRef.current = content;
-    setMarkdown(baseline.toEditor(content));
+    setMarkdown(content);
     setLoadSeq((s) => s + 1);
     setSaveState('已保存');
     if (searchKeyword) tryJumpToSearch(searchKeyword);
