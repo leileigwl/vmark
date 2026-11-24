@@ -57,6 +57,14 @@ export const PLATFORM_SPECS: PlatformSpec[] = [
 
 export const SPEC_BY_ID = Object.fromEntries(PLATFORM_SPECS.map((s) => [s.id, s])) as Partial<Record<PlatformId, PlatformSpec>>;
 
+/** 通用封面按大多数文章平台的 16:9 来设计；主比例与它不同的平台（公众号 2.35:1、小红书/抖音 3:4）可以单独设一张封面。 */
+export const COMMON_COVER_RATIO: CoverRatio = '16:9';
+
+/** 该平台是否显示「单独封面」入口：有封面项且主比例与通用封面不同，完全由 spec 决定。 */
+export function ownCoverEligible(spec: PlatformSpec): boolean {
+  return !!spec.cover && spec.cover.ratios[0] !== COMMON_COVER_RATIO;
+}
+
 export const RATIO_VALUE: Record<CoverRatio, number> = { '2.35:1': 2.35, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1 };
 
 /**
