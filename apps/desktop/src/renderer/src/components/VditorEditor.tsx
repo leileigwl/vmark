@@ -373,6 +373,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     }, []);
 
     useEffect(() => {
+      // 换了文章：上一篇还在 320ms 防抖里的 onChange 作废（切换前 flushActiveArticle 已直接读编辑器落盘），否则它会把上一篇的文字报成这一篇的。
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       const instance = vditorRef.current;
       if (!instance || !isReadyRef.current) return;
       try {
