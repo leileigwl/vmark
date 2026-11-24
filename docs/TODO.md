@@ -23,13 +23,13 @@
 
 ## 下一批（维护者要做）
 
-### 2. 掘金分类运行时拉取
+### ~~2. 掘金分类运行时拉取~~（运行时通过 `publish:juejinCategories` 拉取，超时/失败退回内置列表）
 - **要做什么**：发布弹窗里掘金的分类列表从掘金实时获取，拿不到时用内置列表。
 - **为什么**：掘金调整分类后，内置列表会过时，选了不存在的分类草稿会出错。
-- **改哪些文件**：`packages/adapters/src/juejin.ts`（已有 `listCategories()`）、`apps/desktop/src/main/ipc/publish/`、`features/publish-flow/CategoryPicker.tsx`；新增 IPC 通道涉及 `packages/shared`，要先问。
+- **改哪些文件**：`packages/shared/`、`apps/desktop/src/preload/index.ts`、`apps/desktop/src/main/juejinCategoryRuntime.ts`、`apps/desktop/src/main/publishHandlers.ts`、`features/publish-flow/useJuejinCategories.ts`、`features/publish-flow/AttentionList.tsx`。
 - **先写的失败测试**：IPC 返回新分类时界面显示新分类；IPC 失败时显示内置列表且不挡住发布。
 - **做完的标准**：两条测试通过；打开弹窗不会因为拉分类变慢（超时退回内置列表）。
-- **需要维护者提供什么**：同意新增 IPC 字段；真机看分类是否和掘金编辑器一致。
+- **需要维护者提供什么**：真机看分类是否和掘金编辑器一致。
 
 ### ~~3. 卡片里的长公式换行~~（#110）
 - **要做什么**：特别长的公式在小红书/抖音卡片里缩小或换行，不再超出卡片。
@@ -86,6 +86,14 @@
 - **先写的失败测试**：用真实页面片段做夹具，断言输入话题后点了联想框里的项。
 - **做完的标准**：夹具测试通过；真机草稿里话题是蓝色可点的。
 - **需要维护者提供什么**：**发布页 HTML 片段**（输入 `#` 后弹出联想框时，在开发者工具里复制联想框那一块）。
+
+### 15. 应用自动更新检测与新版本弹窗提示
+- **要做什么**：每次发版后，应用启动或后台自动检测 GitHub Release 是否有新版本；检测到新版本时弹窗提示更新日志并提供一键下载 / 更新入口（支持「跳过此版本」或「稍后提醒」）。
+- **为什么**：维护者每次发布新版本后，已安装旧版的用户需要能及时感知并便捷升级，避免长期停留在旧版本。
+- **改哪些文件**：`apps/desktop/src/main/`（更新检查模块与 IPC 通道）、`packages/shared/`、`apps/desktop/src/preload/index.ts`、渲染层更新提示弹窗组件。
+- **先写的失败测试**：模拟远端最新 tag 高于当前 `app.getVersion()` 时触发新版本提示弹窗；相等/更低或网络失败时静默不弹窗、不阻塞启动。
+- **做完的标准**：单测与 E2E 通过，支持跳过当前版本与直达下载/更新；真机 macOS / Windows 验证一次。
+- **需要维护者提供什么**：确认优先用 `electron-updater` 自动更新（需配置签名/yml）还是先走 GitHub Releases 检测 + 引导下载安装。
 
 ---
 

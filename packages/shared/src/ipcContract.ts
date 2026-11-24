@@ -41,6 +41,7 @@ export const IPC_INVOKE_CHANNELS = {
   exportArticle: 'file:export',
   publishWeixinDraft: 'publish:weixinDraft',
   publishMultiPlatform: 'publish:multiPlatform',
+  listJuejinCategories: 'publish:juejinCategories',
 } as const;
 
 export const IPC_SEND_CHANNELS = {

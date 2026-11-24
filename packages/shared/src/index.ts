@@ -194,6 +194,12 @@ export interface MultiPlatformPublishPayload {
  */
 export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 30 };
 
+/** 掘金文章分类条目（主进程运行时拉取或内置列表返回）。 */
+export interface JuejinCategoryItem {
+  id: string;
+  name: string;
+}
+
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;
   ok: boolean;
@@ -264,6 +270,7 @@ export interface ElectronAPI {
   publishMultiPlatform?: (
     payload: MultiPlatformPublishPayload
   ) => Promise<{ results: MultiPlatformPublishResultItem[] }>;
+  listJuejinCategories?: () => Promise<JuejinCategoryItem[]>;
   getPlatformAccounts?: () => Promise<Record<string, unknown>>;
   onPlatformAuthUpdated?: (
     callback: (states: Partial<Record<PlatformId, boolean>>) => void

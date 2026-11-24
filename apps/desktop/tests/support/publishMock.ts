@@ -13,6 +13,8 @@ export interface PublishSetup {
   theme?: 'apple-light' | 'bloom-ink-dark';
   /** 截图用：上传的图返回一张真实可显示的示例图（data URL），否则返回 ./assets/up.png。 */
   sampleImage?: boolean;
+  /** 可选：模拟运行时拉取掘金分类接口的返回列表或失败。 */
+  juejinCategories?: Array<{ id: string; name: string }> | 'fail';
 }
 
 /** 截图用示例封面：横幅渐变 + 偏左的主体圆，方便看出不同比例的裁切。 */
@@ -35,7 +37,7 @@ export type PublishCall = {
 export async function openPublishWith(page: Page, s: PublishSetup): Promise<void> {
   const theme = s.theme ?? 'apple-light';
   await page.addInitScript(
-    ({ md, auth, selected, saved, theme: t, image }) => {
+    ({ md, auth, selected, saved, theme: t, image, juejinCategories }) => {
       const meta = { id: 'c', title: 'content', relativePath: 'content.md', folder: '', wordCount: 40, updatedAt: Date.now(), imageCount: 1, hasFrontmatter: false, excerpt: '' };
       const w = window as unknown as { __calls: unknown[]; electronAPI: Record<string, unknown> };
       w.__calls = [];
@@ -55,6 +57,15 @@ export async function openPublishWith(page: Page, s: PublishSetup): Promise<void
         setRecentFiles: () => {},
         onMenuAction: () => () => {},
         onPlatformAuthUpdated: () => () => {},
+        ...(juejinCategories === 'fail'
+          ? {
+              listJuejinCategories: async () => {
+                throw new Error('fetch failed');
+              },
+            }
+          : juejinCategories
+            ? { listJuejinCategories: async () => juejinCategories }
+            : {}),
         publishMultiPlatform: async (payload: { targets: Array<{ platformId: string; mode: string }> }) => {
           w.__calls.push(payload);
           return { results: payload.targets.map((x) => ({ platformId: x.platformId, ok: true, mode: x.mode, message: '已推送' })) };
@@ -62,7 +73,15 @@ export async function openPublishWith(page: Page, s: PublishSetup): Promise<void
       };
       localStorage.setItem('vmark.publishDraft.v1:content.md', JSON.stringify({ ...saved, selected }));
     },
-    { md: s.md, auth: s.auth, selected: s.selected, saved: s.saved ?? {}, theme, image: s.sampleImage ? SAMPLE_URL : './assets/up.png' }
+    {
+      md: s.md,
+      auth: s.auth,
+      selected: s.selected,
+      saved: s.saved ?? {},
+      theme,
+      image: s.sampleImage ? SAMPLE_URL : './assets/up.png',
+      juejinCategories: s.juejinCategories,
+    }
   );
   await page.goto('/');
   await page.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 15_000 });
