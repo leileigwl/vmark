@@ -9,7 +9,8 @@ test('出图用的卡片 HTML 含 KaTeX 排版，而不是 Unicode 近似', asyn
   const math = await getCardMathRenderer();
   const deck = renderXiaohongshuCards(MD, { fallbackTitle: 't' });
   const html = renderSocialCardHtml(deck.cards[1], { themeId: 'ios-memo', cardIndex: 1, totalCards: 2, math });
-  assert.match(html, /<span class="katex-display">/);
+  // 行间公式：可换行的 \displaystyle 版本，仍包在 .katex-display 里
+  assert.match(html, /<span class="katex-display b-math-wrap">/);
   assert.match(html, /class="mfrac"/);
   assert.ok((html.match(/class="katex"/g) ?? []).length >= 2, 'inline + display formula');
   assert.ok(!html.includes('(1)/(3)') && !html.includes('E=mc^2'), 'no fallback text');

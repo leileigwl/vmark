@@ -132,22 +132,21 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(page.getByRole('tooltip')).toContainText('摘要必填 50–100 字');
   });
 
-  test('小红书：标题默认从通用标题截取 20 字即可推送；在小红书分区里单独改写，超 20 字才报', async ({ page }) => {
+  test('小红书：标题默认从通用标题截取 20 字即可推送，「需要单独处理」里提示自动截取；在那里单独改写，超 20 字才报错', async ({ page }) => {
     await openEditor(page, { weixin: true, xiaohongshu: true });
     await openPublish(page);
     await row(page, 'xiaohongshu').getByRole('checkbox').click();
     await expect(row(page, 'xiaohongshu')).toContainText('就绪');
     await expect(section(page, 'social')).toContainText('标题「公众号标题：一篇关于多平台发布流程的长文」');
-    await expect(attention(page, 'xiaohongshu')).toHaveCount(0); // 小红书不在「需要单独处理」里
+    await expect(attention(page, 'xiaohongshu')).toContainText('小红书：标题超 2 字（自动截取）'); // 只提示，不挡推送
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
 
-    await section(page, 'social').getByRole('button', { expanded: false }).click();
-    await page.locator('#social-title').fill('一二三四五六七八九十一二三四五六七八九十一');
+    await attention(page, 'xiaohongshu').getByRole('button', { expanded: false }).click();
+    await page.locator('#t-xiaohongshu').fill('一二三四五六七八九十一二三四五六七八九十一');
     await expect(row(page, 'xiaohongshu')).toContainText('差 1 项');
     await expect(section(page, 'social')).toContainText('小红书标题超 1 字');
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
-    await page.locator('#social-title').fill('多平台发布实测');
-    await page.locator('#social-body').fill('小红书正文');
+    await page.locator('#t-xiaohongshu').fill('多平台发布实测');
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
 
     await page.getByTestId('publish-start').click();
@@ -155,7 +154,7 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     const calls = byPlatform(await callsOf(page));
     expect(calls.weixin.title).toBe('公众号标题：一篇关于多平台发布流程的长文测试');
     expect(calls.xiaohongshu.title).toBe('多平台发布实测');
-    expect(calls.xiaohongshu.socialBody).toBe('小红书正文');
+    expect(calls.xiaohongshu.socialBody).toBeUndefined(); // 正文由主进程从文章转纯文本
     expect(calls.xiaohongshu.socialCoverImagePath).toBeUndefined();
     expect(calls.xiaohongshu.coverImageUrl).toBeUndefined();
   });
@@ -282,7 +281,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls[0].weixinSquareCoverImagePath).toMatch(/assets\/up\.png$/);
   });
 
-  test('通用封面给文章平台；小红书/抖音只用自己分区上传的封面（插到第一张卡前）', async ({ page }) => {
+  test('通用封面给所有平台：文章平台按比例裁，小红书/抖音插到第一张卡前；移除后小红书回到第一张卡片做封面', async ({ page }) => {
     await openEditor(page, { weixin: true, zhihu: true, xiaohongshu: true });
     await openPublish(page);
     await row(page, 'zhihu').getByRole('checkbox').click();
@@ -295,22 +294,24 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     // 公众号的 2.35:1 + 1:1 裁切预览在公众号分区里
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
     for (const r of ['2.35:1', '1:1']) await expect(section(page, 'weixin').getByAltText(`${r} 封面预览`)).toBeVisible();
+    await section(page, 'social').getByRole('button', { expanded: false }).click();
+    await expect(section(page, 'social').getByAltText('卡片封面（通用封面）')).toBeVisible();
+    await expect(section(page, 'social')).toContainText('3 张卡片'); // 正文 2 张 + 通用封面 1 张
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
     let calls = byPlatform(await callsOf(page));
     expect(calls.zhihu.coverImageUrl).toMatch(/assets\/up\.png$/);
-    expect(calls.xiaohongshu.socialCoverImagePath).toBeUndefined();
+    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
     expect(calls.xiaohongshu.coverImageUrl).toBeUndefined();
 
     await page.getByRole('button', { name: '返回修改' }).click();
-    await section(page, 'social').getByRole('button', { expanded: false }).click();
-    await expect(section(page, 'social')).toContainText('第一张卡片就是封面');
-    await page.getByTestId('social-cover-input').setInputFiles({ name: 'xhs.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    await expect(section(page, 'social')).toContainText('上传的封面是第 1 张');
+    await page.getByTestId('cover-field').getByRole('button', { name: '移除' }).click();
+    await expect(section(page, 'social').getByAltText('卡片封面（通用封面）')).toHaveCount(0);
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
     calls = byPlatform(await callsOf(page));
-    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
+    expect(calls.xiaohongshu.socialCoverImagePath).toBeUndefined();
+    expect(calls.zhihu.coverImageUrl).toBeUndefined();
   });
 
   test('通用封面下只有一句短提示，不列比例；比例悬停仍可在平台行看到', async ({ page }) => {
