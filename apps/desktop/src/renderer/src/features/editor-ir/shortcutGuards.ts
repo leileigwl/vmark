@@ -62,6 +62,37 @@ export function createOnceGate(windowMs = 300, now: () => number = () => Date.no
   };
 }
 
+/**
+ * onMenuAction payload the main process attaches when a menu item fired from its keyboard
+ * accelerator (mirrors main/menuAccelerator.ts; a test keeps them equal).
+ */
+export const MENU_ACCELERATOR_PAYLOAD = 'accelerator';
+
+/**
+ * Pairs each app shortcut the renderer handled on keydown with the menu-accelerator copy of
+ * the same keystroke, so that copy is dropped however late it arrives (a slow save / new-file
+ * render can delay it past any fixed time gate). A copy with no matching keystroke (the renderer
+ * never saw the key) still runs; keystrokes older than `windowMs` stop pairing.
+ */
+export function createAcceleratorEchoFilter(windowMs = 5000, now: () => number = () => Date.now()) {
+  const pending = new Map<string, number[]>();
+  const fresh = (action: string, t: number) => (pending.get(action) ?? []).filter((at) => t - at <= windowMs);
+  return {
+    noteKeystroke(action: string): void {
+      const t = now();
+      pending.set(action, [...fresh(action, t), t]);
+    },
+    isEcho(action: string, payload?: string): boolean {
+      if (payload !== MENU_ACCELERATOR_PAYLOAD) return false;
+      const list = fresh(action, now());
+      const matched = list.length > 0;
+      if (matched) list.shift();
+      pending.set(action, list);
+      return matched;
+    },
+  };
+}
+
 /** Records the latest keydown so a menu echo of a keystroke the editor already consumed can be skipped. */
 let lastKeydown: KeyboardEvent | null = null;
 let lastKeydownAt = 0;
