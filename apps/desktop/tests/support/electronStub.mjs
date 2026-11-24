@@ -12,6 +12,8 @@ registry.dialogs ??= [];
 class FakeWebContents extends EventEmitter {
   destroyed = false;
   closeCalls = 0;
+  /** executeJavaScript 收到的脚本，按调用顺序记录。 */
+  scripts = [];
   isDestroyed() { return this.destroyed; }
   close() {
     this.closeCalls += 1;
@@ -20,7 +22,10 @@ class FakeWebContents extends EventEmitter {
     this.emit('destroyed');
   }
   loadURL() { return Promise.resolve(); }
-  executeJavaScript() { return Promise.resolve(); }
+  executeJavaScript(code) {
+    this.scripts.push(code);
+    return Promise.resolve();
+  }
   setUserAgent() {}
   setWindowOpenHandler() {}
   canGoBack() { return false; }
@@ -42,6 +47,7 @@ export class BrowserWindow extends EventEmitter {
     super();
     this.destroyed = false;
     this.destroyCalls = 0;
+    this.backgroundColors = [];
     this.webContents = new FakeWebContents();
     const children = [];
     this.contentView = {
@@ -56,6 +62,7 @@ export class BrowserWindow extends EventEmitter {
   }
   isDestroyed() { return this.destroyed; }
   getContentSize() { return [1120, 780]; }
+  setBackgroundColor(color) { this.backgroundColors.push(color); }
   loadURL() { return Promise.resolve(); }
   destroy() {
     this.destroyCalls += 1;
