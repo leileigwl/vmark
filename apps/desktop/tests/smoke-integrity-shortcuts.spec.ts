@@ -86,6 +86,25 @@ test.describe('@smoke 数据完整性 B：快捷键不丢不增内容', () => {
     expect([DOC, indented]).toContain(await saveAndRead(page));
   });
 
+  test('二级列表项 Shift+Tab：变回一级，文件其余内容逐字节不变', async ({ page }) => {
+    const nested = '# 标题\n\n- 列表一\n  - 列表二\n- 列表三\n\n结尾段落。\n';
+    await open(page, nested);
+    // 光标在行尾（刚打完字最常见的位置），不是行首。
+    await caretAt(page, '列表二');
+    await page.keyboard.press('Shift+Tab');
+    expect(await saveAndRead(page)).toBe(nested.replace('  - 列表二\n', '- 列表二\n'));
+    await shot(page, 'B-shift-tab-outdent');
+  });
+
+  test('二级列表项 Shift+Tab 后接着打字：字落在原来光标处', async ({ page }) => {
+    const nested = '- 列表一\n  - 列表二\n';
+    await open(page, nested);
+    await caretAt(page, '二', true);
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.type('X');
+    expect(await saveAndRead(page)).toBe('- 列表一\n- 列表X二\n');
+  });
+
   test('行首 Backspace：与上一段合并，不丢任何字', async ({ page }) => {
     await open(page, '第一段\n\n第二段\n');
     await caretAt(page, '第二段', true);

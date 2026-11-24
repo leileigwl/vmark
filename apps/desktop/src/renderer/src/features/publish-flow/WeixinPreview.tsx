@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { renderWeixinHtml } from '@vcat/core/weixin';
 import { Button } from '../../ui';
 import { previewSrc } from './coverCrop';
+import { loadWeixinMath, mayHaveMath, type WeixinMathRenderer } from './weixinMath';
 
 /** 公众号排版里的相对图片在预览中走 vcat-asset 协议显示；复制出去的富文本保留原地址（推送时会转存）。 */
 function withPreviewImages(html: string): string {
@@ -37,7 +38,20 @@ async function copyRichText(html: string, text: string): Promise<boolean> {
 
 /** 公众号行展开后的排版预览（与推送用同一个渲染器）+「复制富文本」。 */
 export function WeixinPreview({ markdown }: { markdown: string }) {
-  const html = useMemo(() => renderWeixinHtml(markdown).html, [markdown]);
+  // 有公式时加载 MathJax，把公式换成内联 SVG（公众号会删 class/<style>，SVG 只靠自身属性，粘贴后不乱）。
+  const [renderMath, setRenderMath] = useState<WeixinMathRenderer | null>(null);
+  const needMath = mayHaveMath(markdown);
+  useEffect(() => {
+    if (!needMath || renderMath) return;
+    let alive = true;
+    void loadWeixinMath().then((fn) => {
+      if (alive && fn) setRenderMath(() => fn);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [needMath, renderMath]);
+  const html = useMemo(() => renderWeixinHtml(markdown, { renderMath: renderMath ?? undefined }).html, [markdown, renderMath]);
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
   const doc = `<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:#fff">${withPreviewImages(html)}</body>`;
   return (
