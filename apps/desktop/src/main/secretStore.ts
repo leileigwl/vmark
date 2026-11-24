@@ -135,3 +135,25 @@ function tryEncrypt(cipher: Extract<SecretCipher, { available: true }>, value: s
     return null;
   }
 }
+
+type WithSecrets = Partial<Record<SecretField, string>>;
+
+/** 发给渲染进程的图床配置：去掉 Token / AccessKey / SecretKey，渲染进程只拿非密钥字段。 */
+export function stripSecrets<T extends WithSecrets>(imageBed: T): T {
+  const out: T = { ...imageBed };
+  for (const f of SECRET_FIELDS) delete out[f];
+  return out;
+}
+
+/**
+ * 渲染进程传回来的图床配置不含密钥（见 stripSecrets）：缺省的密钥用主进程已保存的补齐；
+ * 渲染层显式给了值（含 '' 表示清除）则以渲染层为准。
+ */
+export function fillStoredSecrets<T extends WithSecrets>(incoming: T, stored: WithSecrets): T {
+  const out: T = { ...incoming };
+  for (const f of SECRET_FIELDS) {
+    const saved = stored[f];
+    if (out[f] === undefined && typeof saved === 'string') out[f] = saved as T[typeof f];
+  }
+  return out;
+}

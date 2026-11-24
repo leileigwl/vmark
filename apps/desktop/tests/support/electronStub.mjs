@@ -104,3 +104,9 @@ export const dialog = {
 };
 
 export default { BrowserWindow, WebContentsView, app, safeStorage, dialog };
+
+// 主进程 IPC 模块会具名导入下面这些；测试只需要它们能被导入，不会真正调用。
+export const clipboard = { writeImage() {}, writeText() {} };
+export const Menu = { buildFromTemplate: () => ({ popup() {} }) };
+export const nativeImage = { createFromBuffer: () => ({}) };
+export const net = { fetch: () => Promise.reject(new Error('stub net.fetch 不可用')) };
