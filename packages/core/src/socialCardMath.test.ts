@@ -4,7 +4,7 @@ import { cardBlockHtml, cardInlineHtml } from './socialCardBlocksHtml.ts';
 import { renderSocialCardHtml } from './socialCardHtml.ts';
 import { getSocialCardTheme } from './socialCardThemes.ts';
 import { renderXiaohongshuCards } from './xiaohongshuRenderer.ts';
-import type { CardMathRenderer } from './socialCardMath.ts';
+import { createKatexCardMath, type CardMathRenderer, type KatexLike } from './socialCardMath.ts';
 
 /** Stand-in for KaTeX: records what it was asked to render. */
 const fake: CardMathRenderer = {
@@ -41,5 +41,42 @@ describe('cards render formulas through the math renderer instead of a Unicode f
     assert.ok(html.includes('data-tex="\\sum_{i=1}^n i"'));
     const cover = renderSocialCardHtml(deck.cards[0], { themeId: 'ios-memo', cardIndex: 0, totalCards: 2, math: fake });
     assert.ok(!cover.includes('KaTeX_Main'));
+  });
+});
+
+describe('long display formulas can wrap inside the card', () => {
+  const calls: { tex: string; displayMode: boolean }[] = [];
+  const katex: KatexLike = {
+    renderToString: (tex, o) => {
+      calls.push({ tex, displayMode: o.displayMode });
+      // 与真实 KaTeX 一致：\tag / align 只能在 display 模式里排，inline 模式下输出 katex-error
+      if (!o.displayMode && /\\tag|\\begin\{align\}/.test(tex)) return `<span class="katex-error">${tex}</span>`;
+      return `<span class="katex">${tex}</span>`;
+    },
+  };
+  const math = createKatexCardMath(katex, '');
+
+  it('display formulas use \\displaystyle in inline mode (wraps after = / +) inside a .katex-display box', () => {
+    calls.length = 0;
+    const html = math.render('a + b = c', true);
+    assert.deepEqual(calls, [{ tex: '\\displaystyle a + b = c', displayMode: false }]);
+    assert.equal(html, '<span class="katex-display b-math-wrap"><span class="katex">\\displaystyle a + b = c</span></span>');
+  });
+
+  it('what inline mode cannot typeset (\\tag, align) falls back to real display mode', () => {
+    for (const tex of ['E = mc^2 \\tag{1}', '\\begin{align} a &= b \\end{align}']) {
+      calls.length = 0;
+      assert.equal(math.render(tex, true), `<span class="katex">${tex}</span>`);
+      assert.deepEqual(calls, [
+        { tex: `\\displaystyle ${tex}`, displayMode: false },
+        { tex, displayMode: true },
+      ]);
+    }
+  });
+
+  it('inline formulas are unchanged', () => {
+    calls.length = 0;
+    assert.equal(math.render('x^2', false), '<span class="katex">x^2</span>');
+    assert.deepEqual(calls, [{ tex: 'x^2', displayMode: false }]);
   });
 });
