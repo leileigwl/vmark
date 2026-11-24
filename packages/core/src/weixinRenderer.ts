@@ -1,4 +1,14 @@
 import { CALLOUT_LABELS, closesFence, matchCallout, matchFence, takeQuoteRun, type CalloutKind } from './markdownQuote.ts';
+import {
+  DISPLAY_MATH_ONLY,
+  displayMathBlock,
+  escapeHtml,
+  fillMath,
+  holdMath,
+  isListLine,
+  renderWeixinCodeBlock,
+  renderWeixinList,
+} from './weixinBlocks.ts';
 
 const CALLOUT_STYLES: Record<CalloutKind, { label: string; color: string; bg: string }> = {
   NOTE: { label: CALLOUT_LABELS.NOTE, color: '#0969da', bg: 'rgba(9, 105, 218, 0.06)' },
@@ -25,6 +35,8 @@ export interface WeixinRenderOptions {
   coverImageUrl?: string;
   /** Whether to inject cover image at the top of the article body */
   showCoverInBody?: boolean;
+  /** 把公式渲染成可直接粘贴的 HTML（如 MathJax 内联 SVG）；不给或返回空时保留 $ 源码原文。 */
+  renderMath?: (tex: string, display: boolean) => string | undefined;
 }
 
 export interface WeixinFootnote {
@@ -40,53 +52,8 @@ export interface WeixinRenderedResult {
   imageUrls: string[];
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function isWeixinDomain(url: string): boolean {
   return /^https?:\/\/([^/]+\.)?(mp\.weixin\.qq\.com|weixin\.qq\.com)(\/|$)/i.test(url.trim());
-}
-
-function highlightWeixinCodeTokens(code: string, _lang: string): string {
-  const lines = code.split('\n');
-  const KEYWORDS = new Set([
-    'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do',
-    'switch', 'case', 'default', 'break', 'continue', 'import', 'from', 'export',
-    'class', 'extends', 'super', 'new', 'this', 'typeof', 'instanceof', 'void',
-    'async', 'await', 'try', 'catch', 'finally', 'throw', 'interface', 'type',
-    'def', 'elif', 'pass', 'lambda', 'with', 'as', 'in', 'is', 'not', 'and', 'or',
-    'fn', 'pub', 'mut', 'impl', 'struct', 'enum', 'trait', 'match', 'package', 'func',
-  ]);
-  const LITERALS = new Set(['true', 'false', 'null', 'undefined', 'None', 'True', 'False', 'nil']);
-
-  const highlightedLines = lines.map((line) => {
-    const escaped = escapeHtml(line);
-    const trimmed = escaped.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('/*')) {
-      return `<span style="color: #6a737d; font-style: italic;">${escaped}</span>`;
-    }
-
-    return escaped.replace(
-      /(\/\/[^\n]*|#[^\n]*)|(&quot;[\s\S]*?&quot;|&#39;[\s\S]*?&#39;|`[\s\S]*?`)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_$][a-zA-Z0-9_$]*\b)/g,
-      (match, comment, str, num, word) => {
-        if (comment) return `<span style="color: #6a737d; font-style: italic;">${comment}</span>`;
-        if (str) return `<span style="color: #032f62;">${str}</span>`;
-        if (num) return `<span style="color: #005cc5;">${num}</span>`;
-        if (word) {
-          if (KEYWORDS.has(word)) return `<span style="color: #d73a49; font-weight: 600;">${word}</span>`;
-          if (LITERALS.has(word)) return `<span style="color: #005cc5; font-weight: 600;">${word}</span>`;
-        }
-        return match;
-      }
-    );
-  });
-
-  return highlightedLines.join('\n');
 }
 
 import { extractPlainDigest } from './digest.ts';
@@ -112,57 +79,10 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
     : `margin: 0 0 14px 0; font-size: ${fontSize}px; line-height: 1.75; color: #333333; letter-spacing: 0.02em;`;
 
   const cleanMd = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
-  const lines = cleanMd.split(/\r?\n/);
-
-  const renderInline = (raw: string): string => {
-    const codeSlots: string[] = [];
-    let s = raw.replace(/`([^`]+)`/g, (_m, code) => {
-      const idx = codeSlots.length;
-      codeSlots.push(
-        `<code style="font-family: Menlo, Monaco, Consolas, monospace; font-size: 0.88em; padding: 2px 6px; border-radius: 4px; background-color: rgba(0, 122, 255, 0.08); color: ${accent};">${escapeHtml(code)}</code>`
-      );
-      return `\u0000CODE_${idx}\u0000`;
-    });
-
-    // Images inside inline text
-    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) => {
-      const cleanUrl = url.trim();
-      imageUrls.push(cleanUrl);
-      return `<img src="${escapeHtml(cleanUrl)}" alt="${escapeHtml(alt)}" style="display: block; max-width: 100%; height: auto; margin: 16px auto; border-radius: 8px;" />`;
-    });
-
-    // Links
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => {
-      const cleanUrl = url.trim();
-      if (isWeixinDomain(cleanUrl) || cleanUrl.startsWith('#')) {
-        return `<a href="${escapeHtml(cleanUrl)}" style="color: ${accent}; text-decoration: none; border-bottom: 1px solid ${accent};">${escapeHtml(text)}</a>`;
-      }
-      if (!convertLinks) {
-        return `<span style="color: ${accent};">${escapeHtml(text)}</span>`;
-      }
-      const existing = footnotes.find((f) => f.url === cleanUrl);
-      const idx = existing ? existing.index : footnotes.length + 1;
-      if (!existing) {
-        footnotes.push({ index: idx, text, url: cleanUrl });
-      }
-      return `<span style="color: ${accent};">${escapeHtml(text)}</span><sup style="color: ${accent}; font-size: 0.75em;">[${idx}]</sup>`;
-    });
-
-    s = escapeHtml(s)
-      .replace(/&lt;(img|span|sup|a|code)\b/g, '<$1')
-      .replace(/&lt;\/(span|sup|a|code)&gt;/g, '</$1>')
-      .replace(/&quot;/g, '"')
-      .replace(/&gt;/g, '>')
-      // Restore inline HTML tags we just constructed safely
-      ;
-
-    // Actually process inline formatting on raw before escaping, or escape text segments cleanly:
-    // Let's re-run cleanly without double escaping by processing segments!
-    return renderInlineSafe(raw, accent, convertLinks, footnotes, imageUrls);
-  };
-
-  // Suppress unused variable lint if needed
-  void renderInline;
+  // 只在最外层藏公式；引用递归渲染时拿到的已经是占位符。
+  const math = nested ? undefined : holdMath(cleanMd);
+  const lines = (math ? math.text : cleanMd).split(/\r?\n/);
+  const inline = (raw: string) => renderInlineSafe(raw, accent, convertLinks, footnotes, imageUrls);
 
   const blocks: string[] = [];
 
@@ -201,18 +121,7 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
       i++; // skip closing fence
       // 空的（含未闭合的）围栏不输出，避免留下一个空代码框或残留的反引号。
       if (!codeLines.some((l) => l.trim())) continue;
-      const codeHtml = highlightWeixinCodeTokens(codeLines.join('\n'), lang);
-      blocks.push(
-        `<section style="margin: 16px 0; border-radius: 10px; border: 1px solid rgba(0, 0, 0, 0.08); background-color: #f6f8fa; overflow: hidden;">` +
-          `<section style="display: flex; align-items: center; padding: 8px 12px; background-color: #eef1f5; border-bottom: 1px solid rgba(0, 0, 0, 0.06); font-size: 12px; color: #666;">` +
-          `<span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ff5f56; margin-right: 6px;"></span>` +
-          `<span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ffbd2e; margin-right: 6px;"></span>` +
-          `<span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #27c93f; margin-right: 10px;"></span>` +
-          `<span style="font-family: Menlo, Monaco, Consolas, monospace;">${escapeHtml(lang)}</span>` +
-          `</section>` +
-          `<pre style="margin: 0; padding: 14px 16px; overflow-x: auto; white-space: pre; font-family: Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6; color: #24292f;"><code>${codeHtml}</code></pre>` +
-          `</section>`
-      );
+      blocks.push(renderWeixinCodeBlock(codeLines.join('\n'), lang));
       continue;
     }
 
@@ -254,8 +163,9 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
       if (!headerHtml && !innerHtml) continue;
       const borderColor = style ? style.color : accent;
       const bgColor = style ? style.bg : 'rgba(0, 122, 255, 0.05)';
+      // 用 section 而不是 blockquote：新版公众号编辑器会清掉 blockquote 上的样式。
       blocks.push(
-        `<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid ${borderColor}; border-radius: 8px; background-color: ${bgColor};">${headerHtml}${innerHtml}</blockquote>`
+        `<section style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid ${borderColor}; border-radius: 8px; background-color: ${bgColor};">${headerHtml}${innerHtml}</section>`
       );
       continue;
     }
@@ -300,44 +210,11 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
       continue;
     }
 
-    // Ordered list
-    if (/^\d+\.\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s+/.test(lines[i].trim())) {
-        items.push(lines[i].trim().replace(/^\d+\.\s+/, ''));
-        i++;
-      }
-      const liHtml = items
-        .map(
-          (item) =>
-            `<li style="margin: 0 0 6px 0; line-height: 1.75; font-size: ${fontSize}px; color: #333;">${renderInlineSafe(item, accent, convertLinks, footnotes, imageUrls)}</li>`
-        )
-        .join('');
-      blocks.push(`<ol style="margin: 12px 0; padding-left: 22px;">${liHtml}</ol>`);
-      continue;
-    }
-
-    // Unordered / Task list
-    if (/^[-*]\s+/.test(trimmed)) {
-      const items: string[] = [];
-      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
-        const rawItem = lines[i].trim().replace(/^[-*]\s+/, '');
-        const taskMatch = rawItem.match(/^\[( |x|X)\]\s+(.*)$/);
-        if (taskMatch) {
-          const checked = taskMatch[1].toLowerCase() === 'x';
-          items.push(`${checked ? '☑' : '☐'} ${taskMatch[2]}`);
-        } else {
-          items.push(rawItem);
-        }
-        i++;
-      }
-      const liHtml = items
-        .map(
-          (item) =>
-            `<li style="margin: 0 0 6px 0; line-height: 1.75; font-size: ${fontSize}px; color: #333;">${renderInlineSafe(item, accent, convertLinks, footnotes, imageUrls)}</li>`
-        )
-        .join('');
-      blocks.push(`<ul style="margin: 12px 0; padding-left: 22px;">${liHtml}</ul>`);
+    // 列表（含多级、有序起始编号、任务列表）：不用原生 ul/ol/li，公众号编辑器会重写它们。
+    if (isListLine(line)) {
+      const list = renderWeixinList(lines, i, { accent, fontSize, inline });
+      blocks.push(list.html);
+      i = list.next;
       continue;
     }
 
@@ -360,13 +237,18 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
       i < lines.length &&
       lines[i].trim() !== '' &&
       !matchFence(lines[i].trim()) &&
-      !/^(#{1,4}\s+|```|>|[-*]\s+|\d+\.\s+|\||---|\*\*\*)/.test(lines[i].trim())
+      !/^(#{1,4}\s+|```|>|\||---|\*\*\*)/.test(lines[i].trim()) &&
+      !isListLine(lines[i])
     ) {
       paraLines.push(lines[i].trim());
       i++;
     }
-    const pHtml = renderInlineSafe(paraLines.join(' '), accent, convertLinks, footnotes, imageUrls);
-    blocks.push(`<p style="${paragraphStyle}">${pHtml}</p>`);
+    const paraText = paraLines.join(' ');
+    if (DISPLAY_MATH_ONLY.test(paraText)) {
+      blocks.push(displayMathBlock(paraText));
+      continue;
+    }
+    blocks.push(`<p style="${paragraphStyle}">${inline(paraText)}</p>`);
   }
 
   if (nested) return { html: blocks.join(''), digest: '', footnotes, imageUrls };
@@ -383,7 +265,10 @@ function renderWeixin(markdown: string, options: WeixinRenderOptions, nested?: N
     );
   }
 
-  const html = `<section style="padding: 4px 6px; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #333333; word-break: break-word;">${blocks.join('')}</section>`;
+  const html = fillMath(`<section style="padding: 4px 6px; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif; color: #333333; word-break: break-word;">${blocks.join('')}</section>`,
+    math?.slots ?? [],
+    options.renderMath
+  );
 
   return {
     html,

@@ -44,8 +44,8 @@ test('公众号：嵌套引用不把 > 当文本，转义后的围栏标记不�
 test('公众号：引用里的围栏代码块渲染成代码块；未闭合且为空的围栏直接丢弃', () => {
   const md = ['> 看代码：', '> ```js', '> const a = 1;', '> ```', '', '> 结尾', '> ```', '', '正文继续'].join('\n');
   const html = renderWeixinHtml(md).html;
-  assert.ok(html.includes('<pre style="'), '引用内代码块应渲染为 <pre>');
-  assert.ok(html.replace(/<[^>]+>/g, '').includes('const a = 1;'), '代码内容完整（高亮 span 去掉后）');
+  assert.ok(html.includes('font-family: Menlo, Monaco, Consolas, monospace; font-size: 13px;'), '引用内代码块应渲染为代码块（公众号版不用 <pre>）');
+  assert.ok(html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').includes('const a = 1;'), '代码内容完整（高亮 span 去掉、&nbsp; 还原成空格后）');
   assert.ok(!visibleText(html).includes('```'));
   assert.ok(visibleText(html).includes('正文继续'), '引用里未闭合的围栏不能吞掉后面的正文');
 });
