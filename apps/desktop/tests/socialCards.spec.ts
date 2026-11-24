@@ -128,8 +128,8 @@ test.describe('卡片模板', () => {
       const chip = page.getByRole('radiogroup', { name: '卡片模板' }).getByRole('radio', { name });
       await chip.click();
       await expect(chip).toHaveAttribute('aria-checked', 'true');
-      const frame = (await (await page.locator('iframe[title="卡片 2"]').elementHandle())!.contentFrame())!;
-      await expect.poll(() => frame.evaluate(() => document.body.dataset.template)).toBe(id);
+      // 切模板会重写 iframe 内容：用 frameLocator 每次重新取 body 并自动等待，不在半加载的文档上 evaluate（body 可能还是 null）。
+      await expect(page.frameLocator('iframe[title="卡片 2"]').locator('body')).toHaveAttribute('data-template', id);
       await snap(page, testInfo, `card-template-${id}`);
     });
   }
