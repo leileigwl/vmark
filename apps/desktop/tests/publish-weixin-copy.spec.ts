@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { THEMES, openPublishWith, shot } from './support/publishMock';
 
@@ -125,6 +126,15 @@ test.describe('公众号「复制富文本」：粘贴进公众号编辑器后�
       await expect(preview.locator('iframe')).toHaveAttribute('srcdoc', /<svg/, { timeout: 15_000 });
       await preview.scrollIntoViewIfNeeded();
       await shot(page, testInfo, `weixin-copy-${mode}`);
+      // 整篇排版（预览 iframe 的 srcdoc 原样放进独立页面整页截图；这部分不随应用主题变，公众号里也是白底）。
+      const srcdoc = (await preview.locator('iframe').getAttribute('srcdoc')) ?? '';
+      const article = await page.context().newPage();
+      await article.setViewportSize({ width: 640, height: 800 });
+      await article.setContent(srcdoc);
+      const dir = process.env.PW_SCREENSHOT_DIR;
+      const name = `weixin-copy-${mode}-full.png`;
+      await article.screenshot({ path: dir ? path.join(dir, name) : testInfo.outputPath(name), fullPage: true });
+      await article.close();
     });
   }
 });
