@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PlatformId } from '@vcat/shared';
-import { JUEJIN_CATEGORIES } from '@vcat/adapters';
 import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
 import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
 import { coverFor, resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
@@ -8,6 +7,7 @@ import { requirementText, rowCoverHint, type PlatformSpec } from './platformSpec
 import { TagInput } from './TagInput';
 import { TagPicker } from './TagPicker';
 import { CategoryPicker } from './CategoryPicker';
+import { useJuejinCategories } from './useJuejinCategories';
 
 interface AttentionListProps {
   draft: PublishDraft;
@@ -27,9 +27,10 @@ interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   issues: Issue[];
   open: boolean;
   setOpen: (open: boolean) => void;
+  juejinCategories: readonly { id: string; name: string }[];
 }
 
-function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef, bodyImage }: RowProps) {
+function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef, bodyImage, juejinCategories }: RowProps) {
   const v = resolveFor(draft, spec.id);
   const o = draft.overrides[spec.id] ?? {};
   const has = (f: Issue['field']) => issues.some((i) => i.field === f);
@@ -124,7 +125,7 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
             </Field>
           ) : null}
           {spec.category && show('category') ? (
-            <CategoryPicker label={`${spec.short}分类`} options={JUEJIN_CATEGORIES} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
+            <CategoryPicker label={`${spec.short}分类`} options={juejinCategories} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
           ) : null}
           {coverHint ? (
             <div className="flex min-h-9 items-center justify-between gap-4">
@@ -151,6 +152,7 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
  * 小红书/抖音也在这里：通用标题超长时提示「标题超 N 字（自动截取）」，可点开单独改写。
  */
 export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) {
+  const juejinCategories = useJuejinCategories(specs.some((s) => s.id === 'juejin'));
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
   const setOpen = (id: PlatformId, on: boolean) =>
     setOpenSet((prev) => {
@@ -170,7 +172,7 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
       <h3 className="text-xs font-medium text-muted">需要单独处理</h3>
       <ul className="space-y-2" data-testid="attention-list">
         {rows.map(({ spec, issues }) => (
-          <AttentionRow key={spec.id} spec={spec} issues={issues} open={open.has(spec.id)} setOpen={(on) => setOpen(spec.id, on)} {...rest} />
+          <AttentionRow key={spec.id} spec={spec} issues={issues} open={open.has(spec.id)} setOpen={(on) => setOpen(spec.id, on)} juejinCategories={juejinCategories} {...rest} />
         ))}
       </ul>
     </section>

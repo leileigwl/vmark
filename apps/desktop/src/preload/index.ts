@@ -75,6 +75,7 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_INVOKE_CHANNELS.publishWeixinDraft, payload),
   publishMultiPlatform: (payload: Parameters<NonNullable<ElectronAPI['publishMultiPlatform']>>[0]) =>
     ipcRenderer.invoke(IPC_INVOKE_CHANNELS.publishMultiPlatform, payload),
+  listJuejinCategories: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.listJuejinCategories),
   getPlatformAccounts: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getPlatformAccounts),
   onPlatformAuthUpdated: (callback: (states: Partial<Record<PlatformId, boolean>>) => void) => {
     const handler = (
