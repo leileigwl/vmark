@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import fs from 'node:fs';
-import { caretAtEnd, launch, makeEnv, shotWin } from './support/integrityElectron';
+import { caretAtEnd, launch, makeEnv, releaseLaunchedApps, shotWin } from './support/integrityElectron';
 
 /**
  * 冒烟测试 @smoke —— 数据完整性 C3：写盘失败（磁盘满 ENOSPC / 无权限 EACCES）时，
@@ -22,6 +22,9 @@ async function expectStatusStaysFailed(win: Page): Promise<void> {
 }
 
 test.describe('@smoke 数据完整性 C3：写盘失败不截断原文件并提示（真 Electron）', () => {
+  // 用例结束时放开所有启动过的 Electron（含被强杀的），避免 worker 退出时等残留进程超时。
+  test.afterEach(async () => releaseLaunchedApps());
+
   test('磁盘写满（ENOSPC，写到一半失败）：原文件完好，界面提示保存失败', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);
