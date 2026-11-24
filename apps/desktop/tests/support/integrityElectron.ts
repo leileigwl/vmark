@@ -1,4 +1,5 @@
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import type { ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,6 +42,9 @@ export function makeEnv(content: string, rel = 'a.md'): IntegrityEnv {
   };
 }
 
+/** Every app launched here and not yet released, with its userData dir and main process. */
+const launched = new Map<ElectronApplication, { userData: string; proc: ChildProcess }>();
+
 export async function launch(env: IntegrityEnv): Promise<{ app: ElectronApplication; win: Page }> {
   const cleanEnv: Record<string, string> = { VMARK_USER_DATA_DIR: env.userData };
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') cleanEnv[k] = v;
@@ -55,6 +59,7 @@ export async function launch(env: IntegrityEnv): Promise<{ app: ElectronApplicat
     ],
     env: cleanEnv,
   });
+  launched.set(app, { userData: env.userData, proc: app.process() });
   const win = await app.firstWindow();
   await win.waitForLoadState('domcontentloaded');
   await win.locator('.vditor-ir .vditor-reset').waitFor({ state: 'visible', timeout: 20_000 });
@@ -93,6 +98,11 @@ export async function waitForExit(app: ElectronApplication, ms = 10_000): Promis
 
 /** SIGKILLs the main process (and with it the renderer) — a force quit / power cut. */
 export async function hardKill(app: ElectronApplication): Promise<void> {
+  await killGroup(app);
+  await releaseApp(app);
+}
+
+async function killGroup(app: ElectronApplication): Promise<void> {
   const proc = app.process();
   try {
     if (proc.pid) process.kill(-proc.pid, 'SIGKILL');
@@ -101,6 +111,71 @@ export async function hardKill(app: ElectronApplication): Promise<void> {
   }
   proc.kill('SIGKILL');
   await waitForExit(app, 5000);
+}
+
+/**
+ * Makes sure Node sees the app's stdio close after its main process is gone. Playwright waits for the
+ * child's 'close' event (not just 'exit') when the worker shuts down; a process that setsid()s out of
+ * the group and inherited stdout/stderr (e.g. a crashpad handler) keeps the pipes open forever and the
+ * worker dies with "Worker teardown timeout". Kill such strays (found by our unique userData dir in their
+ * command line), and as a last resort drop our end of the pipes.
+ */
+export async function releaseApp(app: ElectronApplication): Promise<void> {
+  const entry = launched.get(app);
+  if (!entry) return;
+  launched.delete(app);
+  const { userData, proc } = entry;
+  if (proc.exitCode === null && proc.signalCode === null) await killGroup(app);
+  if (await stdioClosed(proc, 3000)) return;
+  const strays = killProcessesMentioning(userData);
+  if (await stdioClosed(proc, 2000)) return;
+  console.warn(`[integrityElectron] pid ${proc.pid} stdio still open after exit (killed strays: ${strays.join(', ') || 'none'}); closing our end`);
+  for (const stream of proc.stdio) stream?.destroy();
+}
+
+/** Releases every app a test launched and did not release itself; use in test.afterEach. */
+export async function releaseLaunchedApps(): Promise<void> {
+  for (const app of [...launched.keys()]) await releaseApp(app);
+}
+
+async function stdioClosed(proc: ChildProcess, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    // Node emits 'close' once every stdio stream after stdin has closed.
+    if (proc.stdio.slice(1).every((stream) => !stream || stream.closed)) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+/** SIGKILLs every other process whose command line contains `needle` (Linux /proc only). Returns their pids. */
+function killProcessesMentioning(needle: string): number[] {
+  if (process.platform !== 'linux') return [];
+  const killed: number[] = [];
+  for (const entry of fs.readdirSync('/proc')) {
+    const pid = Number(entry);
+    if (!Number.isInteger(pid) || pid === process.pid) continue;
+    let cmdline: string;
+    try {
+      cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+    } catch (error) {
+      if (isGoneOrForeign(error)) continue; // exited while we scanned, or not ours to read
+      throw error;
+    }
+    if (!cmdline.includes(needle)) continue;
+    try {
+      process.kill(pid, 'SIGKILL');
+      killed.push(pid);
+    } catch (error) {
+      if (!isGoneOrForeign(error)) throw error;
+    }
+  }
+  return killed;
+}
+
+function isGoneOrForeign(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'ENOENT' || code === 'ESRCH' || code === 'EACCES';
 }
 
 /** Text of the editor after relaunch, without Vditor's zero-width helpers. */

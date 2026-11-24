@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
-import { caretAtEnd, launch, makeEnv, shotWin, waitForExit } from './support/integrityElectron';
+import { caretAtEnd, launch, makeEnv, releaseLaunchedApps, shotWin, waitForExit } from './support/integrityElectron';
 
 /**
  * 冒烟测试 @smoke —— 数据完整性 C1：正常关闭窗口 / 退出应用时，最后一次输入必须落盘。
@@ -11,6 +11,9 @@ const ORIGINAL = '# 笔记\n\n第一段。\n';
 const EXPECTED = '# 笔记\n\n第一段。刚打的字\n';
 
 test.describe('@smoke 数据完整性 C1：关窗 / 退出不丢最后输入（真 Electron）', () => {
+  // 用例结束时放开所有启动过的 Electron（含被强杀的），避免 worker 退出时等残留进程超时。
+  test.afterEach(async () => releaseLaunchedApps());
+
   test('输入后立刻关闭窗口：最后输入写入磁盘，且只多这几个字', async () => {
     const env = makeEnv(ORIGINAL);
     const { app, win } = await launch(env);

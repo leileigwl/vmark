@@ -1,6 +1,6 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import fs from 'node:fs';
-import { caretAtEnd, editorText, hardKill, launch, makeEnv, shotWin, waitForExit, type IntegrityEnv } from './support/integrityElectron';
+import { caretAtEnd, editorText, hardKill, launch, makeEnv, releaseLaunchedApps, shotWin, waitForExit, type IntegrityEnv } from './support/integrityElectron';
 
 /**
  * 冒烟测试 @smoke —— 数据完整性 C2：崩溃 / 被强杀 / 卡死后重开，用户最后的输入能找回，
@@ -56,6 +56,9 @@ async function run(abrupt: (app: ElectronApplication, win: Page) => Promise<void
 // 已知失败：没有崩溃恢复备份，自动保存要停手约 1.8 秒才写盘。
 // 维护者 2026-11-24 决定暂不做崩溃恢复（撤回 #98），这里保留为 test.fail 记录现状；以后要做时改回 test。
 test.describe('@smoke 数据完整性 C2：崩溃 / 强杀 / 卡死后可恢复（真 Electron）', () => {
+  // 用例结束时放开所有启动过的 Electron（含被强杀的），避免 worker 退出时等残留进程超时。
+  test.afterEach(async () => releaseLaunchedApps());
+
   test.fail('渲染进程崩溃（forcefullyCrashRenderer）后退出再打开：输入可找回', async () => {
     await run(async (app) => {
       await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.webContents.forcefullyCrashRenderer());

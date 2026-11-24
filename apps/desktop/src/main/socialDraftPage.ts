@@ -1,7 +1,7 @@
 /**
  * 小红书 / 抖音图文发布页的 DOM 自动化（不依赖 Electron，主进程与 E2E 夹具共用）。
  * 平台页面会改版，所以每一步都给多候选选择器，失败时报错里列出尝试过的全部选择器。
- * 选择器来源与核对情况见 docs/platform-rules-todo.md「小红书 / 抖音图文」一节。
+ * 选择器来源与核对情况见 docs/99-archive/2026-11-24/platform-rules-todo.md「小红书 / 抖音图文」一节（待办见 docs/TODO.md）。
  */
 
 /** 页面驱动：主进程用 BrowserWindow 实现，测试用 Playwright Page 实现。 */

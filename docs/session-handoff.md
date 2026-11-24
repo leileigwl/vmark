@@ -1,26 +1,40 @@
 # Session Handoff（覆盖式进度快照）
 
-> 本文件实行 **覆盖式快照规范（硬上限 ≤ 120 行）**，禁止无限追加过时轮次流水账。完整历史需求截图根因、交互原型与测试用例映射台账均留存在 [`docs/requirement-journal.html`](requirement-journal.html) 中。
+> 覆盖写，硬上限 ≤ 120 行，不追加流水账。流程见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)，任务见 [TODO.md](TODO.md)（唯一任务清单）。旧交接、路线图、平台规则表已归档到 [99-archive/2026-11-24/](99-archive/2026-11-24/)。
 
-- **快照日期**：2026-11-22
-- **当前分支与里程碑**：`slice/review-artifacts-and-risk-tuning`（基于 `test` @ `12a72bb`）——**Step 1：接入 `GLM-5.3-Flash` 双段式 AI Review、Verification Artifacts PR 模板、分层风险规则与 CI 耗时修正**
-- **最新基线版本**：`v0.2.0`（PR #37 / #35 / #34 / #38 已合入，Issue #36 冻结锁已解除）
-- **护栏约束**：红黄绿路径与单文件 `<= 500` 行边界详见 [OPERATOR_PLAYBOOK.md](OPERATOR_PLAYBOOK.md)；本 PR 合入 `test` 后需立即执行 `pnpm harness:lock-bootstrap` 提交独立重锁 PR
+- **快照日期**：2026-11-24
+- **当前基线**：`test`（已合入 `preview/latest`，PR #103）。之后所有新分支从 `test` 拉，PR 目标 `test`，一律 draft。
+- **验证环境**：所有改动只在 Linux 无头 Chromium（L2）、node 单测和 Linux 真 Electron（Xvfb，L3）里验证过，**没有在 macOS / Windows 真机验证**。
 
-## 本轮已完成（Step 1：防盲审与额度优化底座）
+## 已完成（都在 test 里）
 
-1. **GitHub Actions 模型入口配置**：
-   - 已安全注入 GitHub Secret `AI_REVIEW_API_KEY`（来自未入库 `secret.txt`）与公开变量 `AI_REVIEW_MODEL=GLM-5.3-Flash`、`AI_REVIEW_BASE_URL=https://api.scnet.cn/api/llm/v1`。
-   - `.gitignore` 已屏蔽 `secret.txt`、`*.secret.txt`、`.env.*`、`.harness/.last-violations.json`，严防本地密钥意外入库。
-2. **两段式省额度 AI Code Review（Fork 安全隔离）**：
-   - `.github/workflows/ai-review.yml` 过滤 lockfile 与图片等二进制差异，统计 `reviewableLines` 并提取 PR 标题/正文摘要。
-   - `.github/workflows/ai-review-post.yml` 对纯文档/资源 PR 自动跳过，对 `>40` 行或初检有疑点 PR 执行「Pass 1 Bug 狩猎 → Pass 2 独立去误报」交叉审查，幂等更新中文验收清单并仅在存在 `critical` 真 Bug 时单向升级 `risk:high`。
-3. **风险规则调优与 Verification Artifacts 规范**：
-   - `.github/risk-rules.yml` 将 `packages/core/**`、`packages/adapters/**`、`packages/image-pipeline/**` 调至 `mid`（`shared` / `main` / `preload` / `.github` / `.harness` / 鉴权仍严守 `high`，AST 导出变更与敏感语义仍自动升级）。
-   - 升级 `.github/PULL_REQUEST_TEMPLATE.md` 固化「大白话改动说明 + 验证产物 + 1 分钟验收清单」（保留凭据自检与 AGPL-3.0/CLA 条款），并修复 `.github/workflows/daily-release-pr.yml` 中 `Ubuntu CI 平均耗时` 异常统计口径。
+| 范围 | 要点 |
+|---|---|
+| 公众号登录检测 | 不再把未登录误判为已登录（只认后台 token，并二次请求首页确认） |
+| 内置浏览器 | 关闭时释放两个页面视图，登录状态保留 |
+| 发布弹窗 | 摘要超长提示并自动截取；标签共用、掘金单列；公众号只留封面 + 2.35:1 / 1:1 焦点裁剪；各平台封面比例归位到各自平台块；「全选可推送 ⇄ 取消全选」（不含 GitHub 博客） |
+| 数据完整性 | `@smoke` 冒烟（字节级往返、全部快捷键、真 Electron 关窗/崩溃/写盘失败）；保存只写改过的行；原子写盘 + 失败提示；关窗/退出前先保存 |
+| 崩溃恢复备份 | 做过又撤回（维护者决定不做），相关用例保持 `test.fail` |
+| 文档收敛 | AI 只看 AGENTS.md → OPERATOR_PLAYBOOK.md（含通用审核流程）→ 本文件 + TODO.md；删除 `.claude/commands`、`.claude/agents`、`REVIEW.md`；`CLAUDE.md` 只剩引用 |
 
-## 后续排队里程碑（重锁底座后依次切片推进）
+## 下一步
 
-1. **Step 2（小红书/抖音双模式 + 模板透传修复）**：拆分 `xiaohongshuRenderer.ts` 支持正文插图与表格同卡渲染；修复 `publishSocialDrafts.ts` 模板白名单与「视觉卡片（默认）/ 原图」双开关。
-2. **Step 3（分发持久化 + 实时进度 + 失败重试）**：冻结 `publish:getRecords` / `publish:progress` 契约，主进程原子 JSON 落盘 `userData/sync_records.json`，支持逐平台状态回显与仅重试失败项。
-3. **Step 4（`PublishModal` 清爽重排 + 授权秒显）**：拆瘦 `PublishModal.tsx` 至 `features/publish-drawer/`，优化 `accountStore` 缓存秒显与内置浏览器 Tab 体验。
+看 [TODO.md](TODO.md)：
+1. 「现在做」：发布弹窗通用内容只写一份（小红书 · 抖音块只留卡片模板和预览）。
+2. 「下一批」：掘金分类运行时拉取、长公式换行、登录顶栏跟主题、Ctrl+S/Ctrl+N 双触发、打包版 KaTeX 字体、公众号复制保真、四个平台「打开草稿」地址、小红书/抖音话题点选。
+3. 凭据加密、Vditor 升级修 XSS 由 Hark 来做，其他 AI 不要接。
+
+## 真机清单（维护者）
+
+- [ ] 打字后立刻关窗 / ⌘Q，重开文件最后的输入还在。
+- [ ] 保存一篇含表格、代码块、emoji、CRLF 的旧文件，用 git diff 看只有改动的行变了。
+- [ ] 发布弹窗：浅色和深色各看一眼；勾小红书/抖音时看「需要单独处理」的提示是否合理。
+- [ ] 公众号未登录时显示「未登录」，登录后显示「已登录」。
+- [ ] 打开再关闭内置浏览器几次，活动监视器里没有残留进程。
+- [ ] 小红书 / 抖音推一次草稿：卡片是否上传、封面是否第 1 张、抖音最多能传几张。
+- [ ] Windows：按一次 Ctrl+S / Ctrl+N 是否只触发一次。
+- [ ] 打包版打开含公式的文档，公式字体正常。
+
+## 还开着、需要维护者决定的旧 PR
+
+见 [TODO.md](TODO.md)「等维护者真机确认 / 决定」：#42 只传原图、超 600 行老 PR（#43 / #48 / #64 / #85）。未自动关闭的旧 PR 清单在合并 #103 后的交接里列出，AI 不关闭、不评论。
