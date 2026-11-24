@@ -4,6 +4,10 @@
 import { EventEmitter } from 'node:events';
 
 export const registry = (globalThis.__vmarkElectronStub ??= { windows: [], views: [] });
+// 凭据加密测试用：app 路径、safeStorage（系统钥匙串）和 dialog 都由测试控制。
+registry.paths ??= {};
+registry.safeStorage ??= { available: true, backend: 'gnome_libsecret', failEncrypt: false, failDecrypt: false };
+registry.dialogs ??= [];
 
 class FakeWebContents extends EventEmitter {
   destroyed = false;
@@ -68,4 +72,35 @@ export class BrowserWindow extends EventEmitter {
   }
 }
 
-export default { BrowserWindow, WebContentsView };
+export const app = {
+  getPath: (name) => {
+    if (!registry.paths[name]) throw new Error(`stub app.getPath(${name}) not set`);
+    return registry.paths[name];
+  },
+  isReady: () => true,
+  whenReady: () => Promise.resolve(),
+};
+
+/** 假钥匙串：密文 = 'STUB1:' + 反转后的十六进制，磁盘上绝不会出现原文。 */
+export const safeStorage = {
+  isEncryptionAvailable: () => registry.safeStorage.available,
+  getSelectedStorageBackend: () => registry.safeStorage.backend,
+  encryptString(plain) {
+    if (registry.safeStorage.failEncrypt) throw new Error('Error while encrypting the text provided to safeStorage.encryptString.');
+    return Buffer.from(`STUB1:${[...Buffer.from(plain, 'utf8').toString('hex')].reverse().join('')}`, 'utf8');
+  },
+  decryptString(buf) {
+    const s = Buffer.from(buf).toString('utf8');
+    if (registry.safeStorage.failDecrypt || !s.startsWith('STUB1:')) throw new Error('Error while decrypting the ciphertext provided to safeStorage.decryptString.');
+    return Buffer.from([...s.slice(6)].reverse().join(''), 'hex').toString('utf8');
+  },
+};
+
+export const dialog = {
+  showMessageBox: (...args) => {
+    registry.dialogs.push(args[args.length - 1]);
+    return Promise.resolve({ response: 0 });
+  },
+};
+
+export default { BrowserWindow, WebContentsView, app, safeStorage, dialog };

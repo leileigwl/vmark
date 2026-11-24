@@ -9,9 +9,14 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
 );
 Input.displayName = 'Input';
 
+/** 多行输入：不能拖动大小，高度随内容增长（最低 72px，最高 240px），再多就在框内滚动。 */
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...props }, ref) => (
-    <textarea ref={ref} className={cn(fieldBase, 'min-h-[72px] resize-y py-2 leading-relaxed', className)} {...props} />
+    <textarea
+      ref={ref}
+      className={cn(fieldBase, 'min-h-[72px] max-h-60 resize-none overflow-y-auto py-2 leading-relaxed [field-sizing:content]', className)}
+      {...props}
+    />
   )
 );
 Textarea.displayName = 'Textarea';

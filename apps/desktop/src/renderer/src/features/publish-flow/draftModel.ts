@@ -1,21 +1,20 @@
 import type { PlatformId } from '@vcat/shared';
-import { SPEC_BY_ID, type PlatformSpec } from './platformSpecs.ts';
+import { SPEC_BY_ID, ownCoverEligible, type PlatformSpec } from './platformSpecs.ts';
 
 type Override = { title?: string; digest?: string; tags?: string[] };
+type Focus = { x: number; y: number };
 
-/** 小红书 + 抖音单独一个分区：自己的标题 / 纯文本正文 / 话题 / 封面（插到第一张卡前）。没填的用默认。 */
-export interface SocialDraft {
-  /** 空=从通用标题截取到平台上限。 */
-  title?: string;
-  /** 空=主进程从正文生成纯文本。 */
-  body?: string;
-  /** 空=用通用标签。 */
-  topics?: string[];
-  /** 上传的封面（工作区相对路径），空字符串=第一张卡片就是封面。 */
+/** 某平台单独设置的封面（工作区相对路径）与它的焦点。 */
+export interface OwnCover {
   cover: string;
+  focus: Focus;
 }
 
-/** 一篇文章的发布设置：所有平台共用的标题/摘要/标签/封面，个别平台需要时单独改写。 */
+/**
+ * 一篇文章的发布设置：所有平台共用一份标题/摘要/标签/封面，个别平台超限时在「需要单独处理」里单独改写。
+ * 小红书/抖音也用这一份：标题自动截取，正文由主进程从文章转纯文本，话题用通用标签。
+ * 封面默认用通用封面；封面比例不同的平台（公众号、小红书/抖音）可以单独设一张（ownCovers）。
+ */
 export interface PublishDraft {
   title: string;
   digest: string;
@@ -30,9 +29,8 @@ export interface PublishDraft {
   includeRemoteImages: boolean;
   /** 掘金文章分类 id；空字符串表示还没选。 */
   juejinCategoryId: string;
-  /** 公众号块里单独上传的封面（空字符串=没传，沿用通用封面或正文首图）与它的焦点。 */
-  weixin: { cover: string; focus: { x: number; y: number } };
-  social: SocialDraft;
+  /** 封面比例不同的平台单独设置的封面；没有就用通用封面按该平台比例裁。 */
+  ownCovers: Partial<Record<PlatformId, OwnCover>>;
 }
 
 export type IssueField = 'title' | 'digest' | 'cover' | 'tags' | 'category' | 'auth';
@@ -93,24 +91,40 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     socialThemeId: null,
     includeRemoteImages: true,
     juejinCategoryId: '',
-    weixin: { cover: '', focus: { x: 50, y: 50 } },
-    social: { cover: '' },
+    ownCovers: {},
   };
 }
 
 const KNOWN_KEYS: Array<keyof PublishDraft> = [
   'title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId',
-  'weixin', 'social',
+  'ownCovers',
 ];
 
-/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文）丢弃。 */
+const CENTER: Focus = { x: 50, y: 50 };
+
+/** 旧版本把公众号单独封面存在 weixin、小红书/抖音分区封面存在 social；迁移成 ownCovers，不丢用户传过的图。 */
+function legacyOwnCovers(saved: Record<string, unknown>): Partial<Record<PlatformId, OwnCover>> {
+  const out: Partial<Record<PlatformId, OwnCover>> = {};
+  const wx = saved.weixin as { cover?: unknown; focus?: Focus } | undefined;
+  if (typeof wx?.cover === 'string' && wx.cover) out.weixin = { cover: wx.cover, focus: wx.focus ?? CENTER };
+  const social = saved.social as { cover?: unknown } | undefined;
+  if (typeof social?.cover === 'string' && social.cover) {
+    out.xiaohongshu = { cover: social.cover, focus: CENTER };
+    out.douyin = { cover: social.cover, focus: CENTER };
+  }
+  return out;
+}
+
+/**
+ * 合并本地记住的设置。旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文、小红书抖音单独的标题/正文/话题）丢弃；
+ * 旧版单独上传的封面（公众号块、小红书/抖音分区）迁移到 ownCovers。
+ */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
   if (!saved) return base;
   const out: PublishDraft = { ...base };
   for (const k of KNOWN_KEYS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   out.selected = out.selected.filter((id) => SPEC_BY_ID[id]);
-  out.social = { ...out.social, cover: out.social?.cover ?? '' };
-  out.weixin = { ...base.weixin, ...out.weixin };
+  out.ownCovers = { ...legacyOwnCovers(saved as Record<string, unknown>), ...out.ownCovers };
   return out;
 }
 
@@ -126,33 +140,47 @@ export function setOverride(draft: PublishDraft, id: PlatformId, patch: Override
   return all;
 }
 
+/** 设置（cover 为空字符串时移除）某平台的单独封面，返回新的 ownCovers。 */
+export function setOwnCover(draft: PublishDraft, id: PlatformId, cover: string, focus: Focus = CENTER): PublishDraft['ownCovers'] {
+  const next = { ...draft.ownCovers };
+  if (cover) next[id] = { cover, focus };
+  else delete next[id];
+  return next;
+}
+
+/** 该平台生效的单独封面：只有封面比例与通用封面不同的平台才用。 */
+export function ownCoverOf(draft: PublishDraft, spec: PlatformSpec): OwnCover | null {
+  const own = draft.ownCovers[spec.id];
+  return own?.cover && ownCoverEligible(spec) ? own : null;
+}
+
 /** 某平台的封面来源，按“用户在信息流里怎么看到它”决定默认值。没有封面项的平台返回 null。 */
 export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: string): CoverSource | null {
   if (!spec.cover) return null;
-  // 卡片平台只认它们分区里上传的封面，通用封面不插进卡片。
-  if (spec.cover.mode === 'card') return draft.social.cover ? { kind: 'upload', src: draft.social.cover } : { kind: 'card' };
-  // 公众号块里单独上传的封面只给公众号；没传就和其他平台一样沿用通用封面。
-  if (spec.cover.mode === 'weixin' && draft.weixin.cover) return { kind: 'upload', src: draft.weixin.cover };
+  // 该平台单独设置的封面优先（公众号、小红书/抖音等比例不同的平台）。
+  const own = ownCoverOf(draft, spec);
+  if (own) return { kind: 'upload', src: own.cover };
+  // 卡片平台：通用封面插到卡片最前；没传就第一张卡片做封面。
+  if (spec.cover.mode === 'card') return draft.coverUpload ? { kind: 'upload', src: draft.coverUpload } : { kind: 'card' };
   if (draft.coverUpload) return { kind: 'upload', src: draft.coverUpload };
   if (spec.cover.mode === 'optional' || !bodyImage) return { kind: 'none' };
   return { kind: 'body', src: bodyImage };
 }
 
-/** 裁切上传封面时用的焦点：卡片封面取中心，公众号单独上传的用公众号块的焦点，其余用通用封面的焦点。 */
-export function coverFocusFor(draft: PublishDraft, spec: PlatformSpec): { x: number; y: number } {
-  if (spec.cover?.mode === 'card') return { x: 50, y: 50 };
-  if (spec.cover?.mode === 'weixin' && draft.weixin.cover) return draft.weixin.focus;
-  return draft.coverFocus;
+/** 裁切上传封面时用的焦点：单独封面用它自己的焦点，其余用通用封面的焦点。 */
+export function coverFocusFor(draft: PublishDraft, spec: PlatformSpec): Focus {
+  return ownCoverOf(draft, spec)?.focus ?? draft.coverFocus;
 }
 
-/** 某平台最终使用的值：小红书/抖音用自己分区的值（标题默认截取通用标题）；其他平台单独改写优先，否则用通用值。 */
+/**
+ * 某平台最终使用的值：单独改写优先，否则用通用值（超限的摘要/标签自动截取）。
+ * 小红书/抖音：标题超上限时截取前 N 字；正文留空，由主进程从文章生成纯文本。
+ */
 export function resolveFor(draft: PublishDraft, id: PlatformId) {
   const o = draft.overrides[id] ?? {};
   const spec = SPEC_BY_ID[id];
   if (spec?.kind === 'cards') {
-    const s = draft.social;
-    const title = s.title?.trim() ? s.title : o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join('');
-    return { title, digest: s.body ?? '', tags: s.topics ?? o.tags ?? fitTags(draft.tags, spec.tags?.max) };
+    return { title: o.title ?? [...draft.title.trim()].slice(0, spec.title.max).join(''), digest: '', tags: o.tags ?? fitTags(draft.tags, spec.tags?.max) };
   }
   return { title: o.title ?? draft.title, digest: o.digest ?? fitDigest(draft.digest, spec?.digest?.max), tags: o.tags ?? fitTags(draft.tags, spec?.tags?.max) };
 }
@@ -160,10 +188,9 @@ export function resolveFor(draft: PublishDraft, id: PlatformId) {
 /** 沿用通用标签时：超出平台上限默认取前 max 个。 */
 const fitTags = (tags: string[], max: number | undefined) => (max !== undefined && tags.length > max ? tags.slice(0, max) : tags);
 
-/** 该平台是否沿用通用标签（没在平台行 / 小红书抖音分区里单独挑选）。 */
+/** 该平台是否沿用通用标签（没在平台行里单独挑选）。 */
 export function usesSharedTags(draft: PublishDraft, spec: PlatformSpec): boolean {
-  if (draft.overrides[spec.id]?.tags !== undefined) return false;
-  return spec.kind !== 'cards' || draft.social.topics === undefined;
+  return draft.overrides[spec.id]?.tags === undefined;
 }
 
 const len = (s: string) => [...s.trim()].length;
@@ -181,6 +208,9 @@ export function checkPlatform(draft: PublishDraft, spec: PlatformSpec, signedIn:
   const err = (field: IssueField, message: string) => issues.push({ level: 'error', field, message });
   if (!signedIn && spec.kind !== 'site') err('auth', '未登录');
   const t = len(v.title);
+  // 小红书/抖音沿用通用标题且超长：只提示，推送时自动截取（resolveFor 已截好），不挡推送。
+  const sharedTitle = spec.kind === 'cards' && draft.overrides[spec.id]?.title === undefined ? len(draft.title) : 0;
+  if (sharedTitle > spec.title.max) issues.push({ level: 'warn', field: 'title', message: `标题超 ${sharedTitle - spec.title.max} 字（自动截取）` });
   if (t === 0) err('title', '缺标题');
   else if (t > spec.title.max) err('title', `标题超 ${t - spec.title.max} 字`);
   else if (spec.title.min && t < spec.title.min) err('title', `标题差 ${spec.title.min - t} 字`);

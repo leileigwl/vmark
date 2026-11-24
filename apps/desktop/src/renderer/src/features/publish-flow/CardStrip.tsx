@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { PLATFORM_COVER_SPECS, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
+import { PLATFORM_COVER_SPECS, fitCardDisplayMath, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import { cn } from '../../ui';
 import { cardMath } from './cardMath';
 
@@ -15,6 +15,13 @@ interface CardStripProps {
   themeId: string;
   onThemeChange: (id: string) => void;
   maxCards?: number;
+}
+
+/** 换行后仍比卡片宽的行间公式缩小到放得下（与出图同一逻辑）；iframe 禁止脚本，由外层在字体加载后执行。 */
+function fitThumbMath(frame: HTMLIFrameElement) {
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  void doc.fonts.ready.then(() => fitCardDisplayMath(doc));
 }
 
 /** 卡片平台：选模板 + 看前几张卡片缩略图和总张数。卡片 HTML 自带全局样式，放进 iframe 隔离（不允许脚本）。 */
@@ -60,6 +67,7 @@ export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }:
               className="pointer-events-none origin-top-left border-0"
               style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})` }}
               srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: kept, aspectRatio: '3:4', math: cardMath })}
+              onLoad={(e) => fitThumbMath(e.currentTarget)}
             />
           </div>
         ))}
