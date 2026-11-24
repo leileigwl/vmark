@@ -61,8 +61,19 @@ export function WeixinPreview({ markdown }: { markdown: string }) {
         <Button
           className="h-9"
           onClick={() => {
-            const text = new DOMParser().parseFromString(html, 'text/html').body.innerText;
-            void copyRichText(html, text).then((ok) => setCopied(ok ? 'ok' : 'fail'));
+            void (async () => {
+              // MathJax 还没加载完就点了复制：先等它加载好再按公式 SVG 渲染，否则复制出去的是 $ 源码。
+              let out = html;
+              if (needMath && !renderMath) {
+                const fn = await loadWeixinMath();
+                if (fn) {
+                  setRenderMath(() => fn);
+                  out = renderWeixinHtml(markdown, { renderMath: fn }).html;
+                }
+              }
+              const text = new DOMParser().parseFromString(out, 'text/html').body.innerText;
+              setCopied((await copyRichText(out, text)) ? 'ok' : 'fail');
+            })();
           }}
         >
           {copied === 'ok' ? <Check /> : <Copy />}
