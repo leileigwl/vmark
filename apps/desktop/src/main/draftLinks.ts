@@ -3,7 +3,7 @@ import type { MultiPlatformPublishResultItem, PlatformId } from '@vcat/shared';
 /**
  * 推草稿成功后「打开草稿」用哪个地址：拿到草稿 id 就打开这篇草稿的编辑页，拿不到才退回草稿列表页。
  * edit 模板与各适配器 push() 返回的 url 一致（适配器给了 url 时以适配器为准）；
- * 列表页里标「未核实」的见 docs/platform-rules-todo.md 真机清单。
+ * 列表页里标「未核实」的见 docs/99-archive/2026-11-24/platform-rules-todo.md 真机清单（待办见 docs/TODO.md）。
  */
 export const DRAFT_LINKS: Partial<Record<PlatformId, { list: string; edit?: (id: string) => string }>> = {
   // 公众号编辑页需要登录 token，只能用适配器返回的 url；列表页为后台首页（草稿在「内容管理 → 草稿箱」）。
