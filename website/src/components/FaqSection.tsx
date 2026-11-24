@@ -13,7 +13,7 @@ export function FaqSection({ content }: FaqSectionProps) {
   return (
     <section
       id="faq"
-      className="border-b border-stone-200/90 bg-[#FAF9F6] py-20 sm:py-28 dark:border-stone-800/90 dark:bg-[#141312]"
+      className="border-b border-stone-200/90 bg-white py-20 sm:py-28 dark:border-stone-800/90 dark:bg-[#141210]"
     >
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <div className="text-center">

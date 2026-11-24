@@ -20,7 +20,7 @@ export function Navbar({
   onToggleTheme,
 }: NavbarProps) {
   return (
-    <header className="sticky top-0 z-50 border-b border-stone-200/90 bg-[#FAF9F6]/85 backdrop-blur-md dark:border-stone-800/90 dark:bg-[#141312]/85">
+    <header className="sticky top-0 z-50 border-b border-stone-200/80 bg-[#FBF8F3]/85 backdrop-blur-md dark:border-stone-800/80 dark:bg-[#141210]/85">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <a
           href="#"

@@ -58,7 +58,7 @@ export function App() {
   }, [theme]);
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-stone-900 dark:bg-[#141312] dark:text-stone-100">
+    <div className="min-h-screen bg-[#FBF8F3] text-stone-900 dark:bg-[#141210] dark:text-stone-100">
       <Navbar
         content={content}
         lang={lang}
@@ -67,9 +67,9 @@ export function App() {
         onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
       />
       <main>
-        <HeroSection content={content} />
-        <WorkbenchShowcase content={content} />
-        <BentoFeatures content={content} />
+        <HeroSection content={content} lang={lang} />
+        <WorkbenchShowcase content={content} lang={lang} />
+        <BentoFeatures content={content} lang={lang} />
         <PlatformMatrix content={content} />
         <FaqSection content={content} />
       </main>
