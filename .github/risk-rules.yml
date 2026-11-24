@@ -3,9 +3,6 @@ max_auto_merge_lines: 300
 tiers:
   high:
     paths:
-      - "packages/core/**"
-      - "packages/adapters/**"
-      - "packages/image-pipeline/**"
       - "packages/shared/**"
       - "apps/desktop/src/main/**"
       - "apps/desktop/src/preload/**"
@@ -29,6 +26,9 @@ tiers:
     paths:
       - "apps/desktop/src/renderer/**"
       - "apps/desktop/scripts/**"
+      - "packages/core/**"
+      - "packages/adapters/**"
+      - "packages/image-pipeline/**"
     allow_auto_merge: true
     allow_ai_escalation: true
     run_e2e: true

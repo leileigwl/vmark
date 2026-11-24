@@ -97,9 +97,40 @@ jobs:
             });
             const completed24h = runs.data.workflow_runs.filter((r) => r.status === 'completed' && r.created_at >= sinceIso);
             let avgCiSec = 'N/A';
-            if (completed24h.length > 0) {
-              const totalMs = completed24h.reduce((sum, r) => sum + (new Date(r.updated_at) - new Date(r.created_at)), 0);
-              avgCiSec = `${Math.round(totalMs / completed24h.length / 1000)}s`;
+            const sampleRuns = completed24h.slice(0, 5);
+            if (sampleRuns.length > 0) {
+              const durationsMs = [];
+              for (const r of sampleRuns) {
+                try {
+                  const jobsResp = await github.rest.actions.listJobsForWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: r.id,
+                    per_page: 30,
+                  });
+                  const starts = jobsResp.data.jobs.map((j) => Date.parse(j.started_at)).filter(Number.isFinite);
+                  const ends = jobsResp.data.jobs.map((j) => Date.parse(j.completed_at)).filter(Number.isFinite);
+                  if (starts.length > 0 && ends.length > 0) {
+                    const span = Math.max(...ends) - Math.min(...starts);
+                    if (span > 0 && span < 3600 * 1000) {
+                      durationsMs.push(span);
+                      continue;
+                    }
+                  }
+                } catch {
+                  // fall back to workflow run timestamp delta when jobs API fails
+                }
+                const fallbackStart = Date.parse(r.run_started_at || r.created_at);
+                const fallbackEnd = Date.parse(r.updated_at);
+                const fallbackSpan = fallbackEnd - fallbackStart;
+                if (Number.isFinite(fallbackSpan) && fallbackSpan > 0 && fallbackSpan < 3600 * 1000) {
+                  durationsMs.push(fallbackSpan);
+                }
+              }
+              if (durationsMs.length > 0) {
+                const avgMs = durationsMs.reduce((a, b) => a + b, 0) / durationsMs.length;
+                avgCiSec = `${Math.round(avgMs / 1000)}s`;
+              }
             }
 
             const dateStr = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);

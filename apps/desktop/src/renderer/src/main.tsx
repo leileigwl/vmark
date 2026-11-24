@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { TooltipProvider } from './ui';
 import './index.css';
 
 interface ErrorBoundaryState {
@@ -40,6 +41,8 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <AppErrorBoundary>
-    <App />
+    <TooltipProvider>
+      <App />
+    </TooltipProvider>
   </AppErrorBoundary>
 );

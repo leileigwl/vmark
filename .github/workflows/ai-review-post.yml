@@ -13,27 +13,33 @@ permissions:
 jobs:
   analyze-and-comment:
     name: Stage 2 Isolated AI Review & Monotonic Risk Escalation
+    timeout-minutes: 8
     if: >
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - name: Check API key & download diff artifact without checking out Fork code
+      - name: Run two-pass isolated AI review without checking out Fork code
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL }}
+          AI_REVIEW_API_KEY: ${{ secrets.AI_REVIEW_API_KEY || secrets.DEEPSEEK_API_KEY }}
+          AI_REVIEW_BASE_URL: ${{ vars.AI_REVIEW_BASE_URL || vars.DEEPSEEK_BASE_URL }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('node:fs');
             const { execSync } = require('node:child_process');
             const { owner, repo } = context.repo;
-            const apiKey = (process.env.DEEPSEEK_API_KEY || '').trim();
 
+            const apiKey = (process.env.AI_REVIEW_API_KEY || '').trim();
             if (!apiKey) {
-              console.log('DEEPSEEK_API_KEY not configured; AI review gracefully skipped without blocking deterministic CI gates.');
+              console.log('AI_REVIEW_API_KEY not configured; AI review gracefully skipped without blocking deterministic CI gates.');
               return;
             }
+
+            const model = (process.env.AI_REVIEW_MODEL || 'deepseek-chat').trim();
+            const rawBase = (process.env.AI_REVIEW_BASE_URL || 'https://api.deepseek.com/v1').trim().replace(/\/+$/, '');
+            const endpoint = rawBase.endsWith('/chat/completions') ? rawBase : `${rawBase}/chat/completions`;
 
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
               owner,
@@ -57,59 +63,278 @@ jobs:
 
             const meta = JSON.parse(fs.readFileSync('meta.json', 'utf8'));
             const diffText = fs.readFileSync('pr.diff', 'utf8');
-            if (!diffText.trim() || !meta.prNumber) return;
+            if (!meta.prNumber) return;
 
-            const endpoint = (process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1/chat/completions').trim();
-            const prompt = [
-              'You are a strict senior security and architecture reviewer.',
-              'Inspect this git diff ONLY for bugs, IPC/credential leaks, anti-cheat test weakening, or broken cross-module contracts.',
-              'Respond strictly in JSON: {"summary": string, "findings": string[], "escalateToHigh": boolean}.',
+            const MARKER = '<!-- vmark-ai-review -->';
+            const upsertComment = async (body) => {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: meta.prNumber,
+                per_page: 100,
+              });
+              const existing = comments.find((c) => c.body && c.body.includes(MARKER));
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: meta.prNumber,
+                  body,
+                });
+              }
+            };
+
+            if (!diffText.trim() || meta.reviewableLines === 0) {
+              await upsertComment([
+                MARKER,
+                '### 🤖 AI Diff Review（轻量快检 · 已省额度跳过）',
+                '',
+                '> 🟢 **仅涉及文档、静态资源或锁文件改动（可审查代码行数为 0），已跳过大模型调用，可直接参考确定性 CI 门禁结果。**',
+                '',
+                `- **模式**: 单段快检跳过（${model}）`,
+              ].join('\n'));
+              return;
+            }
+
+            const extractJson = (rawText) => {
+              let text = String(rawText || '').trim();
+              text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+              text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+              const start = text.indexOf('{');
+              const end = text.lastIndexOf('}');
+              if (start === -1 || end === -1 || end <= start) {
+                throw new Error('No JSON object boundaries found in model output');
+              }
+              return JSON.parse(text.slice(start, end + 1));
+            };
+
+            const callModel = async (messages, maxTokens = 4096) => {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 120000);
+              try {
+                const sendRequest = async (withDisableThinking) => {
+                  const bodyObj = {
+                    model,
+                    temperature: 0.1,
+                    max_tokens: maxTokens,
+                    messages,
+                    ...(withDisableThinking ? { enable_thinking: false } : {}),
+                  };
+                  return fetch(endpoint, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify(bodyObj),
+                  });
+                };
+                let resp = await sendRequest(true);
+                if (resp.status === 400) {
+                  const errText = await resp.text().catch(() => '');
+                  if (/enable_thinking|unknown|unexpected|unrecognized|extra_forbidden|invalid_request/i.test(errText)) {
+                    // Fallback for strict OpenAI-compatible providers that reject `enable_thinking`
+                    resp = await sendRequest(false);
+                  } else {
+                    console.log(`AI Review API returned HTTP 400 (${errText.slice(0, 200)}); skipping gracefully.`);
+                    return null;
+                  }
+                }
+                if (!resp.ok) {
+                  console.log(`AI Review API returned HTTP ${resp.status}; skipping gracefully.`);
+                  return null;
+                }
+                const data = await resp.json();
+                const content = data.choices?.[0]?.message?.content || '';
+                return extractJson(content);
+              } catch (err) {
+                console.log(`AI Review call failed gracefully: ${err && err.message ? err.message : err}`);
+                return null;
+              } finally {
+                clearTimeout(timer);
+              }
+            };
+
+            const filesSummary = Array.isArray(meta.changedFiles)
+              ? meta.changedFiles.map((f) => `- ${f.file} (+${f.added}/-${f.removed})`).join('\n')
+              : '';
+
+            const contextBlock = [
+              `PR 标题: ${meta.prTitle || '(无)'}`,
+              `基础分支: ${meta.baseRef || 'test'} | 可审查行数: ${meta.reviewableLines ?? 0}${meta.truncated ? ' (Diff 已截断至 18KB)' : ''}`,
+              '变更文件:',
+              filesSummary || '(无)',
+              '',
+              'PR 正文摘要（含提交者给出的验证产物）:',
+              meta.prBodySnippet || '(空)',
+              '',
               '```diff',
               diffText,
               '```',
             ].join('\n');
 
-            const resp = await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiKey}`,
-              },
-              body: JSON.stringify({
-                model: 'deepseek-chat',
-                temperature: 0.1,
-                response_format: { type: 'json_object' },
-                messages: [{ role: 'user', content: prompt }],
-              }),
-            });
+            const pass1Prompt = [
+              '你是 Vmark 桌面端仓库（Electron + React + TypeScript + pnpm monorepo）的严格代码与安全审查员，面向单人维护者提供高信噪比中文审阅意见。',
+              '请严格忽略代码风格、命名偏好、注释多少等废话，只重点排查以下 5 类真问题：',
+              '(a) 逻辑错误、空指针/未定义崩溃、状态丢失、异步竞态；',
+              '(b) 跨端契约或白名单/ID 不一致（packages/shared ↔ preload ↔ main ↔ renderer）；',
+              '(c) 凭据/Cookie/API Key/路径穿越泄露（严禁明文 Key 或绕过 safeStorage）；',
+              '(d) 测试反作弊（.skip/.only/as any/删断言/假修复/空 catch 吞异常）；',
+              '(e) 涉及 UI 或分发逻辑改动时，PR 正文是否缺失对应验证产物或测试说明。',
+              '最多输出 5 条最关键问题，每条字段精炼在 80 字以内，避免 JSON 冗长截断。',
+              '',
+              '严格只输出合法 JSON（不要 Markdown 围栏，不要额外解释），字段结构如下：',
+              '{',
+              '  "plainSummaryZh": "2-3句中文大白话说明改了什么、影响哪些功能",',
+              '  "manualCheckChecklist": ["人工1分钟验收步骤1", "步骤2"],',
+              '  "candidateFindings": [',
+              '    {',
+              '      "severity": "critical 或 warning",',
+              '      "file": "相对路径",',
+              '      "lineHint": "大致行号或函数名",',
+              '      "title": "问题简述",',
+              '      "impact": "不修会导致什么用户可见故障或安全后果",',
+              '      "evidence": "diff 中的具体代码证据",',
+              '      "fix": "具体修法"',
+              '    }',
+              '  ]',
+              '}',
+              '',
+              contextBlock,
+            ].join('\n');
 
-            if (!resp.ok) {
-              console.log(`AI Review API returned HTTP ${resp.status}; skipping gracefully.`);
-              return;
+            const pass1 = await callModel([
+              { role: 'system', content: 'You output strict JSON only, in simplified Chinese.' },
+              { role: 'user', content: pass1Prompt },
+            ]);
+            if (!pass1) return;
+
+            const candidateFindings = Array.isArray(pass1.candidateFindings) ? pass1.candidateFindings : [];
+            let plainSummaryZh = String(pass1.plainSummaryZh || '已分析本次改动。');
+            let manualCheckChecklist = Array.isArray(pass1.manualCheckChecklist) ? pass1.manualCheckChecklist : [];
+            let verifiedFindings = [];
+            let filteredFalsePositivesCount = 0;
+            let approvalAdvice = 'APPROVE_OK';
+            let modeLabel = '单段初检（零疑点，省额度跳过复核）';
+
+            if (candidateFindings.length > 0) {
+              modeLabel = '双段交叉审查（Bug 狩猎 + 独立去误报）';
+              const pass2Prompt = [
+                '你是独立第二双眼睛审校员（False-Positive Filter），职责是审核 Pass 1 找出的候选问题，剔除误报与风格噪音，只保留有确凿代码证据的真 Bug。',
+                '规则：',
+                '1. 若某条候选问题属于代码风格吹毛求疵、毫无依据的猜测、或已在 diff 别处处理缓解，必须剔除并计入 filteredFalsePositivesCount；',
+                '2. 仅保留 diff 中有明确证据支撑的 critical（功能崩溃/数据丢失/安全/假修复）或 warning（边界/体验/测试不足）问题；',
+                '3. 结合终审结果给出 approvalAdvice：存在 critical 选 "DO_NOT_APPROVE"；仅有 warning 选 "REVIEW_WARNINGS"；无问题选 "APPROVE_OK"。',
+                '4. 润色 plainSummaryZh 与 manualCheckChecklist，让不懂底层细节的人类维护者也能 1 分钟看懂并验收。',
+                '5. 最多输出 5 条最关键问题，每条字段精炼在 80 字以内，避免 JSON 冗长截断。',
+                '',
+                'Pass 1 候选结果 JSON：',
+                JSON.stringify(pass1, null, 2),
+                '',
+                '原始 Diff 与上下文：',
+                contextBlock,
+                '',
+                '严格只输出合法 JSON：',
+                '{',
+                '  "plainSummaryZh": "...",',
+                '  "manualCheckChecklist": ["..."],',
+                '  "verifiedFindings": [',
+                '    { "severity": "critical|warning", "file": "...", "lineHint": "...", "title": "...", "impact": "...", "evidence": "...", "fix": "..." }',
+                '  ],',
+                '  "filteredFalsePositivesCount": 0,',
+                '  "approvalAdvice": "APPROVE_OK | REVIEW_WARNINGS | DO_NOT_APPROVE"',
+                '}',
+              ].join('\n');
+
+              const pass2 = await callModel([
+                { role: 'system', content: 'You are a strict verification reviewer. Output strict JSON only in simplified Chinese.' },
+                { role: 'user', content: pass2Prompt },
+              ]);
+              if (pass2) {
+                plainSummaryZh = String(pass2.plainSummaryZh || plainSummaryZh);
+                if (Array.isArray(pass2.manualCheckChecklist) && pass2.manualCheckChecklist.length > 0) {
+                  manualCheckChecklist = pass2.manualCheckChecklist;
+                }
+                verifiedFindings = Array.isArray(pass2.verifiedFindings) ? pass2.verifiedFindings : [];
+                filteredFalsePositivesCount = Number.isFinite(Number(pass2.filteredFalsePositivesCount))
+                  ? Number(pass2.filteredFalsePositivesCount)
+                  : Math.max(0, candidateFindings.length - verifiedFindings.length);
+                if (['APPROVE_OK', 'REVIEW_WARNINGS', 'DO_NOT_APPROVE'].includes(pass2.approvalAdvice)) {
+                  approvalAdvice = pass2.approvalAdvice;
+                }
+              } else {
+                verifiedFindings = candidateFindings;
+                approvalAdvice = candidateFindings.some((f) => f && f.severity === 'critical')
+                  ? 'DO_NOT_APPROVE'
+                  : candidateFindings.length > 0
+                    ? 'REVIEW_WARNINGS'
+                    : 'APPROVE_OK';
+              }
             }
-            const data = await resp.json();
-            const content = data.choices?.[0]?.message?.content || '{}';
-            let parsed = { summary: '', findings: [], escalateToHigh: false };
-            try {
-              parsed = JSON.parse(content);
-            } catch {
-              console.log('AI Review response was not valid JSON; skipping gracefully.');
-              return;
-            }
 
-            const findingsMd = Array.isArray(parsed.findings) && parsed.findings.length > 0
-              ? parsed.findings.map((f) => `- ${f}`).join('\n')
-              : '- 未发现明显安全或架构阻断项。';
+            const criticalItems = verifiedFindings.filter((f) => f && f.severity === 'critical');
+            const warningItems = verifiedFindings.filter((f) => f && f.severity !== 'critical');
+            const hasCritical = criticalItems.length > 0;
 
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: meta.prNumber,
-              body: `### 🤖 AI Diff Review (Fork-Safe Isolated)\n\n${parsed.summary || ''}\n\n${findingsMd}\n\n${parsed.escalateToHigh ? '> ⚠️ **已单向升级为 `risk:high`**，需 @' + owner + ' 人工 `/approve`。' : ''}`,
-            });
+            if (hasCritical) approvalAdvice = 'DO_NOT_APPROVE';
+            else if (warningItems.length > 0 && approvalAdvice === 'APPROVE_OK') approvalAdvice = 'REVIEW_WARNINGS';
+            else if (verifiedFindings.length === 0) approvalAdvice = 'APPROVE_OK';
+
+            const banner =
+              approvalAdvice === 'DO_NOT_APPROVE'
+                ? '🔴 **发现阻断 Bug，已单向升级为 `risk:high`，请先修复再 `/approve`**'
+                : approvalAdvice === 'REVIEW_WARNINGS'
+                  ? '🟡 **无阻断故障，有若干关注项，请结合验证产物决定是否 `/approve`**'
+                  : '🟢 **未发现实质性逻辑/安全问题，可放心结合下方清单决策 `/approve`**';
+
+            const checklistMd =
+              manualCheckChecklist.length > 0
+                ? manualCheckChecklist.map((item) => `- [ ] ${item}`).join('\n')
+                : '- [ ] 核对 PR 正文验证产物与确定性 CI 绿灯即可。';
+
+            const formatFinding = (f, icon) =>
+              `- ${icon} **${f.title || '待核查项'}**（\`${f.file || 'unknown'}\` @ ${f.lineHint || '-'}）\n  - **后果**：${f.impact || '-'}\n  - **证据**：\`${String(f.evidence || '-').replace(/`/g, "'").slice(0, 220)}\`\n  - **建议修法**：${f.fix || '-'}`;
+
+            const findingsLines = [];
+            for (const f of criticalItems) findingsLines.push(formatFinding(f, '🔴 必须修'));
+            for (const f of warningItems) findingsLines.push(formatFinding(f, '🟡 建议关注'));
+            const findingsMd =
+              findingsLines.length > 0 ? findingsLines.join('\n') : '- ✅ 未发现需要阻断或特别关注的真实缺陷。';
+
+            const commentBody = [
+              MARKER,
+              '### 🤖 AI Diff Review（Fork 安全隔离 · 第二双眼睛）',
+              '',
+              `> ${banner}`,
+              '',
+              '#### 一、改动大白话说明',
+              plainSummaryZh,
+              '',
+              '#### 二、人工 1 分钟验收清单',
+              checklistMd,
+              '',
+              '#### 三、已核实问题',
+              findingsMd,
+              '',
+              '---',
+              `模式: ${modeLabel} | 模型: \`${model}\` | 已过滤误报: ${filteredFalsePositivesCount} 条`,
+              hasCritical ? `\n> ⚠️ 已根据严重 Bug 自动维持/升级 \`risk:high\`，需 @${owner} 确认修复后再 \`/approve\`。` : '',
+            ]
+              .filter((line) => line !== undefined)
+              .join('\n');
+
+            await upsertComment(commentBody);
 
             // Monotonic escalation ONLY: never downgrade risk:high
-            if (parsed.escalateToHigh === true) {
+            if (hasCritical) {
               await github.rest.issues.removeLabel({ owner, repo, issue_number: meta.prNumber, name: 'risk:low' }).catch(() => {});
               await github.rest.issues.removeLabel({ owner, repo, issue_number: meta.prNumber, name: 'risk:mid' }).catch(() => {});
               await github.rest.issues.addLabels({ owner, repo, issue_number: meta.prNumber, labels: ['risk:high'] });

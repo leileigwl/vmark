@@ -278,8 +278,23 @@ export function handleEditorPasteCapture(e: ClipboardEvent, instance: Vditor): v
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    const stripped = plain.replace(/^>\s?/gm, '');
-    document.execCommand('insertText', false, stripped);
+    const stripped = plain.replace(/\r\n?/g, '\n').replace(/^>\s?/gm, '');
+    if (!stripped.includes('\n')) {
+      document.execCommand('insertText', false, stripped);
+      return;
+    }
+    // execCommand('insertText') turns each "\n" into a new paragraph (= an extra blank "> " line in the file);
+    // insert a raw text node so Vditor keeps the soft line breaks of the quoted paragraph.
+    const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    if (!range) return;
+    range.deleteContents();
+    const textNode = document.createTextNode(stripped);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    textNode.parentElement?.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertFromPaste' }));
     return;
   }
 

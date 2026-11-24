@@ -22,18 +22,46 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          git diff --unified=2 "origin/${BASE_REF}...HEAD" > full.diff || true
-          head -c 32000 full.diff > pr.diff
-          node -e "
-            const fs = require('node:fs');
-            fs.writeFileSync('meta.json', JSON.stringify({
+          git diff --unified=1 "origin/${BASE_REF}...HEAD" -- . ':!pnpm-lock.yaml' ':!docs/assets/**' ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.webp' ':!*.svg' > full.diff || true
+          head -c 18000 full.diff > pr.diff
+          git diff --numstat "origin/${BASE_REF}...HEAD" > numstat.txt || true
+          node -e '
+            const fs = require("node:fs");
+            const numstatRaw = fs.readFileSync("numstat.txt", "utf8");
+            const SKIP_RE = /^(docs\/|openspec\/)|\.md$|\.(png|jpe?g|webp|svg|ico)$|^pnpm-lock\.yaml$/i;
+            const changedFiles = [];
+            let reviewableLines = 0;
+            for (const line of numstatRaw.split("\n")) {
+              if (!line.trim()) continue;
+              const parts = line.split("\t");
+              if (parts.length < 3) continue;
+              const added = Number.parseInt(parts[0], 10) || 0;
+              const removed = Number.parseInt(parts[1], 10) || 0;
+              const file = parts.slice(2).join("\t");
+              changedFiles.push({ file, added, removed });
+              if (!SKIP_RE.test(file)) {
+                reviewableLines += added + removed;
+              }
+            }
+            const rawBody = (process.env.PR_BODY || "").slice(0, 2000);
+            const sanitizedBody = rawBody
+              .replace(/\b(sk-[A-Za-z0-9_\-=]{8,}|gh[pousr]_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_\-]{12,})\b/g, "[REDACTED]")
+              .replace(/(Bearer\s+)[A-Za-z0-9._\-=]{8,}/gi, "$1[REDACTED]")
+              .replace(/((?:api[_-]?key|token|cookie|secret|password)\s*[:=]\s*)\S{4,}/gi, "$1[REDACTED]");
+            fs.writeFileSync("meta.json", JSON.stringify({
               prNumber: Number(process.env.PR_NUMBER),
               baseRef: process.env.BASE_REF,
               headSha: process.env.HEAD_SHA,
-              truncated: fs.statSync('full.diff').size > 32000
+              prTitle: process.env.PR_TITLE || "",
+              prBodySnippet: sanitizedBody,
+              changedFiles,
+              reviewableLines,
+              truncated: fs.statSync("full.diff").size > 18000,
             }));
-          "
+          '
 
       - name: Upload diff artifact
         uses: actions/upload-artifact@v4

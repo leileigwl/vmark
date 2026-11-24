@@ -173,43 +173,6 @@ export function renderLatexBlocks(el: HTMLElement, cdnBase: string): void {
   });
 }
 
-export function normalizeEmojiAndCalloutIcons(el: HTMLElement): void {
-  const resetEl = el.querySelector('.vditor-ir .vditor-reset');
-  if (!resetEl) return;
-  const activeNode = window.getSelection()?.anchorNode ?? null;
-  const MONO_TO_COLOR_RE =
-    /([\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u203C\u2049\u{1F5C2}\u{1F3D7}\u{1F6E0}\u{1F5BC}\u{1F441}\u{1F3F7}\u{1F5DD}\u{1F5C3}\u{1F5C4}\u{1F5D1}\u{1F5D3}\u{1F5D2}])(?!\uFE0F)/gu;
-  const TIGHT_INLINE_ICON_RE =
-    /((?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?)(?=[\p{Script=Han}A-Za-z0-9])/gu;
-  const ENDS_WITH_ICON_RE =
-    /(?:[\u26A0\u23F1\u23F2\u23F0\u2699\u2696\u270D\u26F0\u26A1\u2139\u2764\u2708\u2702\u270F\u2600\u2601\u2602\u2603\u2611\u267B\u2714\u2716\u{1F300}-\u{1FAFF}])\uFE0F?$/u;
-
-  const walker = document.createTreeWalker(resetEl, NodeFilter.SHOW_TEXT);
-  let tNode = walker.nextNode() as Text | null;
-  while (tNode) {
-    if (
-      tNode !== activeNode &&
-      !tNode.parentElement?.closest('pre:not(.vditor-reset), code, .katex, .vditor-ir__marker')
-    ) {
-      const orig = tNode.nodeValue || '';
-      let nextVal = orig.replace(MONO_TO_COLOR_RE, '$1\uFE0F');
-      nextVal = nextVal.replace(TIGHT_INLINE_ICON_RE, '$1 ');
-      if (
-        ENDS_WITH_ICON_RE.test(nextVal) &&
-        tNode.nextSibling instanceof Element &&
-        tNode.nextSibling.tagName !== 'BR' &&
-        !(tNode.nextSibling.textContent || '').startsWith(' ')
-      ) {
-        nextVal = `${nextVal} `;
-      }
-      if (nextVal !== orig) {
-        tNode.nodeValue = nextVal;
-      }
-    }
-    tNode = walker.nextNode() as Text | null;
-  }
-}
-
 export function cleanEmptyInlineNodes(el: HTMLElement): void {
   const sel = window.getSelection();
   const anchorNode = sel?.anchorNode ?? null;

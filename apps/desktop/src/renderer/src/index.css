@@ -2,6 +2,7 @@
 @import "vditor/dist/index.css";
 @import "../public/vditor/dist/js/katex/katex.min.css";
 @import "./styles/themes.css";
+@import "./styles/ui-tokens.css";
 @import "./styles/editor.css";
 @import "./styles/mermaid.css";
 

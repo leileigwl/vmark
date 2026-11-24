@@ -1,5 +1,7 @@
 import type { PlatformId, ThemeId } from '@vcat/shared';
 import { VISIBLE_PLATFORM_CATALOG } from '../../features/publish-drawer';
+import { AccountsPanel, usePlatformAuth } from '../../features/platform-auth';
+import { SPEC_BY_ID } from '../../features/publish-flow';
 
 const THEME_ITEMS: Array<{ id: ThemeId; name: string; desc: string }> = [
   { id: 'apple-light', name: 'Apple Light（默认）', desc: 'SF Pro · 系统蓝' },
@@ -89,75 +91,24 @@ export function SettingsThemeSection({
   );
 }
 
-/** Multi-platform sandbox authentication status & built-in isolated browser panel. */
-export function SettingsPlatformsSection({
-  authStates,
-  onPlatformLogin,
-  onPlatformLogout,
-}: {
-  authStates: Partial<Record<PlatformId, boolean>>;
-  onPlatformLogin: (platformId: PlatformId) => void;
-  onPlatformLogout?: (platformId: PlatformId) => void;
-}) {
+/** 设置 → 平台账号。状态统一来自 usePlatformAuth，与发布窗口一致。 */
+export function SettingsPlatformsSection() {
+  const auth = usePlatformAuth();
+  const platforms = VISIBLE_PLATFORM_CATALOG.filter((p) => p.id !== 'github_static').map((p) => ({
+    id: p.id,
+    name: SPEC_BY_ID[p.id]?.name ?? p.name,
+  }));
   return (
-    <div className="max-w-3xl">
-      <h2 className="text-base font-semibold">外部平台隔离沙箱托管</h2>
-      <p className="mt-1 mb-4 text-xs text-[var(--control-text-color)]">
-        每个平台运行在 Vmark 内嵌独立浏览器环境（独立 <code>persist:platform_*</code> 存储分区 + 独立指纹参数），Cookie 本地持久化不串号。
-      </p>
-      <div className="divide-y divide-[var(--border-color)] rounded border border-[var(--border-color)]">
-        {VISIBLE_PLATFORM_CATALOG.map((p) => {
-          const online = Boolean(authStates[p.id]);
-          return (
-            <div
-              key={p.id}
-              className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-hover)]"
-            >
-              <div>
-                <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
-                  <span>{p.name}</span>
-                  {p.authChannel === 'isolated_profile' && (
-                    <span className="rounded-full bg-[#ddf4ff] px-2 py-0.5 text-[10px] font-medium text-[#0969da]">
-                      独立内嵌环境
-                    </span>
-                  )}
-                  {online ? (
-                    <span className="rounded-full bg-[#dafbe1] px-2 py-0.5 text-[11px] text-[#116329]">
-                      ● 已授权
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--control-text-color)]">
-                      未登录
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 text-[11px] text-[var(--control-text-color)]">
-                  默认模式：{p.defaultMode === 'draft' ? '推入草稿箱' : '直接发布'} · 参考：{p.referenceSource}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {online && (
-                  <button
-                    type="button"
-                    onClick={() => onPlatformLogout?.(p.id)}
-                    title="清除该平台沙箱内所有持久化 Cookie 并退出登录"
-                    className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-2.5 py-1 text-xs text-red-500 hover:border-red-500 hover:bg-red-500/10 cursor-pointer"
-                  >
-                    退出授权
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onPlatformLogin(p.id)}
-                  className="rounded border border-[var(--border-color)] bg-[var(--bg-elevated)] px-3 py-1 text-xs hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                >
-                  {online ? '在内置浏览器中打开' : '打开内置浏览器授权'}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <AccountsPanel
+      platforms={platforms}
+      status={auth.status}
+      checking={auth.snapshot.checking}
+      lastCheckedAt={auth.snapshot.lastCheckedAt}
+      error={auth.snapshot.error}
+      onRefresh={() => void auth.refresh()}
+      onSignIn={(id) => void auth.signIn(id)}
+      onOpenDashboard={(id) => void auth.openDashboard(id)}
+      onSignOut={(id) => void auth.signOut(id)}
+    />
   );
 }

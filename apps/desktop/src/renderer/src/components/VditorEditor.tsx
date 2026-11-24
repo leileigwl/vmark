@@ -11,12 +11,11 @@ import {
   cleanStrayCodeBlockFences as cleanStrayCodeBlockFencesInEl,
   cleanupUnusedTempGapParagraphs as cleanupUnusedTempGapParagraphsInEl,
   ensureCodeBlockInfoMarkers as ensureCodeBlockInfoMarkersInEl,
-  normalizeEmojiAndCalloutIcons,
   renderLatexBlocks as renderLatexBlocksInEl,
   rerenderBrokenMermaid as rerenderBrokenMermaidInEl,
 } from '../editor/vditorDomEnhancer';
 import type { FindOptions } from '../editor/vditorFindHelpers';
-import { createVditorImperativeHandle } from '../editor/vditorHandleFactory';
+import { createVditorImperativeHandle, type EditorHandleExtras } from '../editor/vditorHandleFactory';
 import {
   collapseExpandedCodeBlocksInEl,
   collectCodeCopyOverlays,
@@ -36,7 +35,7 @@ import { TableSizePicker } from './TableSizePicker';
 
 export type { FindOptions };
 
-export interface VditorEditorHandle {
+export interface VditorEditorHandle extends EditorHandleExtras {
   applyFormat: (cmd: string) => void;
   applyTableAction: (action: string) => void;
   applyImageAction: (action: string) => void;
@@ -265,7 +264,6 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
         ensureCodeBlockInfoMarkers();
         cleanStrayCodeBlockFences();
         cleanEmptyInlineNodes(el);
-        normalizeEmojiAndCalloutIcons(el);
         syncCodeCopyOverlays();
         applyCodeSyntaxHighlights(el);
         renderLatexBlocks();
@@ -375,6 +373,8 @@ export const VditorEditor = forwardRef<VditorEditorHandle, VditorEditorProps>(
     }, []);
 
     useEffect(() => {
+      // 换了文章：上一篇还在 320ms 防抖里的 onChange 作废（切换前 flushActiveArticle 已直接读编辑器落盘），否则它会把上一篇的文字报成这一篇的。
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       const instance = vditorRef.current;
       if (!instance || !isReadyRef.current) return;
       try {

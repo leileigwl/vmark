@@ -24,11 +24,31 @@ export async function publishCnblogsWebDraft(params: {
 
   const sFetch = createSessionFetch(cnblogsSession);
   await sFetch('https://i.cnblogs.com/posts/edit', {
-    headers: { Referer: 'https://i.cnblogs.com/' },
+    headers: {
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: 'https://i.cnblogs.com/',
+    },
+  }).catch(() => {});
+  await sFetch('https://i.cnblogs.com/api/user', {
+    headers: {
+      Accept: 'application/json',
+      Referer: 'https://i.cnblogs.com/posts/edit',
+    },
   }).catch(() => {});
 
-  const xsrfCookies = await cnblogsSession.cookies.get({ name: 'XSRF-TOKEN' });
-  const xsrfToken = xsrfCookies[0]?.value ?? '';
+  const urlCookies = await cnblogsSession.cookies.get({
+    url: 'https://i.cnblogs.com',
+    name: 'XSRF-TOKEN',
+  });
+  const fallbackCookies =
+    urlCookies.length > 0 ? urlCookies : await cnblogsSession.cookies.get({ name: 'XSRF-TOKEN' });
+  const rawXsrf = fallbackCookies[0]?.value ?? '';
+  let xsrfToken = rawXsrf;
+  try {
+    xsrfToken = decodeURIComponent(rawXsrf);
+  } catch {
+    xsrfToken = rawXsrf;
+  }
 
   const uploadCnblogsImage = async (buffer: Buffer, fileName: string): Promise<string> => {
     if (cfg.imageBed.strategy === 'custom_oss' && cfg.imageBed.provider) {
@@ -43,6 +63,7 @@ export async function publishCnblogsWebDraft(params: {
       headers: {
         Origin: 'https://i.cnblogs.com',
         Referer: 'https://i.cnblogs.com/',
+        'X-Requested-With': 'XMLHttpRequest',
         ...(xsrfToken ? { 'x-xsrf-token': xsrfToken } : {}),
       },
       body: form,
@@ -73,6 +94,7 @@ export async function publishCnblogsWebDraft(params: {
       'Content-Type': 'application/json;charset=UTF-8',
       Origin: 'https://i.cnblogs.com',
       Referer: 'https://i.cnblogs.com/posts/edit',
+      'X-Requested-With': 'XMLHttpRequest',
       ...(xsrfToken ? { 'x-xsrf-token': xsrfToken } : {}),
     },
     body: JSON.stringify({
@@ -95,6 +117,8 @@ export async function publishCnblogsWebDraft(params: {
     }
     if (errMsg.includes('您没有开通博客')) {
       errMsg = '博客园账号尚未开通个人博客空间，请访问 https://i.cnblogs.com/ 申请开通后重试';
+    } else if (errMsg.includes('会话校验失败') || res.status === 401 || res.status === 403) {
+      errMsg = `${errMsg}（请点击右侧「内置浏览器」进入博客园后台刷新会话后重试）`;
     }
     return { platformId: 'cnblogs', ok: false, mode: 'draft', message: `博客园发布接口返回失败: ${errMsg}` };
   }

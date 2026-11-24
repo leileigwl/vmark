@@ -7,6 +7,17 @@ import { applyFormatAction, applyImageActionInEditor, insertTableWithSizeAction 
 import { clearFindHighlightsInDoc, findMatchesInEl, jumpToMatchInEl, type FindOptions } from './vditorFindHelpers';
 import type { LightboxPayload } from '../components/MediaLightbox';
 
+/** Handle members declared here so VditorEditor.tsx (ratcheted) does not grow. */
+export interface EditorHandleExtras {
+  /**
+   * How the editor itself would re-serialize `md` (Lute: Markdown → IR DOM → Markdown, with this
+   * editor's options). Null before the editor is ready. Used to tell user edits from normalization.
+   */
+  normalizeMarkdown: (md: string) => string | null;
+}
+
+type LuteRoundTrip = { Md2VditorIRDOM: (md: string) => string; VditorIRDOM2Md: (html: string) => string };
+
 type UndoableVditor = {
   getValue?: () => string;
   vditor?: {
@@ -73,6 +84,11 @@ export function createVditorImperativeHandle(ctx: {
     getValue() {
       const instance = ctx.vditorRef.current;
       return instance && ctx.isReadyRef.current ? instance.getValue() : ctx.getFallbackValue();
+    },
+    normalizeMarkdown(md: string) {
+      const instance = ctx.vditorRef.current as unknown as { vditor?: { lute?: LuteRoundTrip } } | null;
+      const lute = ctx.isReadyRef.current ? instance?.vditor?.lute : undefined;
+      return lute ? lute.VditorIRDOM2Md(lute.Md2VditorIRDOM(md)) : null;
     },
     getHTML() {
       const instance = ctx.vditorRef.current;

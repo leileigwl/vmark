@@ -13,5 +13,9 @@ apps/desktop/src/renderer/public/vditor/
 test-results/
 playwright-report/
 /screenshots/
+secret.txt
+*.secret.txt
+.env.*
+.harness/.last-violations.json
 
 

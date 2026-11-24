@@ -30,6 +30,7 @@ export function TableSizePicker({ onConfirm, onClose }: TableSizePickerProps) {
 
   return (
     <div
+      role="dialog" aria-modal="true"
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-[2px]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();

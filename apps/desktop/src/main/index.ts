@@ -4,8 +4,6 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { IPC_EVENT_CHANNELS } from '@vcat/shared';
-import { batchSyncHeartbeatResults } from './accountStore';
-import { checkPlatformAuthStates } from './publishHandlers';
 import {
   readAppConfig,
   recordRecentWorkspace,
@@ -15,10 +13,13 @@ import {
 } from './ipc/context';
 import {
   CHROME_DESKTOP_UA,
+  checkAuthStatesOnce,
   startHeartbeatEngine,
   stopHeartbeatEngine,
 } from './ipc/platform-auth/index';
 import { registerAllIpcHandlers } from './ipc/registry';
+import { protectEditorWindow } from './editorSafety';
+import { acceleratorPayload } from './menuAccelerator';
 
 export { CHROME_DESKTOP_UA };
 
@@ -66,6 +67,7 @@ function createWindow(): void {
   });
 
   activeMainWindow = mainWindow;
+  protectEditorWindow(mainWindow);
   mainWindow.on('closed', () => {
     if (activeMainWindow === mainWindow) activeMainWindow = null;
   });
@@ -83,10 +85,7 @@ function createWindow(): void {
   });
 
   mainWindow.on('focus', () => {
-    void checkPlatformAuthStates({ session, getAppConfig: readAppConfig }).then(async (states) => {
-      await batchSyncHeartbeatResults(states);
-      activeMainWindow?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, states);
-    });
+    void checkAuthStatesOnce({ readAppConfig, getMainWindow: () => activeMainWindow }).catch((err) => console.warn('[platform-auth] 聚焦时检测失败', err));
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -123,7 +122,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
             submenu: [
               { label: '关于 Vmark（维记）', role: 'about' as const },
               { type: 'separator' as const },
-              { label: '偏好设置...', accelerator: 'Cmd+,', click: () => sendMenuAction('view:settings') },
+              { label: '偏好设置...', accelerator: 'Cmd+,', click: (_m: unknown, _w: unknown, e: Electron.KeyboardEvent) => sendMenuAction('view:settings', acceleratorPayload(e)) },
               { type: 'separator' as const },
               { label: '隐藏', role: 'hide' as const },
               { label: '退出', role: 'quit' as const },
@@ -134,7 +133,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
     {
       label: '文件',
       submenu: [
-        { label: '新建文章', accelerator: 'CmdOrCtrl+N', click: () => sendMenuAction('file:new') },
+        { label: '新建文章', accelerator: 'CmdOrCtrl+N', click: (_m, _w, e) => sendMenuAction('file:new', acceleratorPayload(e)) },
         { label: '新建窗口', accelerator: 'CmdOrCtrl+Shift+N', click: () => createWindow() },
         { type: 'separator' },
         { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
@@ -142,7 +141,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
         { label: '打开最近文件', submenu: recentSubmenu },
         { type: 'separator' },
         { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', click: () => BrowserWindow.getFocusedWindow()?.close() },
-        { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('file:save') },
+        { label: '保存', accelerator: 'CmdOrCtrl+S', click: (_m, _w, e) => sendMenuAction('file:save', acceleratorPayload(e)) },
         { label: '在 Finder 中显示', click: () => sendMenuAction('file:reveal') },
         {
           label: '导出',
@@ -170,7 +169,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
         { label: '粘贴为纯文本', accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
         { label: '全选', role: 'selectAll' },
         { type: 'separator' },
-        { label: '查找与替换...', accelerator: 'CmdOrCtrl+F', click: () => sendMenuAction('editor:find') },
+        { label: '查找与替换...', accelerator: 'CmdOrCtrl+F', click: (_m, _w, e) => sendMenuAction('editor:find', acceleratorPayload(e)) },
       ],
     },
     {
@@ -204,7 +203,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
     {
       label: '显示',
       submenu: [
-        { label: '显示 / 隐藏侧边栏', accelerator: 'CmdOrCtrl+Shift+L', click: () => sendMenuAction('view:toggleSidebar') },
+        { label: '显示 / 隐藏侧边栏', accelerator: 'CmdOrCtrl+Shift+L', click: (_m, _w, e) => sendMenuAction('view:toggleSidebar', acceleratorPayload(e)) },
         { label: '大纲', accelerator: 'Ctrl+CmdOrCtrl+1', click: () => sendMenuAction('view:sideTab', 'outline') },
         { label: '文件树', accelerator: 'Ctrl+CmdOrCtrl+3', click: () => sendMenuAction('view:sideTab', 'files') },
         { type: 'separator' },

@@ -1,6 +1,48 @@
 import { useEffect, useState } from 'react';
 import type { ArticleMeta, EditorPreferences, ThemeId } from '@vcat/shared';
 import type { FindOptions, VditorEditorHandle } from '../../components/VditorEditor';
+import {
+  createAcceleratorEchoFilter,
+  createOnceGate,
+  installKeystrokeTracker,
+  isModalOpen,
+  resolveUndoTarget,
+  shouldBlockEditorCommand,
+  wasKeystrokeConsumed,
+} from './shortcutGuards';
+
+/** Menu actions whose accelerator is also handled by the renderer keydown listener. */
+const MENU_KEY_ECHO: Record<string, true> = {
+  'file:save': true,
+  'file:new': true,
+  'editor:find': true,
+  'view:settings': true,
+  'view:toggleSidebar': true,
+};
+const runOnce = createOnceGate(300);
+const acceleratorEcho = createAcceleratorEchoFilter();
+
+/** Edit ▸ Undo/Redo menu: acts only on what has focus; file ops only from the sidebar file tree. */
+function runMenuUndo(
+  isUndo: boolean,
+  editor: VditorEditorHandle | null,
+  undoFileOp: (() => Promise<void>) | null,
+  redoFileOp: (() => Promise<void>) | null
+): void {
+  const target = resolveUndoTarget();
+  if (target === 'native-field') {
+    document.execCommand(isUndo ? 'undo' : 'redo');
+    return;
+  }
+  const consumed = isUndo
+    ? wasKeystrokeConsumed('z', { shift: false })
+    : wasKeystrokeConsumed('z', { shift: true }) || wasKeystrokeConsumed('y');
+  if (consumed) return; // the focused owner already handled this exact keystroke
+  if (target === 'editor') {
+    if (isUndo) editor?.undo();
+    else editor?.redo();
+  } else if (target === 'file-tree') void (isUndo ? undoFileOp?.() : redoFileOp?.());
+}
 
 export interface EditorWorkspaceParams {
   editorRef: React.RefObject<VditorEditorHandle | null>;
@@ -47,6 +89,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
     openArticle,
     clearRecentArticles,
   } = params;
+  installKeystrokeTracker();
 
   const [editorPrefs, setEditorPrefs] = useState<EditorPreferences>(() => {
     try {
@@ -93,26 +136,26 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (!mod) return;
+      if (!mod || isModalOpen()) return;
       const key = e.key.toLowerCase();
-      if (key === 's') {
-        e.preventDefault();
-        const latest = editorRef.current?.getValue() ?? markdown;
-        void handleSaveArticle(latest);
-      } else if (key === 'l' && e.shiftKey) {
-        e.preventDefault();
-        setSidebarOpen((v) => !v);
-      } else if (key === 'f' && !e.shiftKey) {
-        e.preventDefault();
+      const action =
+        key === 's' ? 'file:save'
+        : key === 'l' && e.shiftKey ? 'view:toggleSidebar'
+        : key === 'f' && !e.shiftKey ? 'editor:find'
+        : key === 'n' && !e.shiftKey ? 'file:new'
+        : key === ',' ? 'view:settings'
+        : null;
+      if (!action) return;
+      e.preventDefault();
+      acceleratorEcho.noteKeystroke(action); // the menu accelerator may deliver this keystroke again
+      if (e.repeat || !runOnce(action)) return;
+      if (action === 'file:save') void handleSaveArticle(editorRef.current?.getValue() ?? markdown);
+      else if (action === 'view:toggleSidebar') setSidebarOpen((v) => !v);
+      else if (action === 'editor:find') {
         setActiveView('editor');
         setFindBarOpen((v) => !v);
-      } else if (key === 'n') {
-        e.preventDefault();
-        void handleCreateBlankArticle();
-      } else if (key === ',') {
-        e.preventDefault();
-        setActiveView('settings');
-      }
+      } else if (action === 'file:new') void handleCreateBlankArticle();
+      else setActiveView('settings');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -121,29 +164,17 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
   useEffect(() => {
     const onGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        if (isModalOpen('[data-vcat-quick-open]')) return;
         e.preventDefault();
         toggleQuickOpen();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
-        const k = e.key.toLowerCase();
-        const activeEl = document.activeElement as HTMLElement | null;
-        const inTextInput = Boolean(activeEl?.closest('input, textarea, .vditor-reset'));
-        if (!inTextInput) {
-          if (k === 'z' && !e.shiftKey) {
-            if (e.repeat) return;
-            e.preventDefault();
-            e.stopPropagation();
-            void undoFileOpRef.current?.();
-            return;
-          }
-          if ((k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey)) {
-            if (e.repeat) return;
-            e.preventDefault();
-            e.stopPropagation();
-            void redoFileOpRef.current?.();
-          }
-        }
+      const k = e.key.toLowerCase();
+      // Undo/redo is owned by whoever has focus (native field, editor, sidebar file tree).
+      // Anywhere else there is nothing to undo: swallow it so the menu echo cannot undo a file op.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (k === 'z' || k === 'y') && resolveUndoTarget() === 'none') {
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
     window.addEventListener('keydown', onGlobalKeyDown, true);
@@ -165,6 +196,14 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
   useEffect(() => {
     if (!window.electronAPI?.onMenuAction) return;
     return window.electronAPI.onMenuAction((action, payload) => {
+      if (action === 'edit:undo' || action === 'edit:redo') {
+        runMenuUndo(action === 'edit:undo', editorRef.current, undoFileOpRef.current, redoFileOpRef.current);
+        return;
+      }
+      if (acceleratorEcho.isEcho(action, payload)) return; // keydown already handled this keystroke
+      if (isModalOpen() && !action.startsWith('window:')) return;
+      if (action.startsWith('editor:') && action !== 'editor:find' && shouldBlockEditorCommand()) return;
+      if (MENU_KEY_ECHO[action] && !runOnce(action)) return;
       if (action === 'file:new') void handleCreateBlankArticle();
       else if (action === 'file:openWorkspace') void handleSelectWorkspace();
       else if (action === 'file:save') {
@@ -199,6 +238,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
       } else if (action === 'theme:set' && payload) {
         setTheme(payload as ThemeId);
       } else if (action === 'editor:format' && payload) {
+        if ((payload === 'bold' || payload === 'italic') && wasKeystrokeConsumed(payload[0])) return;
         setActiveView('editor');
         if (payload === 'table') setTableModalOpen(true);
         else editorRef.current?.applyFormat(payload);
@@ -211,16 +251,6 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
       } else if (action === 'editor:find') {
         setActiveView('editor');
         setFindBarOpen(true);
-      } else if (action === 'edit:undo') {
-        const activeEl = document.activeElement as HTMLElement | null;
-        if (activeEl?.closest('input, textarea')) document.execCommand('undo');
-        else if (activeEl?.closest('.vditor-reset')) editorRef.current?.undo();
-        else void undoFileOpRef.current?.();
-      } else if (action === 'edit:redo') {
-        const activeEl = document.activeElement as HTMLElement | null;
-        if (activeEl?.closest('input, textarea')) document.execCommand('redo');
-        else if (activeEl?.closest('.vditor-reset')) editorRef.current?.redo();
-        else void redoFileOpRef.current?.();
       } else if (action === 'window:fullscreen') setIsFullscreen(true);
       else if (action === 'window:unfullscreen') setIsFullscreen(false);
     });

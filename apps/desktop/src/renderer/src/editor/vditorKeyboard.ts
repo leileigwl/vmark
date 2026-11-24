@@ -1,13 +1,10 @@
 import type Vditor from 'vditor';
 import { handleCodeBlockIndentKey } from './codeBlockIndent';
+import { prepareListOutdent } from './listOutdentCaret';
 import { getCodeBlockLang } from './vditorDomEnhancer';
 import { handleBacktickKeyDown, handleInfoMarkerKeyDown } from './vditorKeyboardCodeBlock';
 import { handleEmptyPairBackspace, handleProtectedBlockDelete } from './vditorKeyboardProtectedDelete';
-import {
-  handleBracketAutoPair,
-  handleSpaceMarkdownSpin,
-  handleTableCellKeyDown,
-} from './vditorKeyboardSpaceAndPairs';
+import { handleBracketAutoPair, handleSpaceMarkdownSpin, handleTableCellKeyDown } from './vditorKeyboardSpaceAndPairs';
 
 export interface KeyboardCaptureContext {
   el: HTMLElement;
@@ -37,7 +34,8 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   const { el, instance } = ctx;
   const isImeComposing = e.isComposing || e.keyCode === 229;
   const targetNode = e.target as HTMLElement | null;
-  if (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA')) return;
+  // IME owns composition keys (candidate-confirm Enter, 中文标点 "(" …): never hijack them as newline/pairing.
+  if (isImeComposing || (targetNode && (targetNode.tagName === 'INPUT' || targetNode.tagName === 'TEXTAREA'))) return;
 
   if (ctx.readOnly) {
     if (
@@ -57,7 +55,6 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
   }
 
   if (ctx.slashMenuOpen && ctx.onSlashKeyDown(e)) return;
-
   const selInfo = window.getSelection();
   const selAnchorEl =
     selInfo?.anchorNode instanceof Element ? selInfo.anchorNode : selInfo?.anchorNode?.parentElement;
@@ -117,7 +114,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     return;
   }
 
-  if (!el.contains(targetNode)) return;
+  if (!el.contains(targetNode) || prepareListOutdent(e, el)) return;
   if (handleEmptyPairBackspace(e, ctx, isImeComposing)) return;
   if (handleProtectedBlockDelete(e, ctx, isImeComposing)) return;
   if (handleSpaceMarkdownSpin(e, ctx, isImeComposing)) return;

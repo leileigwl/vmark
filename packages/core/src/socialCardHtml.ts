@@ -1,9 +1,14 @@
 import type { XhsCardSection } from './xiaohongshuRenderer.ts';
+import type { CardBlock } from './socialCardBlocks.ts';
+import type { PlacedCardBlock } from './socialCardPaginate.ts';
+import { cardBlocksCss, cardFlowHtml, cardInlineHtml } from './socialCardBlocksHtml.ts';
+import { CARD_DESIGN_WIDTH, cardDesignHeight } from './socialCardLayout.ts';
+import { CARD_MATH_CSS, type CardMathRenderer } from './socialCardMath.ts';
 import {
+  CARD_CHROME_INSETS,
   GENRE_META,
   PLATFORM_COVER_SPECS,
   getSocialCardTheme,
-  type ContentGenre,
   type PlatformCoverRatio,
   type SocialCardTokens,
 } from './socialCardThemes.ts';
@@ -43,6 +48,8 @@ export function formatInlineMarkdown(rawText: string, tokens: SocialCardTokens):
     .replace(/\*([^*\n]+)\*/g, `<em style="font-style:italic;opacity:0.92;">$1</em>`);
 }
 
+const esc = escapeHtml;
+
 export interface RenderCardHtmlOptions {
   themeId?: string;
   cardIndex: number;
@@ -50,213 +57,194 @@ export interface RenderCardHtmlOptions {
   brandName?: string;
   aspectRatio?: PlatformCoverRatio;
   timestamp?: string;
+  /** Show "n / total" in the footer (default true). */
+  showPageNumber?: boolean;
+  /** Optional brand / signature shown in the footer and on the cover. */
+  footerBrand?: string;
+  /** Renders `$…$` / `$$…$$` (KaTeX in the app); without it formulas use a Unicode approximation. */
+  math?: CardMathRenderer;
 }
 
-function renderQuoteBlock(quoteHtml: string, tokens: SocialCardTokens): string {
-  return `<div style="background:${tokens.quoteBg};border-left:6px solid ${tokens.lineStrong};border-radius:12px;padding:18px 24px;margin:8px 0 24px 0;font-style:italic;font-size:28px;line-height:1.68;color:${tokens.textSecondary};">${quoteHtml}</div>`;
-}
-
-function renderFlowingDocumentContent(
-  card: XhsCardSection,
-  tokens: SocialCardTokens,
-  pageNumber: string,
-  isLandscape: boolean
-): string {
+/** Cards built before block flow (or by hand) only carry text lines: turn them into blocks. */
+function legacyBlocks(card: XhsCardSection): PlacedCardBlock[] {
+  const out: CardBlock[] = [{ kind: 'heading', level: 2, text: card.title }];
+  if (card.quote) out.push({ kind: 'quote', text: card.quote });
   if (card.type === 'code') {
-    const maxLineLen = card.bodyLines.reduce((m, l) => Math.max(m, l.length), 0);
-    const codeFontSize = maxLineLen > 54 ? 20 : maxLineLen > 44 ? 22 : 24;
-    const boxBg = '#18181B';
-    const boxInk = '#F4F4F5';
-    const boxBorder = 'rgba(24,24,27,0.15)';
-
-    const codeRows = card.bodyLines
-      .map((line, idx) => {
-        const lineNum = String(idx + 1).padStart(2, '0');
-        return `<tr>
-          <td style="color:#71717A;user-select:none;padding:3px 16px 3px 0;text-align:right;font-size:${codeFontSize - 2}px;font-family:${tokens.fontCode};border-right:1px solid rgba(255,255,255,0.12);width:44px;vertical-align:top;line-height:1.6;">${lineNum}</td>
-          <td style="padding:3px 0 3px 18px;color:${boxInk};font-size:${codeFontSize}px;font-family:${tokens.fontCode};white-space:pre-wrap;overflow-wrap:break-word;word-break:normal;line-height:1.6;vertical-align:top;">${escapeHtml(line)}</td>
-        </tr>`;
-      })
-      .join('');
-
-    return `
-      <div style="display:flex;flex-direction:column;gap:22px;">
-        <h2 style="font-size:44px;font-weight:800;line-height:1.3;color:${tokens.headingInk};font-family:${tokens.fontDisplay};margin:0;">${escapeHtml(card.title)}</h2>
-        ${card.quote ? renderQuoteBlock(formatInlineMarkdown(card.quote, tokens), tokens) : ''}
-        <div style="background:${boxBg};border:1.5px solid ${boxBorder};border-radius:18px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,0.14);">
-          <div style="background:rgba(255,255,255,0.05);padding:14px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);">
-            <div style="display:flex;align-items:center;gap:9px;">
-              <span style="width:13px;height:13px;border-radius:50%;background:${tokens.windowDotRed};display:inline-block;"></span>
-              <span style="width:13px;height:13px;border-radius:50%;background:${tokens.windowDotYellow};display:inline-block;"></span>
-              <span style="width:13px;height:13px;border-radius:50%;background:${tokens.windowDotGreen};display:inline-block;"></span>
-            </div>
-            <span style="font-size:17px;font-weight:700;color:#A1A1AA;font-family:${tokens.fontCode};text-transform:uppercase;">${escapeHtml(card.codeLang || 'typescript')}</span>
-          </div>
-          <div style="padding:24px 22px;">
-            <table style="border-collapse:collapse;width:100%;">${codeRows}</table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  const isFirstPage = card.type === 'cover';
-  const titleFontSize = isLandscape ? '44px' : isFirstPage ? '56px' : '44px';
-  const blocks: string[] = [
-    `<h1 style="font-size:${titleFontSize};font-weight:800;line-height:1.3;color:${tokens.headingInk};font-family:${tokens.fontDisplay};margin:0 0 18px 0;letter-spacing:${tokens.letterSpacing};">${escapeHtml(card.title)}</h1>`,
-  ];
-
-  if (card.quote) {
-    blocks.push(renderQuoteBlock(formatInlineMarkdown(card.quote, tokens), tokens));
-  }
-
-  if (isFirstPage && card.subtitle && !isLandscape) {
-    blocks.push(
-      `<h2 style="font-size:38px;font-weight:800;line-height:1.35;color:${tokens.headingInk};font-family:${tokens.fontDisplay};margin:10px 0 16px 0;">${escapeHtml(card.subtitle)}</h2>`
-    );
-  }
-
-  const maxLines = isLandscape ? 2 : 6;
-  for (const rawLine of card.bodyLines.slice(0, maxLines)) {
-    const trimmed = rawLine.trim();
-    if (trimmed.startsWith('>')) {
-      blocks.push(renderQuoteBlock(formatInlineMarkdown(trimmed.replace(/^>\s*/, ''), tokens), tokens));
-      continue;
-    }
-
-    const isBullet = /^[•✦⚡🎯-]\s*/.test(trimmed);
-    const numMatch = trimmed.match(/^(\d+\.)\s+(.+)$/);
-
-    if (isBullet) {
-      const cleanItem = trimmed.replace(/^[•✦⚡🎯-]\s*/, '');
-      blocks.push(
-        `<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;font-size:30px;line-height:1.7;color:${tokens.ink};text-align:justify;"><span style="color:${tokens.accent};font-weight:700;flex-shrink:0;">•</span><div style="flex:1;overflow-wrap:break-word;">${formatInlineMarkdown(cleanItem, tokens)}</div></div>`
-      );
-    } else if (numMatch) {
-      blocks.push(
-        `<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;font-size:30px;line-height:1.7;color:${tokens.ink};text-align:justify;"><span style="color:${tokens.accent};font-weight:700;flex-shrink:0;">${escapeHtml(numMatch[1])}</span><div style="flex:1;overflow-wrap:break-word;">${formatInlineMarkdown(numMatch[2], tokens)}</div></div>`
-      );
-    } else {
-      blocks.push(
-        `<p style="font-size:30px;line-height:1.72;color:${tokens.ink};margin:0 0 22px 0;text-align:justify;overflow-wrap:break-word;letter-spacing:${tokens.letterSpacing};">${formatInlineMarkdown(trimmed, tokens)}</p>`
-      );
+    out.push({ kind: 'code', lang: card.codeLang || 'code', lines: card.bodyLines });
+  } else {
+    for (const raw of card.bodyLines) {
+      const t = raw.trim();
+      const num = t.match(/^(\d+\.)\s+(.+)$/);
+      if (t.startsWith('>')) out.push({ kind: 'quote', text: t.replace(/^>\s*/, '') });
+      else if (/^[•\-*]\s*/.test(t)) out.push({ kind: 'list-item', text: t.replace(/^[•\-*]\s*/, ''), marker: '•', ordered: false, depth: 0 });
+      else if (num) out.push({ kind: 'list-item', text: num[2], marker: num[1], ordered: true, depth: 0 });
+      else if (t) out.push({ kind: 'paragraph', text: t });
     }
   }
+  if (card.closingQuote) out.push({ kind: 'quote', text: card.closingQuote });
+  return out.map((block) => ({ block, height: 0 }));
+}
 
-  if (card.closingQuote && !isLandscape) {
-    blocks.push(renderQuoteBlock(formatInlineMarkdown(card.closingQuote, tokens), tokens));
+function titleSize(title: string): number {
+  const n = [...title].length;
+  return n <= 10 ? 104 : n <= 18 ? 92 : n <= 30 ? 78 : 66;
+}
+
+function coverHtml(card: XhsCardSection, t: SocialCardTokens, chrome: string, brand: string, total: number): string {
+  const genre = GENRE_META[card.genre || 'essay'];
+  const sub = card.subtitle && card.subtitle !== genre.badge ? card.subtitle : '';
+  const tags = (card.tags || []).slice(0, 4).map((x) => `<span class="tag">#${esc(x)}</span>`).join('');
+  const align = chrome === 'elegant-book' || chrome === 'minimalist-magazine' ? 'center' : 'left';
+  const ornament = chrome === 'elegant-book' ? '<div class="orn">❦</div>' : `<div class="bar"></div>`;
+  return `<div class="cover cover-${align}">
+  <div class="kicker">${esc(chrome === 'minimalist-magazine' ? genre.kicker : genre.badge)}</div>
+  <h1 class="ct" style="font-size:${titleSize(card.title)}px">${cardInlineHtml(card.title)}</h1>
+  ${ornament}
+  ${sub ? `<p class="cs">${cardInlineHtml(sub)}</p>` : ''}
+  <div class="cfoot">${tags ? `<div class="tags">${tags}</div>` : ''}<div class="hint">${brand ? `${esc(brand)} · ` : ''}${total > 1 ? '左滑阅读全文 →' : ''}</div></div>
+</div>`;
+}
+
+function coverCss(t: SocialCardTokens): string {
+  return `
+.cover{height:100%;display:flex;flex-direction:column;justify-content:center;font-family:${t.fontDisplay};}
+.cover-center{align-items:center;text-align:center;}
+.cover .kicker{font-size:30px;font-weight:700;letter-spacing:6px;color:${t.accent};margin-bottom:40px;}
+.cover .ct{font-weight:900;line-height:1.28;text-wrap:balance;color:${t.headingInk};letter-spacing:1px;margin:0;overflow-wrap:break-word;}
+.cover .bar{width:120px;height:12px;border-radius:6px;background:${t.accent};margin:52px 0 44px;}
+.cover .orn{font-size:56px;color:${t.accent};margin:44px 0 36px;}
+.cover .cs{font-family:${t.fontBody};font-size:42px;line-height:1.7;color:${t.textSecondary};max-width:980px;}
+.cover .cfoot{margin-top:72px;display:flex;flex-direction:column;gap:28px;}
+.cover-center .cfoot{align-items:center;}
+.cover .tags{display:flex;flex-wrap:wrap;gap:16px;}
+.cover .tag{font-family:${t.fontBody};font-size:30px;font-weight:600;color:${t.accentInk};background:${t.accentSurface};padding:10px 26px;border-radius:999px;}
+.cover .hint{font-family:${t.fontBody};font-size:28px;color:${t.textMuted};letter-spacing:1px;}`;
+}
+
+interface ChromeParts {
+  bg: string;
+  css: string;
+  before: string;
+  after: string;
+  boxClass: string;
+}
+
+function chromeParts(t: SocialCardTokens, title: string, opts: RenderCardHtmlOptions): ChromeParts {
+  const page = opts.showPageNumber === false ? '' : `${opts.cardIndex + 1} / ${opts.totalCards}`;
+  const brand = esc(opts.footerBrand || '');
+  const foot = (cls: string, left: string, right: string) => `<div class="foot ${cls}"><span>${left}</span><span>${right}</span></div>`;
+  switch (t.chrome) {
+    case 'ios-memo':
+      return {
+        bg: '#FFFFFF',
+        boxClass: 'ios-sheet',
+        css: `.bar-top{position:absolute;left:0;right:0;top:0;height:120px;padding:0 56px;display:flex;align-items:center;justify-content:space-between;color:${t.accent};font-size:40px;font-weight:500;}
+.bar-top .back{display:flex;align-items:center;gap:10px;}
+.stamp{position:absolute;left:0;right:0;top:122px;text-align:center;font-size:26px;color:${t.textMuted};}`,
+        before: `<div class="bar-top"><div class="back"><svg width="24" height="40" viewBox="0 0 14 24"><path d="M11.5 2.5L2.5 12L11.5 21.5" stroke="${t.accent}" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>备忘录</div><div>完成</div></div><div class="stamp">${esc(opts.timestamp || '')}</div>`,
+        after: foot('', brand, page),
+      };
+    case 'minimalist-magazine':
+      return {
+        bg: t.paper,
+        boxClass: 'mag-frame',
+        css: `.mast{position:absolute;left:104px;right:104px;top:64px;height:64px;display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:3px solid ${t.ink};font-size:24px;letter-spacing:5px;color:${t.accent};font-weight:700;}
+.foot{border-top:1.5px solid ${t.line};padding-top:22px;}`,
+        before: `<div class="mast"><span>${esc(t.kicker)}</span><span>${esc([...title].slice(0, 16).join(''))}</span></div>`,
+        after: foot('', brand, page),
+      };
+    case 'elegant-book':
+      return {
+        bg: 'linear-gradient(90deg,#EFE7D8 0%,#FBF8F1 7%,#FDFBF7 100%)',
+        boxClass: 'book-content',
+        css: `.run{position:absolute;left:120px;right:120px;top:72px;text-align:center;font-size:24px;letter-spacing:6px;color:${t.textMuted};}
+.foot{justify-content:center;font-size:28px;}`,
+        before: `<div class="run">${esc([...title].slice(0, 22).join(''))}</div>`,
+        after: `<div class="foot"><span>${page ? `— ${opts.cardIndex + 1} —` : ''}</span></div>`,
+      };
+    case 'fresh-gradient':
+      return {
+        bg: t.paper,
+        boxClass: 'fresh-panel',
+        css: `.panel{position:absolute;left:56px;right:56px;top:100px;bottom:136px;border-radius:44px;background:${t.cardBg};box-shadow:0 24px 60px rgba(15,118,110,0.12);border:2px solid rgba(255,255,255,0.9);}
+.blob{position:absolute;border-radius:50%;filter:blur(8px);}
+.foot{bottom:52px;}
+.foot .pill{background:rgba(255,255,255,0.7);padding:8px 24px;border-radius:999px;color:${t.accentInk};font-weight:600;}`,
+        before: `<div class="blob" style="width:520px;height:520px;right:-160px;top:-180px;background:radial-gradient(circle,rgba(45,212,191,0.35),transparent 70%)"></div><div class="blob" style="width:600px;height:600px;left:-220px;bottom:-200px;background:radial-gradient(circle,rgba(167,139,250,0.30),transparent 70%)"></div><div class="panel"></div>`,
+        after: foot('', brand, page ? `<span class="pill">${page}</span>` : ''),
+      };
+    case 'grid-notebook':
+      return {
+        // 方格纸：两层 1px 细线渐变平铺，纯 CSS，无图片资源
+        bg: `linear-gradient(${t.ruledLineColor} 2px, transparent 2px) 0 0 / 46px 46px, linear-gradient(90deg, ${t.ruledLineColor} 2px, transparent 2px) 0 0 / 46px 46px, ${t.paper}`,
+        boxClass: 'grid-paper',
+        css: `.tape{position:absolute;left:88px;top:58px;width:280px;height:70px;background:${t.highlightBg};opacity:0.9;border-left:6px dotted ${t.paper};border-right:6px dotted ${t.paper};transform:rotate(-4deg);}
+.nb-head{position:absolute;right:112px;top:76px;font-size:26px;letter-spacing:4px;color:${t.textMuted};}
+.grid-paper .b-table table,.grid-paper .b-code{background:${t.codeBg};}
+.grid-paper .b-h2{display:inline-block;align-self:flex-start;padding:0 12px;background:linear-gradient(transparent 58%, ${t.highlightBg} 58%);}`,
+        before: `<div class="tape"></div><div class="nb-head">${esc(opts.timestamp || t.kicker)}</div>`,
+        after: foot('', brand, page),
+      };
+    case 'sticky-note':
+      return {
+        bg: t.paper,
+        boxClass: 'sticky-sheet',
+        css: `.sheet{position:absolute;left:72px;right:72px;top:104px;bottom:110px;background:${t.sheetBg};border-radius:6px 6px 6px 64px;box-shadow:0 30px 50px rgba(60,48,20,0.18),0 4px 10px rgba(60,48,20,0.10);}
+.pin{position:absolute;left:50%;top:70px;width:56px;height:56px;margin-left:-28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#F19A8F,${t.accent} 60%,#7B241C);box-shadow:0 8px 12px rgba(0,0,0,0.25);}
+.foot{left:128px;right:128px;bottom:140px;color:${t.textMuted};}`,
+        before: '<div class="sheet"></div><div class="pin"></div>',
+        after: foot('', brand, page),
+      };
+    default:
+      return { bg: t.paper, boxClass: 'blank-content', css: '', before: '', after: foot('', brand, page) };
   }
-
-  if (isFirstPage && card.tags && card.tags.length > 0 && !card.closingQuote && card.bodyLines.length <= 3) {
-    const tagPills = card.tags
-      .slice(0, isLandscape ? 4 : 5)
-      .map(
-        (t) =>
-          `<span style="color:${tokens.accent};background:${tokens.accentSurface};padding:5px 14px;border-radius:999px;font-size:21px;font-weight:600;display:inline-block;margin-right:10px;margin-bottom:8px;">#${escapeHtml(t)}</span>`
-      )
-      .join('');
-    blocks.push(`<div style="margin-top:auto;padding-top:14px;">${tagPills}</div>`);
-  }
-
-  const hiddenTags = (card.tags || []).map((t) => `#${escapeHtml(t)}`).join(' ');
-  blocks.push(`<!-- SECTION §${pageNumber} | HIGHLIGHTS / 本篇看点导览 | 3:4 FULL BLEED | PAGE ${pageNumber} | ${hiddenTags} -->`);
-
-  return `<div style="flex:1;display:flex;flex-direction:column;">${blocks.join('\n')}</div>`;
 }
 
 /**
- * Renders a 1080x1440 (3:4), 1080x1620 (2:3), 1080x1920 (9:16), 1280x720 (16:9), or 1080x460 (2.35:1)
- * social card HTML string replicating xhs-textcard.site/editor's templates.
+ * Renders one social card as a standalone HTML document at the platform resolution
+ * (3:4 → 1242×1656). Layout is authored on a 1242px-wide canvas and zoomed to the output width.
  */
-export function renderSocialCardHtml(
-  card: XhsCardSection,
-  options: RenderCardHtmlOptions
-): string {
-  const tokens: SocialCardTokens = getSocialCardTheme(options.themeId);
-  const {
-    cardIndex,
-    totalCards,
-    brandName = 'Vmark Studio',
-    aspectRatio = '3:4',
-    timestamp = '11月21日 00:32',
-  } = options;
-  const spec = PLATFORM_COVER_SPECS[aspectRatio] || PLATFORM_COVER_SPECS['3:4'];
-  const isLandscape = spec.width > spec.height;
-  const genre: ContentGenre = card.genre || 'essay';
-  const genreInfo = GENRE_META[genre];
-  const pageNumber = String(cardIndex + 1).padStart(2, '0');
-  const totalCount = String(totalCards).padStart(2, '0');
-  const simplePageLabel = `${cardIndex + 1} / ${totalCards}`;
-  const flowHtml = renderFlowingDocumentContent(card, tokens, pageNumber, isLandscape);
-
-  let bodyBg = tokens.paper;
-  let bodyPadding = isLandscape ? '36px 60px' : '78px 76px 64px 76px';
-  let bodyExtraStyle = '';
-  let innerHtml = '';
-
-  if (tokens.chrome === 'ios-memo') {
-    bodyPadding = isLandscape ? '20px 32px' : '0';
-    innerHtml = `
-      <div style="height:${isLandscape ? '64px' : '104px'};padding:0 54px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:8px;color:${tokens.accent};font-size:${isLandscape ? '26px' : '36px'};font-weight:500;">
-          <svg width="22" height="36" viewBox="0 0 14 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.5 2.5L2.5 12L11.5 21.5" stroke="${tokens.accent}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>备忘录</span>
-        </div>
-        <div style="color:${tokens.textMuted};font-size:${isLandscape ? '20px' : '26px'};font-weight:500;">${escapeHtml(timestamp)}</div>
-        <div style="color:${tokens.accent};font-size:${isLandscape ? '26px' : '36px'};font-weight:500;">完成</div>
-      </div>
-      <div class="ios-sheet" style="margin:0 32px;flex:1;background-color:${tokens.sheetBg};background-image:repeating-linear-gradient(to bottom,transparent 0px,transparent 50px,${tokens.ruledLineColor} 50px,${tokens.ruledLineColor} 51.5px);background-position:0 38px;border-radius:26px;box-shadow:0 10px 40px rgba(0,0,0,0.05);padding:${isLandscape ? '28px 44px' : '62px 66px'};display:flex;flex-direction:column;overflow:hidden;">
-        ${flowHtml}
-      </div>
-      <div style="height:${isLandscape ? '44px' : '82px'};padding:0 54px;display:flex;align-items:center;justify-content:flex-end;color:rgba(142,142,147,0.65);font-size:25px;font-weight:500;flex-shrink:0;">
-        <span>${simplePageLabel}</span>
-      </div>`;
-  } else if (tokens.chrome === 'minimalist-magazine') {
-    bodyPadding = isLandscape ? '36px 64px' : '132px 96px 72px 96px';
-    innerHtml = `
-      <div class="mag-frame" style="flex:1;border-top:2px solid ${tokens.line};border-bottom:2px solid ${tokens.line};padding:${isLandscape ? '22px 0' : '40px 0'};display:flex;flex-direction:column;overflow:hidden;">
-        ${flowHtml}
-      </div>
-      <div style="padding-top:22px;display:flex;justify-content:flex-end;color:rgba(153,153,153,0.75);font-size:25px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
-        <span>${simplePageLabel}</span>
-      </div>`;
-  } else if (tokens.chrome === 'elegant-book') {
-    bodyBg = 'linear-gradient(135deg, #FDFBF7 0%, #F6F1E7 100%)';
-    bodyPadding = isLandscape ? '36px 64px' : '128px 104px 78px 124px';
-    bodyExtraStyle = 'box-shadow: inset 36px 0 54px -20px rgba(43, 35, 25, 0.08);';
-    innerHtml = `
-      <div class="book-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">${flowHtml}</div>
-      <div style="padding-top:20px;display:flex;justify-content:flex-end;color:rgba(158,148,136,0.8);font-size:24px;"><span>${simplePageLabel}</span></div>`;
-  } else {
-    innerHtml = `
-      <div class="blank-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">${flowHtml}</div>
-      <div style="padding-top:16px;display:flex;justify-content:flex-end;color:rgba(153,153,153,0.65);font-size:25px;"><span>${simplePageLabel}</span></div>`;
-  }
+export function renderSocialCardHtml(card: XhsCardSection, options: RenderCardHtmlOptions): string {
+  const t = getSocialCardTheme(options.themeId);
+  const ratio = options.aspectRatio || '3:4';
+  const spec = PLATFORM_COVER_SPECS[ratio] || PLATFORM_COVER_SPECS['3:4'];
+  const h = cardDesignHeight(spec.width, spec.height);
+  const zoom = spec.width / CARD_DESIGN_WIDTH;
+  const insets = CARD_CHROME_INSETS[t.chrome];
+  const isCover = card.type === 'cover';
+  const brand = options.footerBrand || '';
+  const timestamp = options.timestamp ?? new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  const parts = chromeParts(t, card.title, { ...options, timestamp, footerBrand: isCover ? '' : options.footerBrand });
+  const inner = isCover
+    ? coverHtml(card, t, t.chrome, brand, options.totalCards)
+    : `<div class="flow">${cardFlowHtml(card.blocks?.length ? card.blocks : legacyBlocks(card), t, options.math)}</div>`;
+  const mathCss = options.math && inner.includes('class="katex') ? `${options.math.css}\n${CARD_MATH_CSS}` : '';
+  const pageLabel = `${String(options.cardIndex + 1).padStart(2, '0')} / ${String(options.totalCards).padStart(2, '0')}`;
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(brandName)} - ${escapeHtml(tokens.name)}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      width: ${spec.width}px;
-      height: ${spec.height}px;
-      overflow: hidden;
-      background: ${bodyBg};
-      ${bodyExtraStyle}
-      font-family: ${tokens.fontBody};
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: ${bodyPadding};
-      -webkit-font-smoothing: antialiased;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>${esc(options.brandName || 'Vmark')} - ${esc(t.name)}</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: ${spec.width}px; height: ${spec.height}px; overflow: hidden; }
+body { -webkit-font-smoothing: antialiased; font-family: ${t.fontBody}; }
+.card { position: relative; width: ${CARD_DESIGN_WIDTH}px; height: ${h}px; zoom: ${zoom}; overflow: hidden; background: ${parts.bg}; }
+.box { position: absolute; left: ${insets.x}px; right: ${insets.x}px; top: ${insets.top}px; bottom: ${insets.bottom}px; overflow: hidden; }
+.foot { position: absolute; left: ${insets.x}px; right: ${insets.x}px; bottom: 64px; display: flex; justify-content: space-between; align-items: center; font-size: 26px; color: ${t.textMuted}; letter-spacing: 1px; }
+${parts.css}
+${cardBlocksCss(t)}
+${coverCss(t)}
+${mathCss}
+</style>
 </head>
-<body data-brand="${escapeHtml(brandName)}" data-page="${pageNumber} / ${totalCount}" data-footer="${escapeHtml(genreInfo.footerTag)}">
-  ${innerHtml}
+<body data-page="${pageLabel}" data-template="${esc(t.id)}">
+<div class="card">
+${parts.before}
+<div class="box ${parts.boxClass}">${inner}</div>
+${parts.after}
+</div>
 </body>
 </html>`;
 }

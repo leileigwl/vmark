@@ -1,0 +1,47 @@
+# Vmark（维记）— Complete Product Reference
+
+> Vmark is a Local-First desktop Markdown note-taking editor and compliant multi-platform publishing workbench built with Electron, React 18, TypeScript, and Vite.
+
+## 1. Who Vmark Is For
+1. **Developers & Engineers**: Taking local technical notes with code blocks, Mermaid architecture diagrams, KaTeX formulas, and Git versioning, then optionally publishing articles to technical communities.
+2. **Independent Writers & Bloggers**: Maintaining a clean, portable archive of `.md` files and `./assets/` images with zero platform lock-in.
+3. **Content Creators**: Drafting once in Markdown and outputting platform-native formatting (WeChat Official Account inline styles, Zhihu columns, Juejin, CSDN, 3:4 visual cards for Xiaohongshu/Douyin).
+
+## 2. Why Vmark Exists (Problems Solved)
+- **No Cloud Lock-in or Fragile Sync**: Notes stay as plain `.md` files on local disk; Vmark intentionally avoids proprietary databases, mandatory user accounts, or risky two-way cloud overwrite sync.
+- **Eliminates Repetitive Formatting**: Instead of copying notes into web editors and manually fixing broken code blocks, missing styles, or hotlink-blocked images, Vmark compiles the Markdown AST specifically for each target platform.
+- **Privacy-First Local Architecture**: All platform sessions run in isolated local partitions on the user's computer; no cookies or API keys are uploaded to a third-party SaaS server.
+
+## 3. Detailed Feature Breakdown
+
+### Note-Taking & Document Editing
+- **Workspace File Tree & Outline**: Browse nested directories, switch documents seamlessly, inspect heading hierarchy in the live outline panel, and search across notes.
+- **Instant Rendering (IR) Markdown Engine**: Powered by Vditor IR mode for fluid, distraction-free writing without split-pane clutter.
+- **Rich Technical Blocks**:
+  - Mermaid flowcharts, sequence diagrams, and state diagrams rendered inline.
+  - KaTeX mathematical expressions.
+  - Callout blocks (`[!NOTE]`, `[!TIP]`, `[!WARNING]`, etc.).
+- **Local Media Co-location**: Pasting or inserting images saves hashed files directly to `./assets/` relative to the workspace so notes remain 100% self-contained offline.
+- **24 Bloom Themes + Custom CSS**: Built-in curated light and dark themes plus user CSS import.
+- **Local Article Manager**: Overview of workspace markdown files, word counts, local image counts, and last-modified timestamps.
+- **Reverse Draft Import**: Pull existing articles or drafts from connected platforms back into clean local `.md` files and local `./assets/` images, then cut the cloud link.
+
+### Multi-Platform Publishing & Image Pipeline
+- **Draft-First Compliance**: Default action for WeChat Official Accounts, Zhihu, Juejin, CSDN, Baijiahao, Bilibili, Xiaohongshu, Douyin, and Weibo is pushing into the platform's draft box so the author retains final editorial review.
+- **Direct / Static Blog Publishing**: Supports direct publishing to Cnblogs and GitHub-hosted static blogs (Hexo, Hugo, VitePress, Astro).
+- **Pre-Publish Platform Preview**: Preview rendered output tailored to platform constraints before dispatching.
+- **Anti-Hotlink Image Pipeline**: Automatically resolves local images and cross-origin URLs (with source Referer), uploading to platform native material APIs or falling back to configured image hosts (GitHub, SM.MS, PicGo). Source `.md` files remain untouched.
+- **3:4 Visual Card Engine**: Generates 1080x1440 visual cards (Editorial, Ink Classic, Swiss Slate, Code cards) for Xiaohongshu and Douyin.
+
+## 4. Technical Stack & Monorepo Layout
+- `apps/desktop`: Electron + Vite + React 18 desktop application (`main`, `preload`, `renderer`).
+- `packages/shared`: Shared TypeScript contracts, preferences, and platform models.
+- `packages/core`: Workspace scanning, outline parsing, AST renderers, and card layout engine.
+- `packages/image-pipeline`: Local `./assets/` manager, anti-hotlink proxy, and image host fallback router.
+- `packages/adapters`: Platform protocol adapters and draft dispatchers.
+
+## 5. Distribution & License
+- **Platforms**: macOS (`.dmg` / `.zip`), Windows x64 (`.exe`), Linux (`.AppImage` / `.deb`).
+- **Repository**: https://github.com/leileigwl/vmark
+- **Download**: https://github.com/leileigwl/vmark/releases/latest
+- **License**: GNU AGPL-3.0-only + Commercial Dual License.

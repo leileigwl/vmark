@@ -4,6 +4,74 @@
 
 ---
 
+> **AI 只需要看三处**：[AGENTS.md](../AGENTS.md)（开机规则）→ 本文件（日常流程，含审核）→ [session-handoff.md](session-handoff.md)（现在做到哪）+ [TODO.md](TODO.md)（唯一任务清单）。适用于 Antigravity、OpenAI Codex、Claude Code 等任何 AI 工具，不依赖某个工具专属的命令或子代理。
+
+## 〇、每个任务的标准流程（含审核，任何 AI 都照做）
+
+从 [TODO.md](TODO.md) 挑任务，按下面 6 步走。
+
+### 第 1 步：先说清楚，等「可以」
+动手前用大白话告诉维护者，然后**停下等回复「可以」**再改代码：
+- 要改什么（用户能看到的变化）、为什么；
+- 改哪些文件（文件:行号）；
+- 先写哪个失败测试、它现在为什么会失败；
+- 预计改动行数（可评审 diff > 600 行先拆）；
+- 风险、需要维护者真机确认的点。
+
+### 第 2 步：失败测试 → 最小修复 → 全部门禁
+1. 先写复现测试并运行，**贴出失败输出**；再写最小修复，不顺手重构。
+2. 全部门禁通过才算完成，贴真实输出（写明环境：node / L2 无头 Chromium / L3 真 Electron）：
+   ```bash
+   pnpm harness:check --json
+   pnpm run typecheck
+   pnpm turbo run test
+   cd apps/desktop && pnpm run build && NO_PROXY=127.0.0.1,localhost npx playwright test
+   pnpm run test:smoke   # 仍在 apps/desktop 下（含 L3 真 Electron 冒烟）
+   ```
+3. 禁止：`.skip` / `.only`、删或放宽断言、`as any`、空 `catch`、把 mock 测试说成真 Electron 或真平台通过。同一个门禁连续失败两次，停下来报告，不要盲改。
+
+### 第 3 步：自审（干净上下文）
+**开一个新对话 / 新代理**（不带写代码时的上下文），只给它看 `git diff origin/test...HEAD`，依次按四个角度审（工具支持并行子代理就并行）：
+1. **找 bug**：逻辑、边界、竞态、异步、IPC、错误处理。
+2. **对照规则**：[AGENTS.md](../AGENTS.md) + 本文件（锁定路径、行数、测试诚实、模块岛、PR 格式）。
+3. **内容完整性**：保存、编辑器、快捷键、关窗/退出、切换文件，会不会丢字、多字、改写用户内容。
+4. **界面**：用 `ui/` 组件、浅色深色都正常、可点区域 ≥ 36px、中文文案简短且说清下一步（细则见 [UI_GUIDE.md](UI_GUIDE.md)）。
+
+每条发现写：文件:行号、问题、触发条件或复现步骤、建议怎么改。
+
+### 第 4 步：复核去误报
+对每条发现**回到代码确认**，给置信度 0–100，**低于 80 的丢掉**，其余分级：
+
+| 标记 | 含义 | 处理 |
+|---|---|---|
+| 🔴 必须改 | 合并后会出错、丢数据、泄露凭据、违反红线 | 不改不能开 PR |
+| 🟡 建议改 | 小问题，不阻塞 | 顺手改，或写进 PR 正文「已知问题」 |
+| 🟣 旧问题 | 本次改动之前就存在 | 不在本 PR 改，记进 [TODO.md](TODO.md) |
+
+**一定要标 🔴 的：**
+1. **用户内容被改动或丢失**：保存时改写了用户没动的行；丢字、多字、多空行；改了换行符（CRLF/LF）、表格、代码块、emoji、末尾换行；快捷键（⌘S ⌘N ⌘Z ⌘B ⌘I Tab Enter Backspace 粘贴 输入法 查找替换）导致内容变化；关窗或退出时丢掉最后的输入。
+2. **写文件不原子**：直接覆盖原文件而不是临时文件 + rename；写失败没有提示或把原文件写坏。
+3. **凭据泄露**：Cookie、Token、API Key 明文落盘、打进日志、传到渲染进程。
+4. **测试作弊**：见第 2 步禁止项。
+5. **碰了锁定路径**：`.github/`、`.harness/`、`scripts/harness/`、`.agents/`、`.claude/settings.json`、`.githooks/`、`AGENTS.md`、`LICENSE*`、根 `package.json`；未经同意改 `packages/shared/`。
+6. **发布越界**：会直接公开发布而不是存草稿箱；绕过登录检测；未登录却显示成功。
+7. **跨模块岛深层引用**、循环依赖、渲染进程引用 `node:fs` 或 `src/main`。
+8. **改了行为却没有先失败的测试**。
+
+**不要报**：纯格式和命名偏好；泛泛的「可以多加测试」；博客园图片上传 400（维护者自己处理）；崩溃恢复备份（已决定不做）。
+
+### 第 5 步：有 🔴 就改完重审
+改完回到第 2 步跑门禁，再用新上下文重审。**最多两轮**，还有 🔴 就停下报告。
+
+### 第 6 步：简报 + draft PR
+先给维护者一份简报：改了什么、测试结果（数字）、审核结果（🔴🟡🟣 各几条）、真机上要点哪几下。然后开 PR：
+- 一律 **draft**，目标 `test`；可评审 diff ≤ 600 行（文档移动不算），否则正文第一行 `size-exempt: <理由>`。
+- 正文中文四段：`改了什么` / `怎么验证的`（贴命令输出，改前失败、改后通过）/ `怎么回退` / `需要维护者真机确认`；界面改动加 `## 截图`（浅色 + 深色，改前改后）。
+- PR 上 CI 还会自动跑两段式 AI Review（`.github/workflows/ai-review*.yml`：Pass 1 找 bug → Pass 2 去误报），看它的评论即可。
+- 做完更新 [session-handoff.md](session-handoff.md)，并在 [TODO.md](TODO.md) 划掉该项。
+
+---
+
 ## 一、窗口怎么开、指令在哪输、过程在哪看（开箱必读）
 
 ### 1. 旧对话继续 vs 新开窗口（配合 `/compact`）
@@ -65,6 +133,7 @@
 - **规则开机引导**：[AGENTS.md](../AGENTS.md)（≤ 100 行）
 - **产品与架构长期宪法**：[PRODUCT.md](PRODUCT.md)、[ARCHITECTURE.md](ARCHITECTURE.md)
 - **当前进度快照**：[session-handoff.md](session-handoff.md)（≤ 120 行覆盖写）
+- **唯一任务清单**：[TODO.md](TODO.md)
 - **Superpowers Harness Skill**：[SKILL.md](../.agents/skills/superpowers-harness/SKILL.md)
 - **代码级状态机/护栏**：`.harness/*.json`、`.github/risk-rules.yml`、`scripts/harness/`
 - **日常业务开发代码**：`apps/desktop/src/main/ipc/<domain>/`、`apps/desktop/src/renderer/src/features/<domain>/index.ts`、`packages/adapters/src/`
@@ -87,7 +156,7 @@ pnpm harness:export-skill --out dist/superpowers-harness-skill
 
 | 级别 | 范围与动作 | 你和小模型平时能怎么动 |
 | :--- | :--- | :--- |
-| 🔴 **红区（底座硬锁，平时连你自己都不要手动改）** | `.harness/**`、`scripts/harness/**`、`.agents/hooks.json`、`.claude/settings.json`、`.githooks/**`、`.github/**`、`AGENTS.md`、`LICENSE*`；以及命令行直推 `master`、`git push --force`、`--no-verify` | **日常开发一律禁改**。即使你本人确需升级规则/CI，也必须由前沿强模型先执行 `pnpm harness:unlock-bootstrap` 并**分两次提交推送**（第 1 个 PR 解锁修改并合入 `test`，第 2 个提交再 `pnpm harness:lock-bootstrap` 重锁；严禁把解锁与重锁塞进同一次 push 触发误熔断）。 |
+| 🔴 **红区（底座硬锁，平时连你自己都不要手动改）** | `.harness/**`、`scripts/harness/**`、`.agents/**`、`.claude/settings.json`、`.githooks/**`、`.github/**`、`AGENTS.md`、`LICENSE*`；以及命令行直推 `master`、`git push --force`、`--no-verify` | **日常开发一律禁改**。即使你本人确需升级规则/CI，也必须由前沿强模型先执行 `pnpm harness:unlock-bootstrap` 并**分两次提交推送**（第 1 个 PR 解锁修改并合入 `test`，第 2 个提交再 `pnpm harness:lock-bootstrap` 重锁；严禁把解锁与重锁塞进同一次 push 触发误熔断）。 |
 | 🟡 **黄区（高风险接缝，只许强模型 + 必须 `/approve`）** | `packages/shared/src/ipcContract.ts`、`apps/desktop/src/preload/**`、`apps/desktop/src/main/index.ts`、`package.json` / `pnpm-lock.yaml` | 涉及跨端契约或依赖变更，系统会自动标为 `risk:high` 并跑齐 L0+L1+L2+L3。**务必使用前沿强模型处理**，并在 GitHub PR 页亲眼看过 Diff 后回复 `/approve` 放行。 |
 | 🟢 **绿区（日常业务孤岛，高频并发随便改）** | `apps/desktop/src/main/ipc/<domain>/`、`apps/desktop/src/main/publish*.ts`、`apps/desktop/src/renderer/src/features/<domain>/`、`components/`、`editor/`、`packages/adapters/`、`packages/core/`、`docs/`、`tests/` | **主力高频迭代区**：可安全拆分互斥切片交给小模型并发实现，自动跑对应层级校验后免审并入 `test`（单文件硬上限 ≤ 500 行，禁止跨岛深层引用或 `.skip`/`as any` 绕过）。 |
 

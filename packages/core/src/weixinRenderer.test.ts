@@ -25,8 +25,8 @@ test('renderWeixinHtml produces pure inline-styled HTML with no <style> or class
   assert.ok(!res.html.includes('class='));
   assert.ok(res.html.includes('#c47c2b'));
   assert.ok(res.html.includes('<h1 style="'));
-  assert.ok(res.html.includes('<blockquote style="'));
-  assert.ok(res.html.includes('<pre style="'));
+  assert.ok(res.html.includes('border-left: 4px solid #c47c2b;'), '引用框（section）带主题色左边框');
+  assert.ok(res.html.includes('font-family: Menlo, Monaco, Consolas, monospace; font-size: 13px;'), '代码块区域带内联等宽样式');
   assert.ok(res.html.includes('<table style="'));
 });
 

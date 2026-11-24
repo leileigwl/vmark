@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- 小红书图文发布页的离线夹具：结构按公开开源项目记录的 DOM 模拟（见 docs/99-archive/2026-11-24/platform-rules-todo.md），不是真实页面。 -->
+<html><body>
+<div class="header-tabs"><div class="creator-tab">上传视频</div><div class="creator-tab" id="tab-image">上传图文</div></div>
+<div id="upload" style="display:none"><div class="upload-content"><input class="upload-input" type="file" accept=".jpg,.jpeg,.png,.webp"></div></div>
+<div id="editor" style="display:none">
+  <div class="img-preview-area"></div>
+  <div class="img-upload-area"><input type="file" accept=".jpg,.jpeg,.png,.webp"></div>
+  <div class="d-input"><input class="d-text" placeholder="填写标题会有更多赞哦"></div>
+  <div class="tiptap ProseMirror" contenteditable="true"><p><br class="ProseMirror-trailingBreak"></p></div>
+  <button id="save">暂存离开</button>
+</div>
+<script>
+  window.__saved = null;
+  const preview = document.querySelector('.img-preview-area');
+  const addThumb = (f) => setTimeout(() => { const d = document.createElement('div'); d.className = 'pr'; d.textContent = f.name; preview.appendChild(d); }, 150);
+  document.getElementById('tab-image').onclick = () => { document.getElementById('upload').style.display = 'block'; };
+  document.querySelector('.upload-input').addEventListener('change', (e) => {
+    [...e.target.files].forEach(addThumb);
+    document.getElementById('upload').remove(); // 真实页面首图后入口 input 消失
+    document.getElementById('editor').style.display = 'block';
+  });
+  document.querySelector('.img-upload-area input').addEventListener('change', (e) => { [...e.target.files].forEach(addThumb); e.target.value = ''; });
+  document.getElementById('save').onclick = () => {
+    window.__saved = {
+      title: document.querySelector('.d-text').value,
+      body: document.querySelector('.ProseMirror').innerText,
+      lines: document.querySelector('.ProseMirror').innerText.split('\n').filter((l) => l.trim()).length,
+      thumbs: [...document.querySelectorAll('.img-preview-area .pr')].map((d) => d.textContent),
+    };
+  };
+</script>
+</body></html>
