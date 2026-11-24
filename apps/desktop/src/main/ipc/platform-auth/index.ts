@@ -9,7 +9,7 @@ import { CHROME_DESKTOP_UA } from '../../browserStealth';
 import { InternalBrowserManager } from '../../internalBrowserManager';
 import { RENDERER_THEME_PROBE } from '../../loginWindowBar';
 import { checkPlatformAuthStates, verifyPlatformAuth } from '../../publishHandlers';
-import type { MainIpcContext } from '../context';
+import { noticeSessionCredentialStorage, type MainIpcContext } from '../context';
 import { createSharedCheck } from '../../authCheckOnce';
 
 export { CHROME_DESKTOP_UA };
@@ -72,6 +72,8 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
   ipcMain.handle(
     IPC_INVOKE_CHANNELS.openPlatformLogin,
     async (event, platformId: PlatformId, loginUrl: string) => {
+      // 登录 Cookie 由内置浏览器落盘、加密依赖系统钥匙串：不可用时先明确提示（不阻止登录）。
+      void noticeSessionCredentialStorage();
       // 登录窗口顶栏跟随 app 内主题：从发起调用的 Vmark 界面读当前主题，读不到就用默认浅色。
       const appTheme = await Promise.race([
         event.sender.executeJavaScript(RENDERER_THEME_PROBE).catch(() => null),
