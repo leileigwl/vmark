@@ -1,5 +1,5 @@
 import { previewSrc } from './coverCrop';
-import { coverFocusFor, coverFor, type Issue, type PublishDraft } from './draftModel';
+import { coverFocusFor, coverFor, ownCoverOf, type Issue, type PublishDraft } from './draftModel';
 import { RATIO_VALUE, SPEC_BY_ID, coverGuide } from './platformSpecs';
 import { SectionCard } from './SectionCard';
 import { WeixinPreview } from './WeixinPreview';
@@ -21,7 +21,7 @@ export function WeixinSection({ draft, markdown, bodyImage, issues }: WeixinSect
   const cover = coverFor(draft, spec, bodyImage);
   const src = cover && (cover.kind === 'upload' || cover.kind === 'body') ? cover.src : '';
   const focus = cover?.kind === 'upload' ? coverFocusFor(draft, spec) : { x: 50, y: 50 };
-  const source = draft.coverUpload ? '用通用封面按焦点裁' : src ? '用正文首图自动裁' : '正文没有图片，请上传一张封面（在上方通用内容里）';
+  const source = ownCoverOf(draft, spec) ? '用公众号单独封面裁' : draft.coverUpload ? '用通用封面按焦点裁' : src ? '用正文首图自动裁' : '正文没有图片，请上传一张封面（在上方通用内容里）';
   const summary = issues.length ? issues.map((i) => i.message).join(' · ') : `封面：${source} · 点开看裁切与排版`;
 
   return (

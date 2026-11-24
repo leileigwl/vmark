@@ -1,11 +1,19 @@
 import type { PlatformId } from '@vcat/shared';
-import { SPEC_BY_ID, type PlatformSpec } from './platformSpecs.ts';
+import { SPEC_BY_ID, ownCoverEligible, type PlatformSpec } from './platformSpecs.ts';
 
 type Override = { title?: string; digest?: string; tags?: string[] };
+type Focus = { x: number; y: number };
+
+/** 某平台单独设置的封面（工作区相对路径）与它的焦点。 */
+export interface OwnCover {
+  cover: string;
+  focus: Focus;
+}
 
 /**
  * 一篇文章的发布设置：所有平台共用一份标题/摘要/标签/封面，个别平台超限时在「需要单独处理」里单独改写。
- * 小红书/抖音也用这一份：标题自动截取，正文由主进程从文章转纯文本，话题用通用标签，封面用通用封面。
+ * 小红书/抖音也用这一份：标题自动截取，正文由主进程从文章转纯文本，话题用通用标签。
+ * 封面默认用通用封面；封面比例不同的平台（公众号、小红书/抖音）可以单独设一张（ownCovers）。
  */
 export interface PublishDraft {
   title: string;
@@ -21,6 +29,8 @@ export interface PublishDraft {
   includeRemoteImages: boolean;
   /** 掘金文章分类 id；空字符串表示还没选。 */
   juejinCategoryId: string;
+  /** 封面比例不同的平台单独设置的封面；没有就用通用封面按该平台比例裁。 */
+  ownCovers: Partial<Record<PlatformId, OwnCover>>;
 }
 
 export type IssueField = 'title' | 'digest' | 'cover' | 'tags' | 'category' | 'auth';
@@ -81,19 +91,40 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     socialThemeId: null,
     includeRemoteImages: true,
     juejinCategoryId: '',
+    ownCovers: {},
   };
 }
 
 const KNOWN_KEYS: Array<keyof PublishDraft> = [
   'title', 'digest', 'tags', 'coverUpload', 'coverFocus', 'overrides', 'selected', 'socialThemeId', 'includeRemoteImages', 'juejinCategoryId',
+  'ownCovers',
 ];
 
-/** 合并本地记住的设置；旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文、公众号/小红书抖音单独的封面与标题）丢弃。 */
+const CENTER: Focus = { x: 50, y: 50 };
+
+/** 旧版本把公众号单独封面存在 weixin、小红书/抖音分区封面存在 social；迁移成 ownCovers，不丢用户传过的图。 */
+function legacyOwnCovers(saved: Record<string, unknown>): Partial<Record<PlatformId, OwnCover>> {
+  const out: Partial<Record<PlatformId, OwnCover>> = {};
+  const wx = saved.weixin as { cover?: unknown; focus?: Focus } | undefined;
+  if (typeof wx?.cover === 'string' && wx.cover) out.weixin = { cover: wx.cover, focus: wx.focus ?? CENTER };
+  const social = saved.social as { cover?: unknown } | undefined;
+  if (typeof social?.cover === 'string' && social.cover) {
+    out.xiaohongshu = { cover: social.cover, focus: CENTER };
+    out.douyin = { cover: social.cover, focus: CENTER };
+  }
+  return out;
+}
+
+/**
+ * 合并本地记住的设置。旧版本留下的字段（如 coverSource/coverCrops、公众号作者/阅读原文、小红书抖音单独的标题/正文/话题）丢弃；
+ * 旧版单独上传的封面（公众号块、小红书/抖音分区）迁移到 ownCovers。
+ */
 export function mergeSaved(base: PublishDraft, saved: Partial<PublishDraft> | null): PublishDraft {
   if (!saved) return base;
   const out: PublishDraft = { ...base };
   for (const k of KNOWN_KEYS) if (saved[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = saved[k];
   out.selected = out.selected.filter((id) => SPEC_BY_ID[id]);
+  out.ownCovers = { ...legacyOwnCovers(saved as Record<string, unknown>), ...out.ownCovers };
   return out;
 }
 
@@ -109,9 +140,26 @@ export function setOverride(draft: PublishDraft, id: PlatformId, patch: Override
   return all;
 }
 
+/** 设置（cover 为空字符串时移除）某平台的单独封面，返回新的 ownCovers。 */
+export function setOwnCover(draft: PublishDraft, id: PlatformId, cover: string, focus: Focus = CENTER): PublishDraft['ownCovers'] {
+  const next = { ...draft.ownCovers };
+  if (cover) next[id] = { cover, focus };
+  else delete next[id];
+  return next;
+}
+
+/** 该平台生效的单独封面：只有封面比例与通用封面不同的平台才用。 */
+export function ownCoverOf(draft: PublishDraft, spec: PlatformSpec): OwnCover | null {
+  const own = draft.ownCovers[spec.id];
+  return own?.cover && ownCoverEligible(spec) ? own : null;
+}
+
 /** 某平台的封面来源，按“用户在信息流里怎么看到它”决定默认值。没有封面项的平台返回 null。 */
 export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: string): CoverSource | null {
   if (!spec.cover) return null;
+  // 该平台单独设置的封面优先（公众号、小红书/抖音等比例不同的平台）。
+  const own = ownCoverOf(draft, spec);
+  if (own) return { kind: 'upload', src: own.cover };
   // 卡片平台：通用封面插到卡片最前；没传就第一张卡片做封面。
   if (spec.cover.mode === 'card') return draft.coverUpload ? { kind: 'upload', src: draft.coverUpload } : { kind: 'card' };
   if (draft.coverUpload) return { kind: 'upload', src: draft.coverUpload };
@@ -119,9 +167,9 @@ export function coverFor(draft: PublishDraft, spec: PlatformSpec, bodyImage: str
   return { kind: 'body', src: bodyImage };
 }
 
-/** 裁切上传封面时用的焦点：所有平台都用通用封面的焦点。 */
-export function coverFocusFor(draft: PublishDraft, _spec: PlatformSpec): { x: number; y: number } {
-  return draft.coverFocus;
+/** 裁切上传封面时用的焦点：单独封面用它自己的焦点，其余用通用封面的焦点。 */
+export function coverFocusFor(draft: PublishDraft, spec: PlatformSpec): Focus {
+  return ownCoverOf(draft, spec)?.focus ?? draft.coverFocus;
 }
 
 /**

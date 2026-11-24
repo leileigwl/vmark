@@ -64,7 +64,7 @@ test('各平台封面比例取自 platformSpecs：公众号 2.35:1 + 1:1，小�
   for (const s of specs('baijiahao', 'weibo')) assert.deepEqual(s.cover, { ratios: ['16:9'], mode: 'required' });
 });
 
-test('合并本地记住的设置：丢弃旧版的公众号作者/阅读原文，以及小红书抖音、公众号单独填的标题/正文/话题/封面', () => {
+test('合并本地记住的设置：丢弃旧版的公众号作者/阅读原文与小红书抖音单独填的标题/正文/话题；旧版单独上传的封面迁移保留', () => {
   const legacy: Record<string, unknown> = {
     weixinAuthor: 'A',
     weixinSourceUrl: 'https://x',
@@ -75,5 +75,7 @@ test('合并本地记住的设置：丢弃旧版的公众号作者/阅读原文�
   const merged = mergeSaved(draft(), legacy as Partial<PublishDraft>);
   for (const k of ['weixinAuthor', 'weixinSourceUrl', 'social', 'weixin']) assert.equal(k in merged, false, k);
   assert.equal(merged.title, '记住的标题');
-  assert.deepEqual(coverFor(merged, SPEC_BY_ID.xiaohongshu!, ''), { kind: 'card' });
+  assert.equal(resolveFor(merged, 'xiaohongshu').title, [...'记住的标题'].slice(0, 20).join(''));
+  assert.deepEqual(coverFor(merged, SPEC_BY_ID.xiaohongshu!, ''), { kind: 'upload', src: 'assets/xhs.jpg' });
+  assert.deepEqual(coverFor(merged, SPEC_BY_ID.weixin!, ''), { kind: 'upload', src: 'assets/wx.jpg' });
 });
