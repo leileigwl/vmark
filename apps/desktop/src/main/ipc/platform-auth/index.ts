@@ -7,7 +7,7 @@ import {
 } from '../../accountStore';
 import { CHROME_DESKTOP_UA } from '../../browserStealth';
 import { InternalBrowserManager } from '../../internalBrowserManager';
-import { RENDERER_THEME_PROBE } from '../../loginWindowBar';
+import { RENDERER_THEME_PROBE, buildRendererThemeWatch } from '../../loginWindowBar';
 import { checkPlatformAuthStates, verifyPlatformAuth } from '../../publishHandlers';
 import type { MainIpcContext } from '../context';
 import { createSharedCheck } from '../../authCheckOnce';
@@ -83,6 +83,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         loginUrl,
         targetSession,
         appTheme,
+        watchAppTheme: (knownThemeId) => event.sender.executeJavaScript(buildRendererThemeWatch(knownThemeId)),
         checkAuth: () => verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig }),
         onAuthorized: async () => {
           await upsertAccountRecord(platformId, {

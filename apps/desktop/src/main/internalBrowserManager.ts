@@ -7,7 +7,16 @@ import {
   encodeFingerprintArg,
   getPlatformFingerprintProfile,
 } from './browserStealth';
-import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction, resolveLoginBarTheme } from './loginWindowBar';
+import {
+  LOGIN_BAR_HEIGHT,
+  appThemeIdOf,
+  buildLoginBarHtml,
+  buildLoginBarThemeScript,
+  loginWindowBackground,
+  loginWindowName,
+  nextLoginBarAction,
+  resolveLoginBarTheme,
+} from './loginWindowBar';
 
 const TOOLBAR_HEIGHT = LOGIN_BAR_HEIGHT;
 const AUTH_CHECK_TIMEOUT_MS = 3000;
@@ -83,8 +92,10 @@ export class InternalBrowserManager {
     onAuthorized?: () => Promise<void> | void;
     /** Vmark 主界面当前主题快照（RENDERER_THEME_PROBE 的结果），顶栏按它配色而不是跟随系统。 */
     appTheme?: unknown;
+    /** 等 Vmark 主题从 knownThemeId 变成别的后返回新快照（没变返回 null，读不到就抛错），窗口开着时顶栏据此实时换色。 */
+    watchAppTheme?: (knownThemeId: string) => Promise<unknown>;
   }): Promise<boolean> {
-    const { platformId, loginUrl, targetSession, checkAuth, onAuthorized, appTheme } = params;
+    const { platformId, loginUrl, targetSession, checkAuth, onAuthorized, appTheme, watchAppTheme } = params;
     const barTheme = resolveLoginBarTheme(appTheme);
     const title = `${loginWindowName(platformId)} · 登录`;
     const verify = () =>
@@ -98,7 +109,7 @@ export class InternalBrowserManager {
       // 同一时间只有一个登录窗口：换平台时关掉旧的，旧调用方会在 closed 时拿到自己的结果。
       this.activeWindow.destroy();
     }
-    const win = new BrowserWindow({ width: 1120, height: 780, backgroundColor: barTheme.scheme === 'dark' ? '#18191c' : '#ffffff', title });
+    const win = new BrowserWindow({ width: 1120, height: 780, backgroundColor: loginWindowBackground(barTheme), title });
     const toolbarView = new WebContentsView({ webPreferences: { contextIsolation: true, nodeIntegration: false } });
     win.contentView.addChildView(toolbarView);
     this.activeWindow = win;
@@ -162,6 +173,30 @@ export class InternalBrowserManager {
     void toolbarView.webContents.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(buildLoginBarHtml({ platformId, signedInAtOpen, appTheme }))}`
     );
+    // 窗口开着时跟随 Vmark 主题：每次主题变化就给顶栏换令牌；窗口关了或读不到主题就停止。
+    let followingTheme = true;
+    disposers.push(() => {
+      followingTheme = false;
+    });
+    const followAppTheme = async (knownThemeId: string) => {
+      while (followingTheme && watchAppTheme) {
+        let snapshot: unknown;
+        try {
+          snapshot = await watchAppTheme(knownThemeId);
+        } catch {
+          return;
+        }
+        if (!followingTheme || win.isDestroyed()) return;
+        if (!snapshot) continue;
+        knownThemeId = appThemeIdOf(snapshot);
+        const next = resolveLoginBarTheme(snapshot);
+        win.setBackgroundColor(loginWindowBackground(next));
+        if (!toolbarView.webContents.isDestroyed()) {
+          void toolbarView.webContents.executeJavaScript(buildLoginBarThemeScript(next)).catch(() => {});
+        }
+      }
+    };
+    void followAppTheme(appThemeIdOf(appTheme));
     const onToolbarNavigate = (event: Electron.Event, targetUrl: string) => {
       if (!targetUrl.startsWith('vmark-nav://')) return;
       event.preventDefault();
