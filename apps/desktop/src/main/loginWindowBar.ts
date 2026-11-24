@@ -59,12 +59,40 @@ const FALLBACK: Record<LoginBarTheme['scheme'], LoginBarTheme['tokens']> = {
  * 在 Vmark 主界面里执行，读出当前 app 主题（<html data-theme>）及顶栏要用的语义色。
  * 与 styles/ui-tokens.css 的映射一致：surface=--bg-elevated、line=--border-color、ink=--text-main ……
  */
-export const RENDERER_THEME_PROBE = `(() => {
+const THEME_SNAPSHOT_FN = `() => {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
   const v = (n) => cs.getPropertyValue(n).trim();
   return { themeId: root.dataset.theme || '', tokens: { surface: v('--bg-elevated'), line: v('--border-color'), ink: v('--text-main'), muted: v('--control-text-color'), hover: v('--bg-hover'), primary: v('--accent') } };
-})()`;
+}`;
+export const RENDERER_THEME_PROBE = `(${THEME_SNAPSHOT_FN})()`;
+
+/**
+ * 在 Vmark 主界面里执行：等 app 主题（<html data-theme>）不再是 knownThemeId 时返回新快照；
+ * 60 秒内没变返回 null（主进程据此接着等）。登录窗口开着时靠它让顶栏实时跟随主题。
+ */
+export function buildRendererThemeWatch(knownThemeId: string): string {
+  return `new Promise((resolve) => {
+  const snapshot = ${THEME_SNAPSHOT_FN};
+  const root = document.documentElement;
+  const known = ${JSON.stringify(knownThemeId)};
+  if ((root.dataset.theme || '') !== known) return resolve(snapshot());
+  const obs = new MutationObserver(() => {
+    if ((root.dataset.theme || '') === known) return;
+    obs.disconnect();
+    clearTimeout(timer);
+    resolve(snapshot());
+  });
+  const timer = setTimeout(() => { obs.disconnect(); resolve(null); }, 60000);
+  obs.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+})`;
+}
+
+/** 快照里的主题 id（读不到时为空串）。 */
+export function appThemeIdOf(snapshot: unknown): string {
+  const id = snapshot && typeof snapshot === 'object' ? (snapshot as { themeId?: unknown }).themeId : '';
+  return typeof id === 'string' ? id : '';
+}
 
 /** 只接受颜色写法（#hex、rgb()/color-mix() 等），拒绝能跳出 CSS 声明的字符。 */
 const SAFE_COLOR = /^[#a-z0-9(),.%\s-]{1,120}$/i;
@@ -85,6 +113,16 @@ export function resolveLoginBarTheme(snapshot: unknown): LoginBarTheme {
   return { scheme, tokens };
 }
 
+/** 登录窗口底色（顶栏加载前和站点页面背后露出的颜色）。 */
+export function loginWindowBackground(theme: LoginBarTheme): string {
+  return theme.scheme === 'dark' ? '#18191c' : '#ffffff';
+}
+
+/** 在已打开的顶栏里换配色的脚本：只替换 #bar-theme 里的令牌（值已经过 SAFE_COLOR 校验）。 */
+export function buildLoginBarThemeScript(theme: LoginBarTheme): string {
+  return `(() => { const s = document.getElementById('bar-theme'); if (s) s.textContent = ${JSON.stringify(themeCss(theme))}; })();`;
+}
+
 function themeCss({ scheme, tokens: t }: LoginBarTheme): string {
   return `:root{color-scheme:${scheme};--bg:${t.surface};--line:${t.line};--ink:${t.ink};--muted:${t.muted};--hover:${t.hover};--primary:${t.primary};--on-primary:#fff}`;
 }
@@ -99,8 +137,7 @@ export function buildLoginBarHtml(options: { platformId: PlatformId; signedInAtO
   const doneLabel = options.signedInAtOpen ? '完成' : '登录完成';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><style>
-${themeCss(resolveLoginBarTheme(options.appTheme))}
+<head><meta charset="utf-8"><style id="bar-theme">${themeCss(resolveLoginBarTheme(options.appTheme))}</style><style>
 *{box-sizing:border-box}
 body{margin:0;height:${LOGIN_BAR_HEIGHT}px;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--bg);border-bottom:1px solid var(--line);color:var(--ink);font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;user-select:none}
 button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;min-width:36px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;cursor:pointer;white-space:nowrap}
