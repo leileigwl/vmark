@@ -47,7 +47,7 @@
 - **做完的标准**：测试通过，浅色/深色截图。
 - **需要维护者提供什么**：真机切一次主题确认。
 
-### 5. Windows / Linux 上 Ctrl+S、Ctrl+N 触发两次
+### ~~5. Windows / Linux 上 Ctrl+S、Ctrl+N 触发两次~~（#117：菜单加速键回声按按键配对丢弃；仍需 Windows 真机各按一次确认）
 - **要做什么**：按一次 Ctrl+S 只保存一次，按一次 Ctrl+N 只新建一个文件。
 - **为什么**：菜单快捷键和编辑器快捷键都响应，会新建两个文件或重复保存。
 - **改哪些文件**：`apps/desktop/src/main/index.ts`（菜单，注意行数棘轮）、`features/editor-ir/shortcutGuards.ts`。
