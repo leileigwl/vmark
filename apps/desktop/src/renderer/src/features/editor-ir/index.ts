@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ArticleMeta, EditorPreferences, ThemeId } from '@vcat/shared';
 import type { FindOptions, VditorEditorHandle } from '../../components/VditorEditor';
 import {
+  createAcceleratorEchoFilter,
   createOnceGate,
   installKeystrokeTracker,
   isModalOpen,
@@ -19,6 +20,7 @@ const MENU_KEY_ECHO: Record<string, true> = {
   'view:toggleSidebar': true,
 };
 const runOnce = createOnceGate(300);
+const acceleratorEcho = createAcceleratorEchoFilter();
 
 /** Edit ▸ Undo/Redo menu: acts only on what has focus; file ops only from the sidebar file tree. */
 function runMenuUndo(
@@ -145,6 +147,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
         : null;
       if (!action) return;
       e.preventDefault();
+      acceleratorEcho.noteKeystroke(action); // the menu accelerator may deliver this keystroke again
       if (e.repeat || !runOnce(action)) return;
       if (action === 'file:save') void handleSaveArticle(editorRef.current?.getValue() ?? markdown);
       else if (action === 'view:toggleSidebar') setSidebarOpen((v) => !v);
@@ -197,6 +200,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
         runMenuUndo(action === 'edit:undo', editorRef.current, undoFileOpRef.current, redoFileOpRef.current);
         return;
       }
+      if (acceleratorEcho.isEcho(action, payload)) return; // keydown already handled this keystroke
       if (isModalOpen() && !action.startsWith('window:')) return;
       if (action.startsWith('editor:') && action !== 'editor:find' && shouldBlockEditorCommand()) return;
       if (MENU_KEY_ECHO[action] && !runOnce(action)) return;
