@@ -5,7 +5,7 @@ import { importLocalImage, previewSrc } from './coverCrop';
 import type { PublishDraft } from './draftModel';
 
 /** 上传的封面缩略图，点图设焦点（各比例以焦点为中心裁切）。 */
-export function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: string; focus: { x: number; y: number }; onFocus: (f: { x: number; y: number }) => void; className?: string }) {
+function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: string; focus: { x: number; y: number }; onFocus: (f: { x: number; y: number }) => void; className?: string }) {
   return (
     <Tooltip content="点图片设置焦点，各比例以焦点为中心裁切">
       <div
@@ -27,7 +27,7 @@ export function FocusImage({ src, focus, onFocus, className = 'h-24' }: { src: s
 }
 
 /** 选图并存进工作区；返回上传函数与状态。 */
-export function useImageUpload(onDone: (path: string) => void, inputRef: RefObject<HTMLInputElement>) {
+function useImageUpload(onDone: (path: string) => void, inputRef: RefObject<HTMLInputElement>) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const upload = async (file?: File) => {

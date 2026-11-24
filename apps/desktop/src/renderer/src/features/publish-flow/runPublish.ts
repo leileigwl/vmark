@@ -17,7 +17,7 @@ export type CoverCropper = (src: string, ratio: CoverRatio, focus: { x: number; 
 
 /**
  * 组装某平台的推送内容。封面：
- * - 上传了封面：按该平台主比例裁一张（同一比例只裁一次）；卡片平台作为第 1 张图插入；公众号另裁 1:1 转发图；
+ * - 上传了通用封面：按该平台主比例裁一张（同一比例只裁一次）；卡片平台作为第 1 张图插入；公众号另裁 1:1 转发图；
  * - 没上传：公众号/百家号/微博用正文首图，其他平台不带封面，卡片平台用第一张卡片。
  * 裁剪失败时退回原图，由平台自行裁切。
  */
@@ -50,7 +50,6 @@ export async function buildPayload(
   const isCards = spec?.kind === 'cards';
   return {
     title: v.title,
-    socialBody: isCards && v.digest.trim() ? v.digest.trim() : undefined,
     markdown,
     digest: !isCards && v.digest ? v.digest : undefined,
     tags: v.tags.length ? v.tags : undefined,

@@ -147,7 +147,8 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
 
 /**
  * 只列出需要单独处理的平台，一行一个（如“掘金：摘要差 12 字”）。
- * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。公众号封面、小红书/抖音的问题在它们自己的分区里处理。
+ * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。公众号封面的问题在公众号块里看。
+ * 小红书/抖音也在这里：通用标题超长时提示「标题超 N 字（自动截取）」，可点开单独改写。
  */
 export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) {
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
@@ -161,7 +162,7 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
   // 公众号的封面问题在公众号块里处理，标题/摘要/标签问题和其他平台一样在这里改。
   const rows = specs
     .map((spec) => ({ spec, issues: fieldIssues(issuesOf(spec.id)).filter((i) => spec.id !== 'weixin' || i.field !== 'cover') }))
-    .filter(({ spec, issues }) => spec.kind !== 'cards' && (issues.length || open.has(spec.id)));
+    .filter(({ issues, spec }) => issues.length || open.has(spec.id));
 
   if (rows.length === 0) return null;
   return (

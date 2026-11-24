@@ -42,8 +42,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   const selectedSpecs = PLATFORM_SPECS.filter((s) => draft.selected.includes(s.id));
   const ready = selectedSpecs.filter((s) => !issuesOf(s.id).some((i) => i.level === 'error')).map((s) => s.id);
   const blocked = selectedSpecs.filter((s) => !ready.includes(s.id));
-  // 通用区服务于文章类平台；小红书/抖音有自己的分区。
-  const articleSpecs = selectedSpecs.filter((s) => s.kind !== 'cards');
+  // 通用内容铺给所有勾选的平台；小红书/抖音分区只选卡片模板。
   const cardSpecs = selectedSpecs.filter((s) => s.kind === 'cards');
   const weixinOn = draft.selected.includes('weixin');
   const showTags = selectedSpecs.some((s) => s.tags);
@@ -149,7 +148,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
                   <TagInput id="pub-tags" value={draft.tags} onChange={(tags) => update({ tags })} placeholder="回车添加" />
                 </Field>
               ) : null}
-              {articleSpecs.some((s) => s.cover) ? (
+              {selectedSpecs.some((s) => s.cover) ? (
                 <CoverField draft={draft} onChange={update} inputRef={coverInputRef} />
               ) : null}
             </section>
@@ -157,7 +156,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
             {weixinOn || cardSpecs.length ? (
               <section className="space-y-3">
                 <h3 className="text-xs font-medium text-muted">平台专属</h3>
-                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} onChange={update} /> : null}
+                {weixinOn ? <WeixinSection draft={draft} markdown={markdown} bodyImage={bodyImage} issues={issuesOf('weixin').filter((i) => i.field === 'cover')} /> : null}
                 {cardSpecs.length ? <SocialSection draft={draft} specs={cardSpecs} markdown={markdown} issuesOf={issuesOf} onChange={update} /> : null}
               </section>
             ) : null}

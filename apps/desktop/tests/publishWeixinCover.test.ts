@@ -21,29 +21,24 @@ test('公众号不再有作者 / 阅读原文：新草稿没有这两个字段�
   assert.equal(payload.sourceUrl, undefined);
 });
 
-test('公众号封面：公众号块里上传的优先，其次通用封面，再次正文首图', () => {
-  assert.deepEqual(draft().weixin, { cover: '', focus: { x: 50, y: 50 } });
-  const own = draft({ coverUpload: 'assets/g.jpg', weixin: { cover: 'assets/wx.jpg', focus: { x: 20, y: 30 } } });
-  assert.deepEqual(coverFor(own, wx, './assets/a.png'), { kind: 'upload', src: 'assets/wx.jpg' });
+test('公众号封面只有一份：通用封面优先，没传就用正文首图', () => {
   assert.deepEqual(coverFor(draft({ coverUpload: 'assets/g.jpg' }), wx, './assets/a.png'), { kind: 'upload', src: 'assets/g.jpg' });
   assert.deepEqual(coverFor(draft(), wx, './assets/a.png'), { kind: 'body', src: './assets/a.png' });
-  // 公众号单独上传的封面只给公众号，不影响其他平台
-  assert.deepEqual(coverFor(own, SPEC_BY_ID.zhihu!, ''), { kind: 'upload', src: 'assets/g.jpg' });
-  assert.deepEqual(coverFor(draft({ weixin: { cover: 'assets/wx.jpg', focus: { x: 50, y: 50 } } }), SPEC_BY_ID.zhihu!, ''), { kind: 'none' });
+  assert.deepEqual(checkPlatform(draft(), wx, true, '').map((i) => i.message), ['缺封面']);
 });
 
-test('推送：公众号封面按公众号块的焦点裁 2.35:1 与 1:1；其他平台仍按通用封面的焦点', async () => {
-  const d = draft({ coverUpload: 'assets/g.jpg', weixin: { cover: 'assets/wx.jpg', focus: { x: 20, y: 30 } } });
+test('推送：公众号按通用封面的焦点裁 2.35:1 与 1:1，和其他平台同一个焦点', async () => {
+  const d = draft({ coverUpload: 'assets/g.jpg', coverFocus: { x: 20, y: 30 } });
   const cache = new Map();
   const p = await buildPayload(d, MD, 'weixin', './assets/a.png', crop, cache);
-  assert.equal(p.coverImageUrl, 'assets/wx.jpg@2.35:1@20,30');
-  assert.equal(p.weixinSquareCoverImagePath, 'assets/wx.jpg@1:1@20,30');
+  assert.equal(p.coverImageUrl, 'assets/g.jpg@2.35:1@20,30');
+  assert.equal(p.weixinSquareCoverImagePath, 'assets/g.jpg@1:1@20,30');
   const zh = await buildPayload(d, MD, 'zhihu', './assets/a.png', crop, cache);
-  assert.equal(zh.coverImageUrl, 'assets/g.jpg@16:9@50,50');
+  assert.equal(zh.coverImageUrl, 'assets/g.jpg@16:9@20,30');
 });
 
-test('合并本地记住的设置：保留公众号块的封面与焦点', () => {
-  const merged = mergeSaved(draft(), { weixin: { cover: 'assets/wx.jpg', focus: { x: 10, y: 90 } } });
-  assert.deepEqual(merged.weixin, { cover: 'assets/wx.jpg', focus: { x: 10, y: 90 } });
-  assert.deepEqual(checkPlatform(merged, wx, true, ''), []);
+test('合并本地记住的设置：旧版公众号块单独上传的封面丢弃，改用通用封面 / 正文首图', () => {
+  const merged = mergeSaved(draft(), { weixin: { cover: 'assets/wx.jpg', focus: { x: 10, y: 90 } } } as Partial<PublishDraft>);
+  assert.equal('weixin' in merged, false);
+  assert.deepEqual(coverFor(merged, wx, './assets/a.png'), { kind: 'body', src: './assets/a.png' });
 });
