@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vmark（维记）— 本地优先 Markdown 笔记编辑器与多平台创作工作台</title>
+    <meta
+      name="description"
+      content="Vmark（维记）是一款面向创作者与开发者的 Local-First 本地优先桌面端 Markdown 笔记与文档编辑器。打开本地目录即可纯净记笔记，支持即时渲染、24 套 Bloom 主题、Mermaid 与 KaTeX，写完一键合规分发至微信公众号、知乎、掘金、CSDN、小红书等平台。"
+    />
+    <meta
+      name="keywords"
+      content="Vmark,维记,Markdown 笔记,本地 Markdown 编辑器,Local-First 笔记软件,桌面端文档编辑器,Markdown 多平台发布,微信公众号排版,小红书图文卡片,技术写作工作台"
+    />
+    <meta name="author" content="Vmark Contributors" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="theme-color" content="#FAF9F6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141312" media="(prefers-color-scheme: dark)" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href="__SITE_URL__/" />
+    <link rel="alternate" hreflang="zh-CN" href="__SITE_URL__/" />
+    <link rel="alternate" hreflang="en" href="__SITE_URL__/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="__SITE_URL__/" />
+    <link rel="help" type="text/markdown" href="/llms.txt" title="LLMs Information" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Vmark（维记）" />
+    <meta property="og:url" content="__SITE_URL__/" />
+    <meta property="og:title" content="Vmark（维记）— 安静写好每一篇本地笔记，顺手分发到全平台" />
+    <meta
+      property="og:description"
+      content="100% 本地优先的桌面端 Markdown 笔记与文档编辑器。目录即工作区、即时渲染、24 套 Bloom 主题与自定义 CSS；写完无需复制粘贴，内置防盗链转存与多平台合规草稿分发。"
+    />
+    <meta property="og:image" content="__SITE_URL__/images/editor-light.png" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Vmark — Local-First Markdown Note Editor & Multi-Platform Workbench" />
+    <meta
+      name="twitter:description"
+      content="Write calm, local-first Markdown notes with instant rendering, Mermaid, KaTeX, and 24 Bloom themes — then dispatch drafts to 10+ publishing platforms without copy-pasting."
+    />
+    <meta name="twitter:image" content="__SITE_URL__/images/editor-light.png" />
+
+    <!-- Structured Data (SEO + GEO) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "Vmark（维记）",
+            "alternateName": "Vmark",
+            "applicationCategory": "ProductivityApplication",
+            "applicationSubCategory": "Markdown Note-Taking & Publishing Workbench",
+            "operatingSystem": "macOS, Windows, Linux",
+            "softwareVersion": "0.2.0",
+            "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+            "url": "__SITE_URL__/",
+            "sameAs": "https://github.com/leileigwl/vmark",
+            "downloadUrl": "https://github.com/leileigwl/vmark/releases/latest",
+            "screenshot": "__SITE_URL__/images/editor-light.png",
+            "description": "Local-First desktop Markdown note-taking editor and multi-platform publishing workbench. Folders become clean workspaces with standard .md files and local ./assets/ images, featuring instant rendering, Mermaid, KaTeX, 24 Bloom themes, and draft-first publishing.",
+            "featureList": [
+              "100% Local-First Markdown note storage with standard .md files and ./assets/ relative images",
+              "Instant Rendering (IR) Markdown editor with outline, file tree, and full-text search",
+              "Built-in Mermaid diagrams, KaTeX math formulas, and GitHub-style Callout blocks",
+              "24 curated Bloom light/dark themes plus custom CSS stylesheet import",
+              "Local article manager with word counts and reverse draft import from platforms",
+              "Anti-hotlink image pipeline supporting platform native uploads and custom image hosts",
+              "Isolated local browser partitions and draft-first publishing to 10+ platforms",
+              "3:4 high-resolution visual social card generation for Xiaohongshu and Douyin"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Vmark 适合日常纯做笔记和写文档吗？不发布可以用吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "非常适合。Vmark 首先是一款纯粹的本地优先桌面端 Markdown 笔记与文档编辑器：打开本地文件夹即可写作，支持文件树、实时大纲、全文搜索、即时渲染、Mermaid 流程图、KaTeX 公式、Callout 提示块与 24 套 Bloom 主题，完全不依赖任何云端账号或发布功能。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "我的笔记和图片存在哪里？断网能打开和编辑吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "100% 存储在你的本地磁盘。所有笔记都是标准的 .md 纯文本文件，插入或粘贴的图片自动就近保存在当前工作区的 ./assets/ 目录，完全支持离线打开、编辑、检索与 Git 版本管理。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "为什么 Vmark 不做软件自己的云同步账号或内置写作模板？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Vmark 坚持 Local-First 理念：不做软件自身的注册账号，也不做脆弱的云端双向覆盖同步，避免内容冲突与云端绑定。你可以自由搭配 Git、iCloud Drive、Syncthing 或任何网盘同步你的本地笔记目录。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "多平台分发会直接群发吗？账号 Cookie 安全吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "不会盲目群发。主流内容平台默认仅推入你的平台草稿箱，由你在平台后台人工确认后发布。所有授权会话运行在本地独立的沙箱分区与系统加密存储中，不经过任何第三方中转服务器。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "支持哪些操作系统与平台格式？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Vmark 提供 macOS（.dmg/.zip）、Windows（.exe）与 Linux（.AppImage/.deb）桌面端安装包，并内置微信公众号、知乎专栏、稀土掘金、CSDN、百家号、B 站专栏、小红书、抖音、微博、博客园及 GitHub 静态博客的原生级排版与草稿适配。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Vmark 的开源与授权协议是什么？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Vmark 采用 GNU AGPL-3.0-only 与商业授权双协议。个人学习、科研及遵守 AGPL-3.0 条款的开源衍生项目可免费使用；闭源集成或商业发行版本请联系获取商业授权。"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem('vmark_site_theme');
+          if (saved === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#FAF9F6] text-stone-900 antialiased selection:bg-[#3B7CC4]/20 selection:text-[#1D4E89] dark:bg-[#141312] dark:text-stone-100">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
