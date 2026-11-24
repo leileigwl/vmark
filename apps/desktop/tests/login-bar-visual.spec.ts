@@ -1,7 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { LOGIN_BAR_HEIGHT, RENDERER_THEME_PROBE, buildLoginBarHtml } from '../src/main/loginWindowBar';
+import {
+  LOGIN_BAR_HEIGHT,
+  RENDERER_THEME_PROBE,
+  buildLoginBarHtml,
+  buildLoginBarThemeScript,
+  buildRendererThemeWatch,
+  resolveLoginBarTheme,
+} from '../src/main/loginWindowBar';
 
 for (const scheme of ['light', 'dark'] as const) {
   for (const width of [1120, 720]) {
@@ -73,4 +80,30 @@ test('从真实 themes.css 读出的 app 主题能驱动顶栏（深色主题 + 
   await page.setContent(buildLoginBarHtml({ platformId: 'zhihu', signedInAtOpen: true, appTheme: snapshot }));
   expect(await bodyLuminance(page)).toBeLessThan(0.3);
   expect(await page.locator('.primary').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(104, 171, 122)');
+});
+
+test('登录窗口开着时切换 app 主题：顶栏由浅变深（真实 themes.css + 主进程用的监听/换色脚本）', async ({ browser }, testInfo) => {
+  const css = fs.readFileSync(path.join(__dirname, '../src/renderer/src/styles/themes.css'), 'utf-8');
+  const app = await browser.newPage();
+  await app.setContent(`<html data-theme="apple-light"><head><style>${css}</style></head><body></body></html>`);
+  const bar = await browser.newPage({ viewport: { width: 1120, height: LOGIN_BAR_HEIGHT } });
+  await bar.setContent(
+    buildLoginBarHtml({ platformId: 'xiaohongshu', signedInAtOpen: false, appTheme: await app.evaluate(RENDERER_THEME_PROBE) })
+  );
+  const dir = process.env.PW_SCREENSHOT_DIR;
+  const shot = (n: string) => (dir ? path.join(dir, n) : testInfo.outputPath(n));
+  await bar.screenshot({ path: shot('login-bar-live-1-light.png') });
+  expect(await bodyLuminance(bar)).toBeGreaterThan(0.7);
+
+  // 主进程在 Vmark 界面里挂一个监听，用户切主题后拿到新快照，再在顶栏里换色。
+  const next = app.evaluate(buildRendererThemeWatch('apple-light'));
+  await app.evaluate(() => document.documentElement.setAttribute('data-theme', 'bloom-lapis-dark'));
+  const snapshot = await next;
+  expect((snapshot as { themeId: string }).themeId).toBe('bloom-lapis-dark');
+  await bar.evaluate(buildLoginBarThemeScript(resolveLoginBarTheme(snapshot)));
+  await bar.screenshot({ path: shot('login-bar-live-2-dark.png') });
+  expect(await bodyLuminance(bar)).toBeLessThan(0.3);
+  expect(await bar.locator('.primary').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(93, 148, 226)');
+  await app.close();
+  await bar.close();
 });
