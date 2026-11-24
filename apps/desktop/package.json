@@ -19,9 +19,9 @@
     "test:electron-smoke": "playwright test -c playwright.electron.config.ts --reporter=list",
     "test:smoke": "playwright test --grep @smoke --reporter=list && pnpm run test:electron-smoke",
     "test": "pnpm run test:ipc",
-    "package:mac": "pnpm run copy-vditor && electron-vite build && electron-builder --mac --publish never",
-    "package:win": "pnpm run copy-vditor && electron-vite build && electron-builder --win --publish never",
-    "package:linux": "pnpm run copy-vditor && electron-vite build && electron-builder --linux --publish never"
+    "package:mac": "pnpm run copy-vditor && electron-vite build && node scripts/release-version.mjs sync-ci && electron-builder --mac --publish never && node scripts/release-version.mjs verify-ci",
+    "package:win": "pnpm run copy-vditor && electron-vite build && node scripts/release-version.mjs sync-ci && electron-builder --win --publish never && node scripts/release-version.mjs verify-ci",
+    "package:linux": "pnpm run copy-vditor && electron-vite build && node scripts/release-version.mjs sync-ci && electron-builder --linux --publish never && node scripts/release-version.mjs verify-ci"
   },
   "build": {
     "appId": "com.vmark.desktop",
