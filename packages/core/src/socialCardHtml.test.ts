@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderSocialCardHtml } from './socialCardHtml.ts';
+import { cardRunningTitle, renderSocialCardHtml } from './socialCardHtml.ts';
 import { renderCardMeasureHtml, texToText } from './socialCardBlocksHtml.ts';
 import { SOCIAL_CARD_PRESETS, getSocialCardTheme, getCardContentBox } from './socialCardThemes.ts';
 import { renderXiaohongshuCards } from './xiaohongshuRenderer.ts';
@@ -47,5 +47,25 @@ describe('social card templates and block HTML', () => {
     const html = renderCardMeasureHtml([{ kind: 'paragraph', text: 'a' }, { kind: 'math', tex: 'a \\times b^2' }], getSocialCardTheme('blank'), 1000, 800);
     assert.ok(html.includes('data-b="0"') && html.includes('data-b="1"'));
     assert.equal(texToText('a \\times b^2 \\le \\frac{1}{2}'), 'a × b² ≤ (1)/(2)');
+  });
+});
+
+describe('card running title (magazine masthead / book running head)', () => {
+  it('drops a trailing bracketed note instead of cutting inside it', () => {
+    assert.equal(cardRunningTitle('二、云端 CI 怎么执行？（图 3 · 流程总览）', 16), '二、云端 CI 怎么执行？');
+  });
+  it('ends a still-too-long title with an ellipsis and never inside an open bracket', () => {
+    const t = cardRunningTitle('第三部分：如何在本地与云端同时运行端到端测试（Playwright + Electron）并汇总报告', 16);
+    assert.equal([...t].length <= 16, true, t);
+    assert.ok(t.endsWith('…'), t);
+    assert.equal((t.match(/[（(]/g) ?? []).length, (t.match(/[）)]/g) ?? []).length, t);
+  });
+  it('strips inline markdown and keeps short titles as they are', () => {
+    assert.equal(cardRunningTitle('**加粗**标题', 16), '加粗标题');
+    assert.equal(cardRunningTitle('短标题（附注）', 16), '短标题（附注）');
+  });
+  it('is what the minimalist masthead shows', () => {
+    const html = renderSocialCardHtml({ type: 'content', title: '二、云端 CI 怎么执行？（图 3 · 流程总览）', bodyLines: ['正文'] }, { themeId: 'minimalist-magazine', cardIndex: 1, totalCards: 3 });
+    assert.match(html, /<span>二、云端 CI 怎么执行？<\/span>/);
   });
 });
