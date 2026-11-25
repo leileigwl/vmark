@@ -67,6 +67,43 @@ function withText(b: CardBlock, text: string, cont: boolean): CardBlock {
   return b;
 }
 
+const INLINE_MARKS = ['**', '==', '~~', '`', '$'] as const;
+
+/**
+ * Inline spans (**bold**, ==mark==, ~~del~~, `code`, $math$) still open at the end of `text`,
+ * outermost first. Inside `code` / `$math$` other markers do not count; `$` only counts when
+ * the whole paragraph has balanced dollars (so a price like "$5" is not treated as math).
+ */
+export function openInlineMarks(text: string, countDollar = true): string[] {
+  const open: string[] = [];
+  for (let i = 0; i < text.length; ) {
+    if (text[i] === '\\') {
+      i += 2;
+      continue;
+    }
+    const top = open[open.length - 1];
+    const literal = top === '`' || top === '$';
+    const mark = INLINE_MARKS.find((m) => text.startsWith(m, i) && (m !== '$' || countDollar) && (!literal || m === top));
+    if (!mark) {
+      i++;
+      continue;
+    }
+    if (top === mark) open.pop();
+    else open.push(mark);
+    i += mark.length;
+  }
+  return open;
+}
+
+/** Splits text at part `k`; spans open across the cut are closed on the head and reopened on the tail. */
+function splitAt(parts: string[], k: number, countDollar: boolean): { head: string; tail: string; crossed: boolean } {
+  const head = parts.slice(0, k).join('');
+  const tail = parts.slice(k).join('');
+  const open = openInlineMarks(head, countDollar);
+  if (!open.length) return { head, tail, crossed: false };
+  return { head: head + [...open].reverse().join(''), tail: open.join('') + tail, crossed: true };
+}
+
 /** Splits a block into a head that `fits` and the remaining tail, or null if impossible. */
 export function splitCardBlock(
   b: CardBlock,
@@ -76,9 +113,16 @@ export function splitCardBlock(
   if (b.kind === 'paragraph' || b.kind === 'quote' || b.kind === 'list-item') {
     let parts = splitSentences(b.text);
     if (parts.length < 2) parts = b.text.split(/(?<=[，,、：:])/).filter(Boolean);
-    for (let k = parts.length - 1; k >= 1; k--) {
-      const head = withText(b, parts.slice(0, k).join(''), false);
-      if (fits(head)) return [head, withText(b, parts.slice(k).join(''), true)];
+    const countDollar = openInlineMarks(b.text).every((m) => m !== '$');
+    // Prefer a cut outside any inline span; only cut through **bold** etc. when nothing else fits,
+    // and then close/reopen the markers so neither half shows a bare `**`.
+    for (const allowCrossing of [false, true]) {
+      for (let k = parts.length - 1; k >= 1; k--) {
+        const cut = splitAt(parts, k, countDollar);
+        if (cut.crossed && !allowCrossing) continue;
+        const head = withText(b, cut.head, false);
+        if (fits(head)) return [head, withText(b, cut.tail, true)];
+      }
     }
     return null;
   }
