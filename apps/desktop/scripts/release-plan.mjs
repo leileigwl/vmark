@@ -121,15 +121,13 @@ export function computeNextTag({ tags, messages, headTags = [] }) {
   return { tag, level, base, reason };
 }
 
-/** 上一个版本：正式版 -> 上一个正式版；预发布 -> 上一个任意版本。没有返回空字符串。 */
+/** 上一个版本：正式版 -> 上一个正式版（没有时退回最后一个 rc）；预发布 -> 上一个任意版本。没有返回空字符串。 */
 export function previousTag(tag, tags) {
   const cur = parseTag(tag);
   if (!cur) throw new Error(`不是有效的版本 tag：${JSON.stringify(tag)}`);
-  const older = tags
-    .map(parseTag)
-    .filter((p) => p && compareTags(p, cur) < 0 && (cur.pre.length || !p.pre.length))
-    .sort(compareTags);
-  return older.at(-1)?.tag ?? '';
+  const older = tags.map(parseTag).filter((p) => p && compareTags(p, cur) < 0).sort(compareTags);
+  const stable = cur.pre.length ? older : older.filter((p) => !p.pre.length);
+  return (stable.at(-1) ?? older.at(-1))?.tag ?? '';
 }
 
 /** 正式版且不低于仓库里最高的正式版时，才把它标成 Latest（补发旧版本的补丁不会抢走 Latest）。 */
@@ -153,7 +151,12 @@ export function nextTagFromGit(ref = 'HEAD', cwd = process.cwd()) {
   const range = base ? `${base}..${ref}` : ref;
   const raw = git(['log', '--format=%B%x00', range], cwd);
   const messages = raw.split('\0').map((m) => m.trim()).filter(Boolean);
-  return computeNextTag({ tags, messages, headTags });
+  const plan = computeNextTag({ tags, messages, headTags });
+  const top = latestStable(lines(git(['tag', '--list', 'v*'], cwd)));
+  if (plan.tag && top && compareTags(plan.tag, top) <= 0) {
+    throw new Error(`算出的 ${plan.tag} 不高于已有的正式版 ${top}：${ref} 上看不到 ${top}，请在 master（或包含它的分支）上计算`);
+  }
+  return plan;
 }
 
 function emit(obj, githubOutput, plain) {
@@ -177,7 +180,7 @@ export function main(argv, cwd = process.cwd()) {
     return 0;
   }
   if (cmd === 'previous-tag') {
-    const previous = previousTag(arg, lines(git(['tag', '--list', 'v*'], cwd)));
+    const previous = previousTag(arg, lines(git(['tag', '--list', 'v*', '--merged', arg], cwd)));
     emit({ previous }, gh, previous);
     return 0;
   }

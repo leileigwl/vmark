@@ -61,7 +61,7 @@ function git(args) {
 }
 
 export function notesFromGit(tag) {
-  const tags = git(['tag', '--list', 'v*']).split('\n').filter(Boolean);
+  const tags = git(['tag', '--list', 'v*', '--merged', tag]).split('\n').filter(Boolean);
   const previous = previousTag(tag, tags);
   const raw = git(['log', '--format=%h%x09%s', previous ? `${previous}..${tag}` : tag]);
   const commits = raw
