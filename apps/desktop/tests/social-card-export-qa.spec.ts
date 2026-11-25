@@ -75,7 +75,9 @@ async function overflowOf(frame: Frame) {
   return frame.evaluate(() => {
     const box = document.querySelector('.box') as HTMLElement | null;
     const flow = box?.querySelector('.flow') as HTMLElement | null;
-    if (!box || !flow) return { content: 0, cutChildren: 0 };
+    // 封面卡没有 .flow；内容卡缺 .box/.flow 说明模板结构变了，content=-1 让断言失败而不是空通过。
+    if (box?.querySelector('.cover')) return { content: 0, cutChildren: 0 };
+    if (!box || !flow) return { content: -1, cutChildren: 0 };
     const limit = box.getBoundingClientRect().bottom + 1;
     const cut = Array.from(flow.children).filter((el) => el.getBoundingClientRect().bottom > limit).length;
     return { content: 1, cutChildren: cut };
@@ -108,10 +110,14 @@ test.describe('卡片出图 QA（极简杂志）', () => {
 
   test('密集正文的缩略图不切掉页底文字', async ({ page }) => {
     await openWithMarkdown(page, DENSE_MD);
+    let checked = 0;
     for (const f of await thumbFrames(page)) {
       const r = await overflowOf(f);
+      expect(r.content, '内容卡缺少 .box/.flow').toBeGreaterThanOrEqual(0);
+      checked += r.content;
       expect(r.cutChildren, '有内容块超出卡片内容框被裁切').toBe(0);
     }
+    expect(checked, '至少检查了一张内容卡').toBeGreaterThan(0);
   });
 
   test('图片和长段落相邻时缩略图里的图片与文字都不被裁切', async ({ page }) => {
@@ -119,9 +125,13 @@ test.describe('卡片出图 QA（极简杂志）', () => {
     const wide = 'WWW MMM WMW MWM WWWW MMMM WMWM MWMW WWW MMM WMW MWM WWWW MMMM。';
     const md = ['# 图文混排', '', wide.repeat(4), '', `![流程图](${png})`, '', wide.repeat(5), '', `![第二张](${png})`, '', wide.repeat(3)].join('\n');
     await openWithMarkdown(page, md);
+    let checked = 0;
     for (const f of await thumbFrames(page)) {
       const r = await overflowOf(f);
+      expect(r.content, '内容卡缺少 .box/.flow').toBeGreaterThanOrEqual(0);
+      checked += r.content;
       expect(r.cutChildren, '图片或文字超出卡片内容框被裁切').toBe(0);
     }
+    expect(checked, '至少检查了一张内容卡').toBeGreaterThan(0);
   });
 });

@@ -28,8 +28,11 @@ function fitThumb(frame: HTMLIFrameElement) {
     fitCardDisplayMath(doc);
     fitCardOverflow(doc);
   };
+  // 还没加载完的图片在加载成功或失败后都再算一次；已加载完的由下面字体就绪后的那次覆盖。
   doc.querySelectorAll('img').forEach((img) => {
-    if (!img.complete) img.addEventListener('load', fit, { once: true });
+    if (img.complete) return;
+    img.addEventListener('load', fit, { once: true });
+    img.addEventListener('error', fit, { once: true });
   });
   void doc.fonts.ready.then(fit);
 }
