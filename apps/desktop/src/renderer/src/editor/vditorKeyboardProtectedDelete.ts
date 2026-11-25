@@ -19,6 +19,21 @@ function isProtectedBlock(el: Element): boolean {
   return ['blockquote', 'code-block', 'table', 'hr', 'html-block', 'math-block'].includes(dt);
 }
 
+function isHrBlock(el: Element): boolean {
+  return el.tagName.toLowerCase() === 'hr' || el.getAttribute('data-type') === 'hr';
+}
+
+function placeCaretAtBlockBoundary(sel: Selection, block: HTMLElement, atStart: boolean): void {
+  const leaves = block.querySelectorAll('p, li, code, td, th');
+  const leafTarget =
+    (leaves.length > 0 ? (leaves[atStart ? 0 : leaves.length - 1] as HTMLElement) : null) ?? block;
+  const newRange = document.createRange();
+  newRange.selectNodeContents(leafTarget);
+  newRange.collapse(atStart);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+}
+
 /** Handles empty bracket pair Backspace (e.g. `(|)` deletes both). */
 export function handleEmptyPairBackspace(
   e: KeyboardEvent,
@@ -261,7 +276,25 @@ export function handleProtectedBlockDelete(
       const preClean = preRange.toString().replace(/[\u200b\ufeff\s]/g, '');
       const isAtStart = preClean.length === 0 || /^#{1,6}$/.test(preClean);
       if (isAtStart) {
-        const prevSib = topBlock.previousElementSibling;
+        const prevSib = topBlock.previousElementSibling as HTMLElement | null;
+        if (prevSib && isHrBlock(prevSib)) {
+          const fullText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          ctx.pushVditorUndo();
+          const prevBeforeHr = prevSib.previousElementSibling as HTMLElement | null;
+          prevSib.remove();
+          if (fullText.length === 0 && prevBeforeHr && !isHrBlock(prevBeforeHr)) {
+            topBlock.remove();
+            placeCaretAtBlockBoundary(sel, prevBeforeHr, false);
+          } else {
+            placeCaretAtBlockBoundary(sel, topBlock, true);
+          }
+          ctx.pushVditorUndo();
+          ctx.onChangeValue(instance.getValue());
+          return true;
+        }
         if (prevSib && isProtectedBlock(prevSib)) {
           const fullText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
           e.preventDefault();
@@ -270,14 +303,7 @@ export function handleProtectedBlockDelete(
           if (fullText.length > 0) return true;
           ctx.pushVditorUndo();
           topBlock.remove();
-          const newRange = document.createRange();
-          const leafTarget =
-            (prevSib.querySelector('p:last-of-type, li:last-of-type, code, td, th') as HTMLElement | null) ??
-            prevSib;
-          newRange.selectNodeContents(leafTarget);
-          newRange.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
+          placeCaretAtBlockBoundary(sel, prevSib, false);
           ctx.pushVditorUndo();
           ctx.onChangeValue(instance.getValue());
           return true;
@@ -290,7 +316,17 @@ export function handleProtectedBlockDelete(
       postRange.setStart(range.startContainer, range.startOffset);
       postRange.setEnd(topBlock, topBlock.childNodes.length);
       if (postRange.toString().replace(/[\u200b\ufeff\s]/g, '').length === 0) {
-        const nextSib = topBlock.nextElementSibling;
+        const nextSib = topBlock.nextElementSibling as HTMLElement | null;
+        if (nextSib && isHrBlock(nextSib)) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          ctx.pushVditorUndo();
+          nextSib.remove();
+          ctx.pushVditorUndo();
+          ctx.onChangeValue(instance.getValue());
+          return true;
+        }
         if (nextSib && isProtectedBlock(nextSib)) {
           const fullText = (topBlock.textContent || '').replace(/[\u200b\ufeff\s]/g, '');
           e.preventDefault();
@@ -299,13 +335,7 @@ export function handleProtectedBlockDelete(
           if (fullText.length === 0) {
             ctx.pushVditorUndo();
             topBlock.remove();
-            const newRange = document.createRange();
-            const leafTarget =
-              (nextSib.querySelector('p, li, code, td, th') as HTMLElement | null) ?? nextSib;
-            newRange.selectNodeContents(leafTarget);
-            newRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(newRange);
+            placeCaretAtBlockBoundary(sel, nextSib, true);
             ctx.pushVditorUndo();
             ctx.onChangeValue(instance.getValue());
           }

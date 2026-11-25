@@ -12,6 +12,7 @@ import {
   handleEditorCutCapture,
   handleEditorDragStartCapture,
   handleEditorDropCapture,
+  handleEditorGapClickCapture,
   handleEditorMouseDownCapture,
   handleEditorPasteCapture,
   type PointerEventContext,
@@ -81,7 +82,7 @@ export function bindVditorEditorEvents(params: {
     });
   };
 
-  const handledGapClickRef = { current: false };
+  const pendingGapMouseDownRef = { current: null as { x: number; y: number; resetEl: HTMLElement } | null };
   const pointerCtx: PointerEventContext = {
     el,
     instance,
@@ -93,7 +94,7 @@ export function bindVditorEditorEvents(params: {
     lastSelectionElRef: params.lastSelectionElRef,
     activeZoomImgRef: params.activeZoomImgRef,
     mermaidClickTimerRef: params.mermaidClickTimerRef,
-    handledGapClickRef,
+    pendingGapMouseDownRef,
     suppressPreviewClickUntilRef: params.suppressPreviewClickUntilRef,
     setLightboxItem: params.setLightboxItem,
     commitCodeBlockLanguage: params.commitCodeBlockLanguage,
@@ -113,13 +114,7 @@ export function bindVditorEditorEvents(params: {
       e.stopImmediatePropagation();
       return;
     }
-    if (handledGapClickRef.current) {
-      handledGapClickRef.current = false;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      return;
-    }
+    if (handleEditorGapClickCapture(e, pointerCtx)) return;
     if (Date.now() < params.suppressPreviewClickUntilRef.current) {
       e.preventDefault();
       e.stopPropagation();

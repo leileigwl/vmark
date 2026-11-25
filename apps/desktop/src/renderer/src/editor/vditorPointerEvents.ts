@@ -12,7 +12,7 @@ export interface PointerEventContext {
   lastSelectionElRef: { current: HTMLElement | null };
   activeZoomImgRef: { current: HTMLImageElement | null };
   mermaidClickTimerRef: { current: ReturnType<typeof setTimeout> | null };
-  handledGapClickRef: { current: boolean };
+  pendingGapMouseDownRef: { current: { x: number; y: number; resetEl: HTMLElement } | null };
   suppressPreviewClickUntilRef: { current: number };
   setLightboxItem: (item: LightboxPayload | null) => void;
   commitCodeBlockLanguage: (infoMarker: HTMLElement, rawLang: string) => void;
@@ -23,7 +23,7 @@ export interface PointerEventContext {
 
 export function handleEditorMouseDownCapture(e: MouseEvent, ctx: PointerEventContext): void {
   const { el } = ctx;
-  ctx.handledGapClickRef.current = false;
+  ctx.pendingGapMouseDownRef.current = null;
   if (e.button !== 0) return;
   const target = e.target as HTMLElement | null;
 
@@ -143,51 +143,8 @@ export function handleEditorMouseDownCapture(e: MouseEvent, ctx: PointerEventCon
       return e.clientY >= r.top && e.clientY <= r.bottom;
     });
     if (!hitInsideChild) {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      ctx.handledGapClickRef.current = true;
-      ctx.clearActiveZoomTarget();
-      const nextChild = children.find((c) => c.getBoundingClientRect().top > e.clientY) ?? null;
-      const prevChild = nextChild
-        ? (nextChild.previousElementSibling as HTMLElement | null)
-        : children[children.length - 1] ?? null;
-      ctx.collapseExpandedCodeBlocks(null);
-      const isEmptyPara = (node: HTMLElement | null) =>
-        Boolean(node && node.tagName === 'P' && (node.textContent || '').replace(/\u200b/g, '').trim() === '');
-
-      let targetPara: HTMLElement | null = null;
-      if (isEmptyPara(prevChild)) {
-        targetPara = prevChild;
-      } else if (isEmptyPara(nextChild)) {
-        targetPara = nextChild;
-      } else {
-        targetPara = document.createElement('p');
-        targetPara.setAttribute('data-block', '0');
-        targetPara.setAttribute('data-vcat-temp-gap', '1');
-        targetPara.textContent = '\u200b';
-        if (nextChild) {
-          target.insertBefore(targetPara, nextChild);
-        } else {
-          target.appendChild(targetPara);
-        }
-      }
-
-      ctx.cleanupUnusedTempGapParagraphs(targetPara);
-      target.focus({ preventScroll: true });
-      if (targetPara) {
-        if (!targetPara.firstChild) {
-          targetPara.textContent = '\u200b';
-        }
-        const sel = window.getSelection();
-        if (sel) {
-          const range = document.createRange();
-          range.selectNodeContents(targetPara);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-      }
+      // Do not preventDefault on mousedown so upward/downward drag-selection can start in blank margins.
+      ctx.pendingGapMouseDownRef.current = { x: e.clientX, y: e.clientY, resetEl: target };
       return;
     }
   }
@@ -214,6 +171,64 @@ export function handleEditorMouseDownCapture(e: MouseEvent, ctx: PointerEventCon
       alt: imgEl.alt,
     });
   }
+}
+
+/** Creates/focuses a paragraph only on a genuine blank-gap click (not after a drag selection). */
+export function handleEditorGapClickCapture(e: MouseEvent, ctx: PointerEventContext): boolean {
+  const pending = ctx.pendingGapMouseDownRef.current;
+  ctx.pendingGapMouseDownRef.current = null;
+  if (!pending || ctx.readOnly) return false;
+  if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) >= 5) return false;
+  const currentSel = window.getSelection();
+  if (currentSel && !currentSel.isCollapsed) return false;
+
+  const target = pending.resetEl;
+  const children = Array.from(target.children) as HTMLElement[];
+  const nextChild = children.find((c) => c.getBoundingClientRect().top > e.clientY) ?? null;
+  const prevChild = nextChild
+    ? (nextChild.previousElementSibling as HTMLElement | null)
+    : children[children.length - 1] ?? null;
+
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  ctx.clearActiveZoomTarget();
+  ctx.collapseExpandedCodeBlocks(null);
+
+  const isEmptyPara = (node: HTMLElement | null) =>
+    Boolean(node && node.tagName === 'P' && (node.textContent || '').replace(/\u200b/g, '').trim() === '');
+
+  let targetPara: HTMLElement | null = null;
+  if (isEmptyPara(prevChild)) {
+    targetPara = prevChild;
+  } else if (isEmptyPara(nextChild)) {
+    targetPara = nextChild;
+  } else {
+    targetPara = document.createElement('p');
+    targetPara.setAttribute('data-block', '0');
+    targetPara.setAttribute('data-vcat-temp-gap', '1');
+    targetPara.textContent = '\u200b';
+    if (nextChild) {
+      target.insertBefore(targetPara, nextChild);
+    } else {
+      target.appendChild(targetPara);
+    }
+  }
+
+  ctx.cleanupUnusedTempGapParagraphs(targetPara);
+  target.focus({ preventScroll: true });
+  if (targetPara) {
+    if (!targetPara.firstChild) targetPara.textContent = '\u200b';
+    const sel = window.getSelection();
+    if (sel) {
+      const range = document.createRange();
+      range.selectNodeContents(targetPara);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+  return true;
 }
 
 export function handleEditorContextMenu(e: MouseEvent, ctx: PointerEventContext): void {
