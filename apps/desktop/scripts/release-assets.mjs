@@ -26,12 +26,24 @@ export function githubAssetName(name) {
   return name.replace(/[^A-Za-z0-9._+@-]/g, '.');
 }
 
-/** 只读解析 electron-builder 生成的 latest*.yml（固定格式，不引入 yaml 依赖）。 */
+/** 只读解析 electron-builder 生成的 latest*.yml（固定格式，不引入 yaml 依赖）：version、files[{url, sha512, size}]、所有下载地址。 */
 export function parseUpdaterYml(text) {
   const version = /^version:\s*['"]?([^'"\s]+)/m.exec(text)?.[1] ?? null;
-  const urls = [...text.matchAll(/^\s*-\s*url:\s*['"]?([^'"\n]+?)['"]?\s*$/gm)].map((m) => m[1]);
+  const files = [];
+  for (const line of text.split('\n')) {
+    const url = /^\s*-\s*url:\s*['"]?([^'"]+?)['"]?\s*$/.exec(line);
+    if (url) {
+      files.push({ url: url[1], sha512: null, size: null });
+      continue;
+    }
+    const cur = /^\s{2,}/.test(line) ? files.at(-1) : undefined;
+    const sha = /^\s+sha512:\s*['"]?([^'"\s]+)/.exec(line);
+    const size = /^\s+size:\s*(\d+)/.exec(line);
+    if (cur && sha) cur.sha512 = sha[1];
+    if (cur && size) cur.size = Number(size[1]);
+  }
   const path = /^path:\s*['"]?([^'"\n]+?)['"]?\s*$/m.exec(text)?.[1] ?? null;
-  return { version, urls: [...new Set([...urls, ...(path ? [path] : [])])] };
+  return { version, files, urls: [...new Set([...files.map((f) => f.url), ...(path ? [path] : [])])] };
 }
 
 /** 要上传到 Release 的文件（安装包、blockmap、latest*.yml），按名字排序。 */
@@ -69,11 +81,21 @@ export function checkReleaseDir(dir, tag, platforms = Object.keys(PLATFORMS)) {
     for (const url of meta.urls) {
       if (!files.includes(url)) errors.push(`[${p}] ${spec.yml} 指向 ${url}，但产物里没有这个文件（自动更新会 404）`);
     }
+    for (const f of meta.files.filter((x) => files.includes(x.url))) {
+      const file = join(dir, f.url);
+      if (f.sha512 && f.sha512 !== hash('sha512', file, 'base64')) {
+        errors.push(`[${p}] ${spec.yml} 里 ${f.url} 的 sha512 与文件不符（自动更新会校验失败）`);
+      }
+      if (f.size !== null && f.size !== statSync(file).size) {
+        errors.push(`[${p}] ${spec.yml} 里 ${f.url} 的 size 是 ${f.size}，文件实际 ${statSync(file).size}`);
+      }
+    }
   }
   return { files, errors };
 }
 
-const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
+const hash = (algo, file, enc) => createHash(algo).update(readFileSync(file)).digest(enc);
+const sha256 = (file) => hash('sha256', file, 'hex');
 
 /** 生成 SHA256SUMS.txt 内容（`sha256sum -c` 可直接校验），按文件名排序保证可复现。 */
 export function checksums(dir) {
@@ -116,6 +138,10 @@ export function main(argv) {
   const [cmd, a, b] = argv;
   if (cmd === 'check') {
     const i = argv.indexOf('--platform');
+    if (i > 0 && !argv[i + 1]) {
+      console.error('[release-assets] ✗ --platform 需要值，例如 --platform mac 或 --platform mac,win,linux');
+      return 2;
+    }
     const platforms = i > 0 ? argv[i + 1].split(',') : undefined;
     const r = checkReleaseDir(resolve(a), b, platforms);
     for (const f of r.files) console.log(`[release-assets] ${f}`);
