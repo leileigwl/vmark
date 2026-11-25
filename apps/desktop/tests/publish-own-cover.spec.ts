@@ -86,7 +86,7 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
       const wx = page.getByTestId('section-weixin');
       await wx.getByRole('button', { expanded: false }).click();
       await wx.getByTestId('own-cover-input-weixin').setInputFiles(PNG);
-      await expect(wx.getByAltText('公众号封面预览')).toBeVisible();
+      await expect(wx.getByTestId('cover-focus')).toBeVisible();
       await wx.evaluate((el) => el.scrollIntoView({ block: 'start' }));
       await shot(page, testInfo, `weixin-own-cover-${mode}`);
     });

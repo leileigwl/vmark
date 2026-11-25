@@ -268,7 +268,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
     await expect(page.getByTestId('weixin-cover')).toContainText('请上传一张封面（推荐 2.35:1，900×383）');
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    await expect(page.getByAltText('公众号封面预览')).toBeVisible();
+    await expect(section(page, 'weixin').getByTestId('cover-focus')).toBeVisible();
     await expect(page.getByAltText('1:1 封面预览')).toHaveCount(0);
     await expect(row(page, 'weixin')).toContainText('就绪');
     const shotDir = process.env.PW_SCREENSHOT_DIR;
@@ -293,7 +293,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
     // 公众号的封面预览在公众号分区里（不展示 1:1）
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
-    await expect(section(page, 'weixin').getByAltText('公众号封面预览')).toBeVisible();
+    await expect(section(page, 'weixin').getByTestId('cover-focus')).toBeVisible();
     await expect(section(page, 'weixin').getByAltText('1:1 封面预览')).toHaveCount(0);
     await section(page, 'social').getByRole('button', { expanded: false }).click();
     await expect(section(page, 'social').getByAltText('卡片封面（通用封面）')).toBeVisible();
