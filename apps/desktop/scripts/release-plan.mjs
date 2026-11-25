@@ -59,14 +59,15 @@ export function isPrerelease(tag) {
 }
 
 const coreTag = (p) => `v${p.major}.${p.minor}.${p.patch}`;
-const IGNORED = [/^Merge (pull request|branch|remote-tracking branch) /, /^chore\(release\)/i];
+/** 不计入版本、也不写进发布说明的提交：各种 Merge 提交和 chore(release) 同步提交。release-notes.mjs 共用。 */
+export const IGNORED_COMMIT_RE = [/^Merge\b/, /^chore\(release\)/i];
 
 /** 按提交信息（主题 + 正文）给出升级级别：'major' | 'minor' | 'patch' | null。 */
 export function classifyCommits(messages) {
   let level = null;
   for (const raw of messages) {
     const msg = String(raw ?? '').trim();
-    if (!msg || IGNORED.some((re) => re.test(msg))) continue;
+    if (!msg || IGNORED_COMMIT_RE.some((re) => re.test(msg))) continue;
     const subject = msg.split('\n')[0];
     if (/^[A-Za-z]+(\([^)]*\))?!:/.test(subject) || /^BREAKING[ -]CHANGE:/m.test(msg)) return 'major';
     if (/^feat(\([^)]*\))?:/i.test(subject)) level = 'minor';
@@ -144,9 +145,9 @@ function git(args, cwd) {
 
 const lines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 
-/** 从 git 仓库读取输入并算下一个 tag（ref 例如 origin/master）。 */
+/** 从 git 仓库读取输入并算下一个 tag（ref 例如 origin/master）。只看 ref 可达的 tag，别的分支上遗留的 rc 不会被转正。 */
 export function nextTagFromGit(ref = 'HEAD', cwd = process.cwd()) {
-  const tags = lines(git(['tag', '--list', 'v*'], cwd));
+  const tags = lines(git(['tag', '--list', 'v*', '--merged', ref], cwd));
   const headTags = lines(git(['tag', '--points-at', ref], cwd));
   const base = latestStable(tags);
   const range = base ? `${base}..${ref}` : ref;
@@ -155,12 +156,12 @@ export function nextTagFromGit(ref = 'HEAD', cwd = process.cwd()) {
   return computeNextTag({ tags, messages, headTags });
 }
 
-function emit(obj, githubOutput) {
+function emit(obj, githubOutput, plain) {
   if (githubOutput && process.env.GITHUB_OUTPUT) {
     const body = Object.entries(obj).map(([k, v]) => `${k}=${String(v ?? '').replace(/\n/g, ' ')}`).join('\n');
     appendFileSync(process.env.GITHUB_OUTPUT, `${body}\n`);
   }
-  console.log(JSON.stringify(obj));
+  console.log(plain ?? JSON.stringify(obj));
 }
 
 export function main(argv, cwd = process.cwd()) {
@@ -176,11 +177,13 @@ export function main(argv, cwd = process.cwd()) {
     return 0;
   }
   if (cmd === 'previous-tag') {
-    console.log(previousTag(arg, lines(git(['tag', '--list', 'v*'], cwd))));
+    const previous = previousTag(arg, lines(git(['tag', '--list', 'v*'], cwd)));
+    emit({ previous }, gh, previous);
     return 0;
   }
   if (cmd === 'is-latest') {
-    console.log(String(shouldMarkLatest(arg, lines(git(['tag', '--list', 'v*'], cwd)))));
+    const latest = shouldMarkLatest(arg, lines(git(['tag', '--list', 'v*'], cwd)));
+    emit({ latest }, gh, String(latest));
     return 0;
   }
   console.error('用法: release-plan.mjs next-tag [ref] | channel <tag> | previous-tag <tag> | is-latest <tag>  [--github-output]');

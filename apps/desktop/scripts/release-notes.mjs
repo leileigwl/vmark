@@ -6,16 +6,15 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isPrerelease, previousTag } from './release-plan.mjs';
+import { IGNORED_COMMIT_RE, isPrerelease, previousTag } from './release-plan.mjs';
 
 const SOCIAL_RE = /social|card|xiaohongshu|douyin|weixin|zhihu|baijiahao|latex|排版|卡片|小红书|抖音/i;
-const SKIP_RE = [/^Merge (pull request|branch|remote-tracking branch) /, /^chore\(release\)/i];
 
 /** 把提交主题分组：[{ hash, subject }] -> { social, feats, fixes, others } */
 export function groupCommits(commits) {
   const groups = { social: [], feats: [], fixes: [], others: [] };
   for (const { hash, subject } of commits) {
-    if (SKIP_RE.some((re) => re.test(subject))) continue;
+    if (IGNORED_COMMIT_RE.some((re) => re.test(subject))) continue;
     const item = `- ${subject} (\`${hash}\`)`;
     if (/^feat/i.test(subject) && SOCIAL_RE.test(subject)) groups.social.push(item);
     else if (/^feat/i.test(subject)) groups.feats.push(item);
