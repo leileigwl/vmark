@@ -153,7 +153,7 @@ export function AttentionList({ draft, specs, issuesOf, onChange }: AttentionLis
     juejin.settled && draft.juejinCategoryId !== '' && !juejinCategories.some((c) => c.id === draft.juejinCategoryId);
   useEffect(() => {
     if (staleJuejinId) onChange({ juejinCategoryId: '' });
-  }, [staleJuejinId]);
+  }, [staleJuejinId, onChange]);
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
   const setOpen = (id: PlatformId, on: boolean) =>
     setOpenSet((prev) => {

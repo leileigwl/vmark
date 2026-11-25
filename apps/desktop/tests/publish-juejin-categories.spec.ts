@@ -94,7 +94,8 @@ test.describe('TODO 2：掘金分类运行时拉取', () => {
       ],
     });
 
-    await page.waitForTimeout(300);
+    // 分类列表加载结束的确定信号：掘金已在「可推送」里（推送按钮写着 1 个草稿箱）。
+    await expect(page.getByTestId('publish-start')).toHaveText(/推送到 1 个草稿箱/);
     await expect(page.getByTestId('attention-juejin')).toHaveCount(0);
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
