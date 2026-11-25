@@ -1,5 +1,5 @@
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
-import type { ChildProcess } from 'node:child_process';
+import { execFileSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -148,26 +148,45 @@ async function stdioClosed(proc: ChildProcess, ms: number): Promise<boolean> {
   }
 }
 
-/** SIGKILLs every other process whose command line contains `needle` (Linux /proc only). Returns their pids. */
+/** SIGKILLs every other process whose command line contains `needle` (Linux /proc and macOS `ps`). Returns their pids. */
 function killProcessesMentioning(needle: string): number[] {
-  if (process.platform !== 'linux') return [];
   const killed: number[] = [];
-  for (const entry of fs.readdirSync('/proc')) {
-    const pid = Number(entry);
-    if (!Number.isInteger(pid) || pid === process.pid) continue;
-    let cmdline: string;
-    try {
-      cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-    } catch (error) {
-      if (isGoneOrForeign(error)) continue; // exited while we scanned, or not ours to read
-      throw error;
+  if (process.platform === 'linux') {
+    for (const entry of fs.readdirSync('/proc')) {
+      const pid = Number(entry);
+      if (!Number.isInteger(pid) || pid === process.pid) continue;
+      let cmdline: string;
+      try {
+        cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+      } catch (error) {
+        if (isGoneOrForeign(error)) continue; // exited while we scanned, or not ours to read
+        throw error;
+      }
+      if (!cmdline.includes(needle)) continue;
+      try {
+        process.kill(pid, 'SIGKILL');
+        killed.push(pid);
+      } catch (error) {
+        if (!isGoneOrForeign(error)) throw error;
+      }
     }
-    if (!cmdline.includes(needle)) continue;
-    try {
-      process.kill(pid, 'SIGKILL');
-      killed.push(pid);
-    } catch (error) {
-      if (!isGoneOrForeign(error)) throw error;
+    return killed;
+  }
+
+  if (process.platform === 'darwin') {
+    const out = execFileSync('ps', ['-ax', '-o', 'pid=,command='], { encoding: 'utf8' });
+    for (const line of out.split('\n')) {
+      const match = line.trim().match(/^(\d+)\s+(.*)$/);
+      if (!match) continue;
+      const pid = Number(match[1]);
+      const cmdline = match[2] ?? '';
+      if (!Number.isInteger(pid) || pid === process.pid || !cmdline.includes(needle)) continue;
+      try {
+        process.kill(pid, 'SIGKILL');
+        killed.push(pid);
+      } catch (error) {
+        if (!isGoneOrForeign(error)) throw error;
+      }
     }
   }
   return killed;

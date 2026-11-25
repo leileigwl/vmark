@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   __resetPlatformAuthForTests,
   getPlatformAuthSnapshot,
+  markPlatformAuthStatuses,
   refreshPlatformAuth,
   statusOf,
   subscribePlatformAuth,
@@ -84,4 +85,17 @@ test('从未登录变为已登录：刷新结果覆盖旧值', async () => {
   await b;
   assert.equal(statusOf('juejin'), 'signedIn');
   assert.equal(main.invokes(), 2);
+});
+
+test('markPlatformAuthStatuses：单平台登录/登出只更新自身，不重置其他平台为 checking（无闪烁）', async () => {
+  __resetPlatformAuthForTests();
+  const main = fakeMain();
+  const first = refreshPlatformAuth();
+  main.finish({ weixin: false, zhihu: true, juejin: false });
+  await first;
+
+  markPlatformAuthStatuses({ weixin: true });
+  assert.equal(statusOf('weixin'), 'signedIn');
+  assert.equal(statusOf('zhihu'), 'signedIn');
+  assert.equal(statusOf('juejin'), 'signedOut');
 });

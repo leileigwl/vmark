@@ -2,6 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { PlatformId } from '@vcat/shared';
 import {
   getPlatformAuthSnapshot,
+  markPlatformAuthStatuses,
   refreshPlatformAuth,
   statusOf,
   subscribePlatformAuth,
@@ -11,7 +12,7 @@ import {
 import { PLATFORM_LINKS } from './platformLinks';
 
 export type { AuthStatus, PlatformAuthSnapshot };
-export { refreshPlatformAuth, statusOf, PLATFORM_LINKS };
+export { markPlatformAuthStatuses, refreshPlatformAuth, statusOf, PLATFORM_LINKS };
 export { AuthStatusBadge } from './AuthStatusBadge';
 
 /** 平台登录状态的唯一入口。首次挂载时自动检测一次。 */
@@ -25,21 +26,21 @@ export function usePlatformAuth() {
   const signIn = useCallback(async (id: PlatformId) => {
     const link = PLATFORM_LINKS[id];
     if (!link || !window.electronAPI?.openPlatformLogin) return;
-    await window.electronAPI.openPlatformLogin(id, link.loginUrl);
-    await refreshPlatformAuth();
+    const ok = await window.electronAPI.openPlatformLogin(id, link.loginUrl);
+    if (typeof ok === 'boolean') markPlatformAuthStatuses({ [id]: ok });
   }, []);
 
   const openDashboard = useCallback(async (id: PlatformId) => {
     const link = PLATFORM_LINKS[id];
     if (!link || !window.electronAPI?.openPlatformLogin) return;
-    await window.electronAPI.openPlatformLogin(id, link.dashboardUrl);
-    await refreshPlatformAuth();
+    const ok = await window.electronAPI.openPlatformLogin(id, link.dashboardUrl);
+    if (typeof ok === 'boolean') markPlatformAuthStatuses({ [id]: ok });
   }, []);
 
   const signOut = useCallback(async (id: PlatformId) => {
     if (!window.electronAPI?.logoutPlatform) return;
     await window.electronAPI.logoutPlatform(id);
-    await refreshPlatformAuth();
+    markPlatformAuthStatuses({ [id]: false });
   }, []);
 
   return {

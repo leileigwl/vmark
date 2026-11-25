@@ -127,9 +127,17 @@ function themeCss({ scheme, tokens: t }: LoginBarTheme): string {
   return `:root{color-scheme:${scheme};--bg:${t.surface};--line:${t.line};--ink:${t.ink};--muted:${t.muted};--hover:${t.hover};--primary:${t.primary};--on-primary:#fff}`;
 }
 
+export type LoginBarAction = 'back' | 'reload' | 'done' | 'close';
+
+/** 解析顶栏按钮触发的 URL（兼容旧 vmark-nav://<action> 与 data: 页内 hash #vmark-nav://<action>:<ts>）。 */
+export function parseLoginBarActionUrl(targetUrl: string): LoginBarAction | null {
+  const m = targetUrl.match(/^(?:vmark-nav:\/\/|.*#vmark-nav:\/\/)(back|reload|done|close)(?::\d+)?$/);
+  return (m?.[1] as LoginBarAction | undefined) ?? null;
+}
+
 /**
  * 登录窗口的统一顶栏：平台名 + 状态提示 + 「登录完成」+ 关闭，配色取自 Vmark 内当前选中的主题（不跟随系统深浅色）。
- * 按钮通过 vmark-nav:// 链接通知主进程，顶栏页面本身没有任何权限。
+ * 按钮通过页内 hash `#vmark-nav://<action>:<ts>` 通知主进程（Electron `data:text/html` 下 `did-navigate-in-page` 稳定可达），顶栏页面本身没有任何权限。
  */
 export function buildLoginBarHtml(options: { platformId: PlatformId; signedInAtOpen: boolean; appTheme?: unknown }): string {
   const name = loginWindowName(options.platformId);
@@ -139,7 +147,8 @@ export function buildLoginBarHtml(options: { platformId: PlatformId; signedInAtO
 <html lang="zh-CN">
 <head><meta charset="utf-8"><style id="bar-theme">${themeCss(resolveLoginBarTheme(options.appTheme))}</style><style>
 *{box-sizing:border-box}
-body{margin:0;height:${LOGIN_BAR_HEIGHT}px;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--bg);border-bottom:1px solid var(--line);color:var(--ink);font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;user-select:none}
+html,body{margin:0;height:${LOGIN_BAR_HEIGHT}px;overflow:hidden}
+body{display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--bg);border-bottom:1px solid var(--line);color:var(--ink);font:13px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;user-select:none}
 button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;min-width:36px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;cursor:pointer;white-space:nowrap}
 button:hover{background:var(--hover);color:var(--ink)}
 button:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 45%,transparent);outline-offset:1px}
@@ -149,12 +158,12 @@ button:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 45%,tran
 .primary:hover{background:var(--primary);color:var(--on-primary);filter:brightness(1.08)}
 </style></head>
 <body>
-  <button onclick="location.href='vmark-nav://back'" aria-label="后退" title="后退">${ICON_BACK}</button>
-  <button onclick="location.href='vmark-nav://reload'" aria-label="刷新" title="刷新">${ICON_RELOAD}</button>
+  <button onclick="location.hash='vmark-nav://back:'+Date.now()" aria-label="后退" title="后退">${ICON_BACK}</button>
+  <button onclick="location.hash='vmark-nav://reload:'+Date.now()" aria-label="刷新" title="刷新">${ICON_RELOAD}</button>
   <span class="name">${name}</span>
   <span id="bar-status" class="status" role="status">${hint}</span>
-  <button class="primary" onclick="location.href='vmark-nav://done'">${doneLabel}</button>
-  <button onclick="location.href='vmark-nav://close'" aria-label="关闭" title="关闭">${ICON_CLOSE}</button>
+  <button class="primary" onclick="location.hash='vmark-nav://done:'+Date.now()">${doneLabel}</button>
+  <button onclick="location.hash='vmark-nav://close:'+Date.now()" aria-label="关闭" title="关闭">${ICON_CLOSE}</button>
 </body>
 </html>`;
 }

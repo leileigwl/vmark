@@ -112,3 +112,34 @@ test('登录窗口：cookie 变化排队的检测定时器在关窗后被清掉�
   await new Promise((r) => setTimeout(r, 1700));
   assert.equal(checks, afterClose, '关窗后不应再触发登录检测');
 });
+
+test('登录窗口：顶栏 did-navigate-in-page Hash 事件可关闭窗口；hasAuthCookies=false 时秒开且匿名 Cookie 不发远端请求', async () => {
+  const { session, cookies } = fakeSession();
+  let checks = 0;
+  const manager = new InternalBrowserManager();
+  const w0 = registry.windows.length;
+  const v0 = registry.views.length;
+  const done = manager.openPlatformBrowser({
+    platformId: 'weixin',
+    loginUrl: 'https://mp.weixin.qq.com/',
+    targetSession: session,
+    hasAuthCookies: async () => false,
+    checkAuth: async () => {
+      checks += 1;
+      return false;
+    },
+  });
+  await new Promise((r) => setImmediate(r));
+  const win = registry.windows[w0];
+  const toolbar = registry.views[v0];
+  assert.equal(checks, 0, '无登录 Cookie 时开窗不阻塞远端 checkAuth');
+
+  cookies.emit('changed', {}, { name: 'uuid' }, 'explicit', false);
+  await new Promise((r) => setTimeout(r, 1600));
+  assert.equal(checks, 0, '扫码过程中的匿名 Cookie 变化不打 mp.weixin.qq.com');
+
+  toolbar.webContents.emit('did-navigate-in-page', {}, 'data:text/html,x#vmark-nav://close:12345');
+  assert.equal(await done, false);
+  assert.equal(checks, 0, '无登录 Cookie 关窗秒返回，不拖延');
+  assert.equal(win.isDestroyed(), true);
+});

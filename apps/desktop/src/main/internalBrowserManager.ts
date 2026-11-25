@@ -15,11 +15,12 @@ import {
   loginWindowBackground,
   loginWindowName,
   nextLoginBarAction,
+  parseLoginBarActionUrl,
   resolveLoginBarTheme,
 } from './loginWindowBar';
 
 const TOOLBAR_HEIGHT = LOGIN_BAR_HEIGHT;
-const AUTH_CHECK_TIMEOUT_MS = 3000;
+const AUTH_CHECK_TIMEOUT_MS = 8000;
 
 const configuredStealthPartitions = new Set<string>();
 
@@ -89,13 +90,15 @@ export class InternalBrowserManager {
     loginUrl: string;
     targetSession: Session;
     checkAuth: () => Promise<boolean>;
+    /** 仅凭本地 Cookie 预判是否可能已登录：未登录时跳过启动前网络检测，也能避免登录中匿名 Cookie 触发高频远端校验。 */
+    hasAuthCookies?: () => Promise<boolean>;
     onAuthorized?: () => Promise<void> | void;
     /** Vmark 主界面当前主题快照（RENDERER_THEME_PROBE 的结果），顶栏按它配色而不是跟随系统。 */
     appTheme?: unknown;
     /** 等 Vmark 主题从 knownThemeId 变成别的后返回新快照（没变返回 null，读不到就抛错），窗口开着时顶栏据此实时换色。 */
     watchAppTheme?: (knownThemeId: string) => Promise<unknown>;
   }): Promise<boolean> {
-    const { platformId, loginUrl, targetSession, checkAuth, onAuthorized, appTheme, watchAppTheme } = params;
+    const { platformId, loginUrl, targetSession, checkAuth, hasAuthCookies, onAuthorized, appTheme, watchAppTheme } = params;
     const barTheme = resolveLoginBarTheme(appTheme);
     const title = `${loginWindowName(platformId)} · 登录`;
     const verify = () =>
@@ -103,7 +106,11 @@ export class InternalBrowserManager {
         checkAuth().catch(() => false),
         new Promise<boolean>((r) => setTimeout(() => r(false), AUTH_CHECK_TIMEOUT_MS)),
       ]);
-    const signedInAtOpen = await verify();
+    const signedInAtOpen = hasAuthCookies
+      ? (await hasAuthCookies().catch(() => false))
+        ? await verify()
+        : false
+      : await verify();
 
     if (this.activeWindow && !this.activeWindow.isDestroyed()) {
       // 同一时间只有一个登录窗口：换平台时关掉旧的，旧调用方会在 closed 时拿到自己的结果。
@@ -152,21 +159,31 @@ export class InternalBrowserManager {
         .catch(() => {});
     };
     let closing = false;
+    let checkingAuth = false;
     let closeTimer: NodeJS.Timeout | null = null;
     disposers.push(() => {
       if (closeTimer) clearTimeout(closeTimer);
     });
     const handleAuth = async (trigger: 'cookie' | 'done') => {
-      if (closing || win.isDestroyed()) return;
-      const signedIn = await verify();
-      if (signedIn && !signedInAtOpen) await onAuthorized?.();
-      const action = nextLoginBarAction({ signedInAtOpen, signedIn, trigger });
-      if (action.status) setStatus(action.status);
-      if (action.close) {
-        closing = true;
-        closeTimer = setTimeout(() => {
-          if (!win.isDestroyed()) win.destroy();
-        }, action.status ? 600 : 0);
+      if (closing || checkingAuth || win.isDestroyed()) return;
+      if (trigger !== 'done' && !signedInAtOpen && hasAuthCookies) {
+        const hasCookies = await hasAuthCookies().catch(() => false);
+        if (!hasCookies) return;
+      }
+      checkingAuth = true;
+      try {
+        const signedIn = await verify();
+        if (signedIn && !signedInAtOpen) await onAuthorized?.();
+        const action = nextLoginBarAction({ signedInAtOpen, signedIn, trigger });
+        if (action.status) setStatus(action.status);
+        if (action.close) {
+          closing = true;
+          closeTimer = setTimeout(() => {
+            if (!win.isDestroyed()) win.destroy();
+          }, action.status ? 600 : 0);
+        }
+      } finally {
+        checkingAuth = false;
       }
     };
 
@@ -197,17 +214,24 @@ export class InternalBrowserManager {
       }
     };
     void followAppTheme(appThemeIdOf(appTheme));
-    const onToolbarNavigate = (event: Electron.Event, targetUrl: string) => {
-      if (!targetUrl.startsWith('vmark-nav://')) return;
-      event.preventDefault();
+    const dispatchToolbarAction = (targetUrl: string, event?: Electron.Event) => {
+      const action = parseLoginBarActionUrl(targetUrl);
+      if (!action) return;
+      if (targetUrl.startsWith('vmark-nav://')) event?.preventDefault();
       const siteWc = siteView?.webContents;
-      if (targetUrl === 'vmark-nav://back' && siteWc?.canGoBack()) siteWc.goBack();
-      else if (targetUrl === 'vmark-nav://reload') siteWc?.reload();
-      else if (targetUrl === 'vmark-nav://done') void handleAuth('done');
-      else if (targetUrl === 'vmark-nav://close' && !win.isDestroyed()) win.destroy();
+      if (action === 'back' && siteWc?.canGoBack()) siteWc.goBack();
+      else if (action === 'reload') siteWc?.reload();
+      else if (action === 'done') void handleAuth('done');
+      else if (action === 'close' && !win.isDestroyed()) win.destroy();
     };
+    const onToolbarNavigate = (event: Electron.Event, targetUrl: string) => dispatchToolbarAction(targetUrl, event);
+    const onToolbarInPage = (event: Electron.Event, targetUrl: string) => dispatchToolbarAction(targetUrl, event);
     toolbarView.webContents.on('will-navigate', onToolbarNavigate);
-    disposers.push(() => toolbarView.webContents.off('will-navigate', onToolbarNavigate));
+    toolbarView.webContents.on('did-navigate-in-page', onToolbarInPage);
+    disposers.push(() => {
+      toolbarView.webContents.off('will-navigate', onToolbarNavigate);
+      toolbarView.webContents.off('did-navigate-in-page', onToolbarInPage);
+    });
 
     const partition = `persist:platform_${platformId}`;
     attachInternalBrowserStealth(targetSession, partition);
@@ -248,25 +272,42 @@ export class InternalBrowserManager {
     });
 
     let authCheckTimer: NodeJS.Timeout | null = null;
-    const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
-      if (removed || authCheckTimer) return;
+    const scheduleAuthCheck = (delayMs: number) => {
+      if (authCheckTimer) return;
       authCheckTimer = setTimeout(() => {
         authCheckTimer = null;
         void handleAuth('cookie');
-      }, 1500);
+      }, delayMs);
+    };
+    const cookieListener = (_ev: Electron.Event, _cookie: Electron.Cookie, _cause: unknown, removed?: boolean) => {
+      if (removed) return;
+      scheduleAuthCheck(1500);
+    };
+    const onSiteNavigate = () => {
+      if (!signedInAtOpen) scheduleAuthCheck(350);
     };
     targetSession.cookies.on('changed', cookieListener);
+    siteWc.on('did-navigate', onSiteNavigate);
     disposers.push(() => {
       if (authCheckTimer) clearTimeout(authCheckTimer);
       authCheckTimer = null;
       targetSession.cookies.removeListener('changed', cookieListener);
+      siteWc.off('did-navigate', onSiteNavigate);
     });
 
     void siteWc.loadURL(loginUrl).catch(() => {});
 
     return new Promise<boolean>((resolve) => {
       win.once('closed', () => {
-        void verify().then(resolve);
+        if (closing) {
+          resolve(true);
+          return;
+        }
+        const finalize = async () => {
+          if (hasAuthCookies && !(await hasAuthCookies().catch(() => false))) return false;
+          return verify();
+        };
+        void finalize().then(resolve);
       });
     });
   }
