@@ -58,7 +58,7 @@ Actions → `Release / Package Desktop App` → **Run workflow** → `tag` 填�
 | 已公开的版本有严重 bug | Actions → `Release / Rollback` → 填 tag 和原因：转回草稿，上一个正式版重新成为 Latest。再修复并发更高的补丁版本（已更新的用户不会自动降级）。 |
 | 打错了 tag（还没公开） | 删草稿 Release，再 `git push origin :refs/tags/vX.Y.Z` 删 tag。已公开的版本不要删 tag，用 Rollback。 |
 | 冻结锁 Issue 没关 | post-merge 的关锁步骤是 `always()`；仍未关就手动关闭带 `freeze:release-window` 标签的 Issue。 |
-| 回同步 PR 卡在门禁 | 只在 master 有热修复时才会开。未配置 `RELEASE_BOT_TOKEN` 时工作流会为它派发一次 CI；还卡住就在 PR 的 Checks 里点 Approve and run。 |
+| 回同步 PR 卡在门禁 | 只在 master 有热修复时才会开。未配置 `RELEASE_BOT_TOKEN` 时工作流会为它派发一次 CI。若之后 test 又合入了别的 PR，它会因「必须与 test 同步」变成 blocked：点 Update branch，再到 Actions → CI → Run workflow 选该分支补跑一次。 |
 
 ## 六、需要在 GitHub 设置里做的事
 
