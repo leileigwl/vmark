@@ -145,7 +145,15 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, juejinCate
  * 通用内容未填或缺 16:9 封面时，直接在上方「通用内容」填写，不在此重复弹出。
  */
 export function AttentionList({ draft, specs, issuesOf, onChange }: AttentionListProps) {
-  const juejinCategories = useJuejinCategories(specs.some((s) => s.id === 'juejin'));
+  const juejin = useJuejinCategories(specs.some((s) => s.id === 'juejin'));
+  const juejinCategories = juejin.options;
+  // 草稿里存的分类 id 可能来自旧的分类列表：列表加载结束后不在其中就清空，
+  // 让「缺分类」照常提示，而不是把失效 id 静默提交给掘金。
+  const staleJuejinId =
+    juejin.settled && draft.juejinCategoryId !== '' && !juejinCategories.some((c) => c.id === draft.juejinCategoryId);
+  useEffect(() => {
+    if (staleJuejinId) onChange({ juejinCategoryId: '' });
+  }, [staleJuejinId]);
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
   const setOpen = (id: PlatformId, on: boolean) =>
     setOpenSet((prev) => {
