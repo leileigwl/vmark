@@ -113,6 +113,8 @@ jobs:
     name: Package (${{ matrix.platform }})
     needs: [prepare, verify]
     strategy:
+      # 有意取舍：任一平台失败这一版就不会公开，其余平台继续跑只浪费 runner；
+      # 修好后在运行页点 Re-run failed jobs（被取消的也会重跑）或对同一 tag 重新派发。
       fail-fast: true
       matrix:
         include:
@@ -200,17 +202,21 @@ jobs:
             echo "::error::$TAG 已不是草稿，拒绝覆盖已公开的版本"
             exit 1
           fi
+          # 重跑时先删掉草稿里上次留下、这次没有的文件（--clobber 只覆盖同名文件）
+          while IFS= read -r name; do
+            [ -z "$name" ] || [ -e "dist/$name" ] || gh release delete-asset "$TAG" "$name" -y
+          done < <(gh release view "$TAG" --json assets --jq '.assets[].name')
           gh release upload "$TAG" dist/* --clobber
 
       - name: Verify uploaded sha256
         run: |
           ID=$(gh release view "$TAG" --json databaseId --jq .databaseId)
-          for _ in $(seq 1 12); do
+          for _ in $(seq 1 24); do
             gh api "repos/$GH_REPO/releases/$ID/assets?per_page=100" > assets.json
             if node apps/desktop/scripts/release-assets.mjs verify-remote assets.json dist; then exit 0; fi
-            sleep 5
+            sleep 10
           done
-          echo "::error::GitHub 上的资产与本地不一致，Release 保持草稿"
+          echo "::error::4 分钟内 GitHub 上的资产仍与本地不一致，Release 保持草稿；可在运行页 Re-run failed jobs 只重跑 publish"
           exit 1
 
       - name: Publish release
