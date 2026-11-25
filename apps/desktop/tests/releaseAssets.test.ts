@@ -131,6 +131,8 @@ test('verifyRemoteAssets：缺文件、未上传完、sha256 不一致都拦住'
   assert.ok(errors.includes('GitHub 上缺少 latest.yml'));
   assert.ok(errors.some((e) => e.startsWith('Vmark-0.5.0-amd64.deb 的 sha256 不一致')));
   assert.ok(errors.some((e) => e.includes('latest-mac.yml 还没上传完成')));
+  const stale = [...all, { name: 'Vmark-Setup-0.4.9.exe', state: 'uploaded', digest: 'sha256:11' }];
+  assert.ok(verifyRemoteAssets(stale, dir).includes('GitHub 上多出本次没有的文件 Vmark-Setup-0.4.9.exe（草稿里的旧残留，请删除后重跑）'));
   const noDigest = all.map(({ name }) => ({ name, size: fs.statSync(path.join(dir, name)).size }));
   assert.deepEqual(verifyRemoteAssets(noDigest, dir), [], '旧 API 没有 digest 时按大小核对');
 });
@@ -143,6 +145,9 @@ test('CLI：check 失败退出码非 0；checksums 写出 SHA256SUMS.txt', () =>
     () => execFileSync('node', [CLI, 'check', good, 'v0.5.0', '--platform'], { stdio: 'pipe' }),
     (err: { status: number; stderr: Buffer }) => err.status === 2 && err.stderr.toString().includes('--platform 需要值'),
   );
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'vmark-empty-'));
+  assert.throws(() => execFileSync('node', [CLI, 'checksums', empty], { stdio: 'pipe' }), /Command failed/);
+  assert.ok(!fs.existsSync(path.join(empty, 'SHA256SUMS.txt')), '空目录不写 SHA256SUMS.txt');
   execFileSync('node', [CLI, 'checksums', good], { encoding: 'utf8' });
   assert.ok(fs.existsSync(path.join(good, 'SHA256SUMS.txt')));
 });
