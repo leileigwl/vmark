@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCardBlocks, type CardBlock } from './socialCardBlocks.ts';
-import { estimateCardBlockHeight, paginateCardBlocks, type CardPageLayout } from './socialCardPaginate.ts';
+import { estimateCardBlockHeight, openInlineMarks, paginateCardBlocks, splitCardBlock, type CardPageLayout } from './socialCardPaginate.ts';
 import { SAMPLE } from './socialCardSample.fixture.ts';
 
 const PAGE_H = 1300;
@@ -94,5 +94,39 @@ describe('social card pagination by measured height', () => {
       next += part.kind === 'code' ? part.lines.length : 0;
     }
     assert.equal(next, 31);
+  });
+});
+
+describe('splitting text across pages keeps inline markup intact', () => {
+  const para = (text: string): CardBlock => ({ kind: 'paragraph', text });
+  const texts = (r: [CardBlock, CardBlock] | null) => r?.map((b) => (b as { text: string }).text);
+
+  it('prefers a cut outside **bold** even when a later cut inside it would fit', () => {
+    const b = para('推送之后，整个过程如下图所示，**[配图：图 4 · GitHub Actions 云端 CI 流程]**，全部通过才允许合并');
+    const r = splitCardBlock(b, (h) => [...(h as { text: string }).text].length <= 40);
+    assert.deepEqual(texts(r), ['推送之后，整个过程如下图所示，', '**[配图：图 4 · GitHub Actions 云端 CI 流程]**，全部通过才允许合并']);
+  });
+
+  it('closes and reopens the markers when the only fitting cut is inside a span', () => {
+    const b = para('**[配图：图 4 · GitHub Actions 云端 CI 流程]**');
+    const r = splitCardBlock(b, (h) => [...(h as { text: string }).text].length <= 10);
+    assert.deepEqual(texts(r), ['**[配图：**', '**图 4 · GitHub Actions 云端 CI 流程]**']);
+  });
+
+  it('balances nested ==mark== inside **bold** and ignores markers inside `code`', () => {
+    assert.deepEqual(openInlineMarks('前文**加粗==高亮'), ['**', '==']);
+    assert.deepEqual(openInlineMarks('`a**b` 正常'), []);
+    assert.deepEqual(openInlineMarks('价格 $5，'), ['$']);
+    const b = para('第一句**加粗==高亮。还在高亮==里**。第三句。');
+    const r = splitCardBlock(b, (h) => [...(h as { text: string }).text].length <= 18);
+    assert.deepEqual(texts(r), ['第一句**加粗==高亮。==**', '**==还在高亮==里**。第三句。']);
+  });
+
+  it('never leaves an odd number of ** on any page of a long article', () => {
+    const md = Array.from({ length: 30 }, (_, i) => `第 ${i} 段，前面是普通文字，然后**一段很长的加粗内容，里面还有逗号，继续加粗**，最后收尾`).join('\n\n');
+    const pages = paginateCardBlocks(parseCardBlocks(md), { pageHeight: PAGE_H, measure: estimate });
+    for (const p of pages) for (const { block } of p.blocks) {
+      if ('text' in block) assert.equal((block.text.match(/\*\*/g) ?? []).length % 2, 0, block.text);
+    }
   });
 });
