@@ -1,19 +1,102 @@
 name: Release / Package Desktop App (macOS, Windows, Linux)
 
+# 一个 tag = 一个版本。流程：校验 tag → 建草稿 Release → 全量验证 → 三平台打包（只传 artifact）
+# → 汇总检查（三平台齐全、latest*.yml 地址对得上）→ 生成 SHA256SUMS → 上传到草稿 → 逐个核对 sha256 → 公开。
+# 任何一步失败，Release 停在草稿：用户看不到，electron-updater 也拿不到半成品；修好后对同一 tag 重跑即可。
+# 触发：手动推 v* tag；或 daily-release-pr.yml 用 GITHUB_TOKEN 打 tag 后 workflow_dispatch
+# （GITHUB_TOKEN 推的 tag 不会触发 push 事件，所以必须显式派发）。
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '已存在的版本 tag，例如 v0.5.0 或 v0.5.0-rc.1'
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+# 同一个 tag 只跑一份；推 tag 和派发同时来时，后一份等前一份结束后发现已公开就跳过。
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  GH_REPO: ${{ github.repository }}
 
 jobs:
-  verify-before-release:
+  prepare:
+    name: Validate tag & create draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      skip: ${{ steps.state.outputs.skip }}
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Validate tag (stable tags must be on master)
+        id: tag
+        run: |
+          node apps/desktop/scripts/release-plan.mjs channel "$TAG" --github-output
+          SHA=$(git rev-parse "refs/tags/${TAG}^{commit}")
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if ! node apps/desktop/scripts/release-plan.mjs channel "$TAG" | grep -q '"prerelease":true'; then
+            git fetch origin master
+            if ! git merge-base --is-ancestor "$SHA" origin/master; then
+              echo "::error::正式版 $TAG 必须打在 master 上（$SHA 不在 origin/master 里）。预发布请用 vX.Y.Z-rc.N。"
+              exit 1
+            fi
+          fi
+
+      - name: Check existing release
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STATE=$(gh release view "$TAG" --json isDraft --jq 'if .isDraft then "draft" else "published" end' 2>/dev/null || echo missing)
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          if [ "$STATE" = "published" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG 已公开发布，本次不重复打包。要重发请先用 release-rollback.yml 转回草稿。"
+          fi
+
+      - name: Create or refresh draft release
+        if: steps.state.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.state.outputs.state }}
+          PRERELEASE: ${{ steps.tag.outputs.prerelease }}
+        run: |
+          node apps/desktop/scripts/release-notes.mjs "$TAG" --out RELEASE_NOTES.md
+          if [ "$STATE" = "missing" ]; then
+            FLAGS=(--draft --verify-tag --title "Vmark $TAG" --notes-file RELEASE_NOTES.md)
+            [ "$PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
+            gh release create "$TAG" "${FLAGS[@]}"
+          else
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+          fi
+
+  verify:
     name: Full Verification Gate
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 10.32.1
@@ -26,111 +109,136 @@ jobs:
       - run: pnpm --filter @vcat/desktop exec playwright install chromium
       - run: pnpm --filter @vcat/desktop exec playwright test --reporter=list
 
-  release-matrix:
-    name: Build & Publish (${{ matrix.os }})
-    needs: verify-before-release
+  build:
+    name: Package (${{ matrix.platform }})
+    needs: [prepare, verify]
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
-          - os: macos-latest
-            script: pnpm --filter @vcat/desktop package:mac
-            artifacts: |
-              apps/desktop/release/*.dmg
-              apps/desktop/release/*.zip
-              apps/desktop/release/latest-mac.yml
-              apps/desktop/release/*.blockmap
-          - os: windows-latest
-            script: pnpm --filter @vcat/desktop package:win
-            artifacts: |
-              apps/desktop/release/*.exe
-              apps/desktop/release/latest.yml
-              apps/desktop/release/*.blockmap
-          - os: ubuntu-latest
-            script: pnpm --filter @vcat/desktop package:linux
-            artifacts: |
-              apps/desktop/release/*.AppImage
-              apps/desktop/release/*.deb
-              apps/desktop/release/latest-linux.yml
-              apps/desktop/release/*.blockmap
+          - platform: mac
+            os: macos-latest
+          - platform: win
+            os: windows-latest
+          - platform: linux
+            os: ubuntu-latest
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: pnpm/action-setup@v4
         with:
           version: 10.32.1
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Sync app version from tag
+        run: node apps/desktop/scripts/release-version.mjs sync "$TAG"
 
-      - name: Package Desktop Installer
-        run: ${{ matrix.script }}
+      - name: Package installer
+        run: pnpm --filter @vcat/desktop package:${{ matrix.platform }}
         env:
+          # 未配置证书时不签名（现状）。签名/公证启用方法见 docs/RELEASE.md「签名与公证」。
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Generate Structured Chinese Release Notes
-        run: |
-          node -e '
-            const { execSync } = require("node:child_process");
-            const fs = require("node:fs");
-            const tag = process.env.GITHUB_REF_NAME || "v0.2.0";
-            let prev = "v0.1.0";
-            try {
-              const tags = execSync("git tag --sort=-v:refname", { encoding: "utf8" }).trim().split("\n").filter(Boolean);
-              const idx = tags.indexOf(tag);
-              prev = idx >= 0 && tags[idx + 1] ? tags[idx + 1] : (tags.find((t) => t !== tag) || "");
-            } catch {}
-            const range = prev ? `${prev}..HEAD` : "-n 30";
-            const raw = execSync(`git log ${range} --pretty=format:"%h|%s"`, { encoding: "utf8" }).trim();
-            const social = [], feats = [], fixes = [], chores = [];
-            for (const line of raw.split("\n").filter(Boolean)) {
-              const [h, ...rest] = line.split("|");
-              const s = rest.join("|").trim();
-              if (/^chore\(release\): sync master/i.test(s)) continue;
-              const item = `- ${s} (\`${h}\`)`;
-              if (/social|card|xiaohongshu|douyin|weixin|zhihu|baijiahao|latex|排版|卡片|小红书|抖音/i.test(s)) social.push(item);
-              else if (/^feat/i.test(s)) feats.push(item);
-              else if (/^fix/i.test(s)) fixes.push(item);
-              else chores.push(item);
-            }
-            const md = [
-              `# Vmark ${tag} 发布说明 (${new Date().toISOString().slice(0, 10)})`,
-              "",
-              "> **Local-First 多平台创作者排版与一键草稿分发桌面工作台**（支持 macOS / Windows / Linux）",
-              "",
-              "## 🎨 多平台排版与文字卡片引擎",
-              ...(social.length ? social : ["- 持续优化小红书/抖音文字卡片与公众号/知乎/百家号排版体验"]),
-              "",
-              "## ✨ 核心新特性与平台分发",
-              ...(feats.length ? feats : ["- 多平台隔离登录与一键草稿箱安全分发"]),
-              "",
-              "## 🐛 问题修复与稳定性增强",
-              ...(fixes.length ? fixes : ["- 修复已知兼容性与构建稳定性问题"]),
-              ...(chores.length ? ["", "## 🔧 工程护栏与文档演进", ...chores] : []),
-              "",
-              "## 📦 三端安装包下载与安装指南",
-              "| 操作系统 | 安装包格式 | 安装说明 |",
-              "| :--- | :--- | :--- |",
-              "| **macOS** | `.dmg` / `.zip` | 拖入 Applications；首次打开如遇 Gatekeeper 提示请在「系统设置 -> 隐私与安全性」点仍要打开 |",
-              "| **Windows** | `.exe` | 双击安装包完成安装，凭据由系统 DPAPI (`safeStorage`) 加密保护 |",
-              "| **Linux** | `.AppImage` / `.deb` | `chmod +x *.AppImage` 运行或 `sudo dpkg -i *.deb` |",
-            ].join("\n");
-            fs.writeFileSync("RELEASE_NOTES.md", md + "\n", "utf8");
-          '
+      - name: Check artifacts & updater metadata
+        run: node apps/desktop/scripts/release-assets.mjs check apps/desktop/release "$TAG" --platform ${{ matrix.platform }}
 
-      - name: Upload GitHub Release Assets
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          body_path: RELEASE_NOTES.md
-          files: ${{ matrix.artifacts }}
+          name: release-${{ matrix.platform }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest*.yml
+
+  publish:
+    name: Upload, verify sha256 & publish
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Check all three platforms together
+        run: node apps/desktop/scripts/release-assets.mjs check dist "$TAG"
+
+      - name: Generate SHA256SUMS.txt
+        run: node apps/desktop/scripts/release-assets.mjs checksums dist
+
+      - name: Upload assets to the draft
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "::error::$TAG 已不是草稿，拒绝覆盖已公开的版本"
+            exit 1
+          fi
+          gh release upload "$TAG" dist/* --clobber
+
+      - name: Verify uploaded sha256
+        run: |
+          ID=$(gh release view "$TAG" --json databaseId --jq .databaseId)
+          for _ in $(seq 1 12); do
+            gh api "repos/$GH_REPO/releases/$ID/assets?per_page=100" > assets.json
+            if node apps/desktop/scripts/release-assets.mjs verify-remote assets.json dist; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::GitHub 上的资产与本地不一致，Release 保持草稿"
+          exit 1
+
+      - name: Publish release
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            LATEST=$(node apps/desktop/scripts/release-plan.mjs is-latest "$TAG")
+            gh release edit "$TAG" --draft=false --prerelease=false --latest="$LATEST"
+          fi
+          echo "### ✅ $TAG 已发布（prerelease=$PRERELEASE）" >> "$GITHUB_STEP_SUMMARY"
+          cat dist/SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+
+  notify-failure:
+    name: Report failed release
+    needs: [prepare, verify, build, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open an issue (release stays draft)
+        run: |
+          gh issue create --title "[Release] $TAG 发布失败" --body "$(printf '%s\n' \
+            "运行记录：$RUN_URL" '' \
+            'Release 停在草稿，用户和自动更新都看不到半成品。' \
+            "修好后在 Actions 里对 release.yml 选择 Run workflow，tag 填 \`$TAG\` 重跑；不需要删 tag。" \
+            '处理步骤见 docs/RELEASE.md「出问题怎么办」。')"

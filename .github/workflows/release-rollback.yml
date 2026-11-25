@@ -1,0 +1,67 @@
+name: Release / Rollback (hide a bad version)
+
+# 发出去的版本有严重问题时用：把它转回草稿（用户和 electron-updater 都看不到），
+# 并把上一个正式版重新标为 Latest。不删 tag、不删文件，随时可以再公开。
+# 已经更新到坏版本的用户不会自动降级：修好后照常发一个更高的补丁版本（vX.Y.Z+1）。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要撤下的版本，例如 v0.5.0'
+        required: true
+        type: string
+      reason:
+        description: '原因（写进步骤摘要）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag
+        run: |
+          node apps/desktop/scripts/release-plan.mjs channel "$TAG"
+          gh release view "$TAG" --json isDraft --jq .isDraft | grep -qx false || {
+            echo "::error::$TAG 不存在或已经是草稿"
+            exit 1
+          }
+
+      - name: Turn the release back into a draft
+        run: gh release edit "$TAG" --draft=true
+
+      - name: Re-mark the previous published stable release as Latest
+        run: |
+          PREV=$(gh release list --exclude-drafts --exclude-pre-releases --limit 50 --json tagName --jq '.[].tagName' |
+            node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              import { latestStable } from "./apps/desktop/scripts/release-plan.mjs";
+              const tags = readFileSync(0, "utf8").split("\n").filter((t) => t && t !== process.env.TAG);
+              console.log(latestStable(tags) ?? "");
+            ')
+          if [ -n "$PREV" ]; then
+            gh release edit "$PREV" --latest
+          fi
+          {
+            echo "### ⏪ 已撤下 $TAG"
+            echo "- 原因：$REASON"
+            echo "- 现在的 Latest：${PREV:-（没有其他正式版）}"
+            echo "- 恢复：在 Releases 页面把 $TAG 重新发布，或对 release.yml 用同一 tag 重跑"
+            echo "- 已更新到 $TAG 的用户不会自动降级：修复后发布更高的补丁版本"
+          } >> "$GITHUB_STEP_SUMMARY"
