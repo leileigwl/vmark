@@ -56,4 +56,50 @@ test.describe('TODO 2：掘金分类运行时拉取', () => {
     const calls = await publishedCalls(page);
     expect(calls.juejin.juejinCategoryId).toBe('6809637767543259144');
   });
+
+  test('草稿里旧分类 id 不在远端新列表：加载完后提示缺分类，不提交失效 id', async ({ page }) => {
+    await openPublishWith(page, {
+      md: MD,
+      auth: { juejin: true },
+      selected: ['juejin'],
+      saved: { title: '掘金分类测试', digest: DIGEST, tags: ['前端'], juejinCategoryId: 'gone-old-id' },
+      juejinCategories: [
+        { id: 'live-1', name: '云原生' },
+        { id: 'live-2', name: 'AI 工程' },
+      ],
+    });
+
+    const row = page.getByTestId('attention-juejin');
+    await expect(row).toContainText('掘金：缺分类');
+    await expect(page.getByTestId('publish-start')).toBeDisabled();
+
+    await row.getByRole('button', { expanded: false }).click();
+    await row.getByRole('radiogroup', { name: '掘金分类' }).getByRole('radio', { name: 'AI 工程' }).click();
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
+
+    const calls = await publishedCalls(page);
+    expect(calls.juejin.juejinCategoryId).toBe('live-2');
+  });
+
+  test('草稿里的分类 id 仍在远端列表：保持选中，直接可推送', async ({ page }) => {
+    await openPublishWith(page, {
+      md: MD,
+      auth: { juejin: true },
+      selected: ['juejin'],
+      saved: { title: '掘金分类测试', digest: DIGEST, tags: ['前端'], juejinCategoryId: 'live-2' },
+      juejinCategories: [
+        { id: 'live-1', name: '云原生' },
+        { id: 'live-2', name: 'AI 工程' },
+      ],
+    });
+
+    // 分类列表加载结束的确定信号：掘金已在「可推送」里（推送按钮写着 1 个草稿箱）。
+    await expect(page.getByTestId('publish-start')).toHaveText(/推送到 1 个草稿箱/);
+    await expect(page.getByTestId('attention-juejin')).toHaveCount(0);
+    await page.getByTestId('publish-start').click();
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
+    const calls = await publishedCalls(page);
+    expect(calls.juejin.juejinCategoryId).toBe('live-2');
+  });
 });
