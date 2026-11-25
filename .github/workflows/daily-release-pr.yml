@@ -163,7 +163,7 @@ jobs:
             }
 
   post-merge-syncback:
-    name: Sync master back to test & Unlock Freeze
+    name: Sync master back to test, Tag & Unlock Freeze
     if: >
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
@@ -171,55 +171,80 @@ jobs:
       github.event.pull_request.base.ref == 'master' &&
       github.event.pull_request.head.ref == 'test'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write # gh workflow run：GITHUB_TOKEN 推的 tag / 开的 PR 不会自动触发工作流
+    env:
+      # 可选：仓库 secret RELEASE_BOT_TOKEN（细粒度 PAT 或 GitHub App token）。有它时推送与开 PR 都能正常触发 CI；
+      # 没有时回退到 GITHUB_TOKEN，并用 workflow_dispatch 显式补跑 CI 和发布。
+      GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
+      HAS_BOT_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: test
+          token: ${{ secrets.RELEASE_BOT_TOKEN || github.token }}
 
-      - name: Merge master back into test (with protected-branch fallback)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Merge master back into test (skip when master adds nothing)
+        id: sync
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin master test
-          git merge --no-ff origin/master -m "chore(release): sync master back to test after daily release [skip ci]" || git merge -X theirs origin/master -m "chore(release): sync master back to test [skip ci]"
-          if ! git push origin test; then
-            SYNC_BRANCH="sync/master-to-test-${{ github.run_id }}"
-            git commit --amend -m "chore(release): sync master back to test after daily release" --no-edit || true
-            git push origin "HEAD:${SYNC_BRANCH}"
-            PR_URL=$(gh pr create --base test --head "${SYNC_BRANCH}" --title "chore(release): sync master back to test" --body "Auto-sync master back to test after daily release merge.")
-            gh pr merge "${PR_URL}" --auto --merge --delete-branch || gh pr merge "${PR_URL}" --merge --delete-branch || true
+          # master 只是 test 的合并提交时（日常情况）内容没有差异，回同步只会开一个空 PR 卡在门禁上（#126、#133）。
+          if git diff --quiet origin/test...origin/master; then
+            echo "master 相对 test 没有新内容，不需要回同步。"
+            exit 0
           fi
+          git merge --no-ff origin/master -m "chore(release): sync master back to test after daily release"
+          if git push origin HEAD:test; then
+            exit 0
+          fi
+          SYNC_BRANCH="sync/master-to-test-${{ github.run_id }}"
+          git push origin "HEAD:refs/heads/${SYNC_BRANCH}"
+          PR_URL=$(gh pr create --base test --head "${SYNC_BRANCH}" \
+            --title "chore(release): sync master back to test" \
+            --body "master 上有 test 没有的改动（例如热修复），自动回同步。门禁通过后自动合并。")
+          gh pr merge "${PR_URL}" --auto --merge --delete-branch || echo "::warning::未能开启自动合并：${PR_URL}"
+          if [ "$HAS_BOT_TOKEN" != "true" ]; then
+            # GITHUB_TOKEN 开的 PR 上 CI 会停在 action_required；workflow_dispatch 不受此限制，ci-gate 照样记在同一个提交上。
+            gh workflow run ci.yml --ref "${SYNC_BRANCH}"
+            echo "::notice::已为 ${SYNC_BRANCH} 派发 CI；配置 RELEASE_BOT_TOKEN 后不再需要这一步。"
+          fi
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
 
-      - name: Auto-Tag Semantic Release on master (triggers macOS/Win/Linux packaging)
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Compute next release tag
+        id: plan
         run: |
-          git fetch origin master --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0 origin/master 2>/dev/null || echo "v0.1.0")
-          HAS_FEAT=$(git log "${LATEST_TAG}..origin/master" --pretty=format:"%s" | grep -cE "^feat" || true)
-          BASE_VER="${LATEST_TAG#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE_VER}"
-          MAJOR=${MAJOR:-0}
-          MINOR=${MINOR:-1}
-          PATCH=${PATCH:-0}
-          if [ "${HAS_FEAT}" -gt 0 ]; then
-            NEXT_TAG="v${MAJOR}.$((MINOR + 1)).0"
-          else
-            NEXT_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          git fetch origin master --tags --force
+          node apps/desktop/scripts/release-plan.mjs next-tag origin/master --github-output
+
+      - name: Tag master and dispatch packaging
+        if: steps.plan.outputs.tag != ''
+        env:
+          NEXT_TAG: ${{ steps.plan.outputs.tag }}
+          REASON: ${{ steps.plan.outputs.reason }}
+        run: |
+          git tag -a "${NEXT_TAG}" origin/master -m "chore(release): ${NEXT_TAG}（${REASON}）"
+          git push origin "refs/tags/${NEXT_TAG}"
+          if [ "$HAS_BOT_TOKEN" != "true" ]; then
+            gh workflow run release.yml --ref "${NEXT_TAG}" -f tag="${NEXT_TAG}"
           fi
-          if git rev-parse "${NEXT_TAG}" >/dev/null 2>&1; then
-            echo "Tag ${NEXT_TAG} already exists; skipping tag push."
-          else
-            git tag -a "${NEXT_TAG}" origin/master -m "chore(release): ${NEXT_TAG}"
-            git push origin "${NEXT_TAG}"
-            echo "Pushed semantic release tag ${NEXT_TAG} on master."
-          fi
+          echo "### 🏷️ ${NEXT_TAG}（${REASON}）已打在 master，三平台打包已启动" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Explain skipped tag
+        if: steps.plan.outputs.tag == ''
+        env:
+          REASON: ${{ steps.plan.outputs.reason }}
+        run: echo "::notice::本次不打 tag：${REASON}"
 
       - name: Close freeze:release-window issues
+        # always()：回同步或打 tag 失败也要解冻 test，否则冻结锁会一直挂着（#71）。
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
