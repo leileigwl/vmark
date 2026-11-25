@@ -4,6 +4,7 @@ import type { PlacedCardBlock } from './socialCardPaginate.ts';
 import { cardBlocksCss, cardFlowHtml, cardInlineHtml } from './socialCardBlocksHtml.ts';
 import { CARD_DESIGN_WIDTH, cardDesignHeight } from './socialCardLayout.ts';
 import { CARD_MATH_CSS, type CardMathRenderer } from './socialCardMath.ts';
+import { stripInlineMarkdown } from './socialMarkdownUtils.ts';
 import {
   CARD_CHROME_INSETS,
   GENRE_META,
@@ -49,6 +50,32 @@ export function formatInlineMarkdown(rawText: string, tokens: SocialCardTokens):
 }
 
 const esc = escapeHtml;
+
+const OPEN_BRACKETS = '（(【[《〈「『';
+const CLOSE_BRACKETS = '）)】]》〉」』';
+
+/**
+ * Running title for the page header (magazine masthead, book running head): at most `max`
+ * characters. A trailing note in brackets (「（图 3 · 流程总览）」) is dropped first; if the title
+ * is still too long it ends with「…」and never stops inside an unclosed bracket.
+ */
+export function cardRunningTitle(title: string, max: number): string {
+  const plain = stripInlineMarkdown(title).replace(/\s+/g, ' ').trim();
+  if ([...plain].length <= max) return plain;
+  const withoutNote = plain.replace(/\s*[（(【\[][^（()）【】\[\]]*[）)】\]]\s*$/, '').trim();
+  if (withoutNote && [...withoutNote].length <= max) return withoutNote;
+  const chars = [...(withoutNote || plain)].slice(0, Math.max(1, max - 1));
+  let depth = 0;
+  let lastSafe = chars.length;
+  chars.forEach((ch, i) => {
+    if (OPEN_BRACKETS.includes(ch)) {
+      if (depth === 0) lastSafe = i;
+      depth++;
+    } else if (CLOSE_BRACKETS.includes(ch) && depth > 0) depth--;
+  });
+  const cut = (depth > 0 ? chars.slice(0, lastSafe) : chars).join('');
+  return `${cut.replace(/[\s，,、：:；;·—-]+$/, '')}…`;
+}
 
 export interface RenderCardHtmlOptions {
   themeId?: string;
@@ -150,7 +177,7 @@ function chromeParts(t: SocialCardTokens, title: string, opts: RenderCardHtmlOpt
         boxClass: 'mag-frame',
         css: `.mast{position:absolute;left:104px;right:104px;top:64px;height:64px;display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:3px solid ${t.ink};font-size:24px;letter-spacing:5px;color:${t.accent};font-weight:700;}
 .foot{border-top:1.5px solid ${t.line};padding-top:22px;}`,
-        before: `<div class="mast"><span>${esc(t.kicker)}</span><span>${esc([...title].slice(0, 16).join(''))}</span></div>`,
+        before: `<div class="mast"><span>${esc(t.kicker)}</span><span>${esc(cardRunningTitle(title, 16))}</span></div>`,
         after: foot('', brand, page),
       };
     case 'elegant-book':
@@ -159,7 +186,7 @@ function chromeParts(t: SocialCardTokens, title: string, opts: RenderCardHtmlOpt
         boxClass: 'book-content',
         css: `.run{position:absolute;left:120px;right:120px;top:72px;text-align:center;font-size:24px;letter-spacing:6px;color:${t.textMuted};}
 .foot{justify-content:center;font-size:28px;}`,
-        before: `<div class="run">${esc([...title].slice(0, 22).join(''))}</div>`,
+        before: `<div class="run">${esc(cardRunningTitle(title, 22))}</div>`,
         after: `<div class="foot"><span>${page ? `— ${opts.cardIndex + 1} —` : ''}</span></div>`,
       };
     case 'fresh-gradient':
@@ -198,6 +225,30 @@ function chromeParts(t: SocialCardTokens, title: string, opts: RenderCardHtmlOpt
     default:
       return { bg: t.paper, boxClass: 'blank-content', css: '', before: '', after: foot('', brand, page) };
   }
+}
+
+/** The DOM surface fitCardOverflow needs (core has no DOM types). */
+interface FitOverflowElement {
+  scrollHeight: number;
+  clientHeight: number;
+  style: { zoom: string };
+  firstElementChild: FitOverflowElement | null;
+}
+
+/**
+ * Last resort when the content flow is taller than the card's content box (estimated heights in
+ * the preview, a font wider than measured): zooms the flow down until it fits, so the page bottom
+ * and images are never cut by the box's overflow:hidden. Returns the overflow ratio (1 = fits).
+ * Must stay self-contained: the rasterizer injects its source text into the offscreen page.
+ */
+export function fitCardOverflow(root: { querySelector(selector: string): FitOverflowElement | null }): number {
+  const box = root.querySelector('.box');
+  const inner = box ? box.firstElementChild : null;
+  if (!box || !inner || box.clientHeight <= 0) return 1;
+  inner.style.zoom = '';
+  const over = inner.scrollHeight / box.clientHeight;
+  if (over > 1.002) inner.style.zoom = String(Math.floor(1000 / over) / 1000);
+  return over;
 }
 
 /**
