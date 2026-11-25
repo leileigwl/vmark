@@ -6,7 +6,7 @@ const setup = {
   md: NO_IMAGE,
   auth: { weixin: true, zhihu: true, baijiahao: true, weibo: true, xiaohongshu: true },
   selected: ['weixin', 'zhihu', 'baijiahao', 'weibo', 'xiaohongshu'],
-  saved: { digest: '短摘要' },
+  saved: { title: '多平台发布流程：封面比例各回各家', digest: '短摘要' },
 };
 
 test.describe('封面比例归位：通用区只有一个通用封面，比例放在各平台自己的块/行里', () => {

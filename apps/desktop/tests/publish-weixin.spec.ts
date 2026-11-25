@@ -3,7 +3,7 @@ import { THEMES, openPublishWith, publishedCalls, shot } from './support/publish
 
 const MD = '# 公众号文章：多平台发布流程\n\n正文。\n\n![配图](./assets/demo.png)\n';
 const PNG = { name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') };
-const base = { md: MD, auth: { weixin: true, zhihu: true }, selected: ['weixin', 'zhihu'] };
+const base = { md: MD, auth: { weixin: true, zhihu: true }, selected: ['weixin', 'zhihu'], saved: { title: '公众号文章：多平台发布流程' } };
 
 test.describe('公众号块：单行视觉对齐的封面设置 + FocusImage 预览', () => {
   test('无重复两行「封面裁剪」与裁剪弹窗；与抖音/小红书一致仅上传与预览', async ({ page }) => {
@@ -19,7 +19,7 @@ test.describe('公众号块：单行视觉对齐的封面设置 + FocusImage 预
     await expect(wx.getByTestId('weixin-preview')).toHaveCount(0);
     await expect(wx.getByTestId('weixin-crop-open')).toHaveCount(0);
     await expect(wx.getByRole('button', { name: '复制富文本' })).toHaveCount(0);
-    await expect(wx).toContainText('使用正文首图 · 推荐 2.35:1（900×383）');
+    await expect(wx).toContainText('请上传一张封面（推荐 2.35:1，900×383）');
     await expect(wx.locator('input[type=file]')).toHaveCount(1);
     await expect(wx.getByRole('button', { name: /上传|更换|移除|裁剪/ })).toHaveText(['上传图片']);
 

@@ -8,7 +8,7 @@ const base = {
   md: MD,
   auth: { weixin: true, zhihu: true, juejin: true, xiaohongshu: true },
   selected: ['weixin', 'zhihu'],
-  saved: { coverUpload: COMMON },
+  saved: { title: '公众号文章：多平台发布流程', coverUpload: COMMON },
 };
 
 test.describe('单独封面：通用封面仍是默认；公众号和封面比例不同的平台可以单独设一张', () => {

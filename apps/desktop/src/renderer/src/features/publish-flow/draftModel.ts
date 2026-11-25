@@ -44,46 +44,31 @@ export interface Issue {
 /** 某平台封面的来源：上传的图 / 正文首图 / 第一张卡片 / 不设封面。 */
 export type CoverSource = { kind: 'upload' | 'body'; src: string } | { kind: 'card' | 'none' };
 
-const FRONT_MATTER_RE = /^---\n([\s\S]*?)\n---\n?/;
+const FRONT_MATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
-function readFrontMatter(md: string): Record<string, string> {
-  const m = md.match(FRONT_MATTER_RE);
-  if (!m) return {};
-  const out: Record<string, string> = {};
-  for (const line of m[1].split('\n')) {
-    const kv = line.match(/^([A-Za-z_]+):\s*(.*)$/);
-    if (kv) out[kv[1]] = kv[2].replace(/^["']|["']$/g, '').trim();
-  }
-  return out;
-}
-
-/** 标题优先级：front matter title → 第一个一级标题 → 文件名。 */
+/** 标题推导（不读取 YAML Frontmatter）：第一个一级标题 → 文件名。 */
 export function deriveTitle(md: string, fileTitle: string): string {
-  const fm = readFrontMatter(md);
-  if (fm.title) return fm.title;
   const h1 = md.replace(FRONT_MATTER_RE, '').match(/^#\s+(.+)$/m);
   return (h1?.[1] ?? fileTitle).trim();
 }
 
-export function deriveTags(md: string): string[] {
-  const raw = readFrontMatter(md).tags;
-  if (!raw) return [];
-  return raw.replace(/^\[|\]$/g, '').split(/[,，]/).map((t) => t.trim()).filter(Boolean);
+/** 暂不从 YAML Frontmatter 自动读取标签，由用户手动填写。 */
+export function deriveTags(_md: string): string[] {
+  return [];
 }
 
-/** 正文首图（front matter 的 cover 优先），作为需要封面的平台的默认封面。 */
+/** 正文首图（忽略 YAML Frontmatter 中的 cover/coverImageUrl）。 */
 export function firstBodyImage(md: string): string {
-  const fm = readFrontMatter(md);
-  const fmCover = fm.coverImageUrl || fm.cover;
-  if (fmCover) return fmCover;
-  return md.match(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/)?.[1] ?? '';
+  const body = md.replace(FRONT_MATTER_RE, '');
+  return body.match(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/)?.[1] ?? '';
 }
 
-export function createDraft(md: string, fileTitle: string, digest: string): PublishDraft {
+/** 空白发布草稿：标题、摘要、标签、封面默认全空，由用户手动填写。 */
+export function createEmptyDraft(): PublishDraft {
   return {
-    title: deriveTitle(md, fileTitle),
-    digest,
-    tags: deriveTags(md),
+    title: '',
+    digest: '',
+    tags: [],
     coverUpload: '',
     coverFocus: { x: 50, y: 50 },
     overrides: {},
@@ -92,6 +77,15 @@ export function createDraft(md: string, fileTitle: string, digest: string): Publ
     includeRemoteImages: true,
     juejinCategoryId: '',
     ownCovers: {},
+  };
+}
+
+export function createDraft(md: string, fileTitle: string, digest: string): PublishDraft {
+  return {
+    ...createEmptyDraft(),
+    title: deriveTitle(md, fileTitle),
+    digest,
+    tags: deriveTags(md),
   };
 }
 

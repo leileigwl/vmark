@@ -6,7 +6,7 @@ const DIGEST = '这是一段写给所有平台共用的摘要，'.repeat(5); // 
 
 test.describe('通用摘要一份：超出平台上限只提示，默认自动截取', () => {
   test('微博：「需要单独处理」标出摘要超 N 字，不挡推送；默认推送截取后的摘要', async ({ page }) => {
-    await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true }, selected: ['weixin', 'weibo'], saved: { digest: DIGEST } });
+    await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true }, selected: ['weixin', 'weibo'], saved: { title: '多平台发布流程', digest: DIGEST, coverUpload: 'assets/common.png' } });
     const row = page.getByTestId('attention-weibo');
     await expect(row).toContainText('微博：摘要超 36 字（自动截取）');
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 2 个草稿箱');
@@ -21,7 +21,7 @@ test.describe('通用摘要一份：超出平台上限只提示，默认自动�
   });
 
   test('在微博行里单独改写摘要后按改写的推送，其他平台仍用通用摘要', async ({ page }) => {
-    await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true }, selected: ['weixin', 'weibo'], saved: { digest: DIGEST } });
+    await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true }, selected: ['weixin', 'weibo'], saved: { title: '多平台发布流程', digest: DIGEST, coverUpload: 'assets/common.png' } });
     const row = page.getByTestId('attention-weibo');
     await row.getByRole('button', { expanded: false }).click();
     await page.locator('#d-weibo').fill('微博专用的短摘要');
@@ -36,7 +36,7 @@ test.describe('通用摘要一份：超出平台上限只提示，默认自动�
   for (const [mode, theme] of THEMES) {
     test(`截图（${mode}）：摘要超长提示与自动截取`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width: 1280, height: 860 });
-      await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true, juejin: true }, selected: ['weixin', 'weibo', 'juejin'], saved: { digest: DIGEST, tags: ['前端'], juejinCategoryId: '6809637767543259144' }, theme });
+      await openPublishWith(page, { md: MD, auth: { weixin: true, weibo: true, juejin: true }, selected: ['weixin', 'weibo', 'juejin'], saved: { title: '多平台发布流程', digest: DIGEST, tags: ['前端'], juejinCategoryId: '6809637767543259144', coverUpload: 'assets/common.png' }, theme });
       await expect(page.getByTestId('attention-juejin')).toHaveCount(0); // 80 字在掘金 50–100 字之内
       await page.getByTestId('attention-weibo').getByRole('button', { expanded: false }).click();
       await expect(page.locator('#d-weibo')).toBeVisible();

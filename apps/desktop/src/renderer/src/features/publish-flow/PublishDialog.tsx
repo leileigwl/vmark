@@ -102,7 +102,7 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
       onOpenChange={(o) => {
         if (!o && !running) onClose();
       }}
-      title={`发布「${draft.title || '未命名文章'}」`}
+      title={`发布「${draft.title || activeArticle?.title || '未命名文章'}」`}
       description="默认推入各平台草稿箱"
       footer={footer}
       className="h-[82vh] w-[1000px]"

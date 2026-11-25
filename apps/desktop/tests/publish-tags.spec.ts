@@ -4,7 +4,7 @@ import { THEMES, openPublishWith, publishedCalls, shot } from './support/publish
 const MD = '# 多平台发布流程\n\n正文。\n\n![配图](./assets/demo.png)\n';
 const DIGEST = '这是一段写给掘金的摘要，长度刚好落在五十到一百字之间，所以这里多写几句话，说明这篇文章讲的是多平台发布流程的设计。';
 const TAGS = ['前端', '工具', '效率', 'React', 'Electron'];
-const setup = { md: MD, auth: { weixin: true, juejin: true, csdn: true }, selected: ['weixin', 'juejin', 'csdn'], saved: { digest: DIGEST, tags: TAGS, juejinCategoryId: '6809637767543259144' } };
+const setup = { md: MD, auth: { weixin: true, juejin: true, csdn: true }, selected: ['weixin', 'juejin', 'csdn'], saved: { title: '多平台发布流程', digest: DIGEST, tags: TAGS, juejinCategoryId: '6809637767543259144', coverUpload: 'assets/common.png' } };
 
 test.describe('通用标签一份，平台行只列平台专属的那一点', () => {
   test('掘金：标签超上限只提示并默认取前 3 个；行里从通用标签里挑，其他平台仍用全部通用标签', async ({ page }) => {
