@@ -4,7 +4,7 @@ import { THEMES, openPublishWith, publishedCalls, shot } from './support/publish
 const TITLE = '把一篇长文同时推到十一个平台草稿箱的完整实践'; // 22 字
 const TITLE25 = `${TITLE}三四五`; // 25 字，超过小红书 / 抖音 20 字
 const MD = `# ${TITLE25}\n\n正文第一段。\n\n![配图](./assets/demo.png)\n`;
-const setup = { md: MD, auth: { weixin: true, xiaohongshu: true, douyin: true }, selected: ['weixin', 'xiaohongshu', 'douyin'], saved: { tags: ['写作', '效率'] } };
+const setup = { md: MD, auth: { weixin: true, xiaohongshu: true, douyin: true }, selected: ['weixin', 'xiaohongshu', 'douyin'], saved: { title: TITLE25, tags: ['写作', '效率'], ownCovers: { weixin: { cover: 'assets/wx.png', focus: { x: 50, y: 50 } } } } };
 
 test.describe('通用内容只写一份：小红书 · 抖音不再单独填标题 / 正文 / 话题 / 封面', () => {
   test('小红书 · 抖音块里只有卡片模板、预览和可选的单独封面入口，没有标题、正文、话题输入框', async ({ page }) => {

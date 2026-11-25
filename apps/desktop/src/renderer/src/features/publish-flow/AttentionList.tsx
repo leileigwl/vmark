@@ -1,35 +1,48 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlatformId } from '@vcat/shared';
-import { JUEJIN_CATEGORIES } from '@vcat/adapters';
-import { CheckCircle2, ChevronDown, ImagePlus } from 'lucide-react';
-import { Button, Field, Input, Textarea, Tooltip, cn } from '../../ui';
-import { coverFor, resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
-import { requirementText, rowCoverHint, type PlatformSpec } from './platformSpecs';
-import { TagInput } from './TagInput';
+import { CheckCircle2, ChevronDown } from 'lucide-react';
+import { Field, Input, Textarea, Tooltip, cn } from '../../ui';
+import { resolveFor, setOverride, type Issue, type PublishDraft } from './draftModel';
+import { requirementText, type PlatformSpec } from './platformSpecs';
 import { TagPicker } from './TagPicker';
 import { CategoryPicker } from './CategoryPicker';
+import { useJuejinCategories } from './useJuejinCategories';
 
 interface AttentionListProps {
   draft: PublishDraft;
   specs: PlatformSpec[];
   issuesOf: (id: PlatformId) => Issue[];
   onChange: (patch: Partial<PublishDraft> | ((d: PublishDraft) => Partial<PublishDraft>)) => void;
-  coverInputRef: RefObject<HTMLInputElement>;
-  /** 正文首图，用来说明必需封面的平台会用哪张图裁。 */
-  bodyImage: string;
 }
 
-/** 行里列出的问题：会挡推送的 error，以及只提示不挡的 warn（如摘要超长会自动截取）。 */
-const fieldIssues = (issues: Issue[]) => issues.filter((i) => i.field !== 'auth');
+/**
+ * 过滤进入「需要单独处理」的问题：
+ * 通用内容未填（缺标题/缺摘要/缺标签）和 16:9 封面统一在上方填写/上传，不在这里重复弹出；
+ * 只保留平台差异项（字数超限或不足、标签超上限、掘金缺分类，或该平台已单独改写过）。
+ */
+function attentionIssues(draft: PublishDraft, spec: PlatformSpec, rawIssues: Issue[]): Issue[] {
+  const o = draft.overrides[spec.id] ?? {};
+  const missingTitle = !draft.title.trim() && o.title === undefined;
+  const missingDigest = !draft.digest.trim() && o.digest === undefined;
+  const missingTags = draft.tags.length === 0 && o.tags === undefined;
+  return rawIssues.filter((i) => {
+    if (i.field === 'auth' || i.field === 'cover') return false;
+    if (i.field === 'title' && missingTitle) return false;
+    if (i.field === 'digest' && missingDigest) return false;
+    if (i.field === 'tags' && missingTags) return false;
+    return true;
+  });
+}
 
 interface RowProps extends Omit<AttentionListProps, 'specs' | 'issuesOf'> {
   spec: PlatformSpec;
   issues: Issue[];
   open: boolean;
   setOpen: (open: boolean) => void;
+  juejinCategories: readonly { id: string; name: string }[];
 }
 
-function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInputRef, bodyImage }: RowProps) {
+function AttentionRow({ spec, draft, issues, open, setOpen, onChange, juejinCategories }: RowProps) {
   const v = resolveFor(draft, spec.id);
   const o = draft.overrides[spec.id] ?? {};
   const has = (f: Issue['field']) => issues.some((i) => i.field === f);
@@ -39,7 +52,6 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
   if (fresh.length) setSeen([...seen, ...fresh]);
   if (!open && seen.length) setSeen([]);
   const show = (f: Issue['field']) => has(f) || seen.includes(f);
-  const coverHint = rowCoverHint(spec, coverFor(draft, spec, bodyImage));
   const override = (patch: Parameters<typeof setOverride>[2]) => onChange((d) => ({ overrides: setOverride(d, spec.id, patch) }));
   // 标签默认全部平台共用；只有平台有个数上限且通用标签超出（或已单独挑过）时，才在行里挑该平台用哪几个。
   const pickTags = !!spec.tags && (o.tags !== undefined || draft.tags.length > spec.tags.max);
@@ -118,26 +130,9 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
               hint={[`最多 ${spec.tags.max} 个，默认取通用标签前 ${spec.tags.max} 个`, spec.tags.hint].filter(Boolean).join('；')}
               onChange={(tags) => override({ tags })}
             />
-          ) : spec.tags && show('tags') ? (
-            <Field label="标签（所有平台共用）" htmlFor={`g-${spec.id}`}>
-              <TagInput id={`g-${spec.id}`} value={draft.tags} onChange={(tags) => onChange({ tags })} placeholder="回车添加" />
-            </Field>
           ) : null}
           {spec.category && show('category') ? (
-            <CategoryPicker label={`${spec.short}分类`} options={JUEJIN_CATEGORIES} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
-          ) : null}
-          {coverHint ? (
-            <div className="flex min-h-9 items-center justify-between gap-4">
-              <span className="text-xs text-muted" data-testid={`cover-rule-${spec.id}`}>
-                {coverHint}
-              </span>
-              {show('cover') && !draft.coverUpload ? (
-                <Button className="h-9" onClick={() => coverInputRef.current?.click()}>
-                  <ImagePlus />
-                  上传封面
-                </Button>
-              ) : null}
-            </div>
+            <CategoryPicker label={`${spec.short}分类`} options={juejinCategories} value={draft.juejinCategoryId} onChange={(id) => onChange({ juejinCategoryId: id })} />
           ) : null}
         </div>
       ) : null}
@@ -146,11 +141,11 @@ function AttentionRow({ spec, draft, issues, open, setOpen, onChange, coverInput
 }
 
 /**
- * 只列出需要单独处理的平台，一行一个（如“掘金：摘要差 12 字”）。
- * 点开就地修改，改好后焦点离开即收起；没问题的平台不出现。公众号封面的问题在公众号块里看。
- * 小红书/抖音也在这里：通用标题超长时提示「标题超 N 字（自动截取）」，可点开单独改写。
+ * 只列出需要单独处理的平台（标题/摘要超限或不足、标签超上限、掘金缺分类），一行一个。
+ * 通用内容未填或缺 16:9 封面时，直接在上方「通用内容」填写，不在此重复弹出。
  */
-export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) {
+export function AttentionList({ draft, specs, issuesOf, onChange }: AttentionListProps) {
+  const juejinCategories = useJuejinCategories(specs.some((s) => s.id === 'juejin'));
   const [open, setOpenSet] = useState<Set<PlatformId>>(new Set());
   const setOpen = (id: PlatformId, on: boolean) =>
     setOpenSet((prev) => {
@@ -159,9 +154,8 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
       else next.delete(id);
       return next;
     });
-  // 公众号的封面问题在公众号块里处理，标题/摘要/标签问题和其他平台一样在这里改。
   const rows = specs
-    .map((spec) => ({ spec, issues: fieldIssues(issuesOf(spec.id)).filter((i) => spec.id !== 'weixin' || i.field !== 'cover') }))
+    .map((spec) => ({ spec, issues: attentionIssues(draft, spec, issuesOf(spec.id)) }))
     .filter(({ issues, spec }) => issues.length || open.has(spec.id));
 
   if (rows.length === 0) return null;
@@ -170,7 +164,16 @@ export function AttentionList({ specs, issuesOf, ...rest }: AttentionListProps) 
       <h3 className="text-xs font-medium text-muted">需要单独处理</h3>
       <ul className="space-y-2" data-testid="attention-list">
         {rows.map(({ spec, issues }) => (
-          <AttentionRow key={spec.id} spec={spec} issues={issues} open={open.has(spec.id)} setOpen={(on) => setOpen(spec.id, on)} {...rest} />
+          <AttentionRow
+            key={spec.id}
+            spec={spec}
+            draft={draft}
+            issues={issues}
+            open={open.has(spec.id)}
+            setOpen={(on) => setOpen(spec.id, on)}
+            juejinCategories={juejinCategories}
+            onChange={onChange}
+          />
         ))}
       </ul>
     </section>

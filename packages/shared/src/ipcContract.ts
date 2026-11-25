@@ -41,6 +41,12 @@ export const IPC_INVOKE_CHANNELS = {
   exportArticle: 'file:export',
   publishWeixinDraft: 'publish:weixinDraft',
   publishMultiPlatform: 'publish:multiPlatform',
+  listJuejinCategories: 'publish:juejinCategories',
+  getAppUpdateState: 'appUpdate:getState',
+  checkAppUpdate: 'appUpdate:check',
+  downloadAppUpdate: 'appUpdate:download',
+  installAppUpdate: 'appUpdate:install',
+  openAppUpdateRelease: 'appUpdate:openRelease',
 } as const;
 
 export const IPC_SEND_CHANNELS = {
@@ -50,6 +56,7 @@ export const IPC_SEND_CHANNELS = {
 export const IPC_EVENT_CHANNELS = {
   onMenuAction: 'menu:action',
   onPlatformAuthUpdated: 'platform:authStatesUpdated',
+  onAppUpdateState: 'appUpdate:state',
 } as const;
 
 export type IpcInvokeMethod = keyof typeof IPC_INVOKE_CHANNELS;

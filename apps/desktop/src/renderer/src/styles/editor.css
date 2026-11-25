@@ -852,3 +852,8 @@
   color: var(--accent);
 }
 
+/* 暂时隐藏 YAML Frontmatter 渲染块（保留磁盘原文件不动，后续需要时再开放） */
+.vditor-ir [data-type='yaml-front-matter'] {
+  display: none !important;
+}
+

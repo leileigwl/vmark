@@ -1,6 +1,6 @@
 import type Vditor from 'vditor';
 import { handleCodeBlockIndentKey } from './codeBlockIndent';
-import { prepareListOutdent } from './listOutdentCaret';
+import { handleEditorTabKey } from './editorTabBehavior';
 import { getCodeBlockLang } from './vditorDomEnhancer';
 import { handleBacktickKeyDown, handleInfoMarkerKeyDown } from './vditorKeyboardCodeBlock';
 import { handleEmptyPairBackspace, handleProtectedBlockDelete } from './vditorKeyboardProtectedDelete';
@@ -114,7 +114,7 @@ export function processVditorKeyDownCapture(e: KeyboardEvent, ctx: KeyboardCaptu
     return;
   }
 
-  if (!el.contains(targetNode) || prepareListOutdent(e, el)) return;
+  if (!el.contains(targetNode) || handleEditorTabKey(e, ctx)) return;
   if (handleEmptyPairBackspace(e, ctx, isImeComposing)) return;
   if (handleProtectedBlockDelete(e, ctx, isImeComposing)) return;
   if (handleSpaceMarkdownSpin(e, ctx, isImeComposing)) return;

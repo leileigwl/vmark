@@ -61,8 +61,8 @@ test.describe('发布窗口：登录状态与内容校验分开显示', () => {
     await expect(authCell(page, 'weibo')).toHaveText('已登录');
     await expect(authCell(page, 'csdn')).toContainText('未登录');
     await expect(authCell(page, 'github_static')).toHaveText('无需登录');
-    await expect(page.getByTestId('platform-row-weixin')).toContainText('内容就绪');
-    await expect(page.getByTestId('platform-row-zhihu')).not.toContainText('就绪');
+    await expect(page.getByTestId('platform-row-weixin')).toContainText('差 2 项');
+    await expect(page.getByTestId('platform-row-zhihu')).not.toContainText(/就绪|差 \d+ 项/);
     await expect(page.getByTestId('auth-summary')).toHaveText('已登录 3 / 10');
   });
 

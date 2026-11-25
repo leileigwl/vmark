@@ -8,6 +8,7 @@ import { SettingsView, type SettingCategory } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { VditorEditor, type VditorEditorHandle } from './components/VditorEditor';
+import { SettingsUpdateCard, UpdateBadge, UpdateDialog, useAppUpdate } from './features/app-update';
 import { useAuthSettings } from './features/auth-settings';
 import { useEditorWorkspace } from './features/editor-ir';
 import { usePublishDrawer } from './features/publish-drawer';
@@ -44,6 +45,7 @@ export default function App() {
   }
 
   const { theme, setTheme, customThemeName, handleImportTyporaTheme } = useThemeBloom();
+  const appUpdate = useAppUpdate();
   const { publishModalOpen, setPublishModalOpen } = usePublishDrawer();
   const auth = useAuthSettings(showToast);
   const ws = useWorkspaceTree({
@@ -170,6 +172,7 @@ export default function App() {
           activeArticle={ws.activeArticle}
           liveWordCount={ws.liveWordCount}
           saveState={ws.saveState}
+          updateSlot={<UpdateBadge controller={appUpdate} />}
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
           onToggleReadOnly={() => setReadOnly((v) => !v)}
           onOpenQuickOpen={() => setQuickOpenModalOpen(true)}
@@ -323,6 +326,7 @@ export default function App() {
               gitStatus={ws.gitStatus}
               gitPushLog={ws.gitPushLog}
               onGitPush={ws.handleGitPush}
+              updateCard={<SettingsUpdateCard controller={appUpdate} />}
             />
           )}
         </main>
@@ -401,6 +405,7 @@ export default function App() {
         onSelectWorkspace={() => void ws.handleSelectWorkspace()}
         onClearRecent={ws.clearRecentArticles}
       />
+      <UpdateDialog controller={appUpdate} />
     </div>
   );
 }

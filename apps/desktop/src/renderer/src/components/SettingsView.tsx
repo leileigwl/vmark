@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { FileText, GitBranch, Globe, Image as ImageIcon, Palette, SlidersHorizontal } from 'lucide-react';
 import type {
   EditorPreferences,
@@ -37,6 +38,7 @@ interface SettingsViewProps {
   gitStatus: GitStatusInfo;
   gitPushLog: string;
   onGitPush: () => void;
+  updateCard?: ReactNode;
 }
 
 /** Preferences view for Image Bed, 24 Bloom Themes, Platform Auth, and GitHub Static Blog. */
@@ -61,6 +63,7 @@ export function SettingsView({
   gitStatus,
   gitPushLog,
   onGitPush,
+  updateCard,
 }: SettingsViewProps) {
   return (
     <div className="flex min-w-0 flex-1 overflow-hidden">
@@ -148,6 +151,7 @@ export function SettingsView({
                 </div>
               )}
             </div>
+            {updateCard}
           </div>
         )}
 

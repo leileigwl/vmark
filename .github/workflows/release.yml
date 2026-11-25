@@ -38,15 +38,21 @@ jobs:
             artifacts: |
               apps/desktop/release/*.dmg
               apps/desktop/release/*.zip
+              apps/desktop/release/latest-mac.yml
+              apps/desktop/release/*.blockmap
           - os: windows-latest
             script: pnpm --filter @vcat/desktop package:win
             artifacts: |
               apps/desktop/release/*.exe
+              apps/desktop/release/latest.yml
+              apps/desktop/release/*.blockmap
           - os: ubuntu-latest
             script: pnpm --filter @vcat/desktop package:linux
             artifacts: |
               apps/desktop/release/*.AppImage
               apps/desktop/release/*.deb
+              apps/desktop/release/latest-linux.yml
+              apps/desktop/release/*.blockmap
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository

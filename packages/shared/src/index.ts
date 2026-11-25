@@ -194,6 +194,40 @@ export interface MultiPlatformPublishPayload {
  */
 export const SOCIAL_MAX_CARDS: Partial<Record<PlatformId, number>> = { xiaohongshu: 18, douyin: 30 };
 
+/** 掘金文章分类条目（主进程运行时拉取或内置列表返回）。 */
+export interface JuejinCategoryItem {
+  id: string;
+  name: string;
+}
+
+/** 应用更新方式：auto 通过 electron-updater 增量下载并重启安装；manual 引导打开安装包直链。 */
+export type AppUpdateMode = 'auto' | 'manual';
+
+export type AppUpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+export interface AppUpdateState {
+  status: AppUpdateStatus;
+  currentVersion: string;
+  latestVersion?: string;
+  releaseName?: string;
+  releaseNotes?: string;
+  releaseUrl?: string;
+  downloadUrl?: string;
+  mode: AppUpdateMode;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  error?: string;
+  checkedAt?: number;
+}
+
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;
   ok: boolean;
@@ -205,6 +239,21 @@ export interface MultiPlatformPublishResultItem {
   verified?: boolean;
   uploadedImagesCount?: number;
   message: string;
+}
+
+/** Returns the platform-appropriate file manager reveal label (Finder / 资源管理器 / 文件管理器). */
+export function getRevealInFileManagerLabel(platformHint?: string): string {
+  const hint = (
+    platformHint ??
+    (typeof process !== 'undefined' && process.platform
+      ? process.platform
+      : typeof navigator !== 'undefined'
+        ? navigator.platform
+        : '')
+  ).toLowerCase();
+  if (hint === 'darwin' || hint.includes('mac')) return '在 Finder 中显示';
+  if (hint === 'win32' || hint.includes('win')) return '在资源管理器中显示';
+  return '在文件管理器中显示';
 }
 
 export interface ElectronAPI {
@@ -264,8 +313,15 @@ export interface ElectronAPI {
   publishMultiPlatform?: (
     payload: MultiPlatformPublishPayload
   ) => Promise<{ results: MultiPlatformPublishResultItem[] }>;
+  listJuejinCategories?: () => Promise<JuejinCategoryItem[]>;
   getPlatformAccounts?: () => Promise<Record<string, unknown>>;
   onPlatformAuthUpdated?: (
     callback: (states: Partial<Record<PlatformId, boolean>>) => void
   ) => () => void;
+  getAppUpdateState?: () => Promise<AppUpdateState>;
+  checkAppUpdate?: (options?: { manual?: boolean }) => Promise<AppUpdateState>;
+  downloadAppUpdate?: () => Promise<AppUpdateState>;
+  installAppUpdate?: () => Promise<{ ok: boolean; message?: string }>;
+  openAppUpdateRelease?: () => Promise<boolean>;
+  onAppUpdateState?: (callback: (state: AppUpdateState) => void) => () => void;
 }
