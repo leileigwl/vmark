@@ -38,9 +38,17 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<{
  * 只认 data 对象里独立的 `t` 键（前面是 `{`、`,` 或空白），值必须是纯数字（公众号 token 都是数字）；
  * 旧写法 `data:\s*\{[\s\S]*?t:` 会跨键匹配到 `content: "..."` 这类键末尾的 `t:`，把登录页误判成已登录。
  */
-export function parseWeixinToken(html: string): string | null {
-  const m = html.match(/data:\s*\{[^{}]*?(?:^|[{,\s])t\s*:\s*["'](\d+)["']/);
+export function extractWeixinTokenFromUrl(url?: string): string | null {
+  if (!url) return null;
+  const m = url.match(/[?&]token=(\d+)(?:&|#|$)/);
   return m ? m[1] : null;
+}
+
+export function parseWeixinToken(html: string): string | null {
+  const m = html.match(/data:\s*\{[^{}]*?(?:^|[{,\s])t\s*:\s*["']?(\d{4,})["']?/);
+  if (m) return m[1];
+  const cgi = html.match(/\bwx\.cgiData\b[\s\S]{0,400}?(?:[{,\s])t\s*:\s*["']?(\d{4,})["']?/);
+  return cgi ? cgi[1] : null;
 }
 
 /** WeChat Official Account draft-box adapter following the 5-step observable contract. */
@@ -74,11 +82,13 @@ export class WeixinAdapter implements PlatformAdapter {
     });
     if (!res.ok) return false;
     const html = await res.text();
-    const token = parseWeixinToken(html);
+    const urlToken = res.url?.includes('/cgi-bin/home') ? extractWeixinTokenFromUrl(res.url) : null;
+    const token = parseWeixinToken(html) ?? urlToken;
     if (!token) return false;
     // cookie 还在、首页也像有 token 不代表会话有效：带 token 打开后台首页，
     // 会话失效时会被跳回登录页（最终地址不再带这个 token，页面里也取不到同一个 token）。
-    if (!(await this.confirmToken(token))) return false;
+    const alreadyAtHome = Boolean(res.url?.includes('/cgi-bin/home') && urlToken === token);
+    if (!alreadyAtHome && !(await this.confirmToken(token))) return false;
     const ticketMatch = html.match(/ticket:\s*["']([^"']+)["']/);
     const userNameMatch = html.match(/user_name:\s*["']([^"']+)["']/);
     const nickNameMatch = html.match(/nick_name:\s*["']([^"']+)["']/);
@@ -101,7 +111,11 @@ export class WeixinAdapter implements PlatformAdapter {
     );
     if (!res.ok) return false;
     if (res.url && !res.url.includes(`token=${token}`)) return false;
-    return parseWeixinToken(await res.text()) === token;
+    const homeHtml = await res.text();
+    return (
+      parseWeixinToken(homeHtml) === token ||
+      (Boolean(res.url?.includes('/cgi-bin/home')) && extractWeixinTokenFromUrl(res.url) === token)
+    );
   }
 
   async uploadImage(buffer: Buffer, fileName: string): Promise<string> {

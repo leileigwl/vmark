@@ -9,6 +9,7 @@ import { CHROME_DESKTOP_UA } from '../../browserStealth';
 import { InternalBrowserManager } from '../../internalBrowserManager';
 import { RENDERER_THEME_PROBE, buildRendererThemeWatch } from '../../loginWindowBar';
 import { checkPlatformAuthStates, verifyPlatformAuth } from '../../publishHandlers';
+import { hasSessionAuthCookies } from '../../publishSessionAuth';
 import { noticeSessionCredentialStorage, type MainIpcContext } from '../context';
 import { createSharedCheck } from '../../authCheckOnce';
 
@@ -86,6 +87,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         targetSession,
         appTheme,
         watchAppTheme: (knownThemeId) => event.sender.executeJavaScript(buildRendererThemeWatch(knownThemeId)),
+        hasAuthCookies: () => hasSessionAuthCookies(session, platformId),
         checkAuth: () => verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig }),
         onAuthorized: async () => {
           await upsertAccountRecord(platformId, {
@@ -100,7 +102,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         authorized: isAuthorized,
         statusMessage: isAuthorized ? '授权有效' : '未登录或已失效',
       });
-      await checkAuthStatesOnce(ctx);
+      getMainWindow()?.webContents.send(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, { [platformId]: isAuthorized });
       return isAuthorized;
     }
   );

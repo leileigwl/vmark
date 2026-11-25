@@ -92,6 +92,14 @@ export function getPlatformAuthSnapshot(): PlatformAuthSnapshot {
   return snapshot;
 }
 
+/** 仅更新已知平台状态，不清空或重置其余平台的现有状态（避免单平台登录/登出时全表闪烁）。 */
+export function markPlatformAuthStatuses(states: Partial<Record<PlatformId, boolean>>): void {
+  emit({
+    statuses: { ...snapshot.statuses, ...toStatuses(states) },
+    lastCheckedAt: snapshot.lastCheckedAt ?? Date.now(),
+  });
+}
+
 /** 单个平台状态；没检测过时视为 checking（首轮）或 signedOut。 */
 export function statusOf(id: PlatformId, snap: PlatformAuthSnapshot = snapshot): AuthStatus {
   const s = snap.statuses[id];

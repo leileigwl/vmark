@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LOGIN_BAR_HEIGHT, buildLoginBarHtml, loginWindowName, nextLoginBarAction, resolveLoginBarTheme } from '../src/main/loginWindowBar.ts';
+import {
+  LOGIN_BAR_HEIGHT,
+  buildLoginBarHtml,
+  loginWindowName,
+  nextLoginBarAction,
+  parseLoginBarActionUrl,
+  resolveLoginBarTheme,
+} from '../src/main/loginWindowBar.ts';
 
 test('顶栏：平台名、「登录完成」、关闭；不出现标签页、地址栏和技术术语', () => {
   const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false });
@@ -64,4 +71,13 @@ test('app 主题读取失败或值可疑时回落到对应深浅的默认色，�
   assert.equal(t.tokens.ink, '#dde1e6');
   const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false, appTheme: { tokens: { surface: '</style><script>' } } });
   assert.ok(!html.includes('<script>'));
+});
+
+test('parseLoginBarActionUrl 同时识别 data: 页内 hash 与旧式 vmark-nav:// URL', () => {
+  assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://back:1700000001'), 'back');
+  assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://reload:1700000002'), 'reload');
+  assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://done:1700000003'), 'done');
+  assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://close:1700000004'), 'close');
+  assert.equal(parseLoginBarActionUrl('vmark-nav://done'), 'done');
+  assert.equal(parseLoginBarActionUrl('https://mp.weixin.qq.com/'), null);
 });

@@ -14,6 +14,7 @@
     "prebuild": "pnpm run copy-vditor",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "record:demos": "node scripts/record-demos.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test:ipc": "node --experimental-strip-types --test tests/*.test.ts",
     "test:electron-smoke": "playwright test -c playwright.electron.config.ts --reporter=list",
