@@ -112,7 +112,7 @@ test.describe('全平台：登录状态一致、逐平台适配与批量推送',
     await page.locator('#pub-tags').press('Enter');
     await page.locator('#pub-digest').fill('这是一篇用于验证多平台发布流程的测试文章，覆盖标题、摘要、标签和封面比例的适配，确保每个平台都能顺利进入草稿箱。');
     await expect(page.getByTestId('attention-list').locator('li')).toHaveCount(3);
-    await expect(page.getByTestId('section-weixin')).toContainText('封面：用正文首图自动裁');
+    await expect(page.getByTestId('section-weixin')).toContainText('使用正文首图');
     await expect(page.getByTestId('attention-juejin')).toContainText('掘金：缺分类');
     await expect(page.getByTestId('attention-baijiahao')).toContainText('百家号：标题差 1 字');
     await expect(page.getByTestId('attention-weibo')).toContainText('微博：摘要超 12 字');

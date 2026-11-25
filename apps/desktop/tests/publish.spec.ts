@@ -110,8 +110,8 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(row(page, 'weixin').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
     await expect(row(page, 'weixin')).toContainText('就绪');
     await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面');
-    await expect(section(page, 'weixin')).toContainText('封面：用正文首图自动裁');
-    await expect(page.getByTestId('weixin-preview')).toHaveCount(0); // 排版预览默认收起
+    await expect(section(page, 'weixin')).toContainText('使用正文首图');
+    await expect(page.getByTestId('weixin-preview')).toHaveCount(0); // 不再显示公众号排版预览
     await expect(page.getByTestId('publish-start')).toHaveText('推送到 1 个草稿箱');
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(1);
@@ -260,16 +260,16 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(await editor.innerHTML()).toBe(before);
   });
 
-  test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面（含 1:1 方图）', async ({ page }, testInfo) => {
+  test('正文没有图片：公众号显示“缺封面”，上传后就绪，推送带上传的封面', async ({ page }, testInfo) => {
     await openEditor(page, { weixin: true }, '# 没有配图的文章\n\n只有文字。');
     await openPublish(page);
     await expect(section(page, 'weixin')).toContainText('缺封面');
     await expect(page.getByTestId('publish-start')).toBeDisabled();
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
-    await expect(page.getByTestId('weixin-cover')).toContainText('正文没有图片，请上传一张封面');
+    await expect(page.getByTestId('weixin-cover')).toContainText('请上传一张封面（推荐 2.35:1，900×383）');
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
     await expect(page.getByAltText('2.35:1 封面预览')).toBeVisible();
-    await expect(page.getByAltText('1:1 封面预览')).toBeVisible();
+    await expect(page.getByAltText('1:1 封面预览')).toHaveCount(0);
     await expect(row(page, 'weixin')).toContainText('就绪');
     const shotDir = process.env.PW_SCREENSHOT_DIR;
     await page.screenshot({ path: shotDir ? path.join(shotDir, 'weixin-square-cover.png') : testInfo.outputPath('weixin-square-cover.png') });
@@ -291,9 +291,10 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await page.getByTestId('cover-field').getByRole('button', { name: '移除' }).click();
     await expect(page.getByTestId('cover-field').getByTestId('cover-focus')).toHaveCount(0);
     await page.getByTestId('cover-input').setInputFiles({ name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('png') });
-    // 公众号的 2.35:1 + 1:1 裁切预览在公众号分区里
+    // 公众号的 2.35:1 裁切预览在公众号分区里（不展示 1:1）
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
-    for (const r of ['2.35:1', '1:1']) await expect(section(page, 'weixin').getByAltText(`${r} 封面预览`)).toBeVisible();
+    await expect(section(page, 'weixin').getByAltText('2.35:1 封面预览')).toBeVisible();
+    await expect(section(page, 'weixin').getByAltText('1:1 封面预览')).toHaveCount(0);
     await section(page, 'social').getByRole('button', { expanded: false }).click();
     await expect(section(page, 'social').getByAltText('卡片封面（通用封面）')).toBeVisible();
     await expect(section(page, 'social')).toContainText('3 张卡片'); // 正文 2 张 + 通用封面 1 张
@@ -406,15 +407,14 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
 const openedOf = (page: Page) => page.evaluate(() => (window as unknown as { __opened: string[][] }).__opened);
 
 test.describe('预览收进平台行、内置浏览器入口与打开草稿', () => {
-  test('公众号排版预览收在公众号分区里，点开才出现，并带「复制富文本」', async ({ page }) => {
+  test('公众号分区点开只显示封面裁剪，不显示排版预览和「复制富文本」', async ({ page }) => {
     await openEditor(page, { weixin: true });
     await openPublish(page);
     await expect(page.getByRole('dialog').getByRole('tab')).toHaveCount(0); // 顶部没有「公众号排版」「平台快捷浏览器」标签页
     await section(page, 'weixin').getByRole('button', { name: /公众号/ }).click();
-    const preview = page.getByTestId('weixin-preview');
-    await expect(preview).toBeVisible();
-    await expect(preview.getByRole('button', { name: '复制富文本' })).toBeVisible();
-    await expect(preview.locator('iframe')).toHaveAttribute('srcdoc', /外部资料/);
+    await expect(page.getByTestId('weixin-cover')).toBeVisible();
+    await expect(page.getByTestId('weixin-preview')).toHaveCount(0);
+    await expect(section(page, 'weixin').getByRole('button', { name: '复制富文本' })).toHaveCount(0);
   });
 
   test('每个平台行有「内置浏览器」按钮：打开该平台后台，不改动勾选', async ({ page }) => {
