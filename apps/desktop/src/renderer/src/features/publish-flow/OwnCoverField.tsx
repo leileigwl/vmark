@@ -29,7 +29,7 @@ export function OwnCoverField({ draft, spec, onChange, title, hint, uploadLabel 
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-xs font-medium text-ink">{title}</div>
-          <p className="mt-0.5 text-[11px] text-muted">{own ? `已单独设置 ${spec.cover?.ratios.join(' + ')} · 点图片设置焦点` : hint}</p>
+          <p className="mt-0.5 text-[11px] text-muted">{own ? `已单独设置 ${spec.cover?.ratios[0]} · 点图片设置焦点` : hint}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {own ? (

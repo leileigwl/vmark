@@ -27,7 +27,13 @@
     "appId": "com.vmark.desktop",
     "productName": "Vmark",
     "executableName": "vmark",
-    "publish": [],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "leileigwl",
+        "repo": "vmark"
+      }
+    ],
     "directories": {
       "buildResources": "build",
       "output": "release"
@@ -89,6 +95,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "docx": "^9.15.4",
+    "electron-updater": "^6.8.11",
     "katex": "^0.16.47",
     "lucide-react": "^0.468.0",
     "tailwind-merge": "^3.7.1",

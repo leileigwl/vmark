@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": true,
-  "bootstrapUnlockReason": null,
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "upload latest*.yml and *.blockmap in release.yml for electron-updater",
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",

@@ -10,7 +10,7 @@ test.describe('TODO 2：掘金分类运行时拉取', () => {
       md: MD,
       auth: { juejin: true },
       selected: ['juejin'],
-      saved: { digest: DIGEST, tags: ['前端'], juejinCategoryId: '' },
+      saved: { title: '掘金分类测试', digest: DIGEST, tags: ['前端'], juejinCategoryId: '' },
       juejinCategories: [
         { id: 'live-1', name: '云原生' },
         { id: 'live-2', name: 'AI 工程' },
@@ -38,7 +38,7 @@ test.describe('TODO 2：掘金分类运行时拉取', () => {
       md: MD,
       auth: { juejin: true },
       selected: ['juejin'],
-      saved: { digest: DIGEST, tags: ['前端'], juejinCategoryId: '' },
+      saved: { title: '掘金分类测试', digest: DIGEST, tags: ['前端'], juejinCategoryId: '' },
       juejinCategories: 'fail',
     });
 

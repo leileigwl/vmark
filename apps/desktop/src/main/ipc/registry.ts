@@ -1,4 +1,5 @@
 import type { MainIpcContext } from './context';
+import { registerAppUpdateIpc } from './app-update/index';
 import { registerArticleIpc } from './article/index';
 import { registerImageConfigIpc } from './image-config/index';
 import { registerPlatformAuthIpc } from './platform-auth/index';
@@ -12,4 +13,5 @@ export function registerAllIpcHandlers(ctx: MainIpcContext): void {
   registerImageConfigIpc(ctx);
   registerPlatformAuthIpc(ctx);
   registerPublishIpc(ctx);
+  registerAppUpdateIpc(ctx);
 }

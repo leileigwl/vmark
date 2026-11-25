@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { ArticleMeta } from '@vcat/shared';
+import { getRevealInFileManagerLabel, type ArticleMeta } from '@vcat/shared';
 
 export type SidebarContextMenu =
   | { type: 'file'; x: number; y: number; article: ArticleMeta }
@@ -265,7 +265,7 @@ export function SidebarContextMenus({
               }}
               className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
             >
-              在 Finder 中显示
+              {getRevealInFileManagerLabel()}
             </button>
           </>
         )}
@@ -359,7 +359,7 @@ export function SidebarContextMenus({
               }}
               className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
             >
-              在 Finder 中显示
+              {getRevealInFileManagerLabel()}
             </button>
           </>
         )}
@@ -425,7 +425,7 @@ export function SidebarContextMenus({
         }}
         className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
       >
-        在 Finder 中显示
+        {getRevealInFileManagerLabel()}
       </button>
       <div className="my-1 border-t border-[var(--border-color)]" />
       <button

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Clock, Edit3, Eye, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
 import type { ArticleMeta } from '@vcat/shared';
 import { Button, cn } from '../ui';
@@ -10,6 +11,7 @@ interface TopBarProps {
   activeArticle: ArticleMeta | null;
   liveWordCount: number;
   saveState: string;
+  updateSlot?: ReactNode;
   onToggleSidebar: () => void;
   onToggleReadOnly: () => void;
   onOpenQuickOpen: () => void;
@@ -31,6 +33,7 @@ export function TopBar({
   activeArticle,
   liveWordCount,
   saveState,
+  updateSlot,
   onToggleSidebar,
   onToggleReadOnly,
   onOpenQuickOpen,
@@ -74,6 +77,7 @@ export function TopBar({
         <span className="mr-2 text-[11.5px] tabular-nums opacity-85">
           {liveWordCount} 词 · {saveState}
         </span>
+        {updateSlot}
         {activeView === 'editor' && (
           <Button
             variant="ghost"

@@ -25,15 +25,16 @@ function ownTextNodes(li: HTMLElement): Text[] {
   return out;
 }
 
-/** Caret offset in the item's own text, ignoring zero-width spaces; -1 when the caret is not in it. */
-function caretTextOffset(nodes: Text[], container: Node, offset: number): number {
-  let total = 0;
-  for (const t of nodes) {
-    const v = t.nodeValue ?? '';
-    if (t === container) return total + v.slice(0, offset).replace(ZWSP, '').length;
-    total += v.replace(ZWSP, '').length;
+/** Caret offset in the item's own text before the caret, ignoring zero-width spaces. */
+function caretTextOffset(li: HTMLElement, range: Range): number {
+  try {
+    const pre = document.createRange();
+    pre.setStart(li, 0);
+    pre.setEnd(range.startContainer, range.startOffset);
+    return pre.toString().replace(ZWSP, '').length;
+  } catch {
+    return -1;
   }
-  return -1;
 }
 
 function placeCaret(node: Node, offset: number): void {
@@ -61,6 +62,28 @@ function restoreCaret(target: number): void {
   }
 }
 
+function prepareListCaretForTab(li: HTMLElement): boolean {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  const range = sel.getRangeAt(0);
+  // Vditor handles non-empty selections via `"" !== range.toString()`; treat collapsed or zero-width-only ranges as a caret.
+  if (!sel.isCollapsed && range.toString().replace(ZWSP, '') !== '') return true;
+  const offset = caretTextOffset(li, range);
+  if (offset < 0) return false;
+  if (li.classList.contains('vditor-task')) {
+    const first = ownTextNodes(li)[0];
+    if (first && first.previousSibling instanceof HTMLInputElement && (first.nodeValue?.length ?? 0) >= 1) {
+      placeCaret(first, 1);
+    } else {
+      placeCaret(li, 0);
+    }
+  } else {
+    placeCaret(li, 0);
+  }
+  restoreAfterVditor(offset);
+  return true;
+}
+
 /**
  * Handles Shift+Tab with a collapsed caret inside a nested list item that is not
  * on its first character. Returns true when it prepared the outdent; the event is
@@ -69,23 +92,20 @@ function restoreCaret(target: number): void {
 export function prepareListOutdent(e: KeyboardEvent, root: HTMLElement): boolean {
   if (e.key !== 'Tab' || !e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return false;
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false;
-  const range = sel.getRangeAt(0);
-  const start = range.startContainer;
+  if (!sel || sel.rangeCount === 0) return false;
+  const start = sel.getRangeAt(0).startContainer;
   const li = (start instanceof Element ? start : start.parentElement)?.closest('li') as HTMLElement | null;
   if (!li || !root.contains(li) || !li.parentElement?.closest('li')) return false;
-  const nodes = ownTextNodes(li);
-  const first = nodes[0];
-  if (!first) return false;
-  const offset = caretTextOffset(nodes, start, range.startOffset);
-  if (offset <= 0) return false; // already at the start (Vditor handles it) or caret outside the item text
-  const prev = first.previousSibling;
-  const isTask = li.classList.contains('vditor-task') && prev instanceof HTMLInputElement;
-  // Vditor's "first character" test: text node offset 0 without a previous sibling, or offset 1 after a task checkbox.
-  if (!isTask && prev) return false;
-  placeCaret(first, isTask ? 1 : 0);
-  restoreAfterVditor(offset);
-  return true;
+  return prepareListCaretForTab(li);
+}
+
+/**
+ * Prepares Tab indent on a list item that has a preceding sibling `<li>`:
+ * moves the caret to the item start before Vditor runs so Vditor indents the list
+ * item instead of inserting whitespace, then restores the original character offset.
+ */
+export function prepareListIndent(li: HTMLElement): boolean {
+  return prepareListCaretForTab(li);
 }
 
 /**
