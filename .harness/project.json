@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": true,
-  "bootstrapUnlockReason": null,
+  "bootstrapLocked": false,
+  "bootstrapUnlockReason": "allow test->master PR #128 containing release.yml updater metadata",
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",
