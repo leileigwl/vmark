@@ -19,8 +19,21 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.join(here, '..', 'scripts', 'release-assets.mjs');
 
-const yml = (version: string, urls: string[]) =>
-  [`version: ${version}`, 'files:', ...urls.flatMap((u) => [`  - url: ${u}`, '    sha512: abc==', '    size: 3']), `path: ${urls[0]}`, "releaseDate: '2026-11-25T13:47:00.000Z'", ''].join('\n');
+/** 按 electron-builder 的格式写 latest*.yml；sha512/size 取自文件内容 `content(url)`。 */
+const yml = (version: string, urls: string[], content: (url: string) => string = (u) => CONTENT[u.split('.').pop() ?? ''] ?? '') =>
+  [
+    `version: ${version}`,
+    'files:',
+    ...urls.flatMap((u) => [
+      `  - url: ${u}`,
+      `    sha512: ${createHash('sha512').update(content(u)).digest('base64')}`,
+      `    size: ${Buffer.byteLength(content(u))}`,
+    ]),
+    `path: ${urls[0]}`,
+    "releaseDate: '2026-11-25T13:47:00.000Z'",
+    '',
+  ].join('\n');
+const CONTENT: Record<string, string> = { dmg: 'dmg', zip: 'zip', exe: 'exe', AppImage: 'img', deb: 'deb' };
 
 /** 造一个三平台都齐全的 release 目录；win 安装包名可替换以重现旧问题。 */
 function releaseDir(version = '0.5.0', winExe = `Vmark-Setup-${version}.exe`): string {
@@ -49,8 +62,11 @@ test('githubAssetName：空格会被 GitHub 改成点', () => {
 
 test('parseUpdaterYml：读出 version 和所有下载地址（files[].url + path 去重）', () => {
   const meta = parseUpdaterYml(yml('0.4.0', ['Vmark-0.4.0-arm64-mac.zip', 'Vmark-0.4.0-arm64.dmg']));
-  assert.deepEqual(meta, { version: '0.4.0', urls: ['Vmark-0.4.0-arm64-mac.zip', 'Vmark-0.4.0-arm64.dmg'] });
-  assert.deepEqual(parseUpdaterYml("version: '1.0.0-rc.1'\npath: a.exe\n"), { version: '1.0.0-rc.1', urls: ['a.exe'] });
+  assert.equal(meta.version, '0.4.0');
+  assert.deepEqual(meta.urls, ['Vmark-0.4.0-arm64-mac.zip', 'Vmark-0.4.0-arm64.dmg']);
+  assert.deepEqual(meta.files.map((f) => [f.url, f.size]), [['Vmark-0.4.0-arm64-mac.zip', 3], ['Vmark-0.4.0-arm64.dmg', 3]]);
+  assert.equal(meta.files[1].sha512, createHash('sha512').update('dmg').digest('base64'));
+  assert.deepEqual(parseUpdaterYml("version: '1.0.0-rc.1'\npath: a.exe\n").urls, ['a.exe']);
 });
 
 test('checkReleaseDir：三平台齐全且地址对得上时通过，builder-debug.yml 不算产物', () => {
@@ -78,6 +94,14 @@ test('checkReleaseDir：版本不符、缺清单、缺安装包都要报', () =>
   assert.ok(errors.some((e) => e.includes('[win] 缺少版本 0.5.1 的安装包')));
   assert.deepEqual(checkReleaseDir(releaseDir(), 'v0.5.0', ['win']).errors, []);
   assert.ok(checkReleaseDir(releaseDir(), 'v0.5.0', ['bsd']).errors.includes('未知平台 bsd'));
+});
+
+test('checkReleaseDir：latest*.yml 记录的 sha512 / size 与文件不符时报错', () => {
+  const dir = releaseDir();
+  fs.writeFileSync(path.join(dir, 'Vmark-0.5.0-amd64.deb'), 'deb-被重新打包过');
+  const { errors } = checkReleaseDir(dir, 'v0.5.0');
+  assert.ok(errors.some((e) => e.includes('[linux] latest-linux.yml 里 Vmark-0.5.0-amd64.deb 的 sha512 与文件不符')), errors.join('\n'));
+  assert.ok(errors.some((e) => e.includes('Vmark-0.5.0-amd64.deb 的 size')), errors.join('\n'));
 });
 
 test('checksums：与 sha256sum 格式一致、按文件名排序', () => {
@@ -115,6 +139,10 @@ test('CLI：check 失败退出码非 0；checksums 写出 SHA256SUMS.txt', () =>
   const good = releaseDir();
   assert.match(execFileSync('node', [CLI, 'check', good, 'v0.5.0'], { encoding: 'utf8' }), /✓ 10 个产物齐全/);
   assert.throws(() => execFileSync('node', [CLI, 'check', releaseDir('0.4.0', 'Vmark Setup 0.4.0.exe'), 'v0.4.0'], { stdio: 'pipe' }));
+  assert.throws(
+    () => execFileSync('node', [CLI, 'check', good, 'v0.5.0', '--platform'], { stdio: 'pipe' }),
+    (err: { status: number; stderr: Buffer }) => err.status === 2 && err.stderr.toString().includes('--platform 需要值'),
+  );
   execFileSync('node', [CLI, 'checksums', good], { encoding: 'utf8' });
   assert.ok(fs.existsSync(path.join(good, 'SHA256SUMS.txt')));
 });
