@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
-import { IPC_EVENT_CHANNELS } from '@vcat/shared';
+import { getRevealInFileManagerLabel, IPC_EVENT_CHANNELS } from '@vcat/shared';
 import {
   readAppConfig,
   recordRecentWorkspace,
@@ -142,7 +142,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
         { type: 'separator' },
         { label: '关闭窗口', accelerator: 'CmdOrCtrl+W', click: () => BrowserWindow.getFocusedWindow()?.close() },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: (_m, _w, e) => sendMenuAction('file:save', acceleratorPayload(e)) },
-        { label: '在 Finder 中显示', click: () => sendMenuAction('file:reveal') },
+        { label: getRevealInFileManagerLabel(), click: () => sendMenuAction('file:reveal') },
         {
           label: '导出',
           submenu: [

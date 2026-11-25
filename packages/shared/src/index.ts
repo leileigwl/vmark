@@ -241,6 +241,21 @@ export interface MultiPlatformPublishResultItem {
   message: string;
 }
 
+/** Returns the platform-appropriate file manager reveal label (Finder / 资源管理器 / 文件管理器). */
+export function getRevealInFileManagerLabel(platformHint?: string): string {
+  const hint = (
+    platformHint ??
+    (typeof process !== 'undefined' && process.platform
+      ? process.platform
+      : typeof navigator !== 'undefined'
+        ? navigator.platform
+        : '')
+  ).toLowerCase();
+  if (hint === 'darwin' || hint.includes('mac')) return '在 Finder 中显示';
+  if (hint === 'win32' || hint.includes('win')) return '在资源管理器中显示';
+  return '在文件管理器中显示';
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;

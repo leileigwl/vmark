@@ -1,4 +1,5 @@
 import { Folder, Pin, PinOff } from 'lucide-react';
+import { getRevealInFileManagerLabel } from '@vcat/shared';
 
 interface SidebarPopoverMenuProps {
   pinned: boolean;
@@ -84,7 +85,7 @@ export function SidebarPopoverMenu({
         }}
         className="block w-full px-3.5 py-1 text-left hover:bg-[var(--bg-hover)]"
       >
-        在 Finder 中显示
+        {getRevealInFileManagerLabel()}
       </button>
       <button
         type="button"
