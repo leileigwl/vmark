@@ -1,4 +1,5 @@
 import { PAIR_MAP } from './editorHelpers';
+import { normalizeInlineRangeForDelete } from './inlineRangeDeleteGuard';
 import type { KeyboardCaptureContext } from './vditorKeyboard';
 
 function getTopBlock(target: Node, resetEl: Element): HTMLElement | null {
@@ -144,7 +145,9 @@ export function handleProtectedBlockDelete(
     }
   }
 
-  if (!sel.isCollapsed) return false;
+  if (!sel.isCollapsed) {
+    return normalizeInlineRangeForDelete(e, ctx, resetEl, sel);
+  }
 
   const topBlock = getTopBlock(range.startContainer, resetEl);
   if (!topBlock) return false;
