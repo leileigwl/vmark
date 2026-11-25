@@ -10,6 +10,8 @@ const COMMITS = [
   { hash: 'a4', subject: 'chore(harness): relock bootstrap' },
   { hash: 'a5', subject: 'Merge pull request #128 from leileigwl/test' },
   { hash: 'a6', subject: 'chore(release): sync master back to test [skip ci]' },
+  { hash: 'a7', subject: "Merge tag 'v0.4.0' into test" },
+  { hash: 'a8', subject: "Merge commit 'abc123'" },
 ];
 
 test('groupCommits：按类型分组，跳过合并与同步提交', () => {

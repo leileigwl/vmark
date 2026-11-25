@@ -53,6 +53,7 @@ test('classifyCommits：feat / fix / BREAKING / 只有同步合并', () => {
     [['feat: a', 'refactor(core)!: 改 IPC 契约'], 'major'],
     [['feat: a\n\nBREAKING CHANGE: 配置文件格式变了'], 'major'],
     [['Merge pull request #128 from leileigwl/test', 'chore(release): sync master back to test [skip ci]'], null],
+    [["Merge tag 'v0.4.0'", "Merge commit 'abc123' into test", "Merge branch 'master' into test"], null],
     [[], null],
   ];
   for (const [msgs, want] of cases) assert.equal(classifyCommits(msgs), want, JSON.stringify(msgs));
@@ -142,6 +143,33 @@ test('nextTagFromGit：真实 git 仓库里重现 v0.3.0-rc.1 → v0.3.0 → v0.
   assert.equal(nextTagFromGit('HEAD', r.dir).tag, 'v0.3.1');
   r.commit('feat(publish): 新平台');
   assert.equal(nextTagFromGit('HEAD', r.dir).tag, 'v0.4.0');
+});
+
+test('nextTagFromGit：别的分支上遗留的高版本 rc 不会被转正', () => {
+  const r = repo();
+  r.commit('feat: a');
+  r.run('tag', '-a', 'v0.4.0', '-m', 'v0.4.0');
+  r.run('checkout', '-q', '-b', 'abandoned');
+  r.commit('feat: 废弃的实验');
+  r.run('tag', '-a', 'v0.6.0-rc.1', '-m', '废弃分支上的 rc');
+  r.run('checkout', '-q', 'master');
+  r.commit('fix: 小修');
+  assert.equal(nextTagFromGit('HEAD', r.dir).tag, 'v0.4.1');
+});
+
+test('CLI：previous-tag / is-latest 支持 --github-output', () => {
+  const r = repo();
+  r.commit('feat: a');
+  r.run('tag', '-a', 'v0.4.0', '-m', 'v0.4.0');
+  r.commit('fix: b');
+  r.run('tag', '-a', 'v0.4.1', '-m', 'v0.4.1');
+  const out = path.join(r.dir, 'gh-output.txt');
+  const env = { ...process.env, GITHUB_OUTPUT: out };
+  assert.equal(execFileSync('node', [CLI, 'previous-tag', 'v0.4.1', '--github-output'], { cwd: r.dir, encoding: 'utf8', env }).trim(), 'v0.4.0');
+  assert.equal(execFileSync('node', [CLI, 'is-latest', 'v0.4.0', '--github-output'], { cwd: r.dir, encoding: 'utf8', env }).trim(), 'false');
+  const written = fs.readFileSync(out, 'utf8');
+  assert.match(written, /^previous=v0\.4\.0$/m);
+  assert.match(written, /^latest=false$/m);
 });
 
 test('CLI：next-tag 写 GITHUB_OUTPUT；channel 拒绝非法 tag', () => {
