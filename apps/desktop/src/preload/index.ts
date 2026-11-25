@@ -3,6 +3,7 @@ import {
   IPC_EVENT_CHANNELS,
   IPC_INVOKE_CHANNELS,
   IPC_SEND_CHANNELS,
+  type AppUpdateState,
   type ContextMenuOptions,
   type ElectronAPI,
   type ExportArticleOptions,
@@ -84,6 +85,17 @@ const api: ElectronAPI = {
     ) => callback(states);
     ipcRenderer.on(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, handler);
     return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onPlatformAuthUpdated, handler);
+  },
+  getAppUpdateState: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.getAppUpdateState),
+  checkAppUpdate: (options?: { manual?: boolean }) =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.checkAppUpdate, options),
+  downloadAppUpdate: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.downloadAppUpdate),
+  installAppUpdate: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.installAppUpdate),
+  openAppUpdateRelease: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openAppUpdateRelease),
+  onAppUpdateState: (callback: (state: AppUpdateState) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: AppUpdateState) => callback(state);
+    ipcRenderer.on(IPC_EVENT_CHANNELS.onAppUpdateState, handler);
+    return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onAppUpdateState, handler);
   },
 };
 

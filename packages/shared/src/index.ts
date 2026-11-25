@@ -200,6 +200,34 @@ export interface JuejinCategoryItem {
   name: string;
 }
 
+/** 应用更新方式：auto 通过 electron-updater 增量下载并重启安装；manual 引导打开安装包直链。 */
+export type AppUpdateMode = 'auto' | 'manual';
+
+export type AppUpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error';
+
+export interface AppUpdateState {
+  status: AppUpdateStatus;
+  currentVersion: string;
+  latestVersion?: string;
+  releaseName?: string;
+  releaseNotes?: string;
+  releaseUrl?: string;
+  downloadUrl?: string;
+  mode: AppUpdateMode;
+  percent?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  error?: string;
+  checkedAt?: number;
+}
+
 export interface MultiPlatformPublishResultItem {
   platformId: PlatformId;
   ok: boolean;
@@ -275,4 +303,10 @@ export interface ElectronAPI {
   onPlatformAuthUpdated?: (
     callback: (states: Partial<Record<PlatformId, boolean>>) => void
   ) => () => void;
+  getAppUpdateState?: () => Promise<AppUpdateState>;
+  checkAppUpdate?: (options?: { manual?: boolean }) => Promise<AppUpdateState>;
+  downloadAppUpdate?: () => Promise<AppUpdateState>;
+  installAppUpdate?: () => Promise<{ ok: boolean; message?: string }>;
+  openAppUpdateRelease?: () => Promise<boolean>;
+  onAppUpdateState?: (callback: (state: AppUpdateState) => void) => () => void;
 }
