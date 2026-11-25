@@ -29,18 +29,22 @@ function keepUndoFirstPosition(ctx: KeyboardCaptureContext, e: KeyboardEvent): v
   const vditor = (ctx.instance as unknown as { vditor?: VditorUndoInternals }).vditor;
   const undo = vditor?.undo;
   if (!vditor || !undo?.recordFirstPosition || !vditor.currentMode) return;
-  const state = undo[vditor.currentMode] as VditorUndoState | undefined;
-  if (!state || state.undoStack.length !== 1) return;
+  const state = undo[vditor.currentMode] as Partial<VditorUndoState> | undefined;
+  // Vditor 内部撤销栈的形状不对（升级后变了）就什么都不做，保持 Vditor 原行为。
+  if (!state || !Array.isArray(state.undoStack) || !Array.isArray(state.redoStack) || typeof state.lastText !== 'string') return;
+  if (state.undoStack.length !== 1) return;
   undo.recordFirstPosition(vditor, e);
   const first = state.lastText;
-  if (!first.includes('<wbr>')) return;
+  if (typeof first !== 'string' || !first.includes('<wbr>')) return;
+  const stack = state.undoStack;
+  const redo = state.redoStack;
   let done = false;
   const restore = (): void => {
     if (done) return;
     done = true;
     window.removeEventListener('keydown', restore);
-    const head = state.undoStack[0]?.[0]?.diffs?.[0];
-    if (state.undoStack.length !== 1 || state.redoStack.length > 0 || !head) return;
+    const head = stack[0]?.[0]?.diffs?.[0];
+    if (stack.length !== 1 || redo.length > 0 || !head || typeof head[1] !== 'string') return;
     if (head[1].replace('<wbr>', '') !== first.replace('<wbr>', '')) return;
     head[1] = first;
     state.lastText = first;
