@@ -7,6 +7,48 @@ function stopEvent(e: KeyboardEvent): void {
   e.stopImmediatePropagation();
 }
 
+interface VditorUndoState {
+  undoStack: Array<Array<{ diffs: Array<[number, string]> }>>;
+  redoStack: unknown[];
+  lastText: string;
+}
+
+interface VditorUndoInternals {
+  currentMode?: string;
+  undo?: Record<string, unknown> & { recordFirstPosition?: (v: unknown, ev: KeyboardEvent) => void };
+}
+
+/**
+ * Tab / Shift+Tab on a list item moves the caret to the item start so Vditor indents the item.
+ * When this is the first edit since the file was opened, Vditor's own keydown handler then
+ * remembers that moved caret as the "before" position and undo lands at the item start.
+ * Record the user's real caret now, and put it back once Vditor's handler has run (a bubble
+ * listener on window runs after it in the same dispatch), before the debounced snapshot.
+ */
+function keepUndoFirstPosition(ctx: KeyboardCaptureContext, e: KeyboardEvent): void {
+  const vditor = (ctx.instance as unknown as { vditor?: VditorUndoInternals }).vditor;
+  const undo = vditor?.undo;
+  if (!vditor || !undo?.recordFirstPosition || !vditor.currentMode) return;
+  const state = undo[vditor.currentMode] as VditorUndoState | undefined;
+  if (!state || state.undoStack.length !== 1) return;
+  undo.recordFirstPosition(vditor, e);
+  const first = state.lastText;
+  if (!first.includes('<wbr>')) return;
+  let done = false;
+  const restore = (): void => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('keydown', restore);
+    const head = state.undoStack[0]?.[0]?.diffs?.[0];
+    if (state.undoStack.length !== 1 || state.redoStack.length > 0 || !head) return;
+    if (head[1].replace('<wbr>', '') !== first.replace('<wbr>', '')) return;
+    head[1] = first;
+    state.lastText = first;
+  };
+  window.addEventListener('keydown', restore);
+  setTimeout(restore, 0);
+}
+
 function moveToTableCell(cell: HTMLTableCellElement, backward: boolean): void {
   const table = cell.closest('table');
   const sel = window.getSelection();
@@ -63,6 +105,7 @@ export function handleEditorTabKey(e: KeyboardEvent, ctx: KeyboardCaptureContext
   const li = anchorEl.closest('li') as HTMLElement | null;
   if (li && el.contains(li)) {
     if (e.shiftKey) {
+      if (li.parentElement?.closest('li')) keepUndoFirstPosition(ctx, e);
       if (li.parentElement?.closest('li') && prepareListOutdent(e, el)) {
         return true;
       }
@@ -70,6 +113,7 @@ export function handleEditorTabKey(e: KeyboardEvent, ctx: KeyboardCaptureContext
       return true;
     }
     const prevLi = li.previousElementSibling;
+    if (prevLi?.tagName === 'LI') keepUndoFirstPosition(ctx, e);
     if (prevLi?.tagName === 'LI' && prepareListIndent(li)) {
       return true;
     }
