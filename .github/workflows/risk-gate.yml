@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: write # 合并后派发 ci.yml：GITHUB_TOKEN 的合并不会触发 test 的 push CI
   contents: write
   pull-requests: write
   issues: write
@@ -225,6 +226,13 @@ jobs:
                   }).catch((delErr) => {
                     console.log(`Branch cleanup skipped for ${pr.head.ref}: ${delErr?.message || delErr}`);
                   });
+                }
+                // GITHUB_TOKEN 做的合并不会触发 push 事件，test 头会缺 CI；workflow_dispatch 是它能触发的例外
+                try {
+                  await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: 'ci.yml', ref: 'test' });
+                  console.log('Dispatched ci.yml on `test` for the merged head.');
+                } catch (dispatchErr) {
+                  core.warning(`Could not dispatch ci.yml on test (${dispatchErr?.message || dispatchErr}); run it manually: Actions → CI → Run workflow (test).`);
                 }
                 break;
               } catch (err) {
