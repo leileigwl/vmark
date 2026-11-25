@@ -98,6 +98,7 @@ test('previousTag：正式版对比上一个正式版，预发布对比上一个
   assert.equal(previousTag('v0.5.0-rc.1', tags), 'v0.4.0');
   assert.equal(previousTag('v0.3.0-rc.1', tags), 'v0.3.0-beta.1');
   assert.equal(previousTag('v0.1.0', tags), '');
+  assert.equal(previousTag('v1.0.0', ['v1.0.0-rc.1', 'v1.0.0-rc.2', 'v1.0.0']), 'v1.0.0-rc.2', '首个正式版对比最后一个 rc，不列全仓库历史');
 });
 
 test('shouldMarkLatest：只有不低于最高正式版的正式版才标 Latest', () => {
@@ -155,6 +156,19 @@ test('nextTagFromGit：别的分支上遗留的高版本 rc 不会被转正', ()
   r.run('checkout', '-q', 'master');
   r.commit('fix: 小修');
   assert.equal(nextTagFromGit('HEAD', r.dir).tag, 'v0.4.1');
+});
+
+test('nextTagFromGit：基线 tag 不可达、算出的版本不高于已有正式版时报错而不是倒退', () => {
+  const r = repo();
+  r.commit('feat: a');
+  r.run('tag', '-a', 'v0.2.0', '-m', 'v0.2.0');
+  r.run('checkout', '-q', '-b', 'test');
+  r.run('checkout', '-q', 'master');
+  r.commit('Merge pull request #1 from x/test');
+  r.run('tag', '-a', 'v0.4.0', '-m', 'v0.4.0 只在 master 上');
+  r.run('checkout', '-q', 'test');
+  r.commit('fix: test 上的修复');
+  assert.throws(() => nextTagFromGit('HEAD', r.dir), /v0\.2\.1 不高于已有的正式版 v0\.4\.0/);
 });
 
 test('CLI：previous-tag / is-latest 支持 --github-output', () => {
