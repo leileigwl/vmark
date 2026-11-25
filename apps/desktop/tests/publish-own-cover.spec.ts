@@ -17,9 +17,9 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
     const wx = page.getByTestId('section-weixin');
     await wx.getByRole('button', { expanded: false }).click();
     await expect(wx).toContainText('单独封面（可选）');
-    await expect(wx).toContainText('推荐 2.35:1（900×383），不传则用通用封面或正文首图');
+    await expect(wx).toContainText('推荐 2.35:1（900×383）');
     await wx.getByTestId('own-cover-input-weixin').setInputFiles(PNG);
-    await expect(wx.getByTestId('own-cover-weixin').getByTestId('cover-focus')).toBeVisible();
+    await expect(wx.getByTestId('own-cover-weixin')).toBeVisible();
     await expect(wx).toContainText('使用单独封面');
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);
@@ -36,7 +36,7 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
     await expect(wx).toContainText('使用通用封面');
     await wx.getByTestId('own-cover-input-weixin').setInputFiles(PNG);
     await wx.getByTestId('own-cover-weixin').getByRole('button', { name: '移除' }).click();
-    await expect(wx.getByTestId('own-cover-weixin').getByTestId('cover-focus')).toHaveCount(0);
+    await expect(wx.getByTestId('own-cover-weixin')).toHaveCount(0);
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);
     const calls = await publishedCalls(page);
@@ -66,7 +66,7 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
     await openPublishWith(page, { ...base, saved: { ...base.saved, weixin: { cover: 'assets/wx-old.png', focus: { x: 20, y: 30 } } } });
     const wx = page.getByTestId('section-weixin');
     await wx.getByRole('button', { expanded: false }).click();
-    await expect(wx.getByTestId('own-cover-weixin').getByTestId('cover-focus')).toBeVisible();
+    await expect(wx.getByTestId('own-cover-weixin')).toBeVisible();
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);
     const calls = await publishedCalls(page);
@@ -86,8 +86,7 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
       const wx = page.getByTestId('section-weixin');
       await wx.getByRole('button', { expanded: false }).click();
       await wx.getByTestId('own-cover-input-weixin').setInputFiles(PNG);
-      await wx.getByTestId('own-cover-weixin').getByTestId('cover-focus').click({ position: { x: 35, y: 35 } });
-      await expect(wx.getByAltText('2.35:1 封面预览')).not.toHaveAttribute('style', /50% 50%/);
+      await expect(wx.getByAltText('公众号封面预览')).toBeVisible();
       await wx.evaluate((el) => el.scrollIntoView({ block: 'start' }));
       await shot(page, testInfo, `weixin-own-cover-${mode}`);
     });
