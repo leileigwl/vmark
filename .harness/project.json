@@ -4,8 +4,8 @@
   "profile": "desktop-electron",
   "owner": "leileigwl",
   "githubNotifyUser": "leileigwl",
-  "bootstrapLocked": false,
-  "bootstrapUnlockReason": "发布流程改造：release.yml / release-rollback.yml / daily-release-pr.yml（PR 发布流程 3/5、4/5），完成后由 5/5 重新上锁",
+  "bootstrapLocked": true,
+  "bootstrapUnlockReason": null,
   "bootstrapLockProtectedPaths": [
     ".harness/**",
     "scripts/harness/**",
