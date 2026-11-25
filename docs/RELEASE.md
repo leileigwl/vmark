@@ -59,6 +59,7 @@ Actions → `Release / Package Desktop App` → **Run workflow** → `tag` 填�
 | 打错了 tag（还没公开） | 删草稿 Release，再 `git push origin :refs/tags/vX.Y.Z` 删 tag。已公开的版本不要删 tag，用 Rollback。 |
 | 冻结锁 Issue 没关 | post-merge 的关锁步骤是 `always()`；仍未关就手动关闭带 `freeze:release-window` 标签的 Issue。 |
 | 回同步 PR 卡在门禁 | 只在 master 有热修复时才会开。未配置 `RELEASE_BOT_TOKEN` 时工作流会为它派发一次 CI。若之后 test 又合入了别的 PR，它会因「必须与 test 同步」变成 blocked：点 Update branch，再到 Actions → CI → Run workflow 选该分支补跑一次。 |
+| test 头没有 push CI | risk-gate 用 GITHUB_TOKEN 自动合并后会派发一次 `ci.yml`（ref=test）。risk-gate 由 `workflow_run` 触发，跑的是 **master** 上的版本，所以这条要等本改动随汇总 PR 进 master 后才生效；之前或派发失败（运行日志有 warning）时到 Actions → CI → Run workflow 选 `test` 补跑。 |
 
 ## 六、需要在 GitHub 设置里做的事
 
@@ -86,4 +87,5 @@ cd apps/desktop && node --experimental-strip-types --test tests/releasePlan.test
 node apps/desktop/scripts/release-plan.mjs next-tag origin/master   # 现在合并的话会打哪个 tag
 bash scripts/ci-sim/simulate-release-publish.sh                      # 演练 publish：齐全 / 文件名带空格 / sha256 不一致
 bash scripts/ci-sim/simulate-post-merge.sh                           # 演练合并后：日常 / 热修复回同步 / 重复触发
+bash scripts/ci-sim/simulate-risk-gate-merge.sh                      # 演练自动合并后为 test 派发 CI
 ```
