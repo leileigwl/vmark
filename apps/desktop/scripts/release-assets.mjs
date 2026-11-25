@@ -99,7 +99,9 @@ const sha256 = (file) => hash('sha256', file, 'hex');
 
 /** 生成 SHA256SUMS.txt 内容（`sha256sum -c` 可直接校验），按文件名排序保证可复现。 */
 export function checksums(dir) {
-  return releaseFiles(dir)
+  const files = releaseFiles(dir);
+  if (!files.length) throw new Error(`${dir} 里没有任何发布产物，拒绝生成空的 ${SUMS_FILE}`);
+  return files
     .map((n) => `${sha256(join(dir, n))}  ${n}`)
     .join('\n')
     .concat('\n');
@@ -123,6 +125,9 @@ export function verifyRemoteAssets(assets, dir) {
     } else if (remote.size !== statSync(file).size) {
       errors.push(`${name} 大小不一致：GitHub ${remote.size}，本地 ${statSync(file).size}`);
     }
+  }
+  for (const a of assets) {
+    if (!local.includes(a.name)) errors.push(`GitHub 上多出本次没有的文件 ${a.name}（草稿里的旧残留，请删除后重跑）`);
   }
   return errors;
 }
