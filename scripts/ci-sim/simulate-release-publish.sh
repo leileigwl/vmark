@@ -30,6 +30,8 @@ setup() { # setup <win 安装包文件名> <tamper:yes|no>
 echo "gh $*" >> "$GH_LOG"
 case "$*" in
   *"--json isDraft"*) echo true ;;
+  *"--json assets"*) ls "$REMOTE" ;;
+  "release delete-asset"*) rm -f "$REMOTE/$4" ;;
   *"--json databaseId"*) echo 1 ;;
   "release upload"*) shift 3; for f in "$@"; do [ "$f" = --clobber ] || cp "$f" "$REMOTE/"; done
                      [ "$TAMPER" = yes ] && echo corrupt >> "$REMOTE/latest.yml"; true ;;
@@ -84,6 +86,11 @@ echo "场景 3：上传后 GitHub 上的文件与本地不一致"
 setup "Vmark-Setup-0.5.0.exe" yes; run_publish
 expect "核对 sha256 失败" grep -qx "Verify uploaded sha256" "$WORK/s/failed"
 expect "Release 保持草稿（没有 release edit）" bash -c "! grep -q 'release edit' '$WORK/s/gh.log'"
+
+echo "场景 4：重跑时草稿里有上次失败留下的旧文件"
+setup "Vmark-Setup-0.5.0.exe" no; echo old > "$WORK/s/remote/Vmark Setup 0.5.0.exe"; run_publish
+expect "先删掉残留再上传" grep -q "release delete-asset v0.5.0 Vmark Setup 0.5.0.exe -y" "$WORK/s/gh.log"
+expect "核对通过并公开" grep -q "release edit v0.5.0 --draft=false" "$WORK/s/gh.log"
 
 echo "结果：通过 $pass，失败 $fail"
 [ "$fail" -eq 0 ]
