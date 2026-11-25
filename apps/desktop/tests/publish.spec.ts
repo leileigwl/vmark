@@ -112,7 +112,7 @@ test.describe('发布窗口：精简布局，默认推入草稿箱', () => {
     await expect(page.locator('#pub-digest')).toHaveValue('');
     await expect(row(page, 'weixin').getByRole('checkbox')).toHaveAttribute('data-state', 'checked');
     await expect(row(page, 'weixin')).toContainText('差 2 项');
-    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面');
+    await expect(page.getByTestId('cover-hint')).toHaveText('推荐 16:9，公众号需封面');
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
     await expect(section(page, 'weixin')).toContainText('请上传一张封面（推荐 2.35:1，900×383）');
     await expect(page.getByTestId('weixin-preview')).toHaveCount(0); // 不再显示公众号排版预览
@@ -212,19 +212,21 @@ test('设置页与发布窗口读同一份登录状态', async ({ page }) => {
 
 
 test.describe('发布窗口：逐平台问题、封面、卡片与结果', () => {
-  test('掘金：摘要差 N 字、缺标签、缺分类；就地补齐后焦点离开自动收起', async ({ page }) => {
+  test('掘金：摘要差 N 字、缺分类；通用区提示必填，就地补齐后焦点离开自动收起', async ({ page }) => {
     await openEditor(page, { weixin: true, juejin: true });
     await openPublish(page);
     await page.locator('#pub-title').fill('测试标题');
     await section(page, 'weixin').getByRole('button', { expanded: false }).click();
     await section(page, 'weixin').getByTestId('own-cover-input-weixin').setInputFiles(PNG);
     await row(page, 'juejin').getByRole('checkbox').click();
+    await expect(page.getByTestId('general-section')).toContainText('掘金必填 50–100 字');
+    await expect(page.getByTestId('general-section')).toContainText('掘金必填');
     await page.locator('#pub-digest').fill('一'.repeat(38));
-    await expect(attention(page, 'juejin')).toContainText('掘金：摘要差 12 字 · 缺标签 · 缺分类');
+    await expect(attention(page, 'juejin')).toContainText('掘金：摘要差 12 字 · 缺分类');
+    await page.locator('#pub-tags').fill('前端');
+    await page.locator('#pub-tags').press('Enter');
     await attention(page, 'juejin').getByRole('button', { expanded: false }).click();
     await page.locator('#d-juejin').fill(JUEJIN_DIGEST);
-    await page.locator('#g-juejin').fill('前端');
-    await page.locator('#g-juejin').press('Enter');
     await expect(attention(page, 'juejin')).toContainText('缺分类');
     await attention(page, 'juejin').getByRole('radio', { name: '前端' }).click();
     await expect(attention(page, 'juejin').getByRole('radio', { name: '前端' })).toHaveAttribute('aria-checked', 'true');
@@ -245,20 +247,24 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls.weixin.juejinCategoryId).toBeUndefined();
   });
 
-  test('删除标签与退格删除都生效，删光后掘金重新出现在待处理里', async ({ page }) => {
+  test('删除标签与退格删除都生效，删光后左侧平台行标出缺项且不重复弹出待处理框', async ({ page }) => {
     await openEditor(page, { juejin: true });
     await openPublish(page);
     await page.locator('#pub-title').fill('测试标题');
-    await page.getByTestId('cover-input').setInputFiles(PNG);
+    await page.locator('#pub-digest').fill(JUEJIN_DIGEST);
     await row(page, 'juejin').getByRole('checkbox').click();
+    await attention(page, 'juejin').getByRole('button', { expanded: false }).click();
+    await attention(page, 'juejin').getByRole('radio', { name: '前端' }).click();
     await page.locator('#pub-tags').fill('前端, 工具');
     await page.locator('#pub-tags').press('Enter');
+    await expect(row(page, 'juejin')).toContainText('内容就绪');
     await expect(page.getByRole('button', { name: '删除标签 工具' })).toBeVisible();
     await page.getByRole('button', { name: '删除标签 工具' }).click();
     await expect(page.getByRole('button', { name: '删除标签 工具' })).toHaveCount(0);
     await page.locator('#pub-tags').press('Backspace');
     await expect(page.getByRole('button', { name: '删除标签 前端' })).toHaveCount(0);
-    await expect(attention(page, 'juejin')).toContainText('缺标签');
+    await expect(row(page, 'juejin')).toContainText('差 1 项');
+    await expect(attention(page, 'juejin')).toHaveCount(0);
   });
 
   test('在弹窗输入框里按 Cmd/Ctrl+B、Cmd/Ctrl+Z 不影响背后的编辑器', async ({ page }) => {
@@ -336,30 +342,32 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     expect(calls.zhihu.coverImageUrl).toBeUndefined();
   });
 
-  test('通用封面下只有一句短提示，不列比例；比例悬停仍可在平台行看到', async ({ page }) => {
+  test('通用封面下只有一句短提示，不列 2.35:1/3:4 等特殊比例；平台规则悬停仍可看到', async ({ page }) => {
     await openEditor(page, { weixin: true, zhihu: true, juejin: true, baijiahao: true, xiaohongshu: true, douyin: true, cnblogs: true });
     await openPublish(page);
     for (const id of ['zhihu', 'juejin', 'baijiahao', 'xiaohongshu', 'douyin', 'cnblogs']) await row(page, id).getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面'); // 通用区不列比例
+    await expect(page.getByTestId('cover-hint')).toHaveText('推荐 16:9，公众号、百家号需封面');
     await expect(page.getByTestId('cover-guide')).toHaveCount(0);
     await expect(page.getByTestId('general-section')).not.toContainText('列表右侧小图');
     await expect(page.getByTestId('general-section')).not.toContainText('第一张卡片就是封面');
+    await expect(page.getByTestId('general-section')).not.toContainText('2.35:1');
     await row(page, 'baijiahao').getByText('百家号').hover();
     await expect(page.getByRole('tooltip')).toContainText('封面必需 16:9');
   });
 
-  test('正文无图时百家号/微博必需封面出现在「需要单独处理」并可就地上传；知乎不报', async ({ page }) => {
+  test('无通用封面时不在「需要单独处理」重复弹出上传框，上方提示需封面；知乎就绪', async ({ page }) => {
     await openEditor(page, { weixin: true, baijiahao: true, weibo: true, zhihu: true }, '# 没有配图的文章标题够长\n\n只有文字。');
     await openPublish(page);
     await page.locator('#pub-title').fill('没有配图的文章标题够长');
     await row(page, 'weixin').getByRole('checkbox').click();
     for (const id of ['baijiahao', 'weibo', 'zhihu']) await row(page, id).getByRole('checkbox').click();
-    await expect(page.getByTestId('cover-hint')).toHaveText('不上传则各平台用默认封面'); // 通用区不列比例
-    await expect(attention(page, 'baijiahao')).toContainText('百家号：缺封面');
-    await expect(attention(page, 'weibo')).toContainText('微博：缺封面');
+    await expect(page.getByTestId('cover-hint')).toHaveText('推荐 16:9，百家号、微博需封面');
+    await expect(attention(page, 'baijiahao')).toHaveCount(0);
+    await expect(attention(page, 'weibo')).toHaveCount(0);
     await expect(attention(page, 'zhihu')).toHaveCount(0);
-    await attention(page, 'baijiahao').getByRole('button', { expanded: false }).click();
-    await expect(attention(page, 'baijiahao').getByRole('button', { name: '上传封面' })).toBeVisible();
+    await expect(row(page, 'baijiahao')).toContainText('差 1 项');
+    await expect(row(page, 'weibo')).toContainText('差 1 项');
+    await expect(row(page, 'zhihu')).toContainText('内容就绪');
   });
 
   test('公众号分区：没有作者与阅读原文；标题沿用通用，超长时在「需要单独处理」里改', async ({ page }) => {
@@ -463,10 +471,10 @@ test.describe('预览收进平台行、内置浏览器入口与打开草稿', ()
     await page.locator('#pub-title').fill('测试标题');
     await page.getByTestId('cover-input').setInputFiles(PNG);
     await row(page, 'juejin').getByRole('checkbox').click();
+    await page.locator('#pub-digest').fill(JUEJIN_DIGEST);
+    await page.locator('#pub-tags').fill('前端');
+    await page.locator('#pub-tags').press('Enter');
     await attention(page, 'juejin').getByRole('button', { name: /掘金/ }).click();
-    await page.locator('#d-juejin').fill(JUEJIN_DIGEST);
-    await page.locator('#g-juejin').fill('前端');
-    await page.locator('#g-juejin').press('Enter');
     await page.getByRole('radio', { name: '前端' }).click();
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(2);

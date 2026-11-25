@@ -49,6 +49,15 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
   // 封面比例与通用封面不同的文章平台（公众号除外，它在自己的块里）：单独封面入口放在「平台专属」里，按 spec 决定。
   const ownCoverArticles = selectedSpecs.filter((s) => s.kind === 'article' && s.id !== 'weixin' && ownCoverEligible(s));
   const showTags = selectedSpecs.some((s) => s.tags);
+  const digestRequiredSpecs = selectedSpecs.filter((s) => s.digest?.required);
+  const digestHint = digestRequiredSpecs.length
+    ? digestRequiredSpecs.map((s) => `${s.short}必填 ${s.digest!.min ? `${s.digest!.min}–` : '≤ '}${s.digest!.max} 字`).join('；')
+    : undefined;
+  const tagRequiredSpecs = selectedSpecs.filter((s) => s.tags?.required);
+  const tagHint = tagRequiredSpecs.length ? `${tagRequiredSpecs.map((s) => s.short).join('、')}必填` : undefined;
+  const coverRequiredNames = selectedSpecs
+    .filter((s) => s.cover && (s.cover.mode === 'required' || (s.cover.mode === 'weixin' && !draft.ownCovers.weixin?.cover)))
+    .map((s) => s.short);
 
   const toggle = (id: PlatformId, on: boolean) =>
     update((d) => ({ selected: on ? [...d.selected.filter((x) => x !== id), id] : d.selected.filter((x) => x !== id) }));
@@ -140,22 +149,22 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
                 <h3 className="text-sm font-medium text-ink">通用内容</h3>
                 <p className="mt-1 text-xs text-muted">默认铺给所有勾选的平台</p>
               </div>
-              <Field label="标题" htmlFor="pub-title" count={{ value: [...draft.title].length }}>
+              <Field label="标题" htmlFor="pub-title" required={selectedSpecs.length > 0} count={{ value: [...draft.title].length }}>
                 <Input id="pub-title" className="h-9" value={draft.title} onChange={(e) => update({ title: e.target.value })} />
               </Field>
-              <Field label="摘要" htmlFor="pub-digest" count={{ value: [...draft.digest].length }}>
+              <Field label="摘要" htmlFor="pub-digest" required={digestRequiredSpecs.length > 0} hint={digestHint} count={{ value: [...draft.digest].length }}>
                 <Textarea id="pub-digest" value={draft.digest} onChange={(e) => update({ digest: e.target.value })} />
               </Field>
               {showTags ? (
-                <Field label="标签" htmlFor="pub-tags">
+                <Field label="标签" htmlFor="pub-tags" required={tagRequiredSpecs.length > 0} hint={tagHint}>
                   <TagInput id="pub-tags" value={draft.tags} onChange={(tags) => update({ tags })} placeholder="回车添加" />
                 </Field>
               ) : null}
               {selectedSpecs.some((s) => s.cover) ? (
-                <CoverField draft={draft} onChange={update} inputRef={coverInputRef} />
+                <CoverField draft={draft} onChange={update} inputRef={coverInputRef} requiredNames={coverRequiredNames} />
               ) : null}
             </section>
-            <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} coverInputRef={coverInputRef} bodyImage={bodyImage} />
+            <AttentionList draft={draft} specs={selectedSpecs} issuesOf={issuesOf} onChange={update} />
             {weixinOn || cardSpecs.length || ownCoverArticles.length ? (
               <section className="space-y-3">
                 <h3 className="text-xs font-medium text-muted">平台专属</h3>

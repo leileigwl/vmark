@@ -35,9 +35,11 @@ test.describe('隐藏 YAML Frontmatter 且发布弹窗不做自动推断', () =>
       await expect(fmNodes.first()).toBeHidden();
     }
 
-    // 标题、摘要、标签、封面均不从 Frontmatter 或正文推断，默认全空
+    // 标题、摘要、标签、封面均不从 Frontmatter 或正文推断，默认全空，且不在「需要单独处理」重复弹出缺项框
     await expect(page.locator('#pub-title')).toHaveValue('');
     await expect(page.locator('#pub-digest')).toHaveValue('');
+    await expect(page.getByTestId('attention-list')).toHaveCount(0);
+    await expect(page.getByTestId('cover-hint')).toHaveText('推荐 16:9，公众号需封面');
     await expect(page.getByTestId('section-weixin')).toContainText('缺封面');
     await expect(page.getByTestId('publish-start')).toBeDisabled();
 
