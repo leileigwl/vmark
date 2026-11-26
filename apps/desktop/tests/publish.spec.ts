@@ -324,7 +324,7 @@ test.describe('发布窗口：逐平台问题、封面、卡片与结果', () =>
     await expect(section(page, 'weixin').getByAltText('1:1 封面预览')).toHaveCount(0);
     await section(page, 'social').getByRole('button', { expanded: false }).click();
     await expect(section(page, 'social').getByAltText('卡片封面（通用封面）')).toBeVisible();
-    await expect(section(page, 'social')).toContainText('3 张卡片'); // 正文 2 张 + 通用封面 1 张
+    await expect(section(page, 'social')).toContainText('2 张卡片'); // 正文 1 张 + 通用封面 1 张（不自动生成标题封面卡）
     await page.getByTestId('publish-start').click();
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
     let calls = byPlatform(await callsOf(page));
