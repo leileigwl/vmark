@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ArticleMeta, PlatformId } from '@vcat/shared';
 import { Button, Dialog, Field, Input, Textarea, Tooltip } from '../../ui';
-import { usePlatformAuth } from '../platform-auth';
+import { markPlatformAuthStatuses, usePlatformAuth } from '../platform-auth';
 import { checkPlatform, type Issue } from './draftModel';
 import { PLATFORM_SPECS, SPEC_BY_ID, ownCoverEligible } from './platformSpecs';
 import { PlatformList } from './PlatformList';
@@ -121,8 +121,11 @@ export function PublishDialog({ open, activeArticle, markdown, onClose }: Publis
           <PublishResults
             rows={rows}
             onOpen={(id, url) => {
-              if (url && window.electronAPI?.openPlatformLogin) void window.electronAPI.openPlatformLogin(id, url);
-              else void auth.openDashboard(id);
+              if (url && window.electronAPI?.openPlatformLogin) {
+                void window.electronAPI.openPlatformLogin(id, url).then((ok) => {
+                  if (typeof ok === 'boolean') markPlatformAuthStatuses({ [id]: ok });
+                });
+              } else void auth.openDashboard(id);
             }}
           />
         </div>

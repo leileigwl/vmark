@@ -20,7 +20,7 @@ import {
 } from './loginWindowBar';
 
 const TOOLBAR_HEIGHT = LOGIN_BAR_HEIGHT;
-const AUTH_CHECK_TIMEOUT_MS = 8000;
+const AUTH_CHECK_TIMEOUT_MS = 15000;
 
 const configuredStealthPartitions = new Set<string>();
 

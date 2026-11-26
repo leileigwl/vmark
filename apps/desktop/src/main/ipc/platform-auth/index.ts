@@ -17,7 +17,7 @@ export { CHROME_DESKTOP_UA };
 
 let heartbeatTimer: NodeJS.Timeout | null = null;
 const browserManager = new InternalBrowserManager();
-let sharedCheck: ((opts?: { fresh?: boolean }) => Promise<Partial<Record<PlatformId, boolean>>>) | null = null;
+let sharedCheck: ReturnType<typeof createSharedCheck<Partial<Record<PlatformId, boolean>>>> | null = null;
 
 /**
  * 全部平台账号检测的唯一入口（心跳、窗口聚焦、渲染层刷新共用）：并发时只检测一次，
@@ -90,6 +90,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         hasAuthCookies: () => hasSessionAuthCookies(session, platformId),
         checkAuth: () => verifyPlatformAuth({ session, platformId, getAppConfig: readAppConfig }),
         onAuthorized: async () => {
+          sharedCheck?.invalidate();
           await upsertAccountRecord(platformId, {
             authorized: true,
             statusMessage: '授权有效',
@@ -98,6 +99,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
         },
       });
 
+      sharedCheck?.invalidate();
       await upsertAccountRecord(platformId, {
         authorized: isAuthorized,
         statusMessage: isAuthorized ? '授权有效' : '未登录或已失效',
@@ -108,6 +110,7 @@ export function registerPlatformAuthIpc(ctx: MainIpcContext): void {
   );
 
   ipcMain.handle(IPC_INVOKE_CHANNELS.logoutPlatform, async (_event, platformId: PlatformId) => {
+    sharedCheck?.invalidate();
     const partition = `persist:platform_${platformId}`;
     const targetSession = session.fromPartition(partition);
     await targetSession.clearStorageData({

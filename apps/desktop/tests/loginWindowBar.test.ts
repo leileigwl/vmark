@@ -9,23 +9,27 @@ import {
   resolveLoginBarTheme,
 } from '../src/main/loginWindowBar.ts';
 
-test('顶栏：平台名、「登录完成」、关闭；不出现标签页、地址栏和技术术语', () => {
+test('顶栏：平台名、后退、刷新、关闭；不出现完成按钮、标签页、地址栏和技术术语', () => {
   const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false });
   assert.match(html, /稀土掘金/);
-  assert.match(html, /vmark-nav:\/\/done/);
-  assert.match(html, /document\.title\s*=/);
-  assert.match(html, />登录完成</);
+  assert.match(html, /vmark-nav:\/\/back/);
+  assert.match(html, /vmark-nav:\/\/reload/);
   assert.match(html, /vmark-nav:\/\/close/);
+  assert.match(html, /document\.title\s*=/);
   assert.match(html, /aria-label="关闭"/);
+  assert.ok(!html.includes('>登录完成<'));
+  assert.ok(!html.includes('>完成<'));
+  assert.ok(!html.includes('vmark-nav://done'));
   for (const banned of ['沙箱', 'persist:', 'Cookie', 'data-platform-tab', 'url-pill']) assert.ok(!html.includes(banned), banned);
   assert.match(html, /color-scheme:light/); // 未传 app 主题时默认浅色（apple-light），不再读系统 prefers-color-scheme
   assert.match(html, new RegExp(`height:${LOGIN_BAR_HEIGHT}px`));
 });
 
-test('已登录时打开（如去后台/草稿箱）按钮叫“完成”，不提示登录', () => {
+test('已登录时打开（如去后台/草稿箱）显示“已登录”，同样不显示完成按钮', () => {
   const html = buildLoginBarHtml({ platformId: 'weixin', signedInAtOpen: true });
   assert.match(html, /微信公众号/);
-  assert.match(html, />完成</);
+  assert.match(html, />已登录</);
+  assert.ok(!html.includes('>完成<'));
   assert.ok(!html.includes('>登录完成<'));
 });
 

@@ -16,9 +16,10 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: LOGIN_BAR_HEIGHT });
       await page.emulateMedia({ colorScheme: scheme });
       await page.setContent(buildLoginBarHtml({ platformId: 'xiaohongshu', signedInAtOpen: false }));
-      const done = page.getByRole('button', { name: '登录完成' });
-      await expect(done).toBeVisible();
+      await expect(page.getByRole('button', { name: '后退' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '刷新' })).toBeVisible();
       await expect(page.getByRole('button', { name: '关闭' })).toBeVisible();
+      await expect(page.getByRole('button', { name: /完成/ })).toHaveCount(0);
       for (const b of await page.getByRole('button').all()) {
         const box = await b.boundingBox();
         expect(box && box.height >= 36 && box.x >= 0 && box.x + box.width <= width).toBe(true);
@@ -79,7 +80,7 @@ test('从真实 themes.css 读出的 app 主题能驱动顶栏（深色主题 + 
   await page.setViewportSize({ width: 720, height: LOGIN_BAR_HEIGHT });
   await page.setContent(buildLoginBarHtml({ platformId: 'zhihu', signedInAtOpen: true, appTheme: snapshot }));
   expect(await bodyLuminance(page)).toBeLessThan(0.3);
-  expect(await page.locator('.primary').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(104, 171, 122)');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--primary').trim())).toBe('#68ab7a');
 });
 
 test('登录窗口开着时切换 app 主题：顶栏由浅变深（真实 themes.css + 主进程用的监听/换色脚本）', async ({ browser }, testInfo) => {
@@ -103,7 +104,7 @@ test('登录窗口开着时切换 app 主题：顶栏由浅变深（真实 theme
   await bar.evaluate(buildLoginBarThemeScript(resolveLoginBarTheme(snapshot)));
   await bar.screenshot({ path: shot('login-bar-live-2-dark.png') });
   expect(await bodyLuminance(bar)).toBeLessThan(0.3);
-  expect(await bar.locator('.primary').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(93, 148, 226)');
+  expect(await bar.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--primary').trim())).toBe('#5d94e2');
   await app.close();
   await bar.close();
 });
