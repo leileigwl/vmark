@@ -54,6 +54,7 @@ async function openWithMarkdown(page: Page, md: string) {
   await page.getByTestId('platform-row-xiaohongshu').getByRole('checkbox').click();
   await page.getByTestId('section-social').getByRole('button', { expanded: false }).click();
   await page.getByRole('radio', { name: '极简杂志' }).click();
+  await expect(page.frameLocator('iframe[title="卡片 1"]').locator('body')).toHaveAttribute('data-template', 'minimalist-magazine');
 }
 
 async function thumbFrames(page: Page): Promise<Frame[]> {
