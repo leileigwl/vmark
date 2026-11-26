@@ -17,7 +17,8 @@ export const DRAFT_LINKS: Partial<Record<PlatformId, { list: string; edit?: (id:
   bilibili: { list: 'https://member.bilibili.com/platform/home', edit: (id) => `https://member.bilibili.com/platform/upload/text/new-edit?aid=${encodeURIComponent(id)}` },
   // 小红书图文草稿存在发布页所在浏览器本地（同一个 persist:platform_xiaohongshu 分区），没有草稿 id，只能打开发布页的草稿箱。
   xiaohongshu: { list: 'https://creator.xiaohongshu.com/publish/publish?source=official&from=tab_switch&target=image' },
-  douyin: { list: 'https://creator.douyin.com/creator-micro/content/manage' },
+  // 抖音未发布图文草稿在发布页顶部「继续编辑」恢复，不在 /content/manage。
+  douyin: { list: 'https://creator.douyin.com/creator-micro/content/upload?default-tab=3' },
 };
 
 export type DraftUrlKind = 'draft' | 'list';

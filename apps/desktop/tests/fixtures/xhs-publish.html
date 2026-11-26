@@ -10,9 +10,33 @@
   <div class="tiptap ProseMirror" contenteditable="true"><p><br class="ProseMirror-trailingBreak"></p></div>
   <button id="save">暂存离开</button>
 </div>
+<div id="topic-popover" class="tippy-box" style="display:none">#话题联想</div>
+<div id="save-toast" style="display:none"></div>
 <script>
   window.__saved = null;
+  window.__saveAttemptCount = 0;
+  window.__ignoreSaveClicks = 0;
+  window.__neverSave = false;
+  window.__popoverOpen = false;
+  window.__blockedByPopover = false;
   const preview = document.querySelector('.img-preview-area');
+  const prose = document.querySelector('.ProseMirror');
+  const popover = document.getElementById('topic-popover');
+  const closePopover = () => {
+    window.__popoverOpen = false;
+    popover.style.display = 'none';
+  };
+  prose.addEventListener('input', () => {
+    if ((prose.innerText || '').includes('#')) {
+      window.__popoverOpen = true;
+      popover.style.display = 'block';
+    }
+  });
+  prose.addEventListener('blur', closePopover);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopover(); });
+  document.body.addEventListener('mousedown', (e) => {
+    if (!prose.contains(e.target) && !popover.contains(e.target)) closePopover();
+  });
   const addThumb = (f) => setTimeout(() => { const d = document.createElement('div'); d.className = 'pr'; d.textContent = f.name; preview.appendChild(d); }, 150);
   document.getElementById('tab-image').onclick = () => { document.getElementById('upload').style.display = 'block'; };
   document.querySelector('.upload-input').addEventListener('change', (e) => {
@@ -22,12 +46,26 @@
   });
   document.querySelector('.img-upload-area input').addEventListener('change', (e) => { [...e.target.files].forEach(addThumb); e.target.value = ''; });
   document.getElementById('save').onclick = () => {
+    window.__saveAttemptCount += 1;
+    if (window.__popoverOpen) {
+      window.__blockedByPopover = true;
+      return;
+    }
+    if (window.__neverSave) return;
+    if (window.__ignoreSaveClicks > 0) {
+      window.__ignoreSaveClicks -= 1;
+      return;
+    }
     window.__saved = {
       title: document.querySelector('.d-text').value,
       body: document.querySelector('.ProseMirror').innerText,
       lines: document.querySelector('.ProseMirror').innerText.split('\n').filter((l) => l.trim()).length,
       thumbs: [...document.querySelectorAll('.img-preview-area .pr')].map((d) => d.textContent),
     };
+    document.getElementById('editor').style.display = 'none';
+    const toast = document.getElementById('save-toast');
+    toast.textContent = '保存成功';
+    toast.style.display = 'block';
   };
 </script>
 </body></html>

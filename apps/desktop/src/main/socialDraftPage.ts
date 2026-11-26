@@ -49,7 +49,14 @@ export const DOUYIN_DRAFT_SPEC: SocialDraftSpec = {
   imageTabTexts: ['发布图文', '上传图文'],
   entryInputs: ['div[class^="container"] input[accept*="image"]', 'input[type="file"][accept*="image"]', 'input[type="file"]'],
   appendInputs: ['input[type="file"][accept*="image"]', 'input[type="file"]'],
-  thumbnails: ['[class*="img-container"] img', '[class*="image-item"] img', '[class*="imgList"] img', '[class*="img-list"] img'],
+  thumbnails: [
+    '[class^="container-"] [class^="img-"] > img',
+    'div[class^="img-"] > img',
+    '[class*="img-container"] img',
+    '[class*="image-item"] img',
+    '[class*="imgList"] img',
+    '[class*="img-list"] img',
+  ],
   titleInputs: ['input[placeholder*="填写作品标题"]', 'input[placeholder*="添加作品标题"]', 'input[placeholder*="作品标题"]'],
   bodyEditors: ['div.zone-container[contenteditable="true"]', '.editor-kit-container[contenteditable="true"]', '[contenteditable="true"]'],
   draftButtonTexts: ['暂存离开', '存草稿', '保存草稿'],
@@ -113,9 +120,9 @@ function fillTitleScript(candidates: string[], title: string): string {
   })(${js(candidates)}, ${js(title)})`;
 }
 
-/** 页面内：清空正文编辑器后逐行插入（每行一个段落，空行保留为空段落），返回编辑器文字。 */
-function fillBodyScript(candidates: string[], lines: string[]): string {
-  return `((cands, lines) => {
+/** 页面内：清空正文编辑器后填入完整文本。Slate 编辑器用 paste 事件保留多行，常规富文本用逐段 execCommand。 */
+function fillBodyScript(candidates: string[], text: string): string {
+  return `((cands, text) => {
     const el = cands.map(s => document.querySelector(s)).find(Boolean);
     if (!el) return null;
     el.focus();
@@ -124,13 +131,60 @@ function fillBodyScript(candidates: string[], lines: string[]): string {
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
+    if (el.getAttribute('data-slate-editor') === 'true') {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', text);
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      return { isSlate: true, text: el.innerText };
+    }
     document.execCommand('delete', false);
-    lines.forEach((line, i) => {
+    text.split('\\n').forEach((line, i) => {
       if (i > 0) document.execCommand('insertParagraph', false);
       if (line) document.execCommand('insertText', false, line);
     });
-    return el.innerText;
-  })(${js(candidates)}, ${js(lines)})`;
+    return { isSlate: false, text: el.innerText };
+  })(${js(candidates)}, ${js(text)})`;
+}
+
+function readBodyScript(candidates: string[]): string {
+  return `((cands) => {
+    const el = cands.map(s => document.querySelector(s)).find(Boolean);
+    return el ? el.innerText : '';
+  })(${js(candidates)})`;
+}
+
+function isDraftSavedScript(titleInputs: string[]): string {
+  return `((titleCands) => {
+    const hasVisibleTitle = titleCands.some((s) => {
+      const el = document.querySelector(s);
+      return Boolean(el && el.offsetParent !== null);
+    });
+    if (!hasVisibleTitle) return true;
+    const text = document.body.innerText || '';
+    return /保存成功|暂存成功|已暂存|已保存草稿|草稿已保存/.test(text);
+  })(${js(titleInputs)})`;
+}
+
+/** 关掉正文末端 #话题 触发的 Tippy/提及联想浮层，避免遮挡底部「暂存离开」按钮。 */
+function dismissEditorPopoverScript(bodyEditors: string[]): string {
+  return `((cands) => {
+    const el = cands.map(s => document.querySelector(s)).find(Boolean);
+    const esc = (type) => new KeyboardEvent(type, { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+    if (el) {
+      el.dispatchEvent(esc('keydown'));
+      el.dispatchEvent(esc('keyup'));
+      if (typeof el.blur === 'function') el.blur();
+    }
+    document.dispatchEvent(esc('keydown'));
+    document.dispatchEvent(esc('keyup'));
+    const active = document.activeElement;
+    if (active && active !== document.body && typeof active.blur === 'function') active.blur();
+    window.getSelection()?.removeAllRanges();
+    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click']) {
+      document.body.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 8, clientY: 8 }));
+    }
+    return true;
+  })(${js(bodyEditors)})`;
 }
 
 async function poll<T>(page: DraftPage, fn: () => Promise<T>, ok: (v: T) => boolean, timeoutMs: number, stepMs = 400): Promise<T> {
@@ -152,6 +206,8 @@ export interface SocialDraftInput {
   tags?: string[];
   /** 单张图片等待上传完成的超时。 */
   perImageTimeoutMs?: number;
+  /** 点击存草稿后等待页面确认保存完成的超时。 */
+  saveConfirmTimeoutMs?: number;
 }
 
 export interface SocialDraftOutcome {
@@ -203,18 +259,46 @@ export async function runSocialDraftFlow(page: DraftPage, spec: SocialDraftSpec,
 
   const tagLine = (input.tags ?? []).filter(Boolean).map((t) => `#${t.replace(/\s+/g, '')}`).join(' ');
   const text = [...[input.body.trim(), tagLine].filter(Boolean).join('\n\n')].slice(0, spec.bodyMax).join('');
-  const bodyBack = await page.eval<string | null>(fillBodyScript(spec.bodyEditors, text.split('\n')));
-  if (bodyBack === null) throw new Error(tried(`未找到${spec.name}正文编辑器`, spec.bodyEditors));
-  const firstLine = text.split('\n').find((l) => l.trim()) ?? '';
-  if (firstLine && !bodyBack.includes(firstLine.slice(0, 10))) warnings.push(`${spec.name}正文可能未完整填入，请在草稿里核对`);
-
-  await page.sleep(800);
-  let saved = false;
-  for (let k = 0; k < 20 && !saved; k++) {
-    saved = await page.eval<boolean>(clickTextScript(spec.draftButtonTexts));
-    for (const t of spec.draftButtonTexts) if (!saved && page.clickTextFallback) saved = await page.clickTextFallback(t);
-    if (!saved) await page.sleep(500);
+  const fillRes = await page.eval<{ isSlate: boolean; text: string } | null>(fillBodyScript(spec.bodyEditors, text));
+  if (fillRes === null) throw new Error(tried(`未找到${spec.name}正文编辑器`, spec.bodyEditors));
+  if (fillRes.isSlate) await page.sleep(500);
+  const rawBodyBack = fillRes.isSlate ? await page.eval<string>(readBodyScript(spec.bodyEditors)) : fillRes.text;
+  const bodyBack = rawBodyBack.replace(/\u200b/g, '');
+  const nonEmptyLines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const firstLine = nonEmptyLines[0] ?? '';
+  const lastLine = nonEmptyLines[nonEmptyLines.length - 1] ?? '';
+  if ((firstLine && !bodyBack.includes(firstLine.slice(0, 10))) || (lastLine && !bodyBack.includes(lastLine.slice(0, 10)))) {
+    warnings.push(`${spec.name}正文可能未完整填入，请在草稿里核对`);
   }
-  if (!saved) throw new Error(`未找到${spec.name}存草稿按钮（尝试过：${spec.draftButtonTexts.join(' | ')}）`);
+
+  await page.eval<boolean>(dismissEditorPopoverScript(spec.bodyEditors));
+  await page.sleep(250);
+  await page.sleep(800);
+  const saveTimeout = input.saveConfirmTimeoutMs ?? 20_000;
+  let waited = 0;
+  let everClicked = false;
+  let saveConfirmed = false;
+  while (waited < saveTimeout && !saveConfirmed) {
+    if (everClicked) {
+      await page.eval<boolean>(dismissEditorPopoverScript(spec.bodyEditors));
+      await page.sleep(200);
+    }
+    let clicked = await page.eval<boolean>(clickTextScript(spec.draftButtonTexts));
+    for (const t of spec.draftButtonTexts) if (!clicked && page.clickTextFallback) clicked = await page.clickTextFallback(t);
+    if (!clicked) {
+      await page.sleep(400);
+      waited += 400;
+      continue;
+    }
+    everClicked = true;
+    for (let confirmWait = 0; confirmWait < 2400 && waited < saveTimeout; confirmWait += 300) {
+      await page.sleep(300);
+      waited += 300;
+      saveConfirmed = await page.eval<boolean>(isDraftSavedScript(spec.titleInputs));
+      if (saveConfirmed) break;
+    }
+  }
+  if (!everClicked) throw new Error(`未找到${spec.name}存草稿按钮（尝试过：${spec.draftButtonTexts.join(' | ')}）`);
+  if (!saveConfirmed) throw new Error(`点击${spec.name}存草稿后未检测到保存成功信号，请检查页面提示`);
   return { uploaded: confirmed < 0 ? input.files.length : confirmed, warnings };
 }
