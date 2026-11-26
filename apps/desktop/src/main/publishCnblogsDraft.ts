@@ -3,6 +3,22 @@ import { createImageBedUploader, uploadLocalImagesForPublish } from '@vcat/image
 import type { MultiPlatformPublishPayload, MultiPlatformPublishResultItem } from '@vcat/shared';
 import { createSessionFetch, hasSessionAuthCookies, type PublishAppConfig } from './publishSessionAuth';
 
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  avif: 'image/avif',
+};
+
+function inferImageMimeType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_MIME_TYPES[ext] ?? 'image/png';
+}
+
 /** Publishes a draft to Cnblogs via Web API with automatic XSRF-TOKEN and image upload. */
 export async function publishCnblogsWebDraft(params: {
   session: typeof Electron.session;
@@ -55,7 +71,7 @@ export async function publishCnblogsWebDraft(params: {
       return createImageBedUploader()(buffer, fileName, cfg.imageBed);
     }
     const form = new FormData();
-    form.append('image', new Blob([new Uint8Array(buffer)]), fileName);
+    form.append('image', new Blob([new Uint8Array(buffer)], { type: inferImageMimeType(fileName) }), fileName);
     form.append('app', 'blog');
     form.append('uploadType', 'Select');
     const upRes = await sFetch('https://upload.cnblogs.com/v2/images/cors-upload', {
@@ -69,7 +85,8 @@ export async function publishCnblogsWebDraft(params: {
       body: form,
     });
     if (!upRes.ok) {
-      throw new Error(`博客园图片上传失败: HTTP ${upRes.status}`);
+      const detail = (await upRes.text().catch(() => '')).trim().slice(0, 200);
+      throw new Error(`博客园图片上传失败: HTTP ${upRes.status}${detail ? ` (${detail})` : ''}`);
     }
     const upData = (await upRes.json()) as { data?: string; url?: string; imageUrl?: string; src?: string };
     const url = upData.data || upData.url || upData.imageUrl || upData.src;
