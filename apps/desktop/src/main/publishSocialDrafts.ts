@@ -71,7 +71,9 @@ async function clickTextViaDebugger(win: BrowserWindow, text: string): Promise<b
       fromIndex: 0,
       toIndex: search.resultCount,
     });
+    const [winW, winH] = win.getContentSize();
     for (const nodeId of [...nodeIds].reverse()) {
+      await win.webContents.debugger.sendCommand('DOM.scrollIntoViewIfNeeded', { nodeId }).catch(() => null);
       const box = await win.webContents.debugger
         .sendCommand('DOM.getBoxModel', { nodeId })
         .catch(() => null);
@@ -79,9 +81,10 @@ async function clickTextViaDebugger(win: BrowserWindow, text: string): Promise<b
       if (quad && quad.length >= 8) {
         const x = Math.round((quad[0] + quad[4]) / 2);
         const y = Math.round((quad[1] + quad[5]) / 2);
-        if (x > 0 && y > 0) {
+        if (x > 0 && y > 0 && x < winW && y < winH) {
           win.webContents.sendInputEvent({ type: 'mouseMove', x, y });
           win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+          await sleep(40);
           win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
           return true;
         }
@@ -118,7 +121,8 @@ const SOCIAL: Record<SocialPlatform, { name: string; entryUrl: string; draftsUrl
   douyin: {
     name: '抖音',
     entryUrl: 'https://creator.douyin.com/creator-micro/content/upload?default-tab=3',
-    draftsUrl: 'https://creator.douyin.com/creator-micro/content/manage',
+    // 抖音未发布图文草稿在发布页「继续编辑」横幅恢复，不在 /content/manage 已发布列表里。
+    draftsUrl: 'https://creator.douyin.com/creator-micro/content/upload?default-tab=3',
     spec: DOUYIN_DRAFT_SPEC,
   },
 };
