@@ -58,6 +58,7 @@ function assertReleased(o: Awaited<ReturnType<typeof openLoginWindow>>) {
   assert.equal(o.toolbar.webContents.isDestroyed(), true, '顶栏 view 的 webContents 已 close()');
   assert.equal(o.site.webContents.listenerCount('did-fail-load'), 0, '站点 webContents 监听已清空');
   assert.equal(o.toolbar.webContents.listenerCount('will-navigate'), 0, '顶栏 webContents 监听已清空');
+  assert.equal(o.toolbar.webContents.listenerCount('page-title-updated'), 0, '顶栏标题监听已清空');
   assert.equal(o.win.listenerCount('resize'), 0, '窗口监听已清空');
 }
 
@@ -142,4 +143,45 @@ test('登录窗口：顶栏 did-navigate-in-page Hash 事件可关闭窗口；ha
   assert.equal(await done, false);
   assert.equal(checks, 0, '无登录 Cookie 关窗秒返回，不拖延');
   assert.equal(win.isDestroyed(), true);
+});
+
+test('登录窗口：顶栏 page-title-updated 事件可关闭窗口并释放全部监听', async () => {
+  const o = await openLoginWindow(new InternalBrowserManager());
+  o.toolbar.webContents.emit('page-title-updated', { preventDefault() {} }, 'vmark-nav://close:1');
+  assert.equal(await o.done, false);
+  assertReleased(o);
+});
+
+test('登录窗口：已登录时打开点「完成」立即关窗，不被慢 checkAuth 阻塞', async () => {
+  const { session } = fakeSession();
+  let openedCheckResolved = false;
+  let callCount = 0;
+  const manager = new InternalBrowserManager();
+  const w0 = registry.windows.length;
+  const v0 = registry.views.length;
+  const done = manager.openPlatformBrowser({
+    platformId: 'weixin',
+    loginUrl: 'https://mp.weixin.qq.com/',
+    targetSession: session,
+    checkAuth: async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        openedCheckResolved = true;
+        return true;
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+      return true;
+    },
+  });
+  await new Promise((r) => setImmediate(r));
+  assert.equal(openedCheckResolved, true);
+  const win = registry.windows[w0];
+  const toolbar = registry.views[v0];
+  const start = Date.now();
+  toolbar.webContents.emit('page-title-updated', { preventDefault() {} }, 'vmark-nav://done:1');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(win.isDestroyed(), true, '点完成应立即销毁窗口');
+  assert.ok(Date.now() - start < 1000, '不应等待 5 秒慢 verify');
+  // 关窗后的 finalize 不应影响立即关窗，等待 done 结束
+  assert.equal(typeof (await done), 'boolean');
 });

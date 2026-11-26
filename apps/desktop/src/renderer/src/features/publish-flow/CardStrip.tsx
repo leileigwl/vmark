@@ -41,7 +41,7 @@ function fitThumb(frame: HTMLIFrameElement) {
 export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }: CardStripProps) {
   const payload = useMemo(
     // 按所选模板的内容框分页（各模板页边距不同），与出图一致。
-    () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', themeId, maxCards }),
+    () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', themeId, maxCards, includeCover: false }),
     [markdown, title, themeId, maxCards]
   );
   const total = payload.totalCards;

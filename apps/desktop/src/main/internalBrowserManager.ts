@@ -160,16 +160,30 @@ export class InternalBrowserManager {
     };
     let closing = false;
     let checkingAuth = false;
+    let pendingDone = false;
     let closeTimer: NodeJS.Timeout | null = null;
     disposers.push(() => {
       if (closeTimer) clearTimeout(closeTimer);
     });
     const handleAuth = async (trigger: 'cookie' | 'done') => {
-      if (closing || checkingAuth || win.isDestroyed()) return;
+      if (closing || win.isDestroyed()) return;
+      if (trigger === 'done' && signedInAtOpen) {
+        closing = true;
+        win.destroy();
+        return;
+      }
+      if (checkingAuth) {
+        if (trigger === 'done') {
+          pendingDone = true;
+          setStatus('正在检测登录状态…');
+        }
+        return;
+      }
       if (trigger !== 'done' && !signedInAtOpen && hasAuthCookies) {
         const hasCookies = await hasAuthCookies().catch(() => false);
         if (!hasCookies) return;
       }
+      if (trigger === 'done') setStatus('正在检测登录状态…');
       checkingAuth = true;
       try {
         const signedIn = await verify();
@@ -184,6 +198,10 @@ export class InternalBrowserManager {
         }
       } finally {
         checkingAuth = false;
+        if (pendingDone && !closing && !win.isDestroyed()) {
+          pendingDone = false;
+          void handleAuth('done');
+        }
       }
     };
 
@@ -226,11 +244,14 @@ export class InternalBrowserManager {
     };
     const onToolbarNavigate = (event: Electron.Event, targetUrl: string) => dispatchToolbarAction(targetUrl, event);
     const onToolbarInPage = (event: Electron.Event, targetUrl: string) => dispatchToolbarAction(targetUrl, event);
+    const onToolbarTitle = (event: Electron.Event, titleText: string) => dispatchToolbarAction(titleText, event);
     toolbarView.webContents.on('will-navigate', onToolbarNavigate);
     toolbarView.webContents.on('did-navigate-in-page', onToolbarInPage);
+    toolbarView.webContents.on('page-title-updated', onToolbarTitle);
     disposers.push(() => {
       toolbarView.webContents.off('will-navigate', onToolbarNavigate);
       toolbarView.webContents.off('did-navigate-in-page', onToolbarInPage);
+      toolbarView.webContents.off('page-title-updated', onToolbarTitle);
     });
 
     const partition = `persist:platform_${platformId}`;

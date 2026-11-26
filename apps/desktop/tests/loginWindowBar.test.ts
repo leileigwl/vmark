@@ -13,6 +13,7 @@ test('顶栏：平台名、「登录完成」、关闭；不出现标签页、�
   const html = buildLoginBarHtml({ platformId: 'juejin', signedInAtOpen: false });
   assert.match(html, /稀土掘金/);
   assert.match(html, /vmark-nav:\/\/done/);
+  assert.match(html, /document\.title\s*=/);
   assert.match(html, />登录完成</);
   assert.match(html, /vmark-nav:\/\/close/);
   assert.match(html, /aria-label="关闭"/);
@@ -73,7 +74,11 @@ test('app 主题读取失败或值可疑时回落到对应深浅的默认色，�
   assert.ok(!html.includes('<script>'));
 });
 
-test('parseLoginBarActionUrl 同时识别 data: 页内 hash 与旧式 vmark-nav:// URL', () => {
+test('parseLoginBarActionUrl 同时识别标题协议 vmark-nav:// 与旧式 data: 页内 hash', () => {
+  assert.equal(parseLoginBarActionUrl('vmark-nav://back:1'), 'back');
+  assert.equal(parseLoginBarActionUrl('vmark-nav://reload:2'), 'reload');
+  assert.equal(parseLoginBarActionUrl('vmark-nav://done:3'), 'done');
+  assert.equal(parseLoginBarActionUrl('vmark-nav://close:4'), 'close');
   assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://back:1700000001'), 'back');
   assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://reload:1700000002'), 'reload');
   assert.equal(parseLoginBarActionUrl('data:text/html,abc#vmark-nav://done:1700000003'), 'done');
