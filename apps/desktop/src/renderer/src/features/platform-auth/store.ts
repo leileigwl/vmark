@@ -11,12 +11,13 @@ export interface PlatformAuthSnapshot {
   error: string | null;
 }
 
-/** 整轮兜底超时：主进程每个平台 8s 独立超时，这里只防 IPC 本身卡死。 */
-const CHECK_TIMEOUT_MS = 12_000;
+/** 整轮兜底超时：主进程每个平台 15s 独立超时，这里只防 IPC 本身卡死。 */
+const CHECK_TIMEOUT_MS = 20_000;
 
 let snapshot: PlatformAuthSnapshot = { statuses: {}, checking: false, lastCheckedAt: null, error: null };
 const listeners = new Set<() => void>();
 let inflight: Promise<void> | null = null;
+let runSeq = 0;
 let subscribedToMain = false;
 
 function emit(next: Partial<PlatformAuthSnapshot>) {
@@ -46,16 +47,17 @@ function ensureMainSubscription() {
  * 开始时每个平台立刻显示「检测中」（不留旧值）；各平台结果由主进程逐个推回、各自更新；
  * 这一轮结束仍没回来的平台（单平台超时）标为 error，不会一直「检测中」。
  */
-export function refreshPlatformAuth(): Promise<void> {
+export function refreshPlatformAuth(opts?: { force?: boolean }): Promise<void> {
   ensureMainSubscription();
-  if (inflight) return inflight;
+  if (inflight && !opts?.force) return inflight;
   const api = window.electronAPI;
   if (!api?.getPlatformAuthStates) return Promise.resolve();
+  const mine = ++runSeq;
   const ids = new Set<PlatformId>([...(Object.keys(PLATFORM_LINKS) as PlatformId[]), ...(Object.keys(snapshot.statuses) as PlatformId[])]);
   const checkingAll: Partial<Record<PlatformId, AuthStatus>> = {};
   for (const id of ids) checkingAll[id] = 'checking';
   emit({ checking: true, error: null, statuses: checkingAll });
-  inflight = (async () => {
+  const run = (async () => {
     let error: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -63,24 +65,29 @@ export function refreshPlatformAuth(): Promise<void> {
         timer = setTimeout(() => reject(new Error('检测超时，请检查网络后重试')), CHECK_TIMEOUT_MS);
       });
       const raw = await Promise.race([api.getPlatformAuthStates(), timeout]);
+      if (mine !== runSeq) return;
       emit({ statuses: { ...snapshot.statuses, ...toStatuses(raw ?? {}) } });
     } catch (err) {
+      if (mine !== runSeq) return;
       error = err instanceof Error ? err.message : String(err);
     } finally {
       clearTimeout(timer);
-      const statuses = { ...snapshot.statuses };
-      const late: PlatformId[] = [];
-      for (const id of Object.keys(statuses) as PlatformId[]) {
-        if (statuses[id] !== 'checking') continue;
-        statuses[id] = 'error';
-        late.push(id);
+      if (mine === runSeq) {
+        const statuses = { ...snapshot.statuses };
+        const late: PlatformId[] = [];
+        for (const id of Object.keys(statuses) as PlatformId[]) {
+          if (statuses[id] !== 'checking') continue;
+          statuses[id] = 'error';
+          late.push(id);
+        }
+        if (!error && late.length) error = `${late.length} 个平台检测超时，可稍后再刷新`;
+        emit({ statuses, checking: false, lastCheckedAt: Date.now(), error });
+        inflight = null;
       }
-      if (!error && late.length) error = `${late.length} 个平台检测超时，可稍后再刷新`;
-      emit({ statuses, checking: false, lastCheckedAt: Date.now(), error });
-      inflight = null;
     }
   })();
-  return inflight;
+  inflight = run;
+  return run;
 }
 
 export function subscribePlatformAuth(listener: () => void): () => void {
@@ -111,5 +118,6 @@ export function statusOf(id: PlatformId, snap: PlatformAuthSnapshot = snapshot):
 export function __resetPlatformAuthForTests() {
   snapshot = { statuses: {}, checking: false, lastCheckedAt: null, error: null };
   inflight = null;
+  runSeq = 0;
   subscribedToMain = false;
 }

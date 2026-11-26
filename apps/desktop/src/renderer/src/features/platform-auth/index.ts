@@ -43,10 +43,12 @@ export function usePlatformAuth() {
     markPlatformAuthStatuses({ [id]: false });
   }, []);
 
+  const refresh = useCallback(() => refreshPlatformAuth({ force: true }), []);
+
   return {
     snapshot: snap,
     status: (id: PlatformId) => statusOf(id, snap),
-    refresh: refreshPlatformAuth,
+    refresh,
     signIn,
     openDashboard,
     signOut,

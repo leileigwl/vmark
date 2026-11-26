@@ -164,11 +164,8 @@ export async function verifyPlatformAuth(params: {
     if (platformId === 'weixin') {
       const wxSession = session.fromPartition('persist:platform_weixin');
       const adapter = new WeixinAdapter(createSessionFetch(wxSession));
-      // 两次请求：首页取 token + 带 token 复核后台首页（会话失效会被跳回登录页）
-      return await Promise.race([
-        adapter.checkAuth(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5000)),
-      ]);
+      // 两次请求：首页取 token + 带 token 复核后台首页；超时由外层 checkEachWithTimeout/internalBrowserManager 统一接管，不再在此处 5s 误判为未登录
+      return await adapter.checkAuth();
     }
 
     if (platformId === 'cnblogs') {

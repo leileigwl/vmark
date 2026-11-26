@@ -76,3 +76,21 @@ test('单个平台检测抛错按未登录处理，不影响其他平台', async
   assert.deepEqual(res.states, { csdn: false, zhihu: true });
   assert.deepEqual(res.timedOut, []);
 });
+
+test('invalidate() 会作废进行中的旧检测轮次，后续调用立即开新一轮', async () => {
+  const runs: Array<{ isLatest: () => boolean; release: (v: Record<string, boolean>) => void }> = [];
+  const check = createSharedCheck(
+    (ctx) => new Promise<Record<string, boolean>>((release) => runs.push({ isLatest: ctx.isLatest, release }))
+  );
+  const oldRun = check();
+  assert.equal(runs[0].isLatest(), true);
+  check.invalidate();
+  assert.equal(runs[0].isLatest(), false, '登录/登出后作废旧心跳，不能再广播旧结果');
+  const nextRun = check();
+  assert.equal(runs.length, 2, '作废后应开启新一轮检测');
+  assert.equal(runs[1].isLatest(), true);
+  runs[0].release({ weixin: false });
+  runs[1].release({ weixin: true });
+  assert.deepEqual(await oldRun, { weixin: false });
+  assert.deepEqual(await nextRun, { weixin: true });
+});

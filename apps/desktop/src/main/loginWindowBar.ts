@@ -141,13 +141,12 @@ export function parseLoginBarActionUrl(targetUrl: string): LoginBarAction | null
 }
 
 /**
- * 登录窗口的统一顶栏：平台名 + 状态提示 + 「登录完成」+ 关闭，配色取自 Vmark 内当前选中的主题（不跟随系统深浅色）。
+ * 登录窗口的统一顶栏：后退、刷新、平台名、状态提示、关闭，配色取自 Vmark 内当前选中的主题（不跟随系统深浅色）。
  * 按钮通过递增修改 `document.title`（`vmark-nav://<action>:<seq>`）触发主进程 `page-title-updated`，顶栏页面本身没有任何权限。
  */
 export function buildLoginBarHtml(options: { platformId: PlatformId; signedInAtOpen: boolean; appTheme?: unknown }): string {
   const name = loginWindowName(options.platformId);
   const hint = options.signedInAtOpen ? '已登录' : '在下方页面登录，完成后会自动返回';
-  const doneLabel = options.signedInAtOpen ? '完成' : '登录完成';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><style id="bar-theme">${themeCss(resolveLoginBarTheme(options.appTheme))}</style><style>
@@ -159,15 +158,12 @@ button:hover{background:var(--hover);color:var(--ink)}
 button:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 45%,transparent);outline-offset:1px}
 .name{font-weight:600;white-space:nowrap}
 .status{flex:1;min-width:0;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.primary{padding:0 16px;background:var(--primary);color:var(--on-primary);font-weight:500}
-.primary:hover{background:var(--primary);color:var(--on-primary);filter:brightness(1.08)}
 </style></head>
 <body>
   <button onclick="${loginBarNavOnclick('back')}" aria-label="后退" title="后退">${ICON_BACK}</button>
   <button onclick="${loginBarNavOnclick('reload')}" aria-label="刷新" title="刷新">${ICON_RELOAD}</button>
   <span class="name">${name}</span>
   <span id="bar-status" class="status" role="status">${hint}</span>
-  <button class="primary" onclick="${loginBarNavOnclick('done')}">${doneLabel}</button>
   <button onclick="${loginBarNavOnclick('close')}" aria-label="关闭" title="关闭">${ICON_CLOSE}</button>
 </body>
 </html>`;
