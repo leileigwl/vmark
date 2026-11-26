@@ -96,6 +96,7 @@ export async function renderCardDeck(
       themeId,
       // 不传时核心库按小红书 18 张截断，抖音等上限更高的平台会被误截。
       maxCards: Math.max(0, maxCards),
+      includeCover: false,
       measure: (b) => {
         const key = JSON.stringify(b);
         const known = heights.get(key);

@@ -25,7 +25,7 @@ export function SocialSection({ draft, specs, markdown, issuesOf, onChange }: So
   const first = specs[0];
   const v = resolveFor(draft, first.id);
   const maxCards = Math.min(...specs.map((x) => x.maxCards ?? Infinity));
-  const cards = useMemo(() => renderXiaohongshuCards(markdown, { fallbackTitle: v.title, coverRatio: '3:4', maxCards }).totalCards, [markdown, v.title, maxCards]);
+  const cards = useMemo(() => renderXiaohongshuCards(markdown, { fallbackTitle: v.title, coverRatio: '3:4', maxCards, includeCover: false }).totalCards, [markdown, v.title, maxCards]);
   // 第一个卡片平台的封面：单独设置的优先，其次通用封面（各平台的单独封面入口在本块卡片预览下方）。
   const source = coverFor(draft, first, '');
   const cover = source?.kind === 'upload' ? source.src : '';

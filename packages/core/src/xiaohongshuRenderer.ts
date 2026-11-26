@@ -64,6 +64,8 @@ export interface RenderXiaohongshuOptions {
   measure?: (block: CardBlock) => number;
   /** Platform card limit (cover included); defaults to DEFAULT_MAX_SOCIAL_CARDS. */
   maxCards?: number;
+  /** Whether to prepend an auto-generated title cover card (default true). */
+  includeCover?: boolean;
 }
 
 /** Detects article genre by scoring title/tags (high weight) and markdown body features. */
@@ -203,27 +205,30 @@ export function renderXiaohongshuCards(
     leadQuoteIdx >= 0 && (firstHeadingIdx < 0 || leadQuoteIdx < firstHeadingIdx)
       ? (blocks[leadQuoteIdx] as { text: string }).text
       : undefined;
+  const includeCover = opts.includeCover !== false;
   const subtitle = fmSubtitle || leadQuote || '';
   // A lead quote promoted to the cover subtitle is not repeated in the flow.
-  const flowBlocks = !fmSubtitle && leadQuote ? blocks.filter((_, i) => i !== leadQuoteIdx) : blocks;
+  const flowBlocks = includeCover && !fmSubtitle && leadQuote ? blocks.filter((_, i) => i !== leadQuoteIdx) : blocks;
   const leadLines = flowBlocks
     .filter((b) => b.kind === 'paragraph')
     .slice(0, 2)
     .map((b) => blockToLine(b));
 
-  const cards: XhsCardSection[] = [
-    {
-      type: 'cover',
-      title,
-      subtitle: subtitle || genreConfig.badge,
-      bodyLines: leadLines,
-      quote: leadQuote || fmSubtitle || undefined,
-      tags: mergedTags,
-      genre,
-      coverImage: fmCoverImage,
-      coverTemplate,
-    },
-  ];
+  const cards: XhsCardSection[] = includeCover
+    ? [
+        {
+          type: 'cover',
+          title,
+          subtitle: subtitle || genreConfig.badge,
+          bodyLines: leadLines,
+          quote: leadQuote || fmSubtitle || undefined,
+          tags: mergedTags,
+          genre,
+          coverImage: fmCoverImage,
+          coverTemplate,
+        },
+      ]
+    : [];
 
   const box = getCardContentBox(opts.themeId, coverRatio);
   const pageHeight = opts.pageHeight ?? box.height;

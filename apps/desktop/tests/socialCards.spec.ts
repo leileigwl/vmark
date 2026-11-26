@@ -104,7 +104,7 @@ const MATH_MD = ['# 公式卡片', '', '质能方程 $E=mc^2$ 很有名。', '',
 test.describe('公式卡片', () => {
   test('缩略图里的公式用 KaTeX 排版，字体已加载', async ({ page }, testInfo) => {
     await openWithMarkdown(page, MATH_MD);
-    const thumb = page.locator('iframe[title="卡片 2"]');
+    const thumb = page.locator('iframe[title="卡片 1"]');
     await expect(thumb).toBeVisible();
     await snap(page, testInfo, 'card-katex');
     const frame = (await (await thumb.elementHandle())!.contentFrame())!;
@@ -129,7 +129,7 @@ test.describe('卡片模板', () => {
       await chip.click();
       await expect(chip).toHaveAttribute('aria-checked', 'true');
       // 切模板会重写 iframe 内容：用 frameLocator 每次重新取 body 并自动等待，不在半加载的文档上 evaluate（body 可能还是 null）。
-      await expect(page.frameLocator('iframe[title="卡片 2"]').locator('body')).toHaveAttribute('data-template', id);
+      await expect(page.frameLocator('iframe[title="卡片 1"]').locator('body')).toHaveAttribute('data-template', id);
       await snap(page, testInfo, `card-template-${id}`);
     });
   }

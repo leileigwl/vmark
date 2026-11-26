@@ -129,7 +129,12 @@ function themeCss({ scheme, tokens: t }: LoginBarTheme): string {
 
 export type LoginBarAction = 'back' | 'reload' | 'done' | 'close';
 
-/** 解析顶栏按钮触发的 URL（兼容旧 vmark-nav://<action> 与 data: 页内 hash #vmark-nav://<action>:<ts>）。 */
+/** 生成顶栏按钮的内联点击脚本：通过递增序号改写 document.title，避免 data: 页内 hash 在部分环境不触发及重复点击同一按钮被忽略。 */
+function loginBarNavOnclick(action: LoginBarAction): string {
+  return `window.__vmarkNavSeq=(window.__vmarkNavSeq||0)+1;document.title='vmark-nav://${action}:'+window.__vmarkNavSeq`;
+}
+
+/** 解析顶栏按钮触发的 URL（兼容标题协议 vmark-nav://<action>:<seq> 与旧式 data: 页内 hash）。 */
 export function parseLoginBarActionUrl(targetUrl: string): LoginBarAction | null {
   const m = targetUrl.match(/^(?:vmark-nav:\/\/|.*#vmark-nav:\/\/)(back|reload|done|close)(?::\d+)?$/);
   return (m?.[1] as LoginBarAction | undefined) ?? null;
@@ -137,7 +142,7 @@ export function parseLoginBarActionUrl(targetUrl: string): LoginBarAction | null
 
 /**
  * 登录窗口的统一顶栏：平台名 + 状态提示 + 「登录完成」+ 关闭，配色取自 Vmark 内当前选中的主题（不跟随系统深浅色）。
- * 按钮通过页内 hash `#vmark-nav://<action>:<ts>` 通知主进程（Electron `data:text/html` 下 `did-navigate-in-page` 稳定可达），顶栏页面本身没有任何权限。
+ * 按钮通过递增修改 `document.title`（`vmark-nav://<action>:<seq>`）触发主进程 `page-title-updated`，顶栏页面本身没有任何权限。
  */
 export function buildLoginBarHtml(options: { platformId: PlatformId; signedInAtOpen: boolean; appTheme?: unknown }): string {
   const name = loginWindowName(options.platformId);
@@ -158,12 +163,12 @@ button:focus-visible{outline:2px solid color-mix(in srgb,var(--primary) 45%,tran
 .primary:hover{background:var(--primary);color:var(--on-primary);filter:brightness(1.08)}
 </style></head>
 <body>
-  <button onclick="location.hash='vmark-nav://back:'+Date.now()" aria-label="后退" title="后退">${ICON_BACK}</button>
-  <button onclick="location.hash='vmark-nav://reload:'+Date.now()" aria-label="刷新" title="刷新">${ICON_RELOAD}</button>
+  <button onclick="${loginBarNavOnclick('back')}" aria-label="后退" title="后退">${ICON_BACK}</button>
+  <button onclick="${loginBarNavOnclick('reload')}" aria-label="刷新" title="刷新">${ICON_RELOAD}</button>
   <span class="name">${name}</span>
   <span id="bar-status" class="status" role="status">${hint}</span>
-  <button class="primary" onclick="location.hash='vmark-nav://done:'+Date.now()">${doneLabel}</button>
-  <button onclick="location.hash='vmark-nav://close:'+Date.now()" aria-label="关闭" title="关闭">${ICON_CLOSE}</button>
+  <button class="primary" onclick="${loginBarNavOnclick('done')}">${doneLabel}</button>
+  <button onclick="${loginBarNavOnclick('close')}" aria-label="关闭" title="关闭">${ICON_CLOSE}</button>
 </body>
 </html>`;
 }
