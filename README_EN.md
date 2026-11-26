@@ -47,7 +47,7 @@
 1. **Automatic Image Re-Hosting Without Touching Your Source File**
    - Copying Markdown into web editors often leaves broken images behind. When you push drafts, Vmark automatically uploads your local `./assets/` images and external image links to each platform's own media host — leaving your original `.md` file on disk completely untouched.
 2. **Built-In Browser Flow for Xiaohongshu & Douyin: 3:4 Visual Cards Ready in Drafts**
-   - Plain text screenshots rarely look great on visual feeds. Vmark renders your article directly into crisp **3:4 visual cards** (inspired by open-source community card-notebook designs, thoughtfully integrated here — huge thanks to those creators), paginating straight from your content without extra filler covers, then fills cards, title, text, and `#tags` into both draft boxes so you are one click away from publishing.
+   - Plain text screenshots rarely look great on visual feeds. Vmark renders your article directly into crisp **3:4 visual cards** (inspired by the open-source project [geekfoxcharlie/XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard) ([live demo](https://xhs-textcard.site/))), paginating straight from your content without extra filler covers, then fills cards, title, text, and `#tags` into both draft boxes so you are one click away from publishing.
 3. **"Select All Ready": Fill Shared Info Once, Keep Platform Options Separate**
    - Automatically checks which platforms are signed in and highlights any missing item (such as a WeChat cover or Juejin category) without blocking the rest;
    - Enter **title, summary, and tags** once to reuse everywhere, while platform-specific options stay cleanly separate; send to all ready platforms at once or pick just one.
@@ -79,7 +79,7 @@ Even when you aren't publishing, Vmark feels clean and pleasant for everyday doc
 - **📖 Edit & Read-Only Modes + Image Zoom**: Switch to a distraction-free **Read-Only Mode** anytime; click any image while reading to **zoom in, zoom out, or reset**.
 - **⌨️ Natural Keyboard Flow**: Press **`/`** for the slash command menu, use **`Tab` / `Shift+Tab`** to jump table cells or indent lists, and edit smoothly across blocks.
 - **📐 Ready for Technical Notes**: Built-in **Mermaid diagrams**, **KaTeX math**, tables, syntax-highlighted code blocks, `[!NOTE]` / `[!TIP]` callouts, plus smart **16:9 / 2.35:1 / 1:1 / 3:4** cover cropping.
-- **🎨 24 Light & Dark Themes + Custom CSS (Community Attribution)**: Inspired by great community visual designs, offering 24 curated light and dark themes plus custom `.css` import — even the login bar adapts live to your theme.
+- **🎨 24 Light & Dark Themes + Custom CSS**: Inspired by the color palettes of [webkubor/typora-Bloom-theme](https://github.com/webkubor/typora-Bloom-theme) ([live preview](https://bloom.webkubor.online/)), offering 24 curated light and dark themes plus custom `.css` import — even the login bar adapts live to your theme.
 - **🗂️ Clean Folder & File Management**: Switch folders anytime, create blank notes, **batch-delete old drafts**, jump via the **clickable outline**, reveal files in your **OS file manager**, and pull published cloud articles back as plain `.md` files with no cloud lock-in.
 
 <div align="center">
@@ -134,6 +134,18 @@ pnpm typecheck && pnpm test && pnpm build
   A: All 10 content platforms default to saving in your **Draft Box**, so nothing goes public until you click publish yourself. Credentials stay encrypted locally on your machine with no third-party relay server.
 - **Q: How do Xiaohongshu & Douyin work, and which OS is best today?**  
   A: Vmark turns your article into **3:4 visual cards** with formatted text and `#tags`, then saves them straight into Xiaohongshu and Douyin's draft boxes via its built-in browser. **macOS** is the primary verified platform right now; Windows and Linux are experimental.
+
+---
+
+## 📚 References
+
+Vmark's card layouts, color palettes, and multi-platform publishing architecture take inspiration from the following open-source projects:
+
+- [geekfoxcharlie/XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard) ([live demo](https://xhs-textcard.site/)): 3:4 visual card layouts and notebook/magazine design reference for Xiaohongshu / Douyin
+- [webkubor/typora-Bloom-theme](https://github.com/webkubor/typora-Bloom-theme) ([live preview](https://bloom.webkubor.online/)): 24 light/dark eye-care Bloom theme color palette reference
+- [wechatsync/Wechatsync](https://github.com/wechatsync/Wechatsync): Multi-platform article sync mechanism and content adaptation reference
+- [crawlab-team/artipub](https://github.com/crawlab-team/artipub): Write-once publish-everywhere workflow and platform integration reference
+- [terwer/siyuan-plugin-publisher](https://github.com/terwer/siyuan-plugin-publisher): Open-source desktop publisher architecture and multi-platform adapter reference
 
 ---
 
