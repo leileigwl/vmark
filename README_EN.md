@@ -15,7 +15,7 @@
 [![Local-First](https://img.shields.io/badge/Storage-100%25%20Local--First-2ea44f.svg)](#-why-vmark-for-note-taking)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Monorepo-3178C6.svg)](#-architecture--monorepo-layout)
 
-[Official Website](https://vmark-6cc.pages.dev) · [Download Latest](https://github.com/leileigwl/vmark/releases/latest) · [Note-Taking Core](#-why-vmark-for-note-taking) · [Multi-Platform Publishing](#-publish-to-10-platforms--34-visual-cards) · [FAQ](#-faq)
+[Official Website](https://vmark-6cc.pages.dev) · [Download Latest](https://github.com/leileigwl/vmark/releases/latest) · [Feature Demos](#-feature-demos) · [Note-Taking Core](#-why-vmark-for-note-taking) · [Multi-Platform Publishing](#-publish-to-10-platforms--34-visual-cards) · [FAQ](#-faq)
 
 <br />
 
@@ -27,14 +27,30 @@
 
 ---
 
+## 🎬 Feature Demos
+
+| Instant Rendering, Table Tab Jump & 24 Bloom Themes | Multi-Ratio Covers (16:9 · 2.35:1 · 3:4) & Draft Dispatch |
+| :---: | :---: |
+| ![Editor writing and theme demo](docs/assets/demos/1-editor-writing-theme.gif) | ![Multi-platform publish demo](docs/assets/demos/2-multi-platform-publish.gif) |
+
+<div align="center">
+
+| Workspace Manager · Quick Open (`⇧⌘O`) · Platform Accounts & Built-In Update Checker |
+| :---: |
+| ![Workspace manager and accounts demo](docs/assets/demos/3-workspace-manager.gif) |
+
+</div>
+
+---
+
 ## ✨ Why Vmark for Note-Taking?
 
 First and foremost, Vmark is a **quiet, offline-capable, Local-First desktop Markdown note and document editor** where you keep complete ownership of your files:
 
 - **📂 Folder as Workspace (100% Local-First)**: No mandatory account registration and no proprietary database lock-in. Open any local directory to start writing clean `.md` files. Pasted images are saved automatically under `./assets/` with relative paths — 100% usable offline and naturally friendly to Git, iCloud Drive, or any sync folder.
-- **✍️ Instant Rendering (IR), Zero Split-Pane Clutter**: Type Markdown naturally and watch formatting appear inline. A collapsible left sidebar unifies your **file tree, live heading outline, and full-text search**, alongside live word count and protected auto-save.
+- **✍️ Instant Rendering (IR) & Refined Editing**: Type Markdown naturally with intuitive **`Tab` / `Shift+Tab` table cell navigation & nested list indentation**, plus smooth cross-block selection. A collapsible left sidebar unifies your **file tree, live heading outline, and full-text search**, alongside word counts and **built-in release update notifications**.
 - **📐 Built for Technical & Structured Thinking**: Native inline rendering for **Mermaid flowcharts & sequence diagrams**, **KaTeX math expressions**, GFM tables, syntax-highlighted code blocks, and `[!NOTE]` / `[!TIP]` callout blocks.
-- **🎨 24 Bloom Themes + Custom CSS**: Includes 24 curated light and dark themes out of the box, plus one-click custom CSS stylesheet import.
+- **🎨 24 Bloom Themes + Custom CSS**: Includes 24 curated light and dark themes out of the box, plus one-click custom CSS stylesheet import — even the built-in login bar adapts live to your selected app theme.
 - **🗂️ Local Article Manager & Reverse Import**: Inspect word counts, local image counts, and timestamps across your workspace, or pull existing drafts from connected platforms back into clean local `.md` + `./assets/` with zero ongoing cloud coupling.
 
 <div align="center">
@@ -53,10 +69,10 @@ When a note is ready to share publicly, Vmark removes the friction of manual ima
    - **WeChat Official Account**: Converts Markdown into pure inline styles with token-level syntax highlighting, a clean window header bar, and automatic footnote extraction for external links.
    - **Zhihu Column**: Normalizes heading levels, generates Prism-compatible code blocks, and wraps images in clean `<figure>` tags.
    - **Juejin / CSDN / Baijiahao / Bilibili**: Handles platform-specific Frontmatter, request signing, and summary constraints.
-2. **Anti-Hotlink Image Pipeline**:
-   - Resolves local `./assets/` and cross-origin images in memory at publish time, uploading directly to platform media libraries or your configured image host (GitHub / SM.MS / PicGo) without mutating your local `.md` files.
-3. **Isolated Local Sessions & Draft-First Safety**:
-   - Every platform session runs in its own isolated local partition with OS-level credential protection and zero third-party relay servers. Most platforms default to **pushing into your Draft Box** so you keep final editorial control.
+2. **Anti-Hotlink Image Pipeline & Multi-Ratio Cover Focal Cropper**:
+   - Smart focal-point cropping across **16:9 common covers, 2.35:1 WeChat banners, 1:1 share thumbnails, and 3:4 social cards**. Resolves local `./assets/` and cross-origin images in memory at publish time without mutating local `.md` files.
+3. **Isolated Local Sessions, Unified Login Bar & Draft-First Safety**:
+   - Every platform session runs in its own isolated local partition with OS-level credential protection and a unified theme-synced login toolbar. Most platforms default to **pushing into your Draft Box** so you keep final editorial control.
 4. **3:4 Visual Card Engine**:
    - Automatically paginates long-form notes into crisp **1080×1440** cover, content, and frosted dark code cards for Xiaohongshu, Douyin, and social feeds.
 

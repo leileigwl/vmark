@@ -96,8 +96,9 @@ test('renderCardDeck 把同一个公式渲染器传给测量页和出图，相�
     css: '.katex{font-family:FakeKatex}',
   };
   const markdown = '# 公式测试\n\n正文段落。\n\n$$E=mc^2$$\n\n![配图](./assets/a.png)\n\n![越界](../secret.png)\n';
-  const { images } = await renderCardDeck(driver, { markdown, maxCards: 9, imageBaseDir: '/tmp/vmark-ws' }, math);
+  const { payload, images } = await renderCardDeck(driver, { markdown, maxCards: 9, imageBaseDir: '/tmp/vmark-ws' }, math);
   assert.ok(images.length >= 1);
+  assert.notEqual(payload.cards[0]?.type, 'cover', '出图不自动生成第 1 张标题封面卡');
   const measurePages = loaded.filter((h) => h.includes('data-b="'));
   assert.ok(measurePages.length >= 1, '至少有一轮浏览器实测');
   assert.ok(measurePages.some((h) => h.includes('FAKE-D:E=mc^2')), '测量页用 KaTeX 渲染公式，实测高度包含公式排版');

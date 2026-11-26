@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { PLATFORM_COVER_SPECS, fitCardDisplayMath, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
+import { PLATFORM_COVER_SPECS, fitCardDisplayMath, fitCardOverflow, renderSocialCardHtml, renderXiaohongshuCards, SOCIAL_CARD_PRESETS } from '@vcat/core';
 import { cn } from '../../ui';
 import { cardMath } from './cardMath';
 
@@ -17,18 +17,32 @@ interface CardStripProps {
   maxCards?: number;
 }
 
-/** 换行后仍比卡片宽的行间公式缩小到放得下（与出图同一逻辑）；iframe 禁止脚本，由外层在字体加载后执行。 */
-function fitThumbMath(frame: HTMLIFrameElement) {
+/**
+ * 与出图同一套兜底：换行后仍太宽的行间公式缩小；正文按估算高度分页，实际排版比估算高时整页缩到内容框内，
+ * 页底文字和图片不被裁掉。iframe 禁止脚本，由外层在字体、图片加载后执行。
+ */
+function fitThumb(frame: HTMLIFrameElement) {
   const doc = frame.contentDocument;
   if (!doc) return;
-  void doc.fonts.ready.then(() => fitCardDisplayMath(doc));
+  const fit = () => {
+    fitCardDisplayMath(doc);
+    fitCardOverflow(doc);
+  };
+  // 还没加载完的图片在加载成功或失败后都再算一次；已加载完的由下面字体就绪后的那次覆盖。
+  doc.querySelectorAll('img').forEach((img) => {
+    if (img.complete) return;
+    img.addEventListener('load', fit, { once: true });
+    img.addEventListener('error', fit, { once: true });
+  });
+  void doc.fonts.ready.then(fit);
 }
 
 /** 卡片平台：选模板 + 看前几张卡片缩略图和总张数。卡片 HTML 自带全局样式，放进 iframe 隔离（不允许脚本）。 */
 export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }: CardStripProps) {
   const payload = useMemo(
-    () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', maxCards }),
-    [markdown, title, maxCards]
+    // 按所选模板的内容框分页（各模板页边距不同），与出图一致。
+    () => renderXiaohongshuCards(markdown, { fallbackTitle: title, coverRatio: '3:4', themeId, maxCards, includeCover: false }),
+    [markdown, title, themeId, maxCards]
   );
   const total = payload.totalCards;
   const kept = payload.cards.length;
@@ -67,7 +81,7 @@ export function CardStrip({ markdown, title, themeId, onThemeChange, maxCards }:
               className="pointer-events-none origin-top-left border-0"
               style={{ width: CARD_W, height: CARD_H, transform: `scale(${scale})` }}
               srcDoc={renderSocialCardHtml(card, { themeId, cardIndex: i, totalCards: kept, aspectRatio: '3:4', math: cardMath })}
-              onLoad={(e) => fitThumbMath(e.currentTarget)}
+              onLoad={(e) => fitThumb(e.currentTarget)}
             />
           </div>
         ))}

@@ -168,3 +168,34 @@ var loginConf = { content: "使用账号登录", redirect_url: "/cgi-bin/home" }
   assert.equal(await hasSessionAuthCookies(staleSession, 'weixin'), true, 'cookie 还在，所以只看 cookie 会误判');
   assert.equal(await verifyPlatformAuth({ session: staleSession, platformId: 'weixin', getAppConfig: dummyConfig }), false);
 });
+
+test('verifyPlatformAuth weixin: 微信后台响应超过 5 秒时不会被内部 5s 超时误判为未登录', async () => {
+  const homePage = `<script>window.wx = { data: { uin: "123", t: "987654321", lang: "zh_CN" } };</script>`;
+  const slowWeixinSession = {
+    fromPartition() {
+      return {
+        cookies: {
+          async get() {
+            return [
+              { name: 'slave_user', value: 'gh_ok', domain: 'mp.weixin.qq.com' },
+              { name: 'slave_sid', value: 'ok_sid', domain: 'mp.weixin.qq.com' },
+            ];
+          },
+        },
+        async fetch() {
+          await new Promise((r) => setTimeout(r, 5100));
+          return {
+            ok: true,
+            status: 200,
+            url: 'https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=987654321',
+            headers: new Headers(),
+            text: async () => homePage,
+            json: async () => ({}),
+          };
+        },
+      };
+    },
+  } as unknown as typeof Electron.session;
+
+  assert.equal(await verifyPlatformAuth({ session: slowWeixinSession, platformId: 'weixin', getAppConfig: dummyConfig }), true);
+});

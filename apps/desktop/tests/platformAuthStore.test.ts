@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   __resetPlatformAuthForTests,
   getPlatformAuthSnapshot,
+  markPlatformAuthStatuses,
   refreshPlatformAuth,
   statusOf,
   subscribePlatformAuth,
@@ -84,4 +85,37 @@ test('从未登录变为已登录：刷新结果覆盖旧值', async () => {
   await b;
   assert.equal(statusOf('juejin'), 'signedIn');
   assert.equal(main.invokes(), 2);
+});
+
+test('markPlatformAuthStatuses：单平台登录/登出只更新自身，不重置其他平台为 checking（无闪烁）', async () => {
+  __resetPlatformAuthForTests();
+  const main = fakeMain();
+  const first = refreshPlatformAuth();
+  main.finish({ weixin: false, zhihu: true, juejin: false });
+  await first;
+
+  markPlatformAuthStatuses({ weixin: true });
+  assert.equal(statusOf('weixin'), 'signedIn');
+  assert.equal(statusOf('zhihu'), 'signedIn');
+  assert.equal(statusOf('juejin'), 'signedOut');
+});
+
+test('force 刷新：上一轮未结束时仍强制开新一轮，且旧轮次晚返回不会覆盖新结果', async () => {
+  __resetPlatformAuthForTests();
+  const resolvers: Array<(s: States) => void> = [];
+  (globalThis as unknown as { window: unknown }).window = {
+    electronAPI: {
+      getPlatformAuthStates: () => new Promise<States>((r) => resolvers.push(r)),
+      onPlatformAuthUpdated: () => () => {},
+    },
+  };
+  const first = refreshPlatformAuth();
+  const forced = refreshPlatformAuth({ force: true });
+  assert.equal(resolvers.length, 2, 'force=true 时不复用进行中的旧检测');
+  resolvers[1]({ weixin: true });
+  await forced;
+  assert.equal(statusOf('weixin'), 'signedIn');
+  resolvers[0]({ weixin: false });
+  await first;
+  assert.equal(statusOf('weixin'), 'signedIn', '旧轮次迟到结果不能把已登录覆盖回未登录');
 });

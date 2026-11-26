@@ -100,7 +100,7 @@ test.describe('卡片里的长公式', () => {
   for (const theme of ['apple-light', 'bloom-ink-dark']) {
     test(`缩略图：长公式换行、宽矩阵缩小，不超出卡片（${theme}）`, async ({ page }, testInfo) => {
       await openWithMarkdown(page, MD, theme);
-      const thumb = page.locator('iframe[title="卡片 2"]');
+      const thumb = page.locator('iframe[title="卡片 1"]');
       await expect(thumb).toBeVisible();
       const frame = (await (await thumb.elementHandle())!.contentFrame())!;
       await expect.poll(() => frame.evaluate(() => document.querySelectorAll('.katex-display').length)).toBe(3);

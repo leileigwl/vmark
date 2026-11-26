@@ -8,7 +8,8 @@
 2. **技术架构与模块岛规范**：[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 3. **单窗口极简日常操作**：[`docs/OPERATOR_PLAYBOOK.md`](docs/OPERATOR_PLAYBOOK.md)
 4. **当前进度快照（覆盖写）**：[`docs/session-handoff.md`](docs/session-handoff.md)
-5. **变更需求与规格契约**：`openspec/specs/`（已落地基线）与 `openspec/changes/`（进行中变更）
+5. **发版（tag / 打包 / 回滚）**：[`docs/RELEASE.md`](docs/RELEASE.md)。AI 不手动打正式版 tag、不改 Release；版本号由合并 master 后的 `release-plan.mjs` 自动算
+6. **变更需求与规格契约**：`openspec/specs/`（已落地基线）与 `openspec/changes/`（进行中变更）
 
 ## 2. 机械门禁与核心命令（必须遵守，不靠自觉）
 

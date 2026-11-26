@@ -186,3 +186,21 @@ test('WeixinAdapter push: 接口返回 base_resp.ret≠0（如 200003 invalid se
     /invalid session/
   );
 });
+
+test('WeixinAdapter checkAuth: 重定向到 /cgi-bin/home?...token=... 时单次请求直接提取 token 并判定已登录', async () => {
+  const calls: string[] = [];
+  const mockFetch: FetchLike = async (url) => {
+    calls.push(url);
+    return {
+      ok: true,
+      status: 200,
+      url: 'https://mp.weixin.qq.com/cgi-bin/home?t=home/index&lang=zh_CN&token=987654321',
+      text: async () => 'window.wx = { cgiData: { t: "987654321" }, nick_name: "TestMP" };',
+      json: async () => ({}),
+    };
+  };
+  const adapter = new WeixinAdapter(mockFetch);
+  assert.equal(await adapter.checkAuth(), true);
+  assert.equal(adapter.getAuthMeta()?.token, '987654321');
+  assert.equal(calls.length, 1);
+});

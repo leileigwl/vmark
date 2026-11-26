@@ -2,6 +2,7 @@ import {
   CARD_TYPE_SCALE,
   estimateCardBlockHeight,
   fitCardDisplayMath,
+  fitCardOverflow,
   getCardContentBox,
   getSocialCardTheme,
   renderCardMeasureHtml,
@@ -69,12 +70,7 @@ const FINALIZE = `(async () => {
   await ${WAIT_READY};
   document.querySelectorAll('img').forEach((img) => { if (!img.naturalWidth) img.closest('figure')?.remove(); });
   ${FIT_MATH};
-  const box = document.querySelector('.box');
-  const inner = box && box.firstElementChild;
-  if (!box || !inner) return 1;
-  const over = inner.scrollHeight / box.clientHeight;
-  if (over > 1.002) inner.style.zoom = String(1 / over);
-  return over;
+  return (${fitCardOverflow.toString()})(document);
 })()`;
 
 /**
@@ -100,6 +96,7 @@ export async function renderCardDeck(
       themeId,
       // 不传时核心库按小红书 18 张截断，抖音等上限更高的平台会被误截。
       maxCards: Math.max(0, maxCards),
+      includeCover: false,
       measure: (b) => {
         const key = JSON.stringify(b);
         const known = heights.get(key);

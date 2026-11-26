@@ -5,12 +5,17 @@
  * 用户点「刷新」（fresh）时不复用正在跑的那一轮——它可能在用户刚登录之前就开始了，
  * 会把旧结果当新结果；此时开新一轮，旧一轮通过 isLatest() 得知自己已过期、不再广播。
  */
+export type SharedCheck<T> = ((opts?: { fresh?: boolean }) => Promise<T>) & {
+  /** 使当前进行中的检测轮次失效（登录/登出后调用，防止旧心跳回写覆盖新状态）。 */
+  invalidate: () => void;
+};
+
 export function createSharedCheck<T>(
   run: (ctx: { isLatest: () => boolean }) => Promise<T>
-): (opts?: { fresh?: boolean }) => Promise<T> {
+): SharedCheck<T> {
   let inflight: Promise<T> | null = null;
   let generation = 0;
-  return (opts) => {
+  const check = ((opts?: { fresh?: boolean }) => {
     if (inflight && !opts?.fresh) return inflight;
     const mine = ++generation;
     const p = run({ isLatest: () => mine === generation }).finally(() => {
@@ -18,11 +23,16 @@ export function createSharedCheck<T>(
     });
     inflight = p;
     return p;
+  }) as SharedCheck<T>;
+  check.invalidate = () => {
+    generation += 1;
+    inflight = null;
   };
+  return check;
 }
 
-/** 单个平台的检测上限：超时的平台记为 timedOut，不拖住其他平台。 */
-export const PER_PLATFORM_TIMEOUT_MS = 8_000;
+/** 单个平台的检测上限：超时的平台记为 timedOut，不拖住其他平台（给公众号等双跳检测留足 15s）。 */
+export const PER_PLATFORM_TIMEOUT_MS = 15_000;
 
 /**
  * 并发检测每个平台，每个平台独立超时；某个平台一出结果就调用 onResult（界面立即更新），

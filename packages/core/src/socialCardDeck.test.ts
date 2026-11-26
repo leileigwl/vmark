@@ -22,8 +22,16 @@ describe('xiaohongshu deck flows content across cards', () => {
       assert.notEqual(blocks[blocks.length - 1]?.block.kind, 'heading');
     });
   });
-});
 
+  it('omits the auto-generated cover card and keeps lead quote when includeCover is false', () => {
+    const md = `# 文章标题\n\n> 开篇引言不能丢\n\n正文第一段内容。`;
+    const deck = renderXiaohongshuCards(md, { fallbackTitle: '文章标题', includeCover: false });
+    assert.ok(deck.cards.length >= 1);
+    assert.equal(deck.cards[0].type, 'content');
+    assert.ok(deck.cards.every((c) => c.type !== 'cover'));
+    assert.ok(deck.cards[0].bodyLines.some((l) => l.includes('开篇引言不能丢')));
+  });
+});
 
 describe('caption excludes table text', () => {
   it('xiaohongshu caption skips table cells and code', () => {
