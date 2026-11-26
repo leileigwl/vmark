@@ -36,6 +36,7 @@ test('每个草稿平台都有列表页兜底；有 id 的平台编辑页模板�
   assert.equal(DRAFT_LINKS.csdn?.edit?.('9'), 'https://editor.csdn.net/md?articleId=9');
   assert.equal(DRAFT_LINKS.zhihu?.edit?.('9'), 'https://zhuanlan.zhihu.com/p/9/edit');
   assert.equal(DRAFT_LINKS.cnblogs?.edit?.('9'), 'https://i.cnblogs.com/posts/edit;postId=9');
+  assert.equal(DRAFT_LINKS.douyin?.list, 'https://creator.douyin.com/creator-micro/content/upload?default-tab=3');
 });
 
 test('推送后回查草稿：查不到时不算假成功，提示可能有延迟；回查超时同样处理', async () => {

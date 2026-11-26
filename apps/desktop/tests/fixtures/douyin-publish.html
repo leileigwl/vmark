@@ -4,27 +4,63 @@
 <div class="tabs"><div class="tab-item">发布视频</div><div class="tab-item" id="tab-image">发布图文</div></div>
 <div class="container-abc" id="upload" style="display:none"><input type="file" accept="image/png,image/jpeg,image/webp" multiple></div>
 <div id="editor" style="display:none">
-  <div class="img-list-x"></div>
+  <div class="cards-wrap"></div>
   <input placeholder="填写作品标题，为作品获得更多流量">
-  <div class="zone-container editor-kit-container" contenteditable="true"><div><br></div></div>
+  <div class="zone-container editor-kit-container" data-slate-editor="true" contenteditable="true"><div class="ace-line"><br></div></div>
   <button id="save">暂存离开</button>
 </div>
+<div id="save-toast" style="display:none"></div>
 <script>
   window.__saved = null;
-  const list = document.querySelector('.img-list-x');
+  const list = document.querySelector('.cards-wrap');
+  const editor = document.querySelector('.zone-container');
+  let pastedOk = false;
+  // 模拟真实抖音 Slate 编辑器：execCommand('insertParagraph') 后模型只保留首行，必须通过 paste 传入多行 text/plain 并异步渲染
+  editor.addEventListener('input', () => {
+    if (pastedOk) return;
+    const firstLine = (editor.innerText || '').split('\n')[0] || '';
+    editor.innerHTML = `<div class="ace-line"><span>${firstLine}</span></div>`;
+  });
+  editor.addEventListener('paste', (e) => {
+    const text = e.clipboardData?.getData('text/plain');
+    if (typeof text !== 'string') return;
+    e.preventDefault();
+    pastedOk = true;
+    editor.innerHTML = '<div class="ace-line"><br></div>';
+    setTimeout(() => {
+      editor.innerHTML = text
+        .split('\n')
+        .map((line) => `<div class="ace-line"><span>${line || '\u200b'}</span></div>`)
+        .join('');
+    }, 80);
+  });
   document.getElementById('tab-image').onclick = () => { document.getElementById('upload').style.display = 'block'; };
   document.querySelector('#upload input').addEventListener('change', (e) => {
     document.getElementById('editor').style.display = 'block';
     [...e.target.files].forEach((f, i) => setTimeout(() => {
-      const d = document.createElement('div'); d.className = 'img-container-1'; const img = document.createElement('img'); img.alt = f.name; d.appendChild(img); list.appendChild(d);
-    }, 100 * (i + 1)));
+      const wrap = document.createElement('div');
+      wrap.className = 'container-raAAWv';
+      const inner = document.createElement('div');
+      inner.className = 'img-Sb1Kaq';
+      const img = document.createElement('img');
+      img.alt = f.name;
+      inner.appendChild(img);
+      wrap.appendChild(inner);
+      list.appendChild(wrap);
+    }, 80 * (i + 1)));
   });
   document.getElementById('save').onclick = () => {
+    const rawBody = editor.innerText.replace(/\u200b/g, '');
     window.__saved = {
       title: document.querySelector('input[placeholder*="作品标题"]').value,
-      body: document.querySelector('.zone-container').innerText,
-      thumbs: [...document.querySelectorAll('[class*="img-container"] img')].map((i) => i.alt),
+      body: rawBody,
+      lines: rawBody.split('\n').filter((l) => l.trim()).length,
+      thumbs: [...document.querySelectorAll('[class^="container-"] [class^="img-"] > img')].map((i) => i.alt),
     };
+    document.getElementById('editor').style.display = 'none';
+    const toast = document.getElementById('save-toast');
+    toast.textContent = '已暂存';
+    toast.style.display = 'block';
   };
 </script>
 </body></html>

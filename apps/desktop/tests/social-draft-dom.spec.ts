@@ -49,17 +49,77 @@ test.describe('小红书/抖音图文草稿（离线夹具）', () => {
     expect(saved.lines as number).toBeGreaterThanOrEqual(5); // 按行成段，没有挤成一段
   });
 
-  test('抖音：点「发布图文」，多选 input 一次传完 5 张并等待全部缩略图', async ({ page }) => {
+  test('抖音：点「发布图文」，多选 input 一次传完并等待真实 DOM 缩略图，Slate 多段正文与标签完整保留', async ({ page }) => {
     await page.setContent(fixture('douyin-publish.html'));
-    const files = makeImages(5);
+    const files = makeImages(4);
     const d = driver(page);
     const res = await runSocialDraftFlow(d, DOUYIN_DRAFT_SPEC, { files, title: '标题', body: BODY, tags: ['效率'] });
     const saved = await page.evaluate(() => (window as unknown as { __saved: Record<string, unknown> }).__saved);
-    expect(d.uploads).toEqual([5]);
-    expect(res.uploaded).toBe(5);
-    expect(saved.thumbs).toHaveLength(5);
+    expect(d.uploads).toEqual([4]);
+    expect(res.uploaded).toBe(4);
+    expect(res.warnings).toEqual([]);
+    expect(saved.thumbs).toHaveLength(4);
+    expect(saved.body).toContain('很多独立开发者把精力放在写代码上。');
+    expect(saved.body).toContain('💡 技巧：优质内容');
     expect(saved.body).toContain('1. 单点源头创作');
+    expect(saved.body).toContain('#效率');
+    expect(saved.lines as number).toBeGreaterThanOrEqual(5);
     expect(saved.body).not.toMatch(/[>`]|\[!/);
+  });
+
+  test('小红书：首次点「暂存离开」被忽略时自动重试，确认出现保存成功后再结束', async ({ page }) => {
+    await page.setContent(fixture('xhs-publish.html'));
+    await page.evaluate(() => {
+      (window as unknown as { __ignoreSaveClicks: number }).__ignoreSaveClicks = 1;
+    });
+    const res = await runSocialDraftFlow(driver(page), XHS_DRAFT_SPEC, { files: makeImages(2), title: '重试测试', body: BODY, tags: ['Vmark'] });
+    const stats = await page.evaluate(() => ({
+      attempts: (window as unknown as { __saveAttemptCount: number }).__saveAttemptCount,
+      saved: (window as unknown as { __saved: Record<string, unknown> | null }).__saved,
+    }));
+    expect(res.warnings).toEqual([]);
+    expect(stats.attempts).toBeGreaterThanOrEqual(2);
+    expect(stats.saved).not.toBeNull();
+  });
+
+  test('小红书：点「暂存离开」后超时仍未确认保存成功时报错而不是返回假成功', async ({ page }) => {
+    await page.setContent(fixture('xhs-publish.html'));
+    await page.evaluate(() => {
+      (window as unknown as { __neverSave: boolean }).__neverSave = true;
+    });
+    const err = await runSocialDraftFlow(driver(page), XHS_DRAFT_SPEC, {
+      files: makeImages(2),
+      title: '超时测试',
+      body: BODY,
+      saveConfirmTimeoutMs: 700,
+    } as Parameters<typeof runSocialDraftFlow>[2]).catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toContain('未检测到保存成功');
+  });
+
+  test('抖音真实 DOM 选择器与草稿入口配置校验', () => {
+    expect(DOUYIN_DRAFT_SPEC.thumbnails).toContain('[class^="container-"] [class^="img-"] > img');
+    expect(DOUYIN_DRAFT_SPEC.thumbnails).toContain('div[class^="img-"] > img');
+  });
+
+  test('小红书：正文含 #话题 触发联想浮层时，存草稿前必须先关闭浮层再保存', async ({ page }) => {
+    await page.setContent(fixture('xhs-publish.html'));
+    const res = await runSocialDraftFlow(driver(page), XHS_DRAFT_SPEC, {
+      files: makeImages(2),
+      title: '浮层遮挡测试',
+      body: BODY,
+      tags: ['Vmark'],
+      saveConfirmTimeoutMs: 700,
+    });
+    const state = await page.evaluate(() => ({
+      popoverOpen: (window as unknown as { __popoverOpen: boolean }).__popoverOpen,
+      blockedByPopover: (window as unknown as { __blockedByPopover: boolean }).__blockedByPopover,
+      saved: (window as unknown as { __saved: Record<string, unknown> | null }).__saved,
+    }));
+    expect(res.warnings).toEqual([]);
+    expect(state.popoverOpen).toBe(false);
+    expect(state.blockedByPopover).toBe(false);
+    expect(state.saved?.body).toContain('#Vmark');
   });
 
   test('找不到上传区域时报错列出尝试过的全部选择器', async ({ page }) => {
