@@ -11,7 +11,7 @@
 **`V` (Verified) + `Mark` (Markdown): A 100% Local-First desktop Markdown note-taking editor and multi-platform publishing workbench. Open any local folder for focused writing with instant rendering, live outlines, Mermaid diagrams, KaTeX math, and 24 Bloom themes — then migrate images and dispatch formatted drafts to 10+ platforms in one click.**
 
 [![License: AGPL-3.0 / Commercial](https://img.shields.io/badge/License-AGPL--3.0%20%2F%20Commercial-1c1917.svg)](LICENSE)
-[![Platform: macOS | Windows | Linux](https://img.shields.io/badge/OS-macOS%20%7C%20Windows%20%7C%20Linux-3b7cc4.svg)](https://github.com/leileigwl/vmark/releases/latest)
+[![Platform: macOS Primary | Win & Linux Experimental](https://img.shields.io/badge/OS-macOS%20(Primary)%20%7C%20Windows%20%C2%B7%20Linux%20(Experimental)-3b7cc4.svg)](https://github.com/leileigwl/vmark/releases/latest)
 [![Local-First](https://img.shields.io/badge/Storage-100%25%20Local--First-2ea44f.svg)](#-why-vmark-for-note-taking)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Monorepo-3178C6.svg)](#-architecture--monorepo-layout)
 
@@ -47,10 +47,10 @@
 
 First and foremost, Vmark is a **quiet, offline-capable, Local-First desktop Markdown note and document editor** where you keep complete ownership of your files:
 
-- **📂 Folder as Workspace (100% Local-First)**: No mandatory account registration and no proprietary database lock-in. Open any local directory to start writing clean `.md` files. Pasted images are saved automatically under `./assets/` with relative paths — 100% usable offline and naturally friendly to Git, iCloud Drive, or any sync folder.
-- **✍️ Instant Rendering (IR) & Refined Editing**: Type Markdown naturally with intuitive **`Tab` / `Shift+Tab` table cell navigation & nested list indentation**, plus smooth cross-block selection. A collapsible left sidebar unifies your **file tree, live heading outline, and full-text search**, alongside word counts and **built-in release update notifications**.
+- **📂 Folder as Workspace (100% Local-First)**: No mandatory account registration and no proprietary database lock-in. Open or switch local directories anytime, create blank notes on the fly, batch-delete files, and reveal files in your OS file manager (Finder, etc.). Pasted images are saved automatically under `./assets/` with relative paths — 100% usable offline and naturally friendly to Git or sync folders.
+- **✍️ Instant Rendering (IR), Read-Only Mode & Keyboard Polish**: Switch seamlessly between **Edit Mode** and **Read-Only Mode** (click any image in read-only view to **zoom in, zoom out, or reset**). While writing, trigger quick blocks with the **`/` slash command menu**, jump between table cells or indent lists with **`Tab` / `Shift+Tab`**, navigate via the clickable **outline & full-text search**, and check word counts or built-in release updates in the top bar.
 - **📐 Built for Technical & Structured Thinking**: Native inline rendering for **Mermaid flowcharts & sequence diagrams**, **KaTeX math expressions**, GFM tables, syntax-highlighted code blocks, and `[!NOTE]` / `[!TIP]` callout blocks.
-- **🎨 24 Bloom Themes + Custom CSS**: Includes 24 curated light and dark themes out of the box, plus one-click custom CSS stylesheet import — even the built-in login bar adapts live to your selected app theme.
+- **🎨 24 Bloom Light/Dark Themes + Custom CSS**: Includes 24 curated light and dark themes (inspired by great community visual designs and refined inside Vmark), plus one-click custom `.css` stylesheet import — even the built-in login toolbar updates live when you switch light/dark themes.
 - **🗂️ Local Article Manager & Reverse Import**: Inspect word counts, local image counts, and timestamps across your workspace, or pull existing drafts from connected platforms back into clean local `.md` + `./assets/` with zero ongoing cloud coupling.
 
 <div align="center">
@@ -65,16 +65,16 @@ First and foremost, Vmark is a **quiet, offline-capable, Local-First desktop Mar
 
 When a note is ready to share publicly, Vmark removes the friction of manual image uploads and broken web-editor formatting:
 
-1. **Platform-Native AST Compilation**:
-   - **WeChat Official Account**: Converts Markdown into pure inline styles with token-level syntax highlighting, a clean window header bar, and automatic footnote extraction for external links.
-   - **Zhihu Column**: Normalizes heading levels, generates Prism-compatible code blocks, and wraps images in clean `<figure>` tags.
-   - **Juejin / CSDN / Baijiahao / Bilibili**: Handles platform-specific Frontmatter, request signing, and summary constraints.
-2. **Anti-Hotlink Image Pipeline & Multi-Ratio Cover Focal Cropper**:
-   - Smart focal-point cropping across **16:9 common covers, 2.35:1 WeChat banners, 1:1 share thumbnails, and 3:4 social cards**. Resolves local `./assets/` and cross-origin images in memory at publish time without mutating local `.md` files.
-3. **Isolated Local Sessions, Unified Login Bar & Draft-First Safety**:
-   - Every platform session runs in its own isolated local partition with OS-level credential protection and a unified theme-synced login toolbar. Most platforms default to **pushing into your Draft Box** so you keep final editorial control.
-4. **3:4 Visual Card Engine**:
-   - Automatically paginates long-form notes into crisp **1080×1440** cover, content, and frosted dark code cards for Xiaohongshu, Douyin, and social feeds.
+1. **Select All Ready, Shared Metadata Once, Platform Options Kept Separate**:
+   - Automatically checks login status and missing required fields across all 10 platforms, with one-click **"Select All Ready"** — missing fields on one platform never block the others;
+   - Enter shared fields (**title, summary, tags**) once and reuse them everywhere, while keeping platform-specific settings (WeChat standalone cover, Juejin category, Xiaohongshu/Douyin 3:4 cards) cleanly separated; dispatch to all draft boxes at once or target a single platform.
+2. **Platform-Native Compilation & Anti-Hotlink Image Pipeline**:
+   - Compiles Markdown cleanly per platform (WeChat inline styles & external-link footnotes, Zhihu heading levels & `<figure>` blocks, Juejin/CSDN/Cnblogs GFM Markdown & Frontmatter, Baijiahao/Weibo/Bilibili formatting);
+   - Supports smart focal cropping across **16:9, 2.35:1, 1:1, and 3:4** ratios and re-hosts local `./assets/` and remote images in memory during dispatch without altering local `.md` files.
+3. **Isolated Local Sessions, Theme-Synced Login Bar & Draft-First Safety**:
+   - Every platform runs in its own persistent sandboxed partition with OS-level credential protection and zero third-party relay servers; the built-in login bar tracks your app theme and automatically refreshes auth status when you log in or close the window. All content platforms default to **saving into your Draft Box** so you review before publishing.
+4. **3:4 Visual Card Engine (Community Attribution)**:
+   - Converts long-form notes into crisp **1080×1440** editorial, memo, sticky-note, and dark frosted code cards tailored for Xiaohongshu and Douyin (paginating directly from your content without extra auto-generated title covers). Card templates build upon and integrate design patterns inspired by open-source social card projects — grateful acknowledgement to those community authors.
 
 <div align="center">
 
@@ -88,9 +88,9 @@ When a note is ready to share publicly, Vmark removes the friction of manual ima
 
 | Dispatch Mode | Platforms | Mechanism |
 | :--- | :--- | :--- |
-| **Draft-First (Recommended)** | **WeChat Official Account**, **Zhihu**, **Juejin**, **CSDN**, **Baijiahao**, **Bilibili**, **Xiaohongshu**, **Douyin**, **Weibo** | Re-hosts images + compiles platform-native markup directly into your draft box with link verification |
-| **Static Blogs & Direct** | **GitHub Static Blogs** (Hexo / Hugo / VitePress / Astro), **Cnblogs** | One-click Git push for CI/CD or direct publishing with live URL check |
-| **3:4 Visual Card Export** | **Xiaohongshu**, **Douyin**, **Social Carousel** | Offline high-DPI rasterization across multiple editorial & code card themes |
+| **Draft-First (Recommended)** | **WeChat Official Account**, **Zhihu**, **Juejin**, **CSDN**, **Cnblogs**, **Baijiahao**, **Weibo**, **Bilibili**, **Xiaohongshu**, **Douyin** | Re-hosts images + compiles platform-native markup directly into each platform's Draft Box with verification |
+| **Static Blogs Direct Push** | **GitHub Static Blogs** (Hexo / Hugo / VitePress / Astro) | One-click Git push for CI/CD static site workflows |
+| **3:4 Visual Card Export** | **Xiaohongshu**, **Douyin**, **Social Carousel** | Offline high-DPI rasterization across multiple memo / editorial / code card themes |
 
 ---
 
@@ -98,13 +98,19 @@ When a note is ready to share publicly, Vmark removes the friction of manual ima
 
 ### Desktop Installers
 
-Download the installer for your OS from [GitHub Releases](https://github.com/leileigwl/vmark/releases/latest):
+Download the installer for your OS from [GitHub Releases](https://github.com/leileigwl/vmark/releases/latest). **macOS is currently the primary recommended platform** (verified end-to-end on real hardware across the editor and all 10 draft-box workflows). Windows and Linux builds are generated via CI as experimental releases for early testing and will receive deeper adaptation in upcoming iterations:
 
-| OS | Format | Notes |
-| :--- | :--- | :--- |
-| **macOS** (Apple Silicon / Intel) | `.dmg` / `.zip` | Drag into `Applications`; if Gatekeeper warns on unsigned builds, allow via System Settings → Privacy & Security |
-| **Windows** (x64) | `.exe` | Standard installer; credentials protected via Windows DPAPI (`safeStorage`) |
-| **Linux** (Ubuntu / Debian) | `.AppImage` / `.deb` | Make `.AppImage` executable or install via `dpkg -i` |
+| OS | Support Tier | Format | Notes |
+| :--- | :--- | :--- | :--- |
+| **macOS** (Apple Silicon / Intel) | **Primary (End-to-End Verified)** | `.dmg` / `.zip` | Drag into `Applications`; for unsigned Gatekeeper warnings, allow via System Settings → Privacy & Security |
+| **Windows** (x64) | Experimental (Ongoing) | `.exe` | Credentials protected via Windows DPAPI (`safeStorage`); feedback welcome as cross-platform polish continues |
+| **Linux** (Ubuntu / Debian) | Experimental (Ongoing) | `.AppImage` / `.deb` | Make `.AppImage` executable or install via `dpkg -i` |
+
+### Roadmap
+
+- Deepen **Windows and Linux** testing and native ergonomics;
+- Expand **custom image-bed / asset hosting** integrations and refine file import/export edge cases;
+- Keep platform draft adapters & auth detection updated as creator portals evolve.
 
 ### Local Development
 
