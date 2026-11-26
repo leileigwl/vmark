@@ -237,7 +237,7 @@ test.describe('A 层：#120 缩进代码块临时 ~~~~ 围栏不外露', () => {
   test('代码块内整行删除（Shift+Home 选中后删除）：不露出 ~~~~，其余逐字节不变', async ({ page }) => {
     await open(page, { 'a.md': DOC });
     await caretAt(page, '第二行代码');
-    await page.keyboard.press('Shift+Home');
+    await page.keyboard.press(process.platform === 'darwin' ? 'Shift+Meta+ArrowLeft' : 'Shift+Home');
     await page.keyboard.press('Backspace');
     expect(await visibleText(page)).not.toContain('~~~');
     const after = (await saveAndRead(page)) ?? '';
