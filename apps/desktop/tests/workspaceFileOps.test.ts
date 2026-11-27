@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import {
   copyExternalItemsIntoWorkspace,
+  extractOpenTargetFromArgv,
   parseFileUriList,
   parseMacPlistFilePaths,
   parseWindowsFileNameW,
@@ -91,4 +92,24 @@ test('clipboard path parsers: macOS plist, text/uri-list, and Windows FileNameW'
 
   const winBuf = Buffer.from('C:\\Notes\\demo.md\0C:\\Notes\\two.md\0\0', 'utf16le');
   assert.deepEqual(parseWindowsFileNameW(winBuf), ['C:\\Notes\\demo.md', 'C:\\Notes\\two.md']);
+});
+
+test('extractOpenTargetFromArgv: skips flags, script paths, and app dir; extracts markdown file', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vmark-argv-'));
+  const appDir = path.join(root, 'app');
+  const mdFile = path.join(root, 'note.md');
+  await fs.mkdir(appDir, { recursive: true });
+  await fs.writeFile(mdFile, '# Note', 'utf-8');
+  try {
+    assert.equal(
+      extractOpenTargetFromArgv(['electron', '--no-sandbox', '.', 'out/main/index.js', appDir], appDir),
+      null
+    );
+    assert.equal(
+      extractOpenTargetFromArgv(['electron', '--no-sandbox', 'out/main/index.js', mdFile], appDir),
+      path.resolve(mdFile)
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });

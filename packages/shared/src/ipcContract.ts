@@ -9,6 +9,7 @@ export const IPC_INVOKE_CHANNELS = {
   showInFinder: 'workspace:showInFinder',
   openWorkspaceLink: 'workspace:openLink',
   openExternalFile: 'workspace:openExternalFile',
+  consumePendingExternalFile: 'workspace:consumePendingExternalFile',
   importExternalFiles: 'workspace:importExternalFiles',
   copyFilesToClipboard: 'workspace:copyFilesToClipboard',
   pasteClipboardFiles: 'workspace:pasteClipboardFiles',

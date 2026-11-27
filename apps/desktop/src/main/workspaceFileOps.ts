@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,6 +12,28 @@ let internalCopiedPaths: string[] = [];
 
 export function isMarkdownFile(filePath: string): boolean {
   return MARKDOWN_EXT_RE.test(filePath.trim());
+}
+
+/** Extracts a single openable markdown file or folder path from CLI/second-instance argv. */
+export function extractOpenTargetFromArgv(argv: string[], ignoreDir?: string): string | null {
+  const ignoredAbs = ignoreDir ? path.resolve(ignoreDir) : null;
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg || arg.startsWith('-') || arg === '.' || arg === '..') continue;
+    if (/\.(js|mjs|cjs|app)$/i.test(arg)) continue;
+    const resolved = path.resolve(arg);
+    if (ignoredAbs && resolved === ignoredAbs) continue;
+    if (!existsSync(resolved)) continue;
+    try {
+      const st = statSync(resolved);
+      if (st.isDirectory() || (st.isFile() && isMarkdownFile(resolved))) {
+        return resolved;
+      }
+    } catch {
+      // ignore unreadable path
+    }
+  }
+  return null;
 }
 
 function toPosixRel(rootDir: string, targetAbs: string): string {

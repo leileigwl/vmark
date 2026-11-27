@@ -99,6 +99,8 @@ const api: ElectronAPI = {
   },
   openExternalFile: (filePath?: string) =>
     ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openExternalFile, filePath),
+  consumePendingExternalFile: () =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.consumePendingExternalFile),
   importExternalFiles: (filePaths: string[], targetFolder?: string) =>
     ipcRenderer.invoke(IPC_INVOKE_CHANNELS.importExternalFiles, filePaths, targetFolder),
   copyFilesToClipboard: (relativePaths: string[]) =>

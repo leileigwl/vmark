@@ -59,12 +59,8 @@ function createWindow(): void {
 
   activeMainWindow = mainWindow;
   protectEditorWindow(mainWindow);
-  mainWindow.on('closed', () => {
-    if (activeMainWindow === mainWindow) activeMainWindow = null;
-  });
-
+  mainWindow.on('closed', () => { openFileBridge.markRendererNotReady(); if (activeMainWindow === mainWindow) activeMainWindow = null; });
   mainWindow.on('ready-to-show', () => mainWindow.show());
-  mainWindow.webContents.on('did-finish-load', () => openFileBridge.flush(mainWindow));
   mainWindow.on('enter-full-screen', () => mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:fullscreen'));
   mainWindow.on('leave-full-screen', () => mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:unfullscreen'));
   mainWindow.on('focus', () => {
@@ -258,17 +254,23 @@ const ipcContext: MainIpcContext = {
   recordRecentWorkspace,
   resolveSafePath,
   onWorkspacePathChanged: (dir) => workspaceWatcher.watch(dir),
+  consumePendingExternalFile: () => openFileBridge.consumePending(),
 };
+
+function ensureMainWindow(): BrowserWindow | null {
+  if (!activeMainWindow || activeMainWindow.isDestroyed()) createWindow();
+  return activeMainWindow;
+}
 
 if (process.env.VMARK_USER_DATA_DIR) app.setPath('userData', process.env.VMARK_USER_DATA_DIR);
 
 const hasSingleInstanceLock = setupSingleInstanceLock(() => activeMainWindow, (argv) => {
-  const target = extractOpenTargetFromArgv(argv);
-  if (target) openFileBridge.queueOrSend(target, () => activeMainWindow);
+  const target = extractOpenTargetFromArgv(argv, app.getAppPath());
+  if (target) openFileBridge.queueOrSend(target, ensureMainWindow);
 });
 
 if (hasSingleInstanceLock) {
-  registerOpenFileAppEvents(openFileBridge, () => activeMainWindow);
+  registerOpenFileAppEvents(openFileBridge, ensureMainWindow);
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.vmark.desktop');
     app.userAgentFallback = CHROME_DESKTOP_UA;

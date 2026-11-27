@@ -336,6 +336,7 @@ export interface ElectronAPI {
   openAppUpdateRelease?: () => Promise<boolean>;
   onAppUpdateState?: (callback: (state: AppUpdateState) => void) => () => void;
   openExternalFile?: (filePath?: string) => Promise<OpenExternalFileResult | null>;
+  consumePendingExternalFile?: () => Promise<string | null>;
   importExternalFiles?: (filePaths: string[], targetFolder?: string) => Promise<ImportExternalFilesResult>;
   copyFilesToClipboard?: (relativePaths: string[]) => Promise<boolean>;
   pasteClipboardFiles?: (targetFolder?: string) => Promise<ImportExternalFilesResult>;

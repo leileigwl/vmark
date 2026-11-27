@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { ArticleMeta, GitStatusInfo, StartupConfig } from '@vcat/shared';
+import type { ArticleMeta, GitStatusInfo, ImageBedConfig, StartupConfig } from '@vcat/shared';
 
 const IMAGE_FILE_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
 const MARKDOWN_FILE_RE = /\.(md|markdown)$/i;
@@ -83,16 +83,21 @@ export function useExternalWorkspaceOps(deps: {
   activeArticle: ArticleMeta | null;
   openArticle: (meta: ArticleMeta, cfgOverride?: StartupConfig, searchKeyword?: string, force?: boolean) => Promise<void>;
   flushActiveArticle: () => Promise<void>;
+  refreshWorkspace: () => Promise<void>;
   setWorkspacePath: (p: string | null) => void;
   setRecentWorkspaces: (r: string[]) => void;
   setArticles: (a: ArticleMeta[]) => void;
   setFolders: (f: string[]) => void;
   setGitStatus: (g: GitStatusInfo) => void;
+  setImageBed: (cfg: ImageBedConfig) => void;
+  setStartupConfig: (cfg: StartupConfig) => void;
   setActiveArticle: (a: ArticleMeta | null) => void;
   setMarkdown: (md: string) => void;
   setActiveViewEditor: () => void;
   showToast: (errOrMsg: unknown) => void;
 }) {
+  const depsRef = useRef(deps);
+  depsRef.current = deps;
   const activeArticleRef = useRef(deps.activeArticle);
   activeArticleRef.current = deps.activeArticle;
   const openArticleRef = useRef(deps.openArticle);
@@ -209,6 +214,22 @@ export function useExternalWorkspaceOps(deps: {
   useWindowFileDrop((filePath) => void openExternalRef.current(filePath));
 
   useEffect(() => {
+    void (async () => {
+      const pending = await window.electronAPI?.consumePendingExternalFile?.();
+      if (pending) {
+        await openExternalRef.current(pending);
+        if (window.electronAPI) {
+          const [imgCfg, startupCfg] = await Promise.all([
+            window.electronAPI.getImageBedConfig(),
+            window.electronAPI.getStartupConfig(),
+          ]);
+          depsRef.current.setImageBed(imgCfg);
+          depsRef.current.setStartupConfig(startupCfg);
+        }
+        return;
+      }
+      await depsRef.current.refreshWorkspace();
+    })();
     const unsubChanged = window.electronAPI?.onWorkspaceChanged?.(() => void refreshListsRef.current());
     const unsubOpen = window.electronAPI?.onOpenExternalFile?.((p) => void openExternalRef.current(p));
     return () => {

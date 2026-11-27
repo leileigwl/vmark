@@ -98,6 +98,10 @@ export function registerWorkspaceIpc(ctx: MainIpcContext): void {
     return resolved;
   });
 
+  ipcMain.handle(IPC_INVOKE_CHANNELS.consumePendingExternalFile, () => {
+    return ctx.consumePendingExternalFile?.() ?? null;
+  });
+
   ipcMain.handle(
     IPC_INVOKE_CHANNELS.importExternalFiles,
     async (_event, filePaths: string[], targetFolder?: string) => {

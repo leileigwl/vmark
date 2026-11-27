@@ -224,19 +224,18 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     }
   }
 
-  useEffect(() => {
-    void refreshWorkspace();
-  }, []);
-
   const { handleOpenExternalFile, sidebarFileActions } = useExternalWorkspaceOps({
     activeArticle,
     openArticle,
     flushActiveArticle,
+    refreshWorkspace,
     setWorkspacePath,
     setRecentWorkspaces,
     setArticles,
     setFolders,
     setGitStatus,
+    setImageBed,
+    setStartupConfig,
     setActiveArticle,
     setMarkdown,
     setActiveViewEditor,

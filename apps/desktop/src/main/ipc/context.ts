@@ -100,4 +100,5 @@ export interface MainIpcContext {
   recordRecentWorkspace: (cfg: AppConfig, dirPath: string) => void;
   resolveSafePath: (workspaceRoot: string, relativePath: string) => string;
   onWorkspacePathChanged?: (dir: string | null) => void;
+  consumePendingExternalFile?: () => string | null;
 }

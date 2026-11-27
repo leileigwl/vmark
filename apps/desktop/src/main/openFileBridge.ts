@@ -1,58 +1,51 @@
 import { app, type BrowserWindow } from 'electron';
-import { existsSync, statSync } from 'node:fs';
-import path from 'node:path';
 import { IPC_EVENT_CHANNELS } from '@vcat/shared';
-import { isMarkdownFile } from './workspaceFileOps';
+import { extractOpenTargetFromArgv } from './workspaceFileOps';
 
-/** Extracts a single openable markdown file or folder path from CLI/second-instance argv. */
-export function extractOpenTargetFromArgv(argv: string[]): string | null {
-  for (let i = 1; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg || arg.startsWith('-')) continue;
-    // Skip electron/app binary or script entry paths passed during dev startup.
-    if (arg.endsWith('.js') || arg.endsWith('.mjs') || arg.endsWith('.cjs') || arg.endsWith('.app')) continue;
-    const resolved = path.resolve(arg);
-    if (!existsSync(resolved)) continue;
-    try {
-      const st = statSync(resolved);
-      if (st.isDirectory() || (st.isFile() && isMarkdownFile(resolved))) {
-        return resolved;
-      }
-    } catch {
-      // ignore unreadable path
-    }
-  }
-  return null;
-}
+export { extractOpenTargetFromArgv };
 
 export interface OpenFileBridge {
-  queueOrSend: (filePath: string, getWin: () => BrowserWindow | null) => void;
-  flush: (win: BrowserWindow | null) => void;
+  queueOrSend: (filePath: string, ensureWin: () => BrowserWindow | null) => void;
+  consumePending: () => string | null;
+  markRendererNotReady: () => void;
 }
 
-/** Buffers external open-file requests until the renderer finishes loading, then dispatches over IPC. */
+function focusWindow(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+}
+
+/**
+ * Coordinates external file opening across cold launch, warm start, and macOS Dock-closed
+ * window recreation: renderer pulls `consumePending()` on mount (no race with startup workspace
+ * restore), and warm `open-file` events push immediately once renderer is ready.
+ */
 export function createOpenFileBridge(): OpenFileBridge {
   let pendingPath: string | null = null;
-
-  const sendToWindow = (win: BrowserWindow | null, filePath: string): boolean => {
-    if (!win || win.isDestroyed() || win.webContents.isLoading()) return false;
-    win.webContents.send(IPC_EVENT_CHANNELS.onOpenExternalFile, filePath);
-    return true;
-  };
+  let rendererReady = false;
 
   return {
-    queueOrSend: (filePath: string, getWin: () => BrowserWindow | null) => {
-      if (!filePath) return;
-      const win = getWin();
-      if (!sendToWindow(win, filePath)) {
-        pendingPath = filePath;
-      }
+    markRendererNotReady: () => {
+      rendererReady = false;
     },
-    flush: (win: BrowserWindow | null) => {
-      if (!pendingPath) return;
-      if (sendToWindow(win, pendingPath)) {
-        pendingPath = null;
+    consumePending: () => {
+      rendererReady = true;
+      const next = pendingPath;
+      pendingPath = null;
+      return next;
+    },
+    queueOrSend: (filePath: string, ensureWin: () => BrowserWindow | null) => {
+      if (!filePath) return;
+      const win = ensureWin();
+      if (rendererReady && win && !win.isDestroyed() && !win.webContents.isLoading()) {
+        win.webContents.send(IPC_EVENT_CHANNELS.onOpenExternalFile, filePath);
+        focusWindow(win);
+        return;
       }
+      pendingPath = filePath;
+      focusWindow(win);
     },
   };
 }
@@ -60,19 +53,13 @@ export function createOpenFileBridge(): OpenFileBridge {
 /** Binds macOS `open-file` and initial process argv open-file events to `bridge`. */
 export function registerOpenFileAppEvents(
   bridge: OpenFileBridge,
-  getWin: () => BrowserWindow | null
+  ensureWin: () => BrowserWindow | null
 ): void {
-  const initialTarget = extractOpenTargetFromArgv(process.argv);
-  if (initialTarget) bridge.queueOrSend(initialTarget, getWin);
+  const initialTarget = extractOpenTargetFromArgv(process.argv, app.getAppPath());
+  if (initialTarget) bridge.queueOrSend(initialTarget, () => (app.isReady() ? ensureWin() : null));
 
   app.on('open-file', (event, filePath) => {
     event.preventDefault();
-    bridge.queueOrSend(filePath, getWin);
-    const win = getWin();
-    if (win && !win.isDestroyed()) {
-      if (win.isMinimized()) win.restore();
-      if (!win.isVisible()) win.show();
-      win.focus();
-    }
+    bridge.queueOrSend(filePath, () => (app.isReady() ? ensureWin() : null));
   });
 }
