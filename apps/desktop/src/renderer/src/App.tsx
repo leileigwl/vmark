@@ -74,6 +74,7 @@ export default function App() {
     openPublishModal: () => setPublishModalOpen(true),
     handleSaveArticle: ws.handleSaveArticle,
     handleSelectWorkspace: ws.handleSelectWorkspace,
+    handleOpenExternalFile: ws.handleOpenExternalFile,
     handleCreateBlankArticle: ws.handleCreateBlankArticle,
     openArticle: ws.openArticle,
     clearRecentArticles: ws.clearRecentArticles,
@@ -106,7 +107,6 @@ export default function App() {
           className="pointer-events-none fixed top-0 bottom-0 z-50 w-[2px] border-r border-dashed border-[#007aff] bg-[#007aff]/35 shadow-[0_0_8px_rgba(0,122,255,0.45)]"
         />
       )}
-
       {toastMsg && (
         <div
           onClick={() => {
@@ -124,7 +124,6 @@ export default function App() {
           {toastMsg}
         </div>
       )}
-
       <Sidebar
         open={sidebarOpen}
         width={sidebarWidth}
@@ -161,6 +160,7 @@ export default function App() {
         onSwitchRecentWorkspace={ws.switchRecentWorkspace}
         onRefreshWorkspace={ws.refreshWorkspace}
         onJumpOutline={ed.handleJumpOutline}
+        fileActions={ws.sidebarFileActions}
       />
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)]">

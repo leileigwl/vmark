@@ -7,17 +7,16 @@ const MD = `# ${TITLE25}\n\n正文第一段。\n\n![配图](./assets/demo.png)\n
 const setup = { md: MD, auth: { weixin: true, xiaohongshu: true, douyin: true }, selected: ['weixin', 'xiaohongshu', 'douyin'], saved: { title: TITLE25, tags: ['写作', '效率'], ownCovers: { weixin: { cover: 'assets/wx.png', focus: { x: 50, y: 50 } } } } };
 
 test.describe('通用内容只写一份：小红书 · 抖音不再单独填标题 / 正文 / 话题 / 封面', () => {
-  test('小红书 · 抖音块里只有卡片模板、预览和可选的单独封面入口，没有标题、正文、话题输入框', async ({ page }) => {
+  test('小红书 · 抖音块里只有卡片模板和预览，没有标题、正文、话题和单独封面输入框', async ({ page }) => {
     await openPublishWith(page, setup);
     const social = page.getByTestId('section-social');
     await social.getByRole('button', { expanded: false }).click();
     await expect(social.getByTestId('card-strip')).toBeVisible();
-    await expect(social.locator('input:not([type=file]), textarea')).toHaveCount(0);
+    await expect(social.locator('input, textarea')).toHaveCount(0);
     await expect(social.getByRole('button', { name: /上传封面/ })).toHaveCount(0);
-    // 封面比例 3:4 和通用封面不同：每个平台一个可选的「单独设置封面」入口（不填就用通用封面）
-    await expect(social.locator('input[type=file]')).toHaveCount(2);
-    for (const n of ['小红书', '抖音']) await expect(social.getByRole('button', { name: `为${n}单独设置封面` })).toBeVisible();
-    await expect(social).toContainText('有通用封面就插到卡片最前，没传就第一张卡片做封面');
+    await expect(social.getByTestId('own-cover-entries')).toHaveCount(0);
+    for (const n of ['小红书', '抖音']) await expect(social.getByRole('button', { name: `为${n}单独设置封面` })).toHaveCount(0);
+    await expect(social).toContainText('有通用封面就原图插到卡片最前（平台自带封面裁切），没传就第一张卡片做封面');
   });
 
   test('通用标题 25 字：「需要单独处理」提示小红书 / 抖音标题自动截取，推送的是前 20 字，话题用通用标签', async ({ page }) => {

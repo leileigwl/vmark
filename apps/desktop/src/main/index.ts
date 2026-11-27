@@ -10,6 +10,8 @@ import { registerAllIpcHandlers } from './ipc/registry';
 import { protectEditorWindow } from './editorSafety';
 import { checkInstallLocationOnStartup, configureAboutPanel, setupSingleInstanceLock } from './installGuard';
 import { acceleratorPayload } from './menuAccelerator';
+import { createOpenFileBridge, extractOpenTargetFromArgv, registerOpenFileAppEvents } from './openFileBridge';
+import { createWorkspaceWatcher } from './workspaceWatcher';
 
 export { CHROME_DESKTOP_UA };
 
@@ -25,6 +27,10 @@ function getAppIconPath(): string | undefined {
 
 let activeMainWindow: BrowserWindow | null = null;
 let currentRecentFiles: string[] = [];
+const openFileBridge = createOpenFileBridge();
+const workspaceWatcher = createWorkspaceWatcher(() => {
+  if (activeMainWindow && !activeMainWindow.isDestroyed()) activeMainWindow.webContents.send(IPC_EVENT_CHANNELS.onWorkspaceChanged);
+});
 
 function sendMenuAction(action: string, payload?: string): void {
   const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
@@ -53,23 +59,12 @@ function createWindow(): void {
 
   activeMainWindow = mainWindow;
   protectEditorWindow(mainWindow);
-  mainWindow.on('closed', () => {
-    if (activeMainWindow === mainWindow) activeMainWindow = null;
-  });
-
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
-  });
-
-  mainWindow.on('enter-full-screen', () => {
-    mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:fullscreen');
-  });
-
-  mainWindow.on('leave-full-screen', () => {
-    mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:unfullscreen');
-  });
-
+  mainWindow.on('closed', () => { openFileBridge.markRendererNotReady(); if (activeMainWindow === mainWindow) activeMainWindow = null; });
+  mainWindow.on('ready-to-show', () => mainWindow.show());
+  mainWindow.on('enter-full-screen', () => mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:fullscreen'));
+  mainWindow.on('leave-full-screen', () => mainWindow.webContents.send(IPC_EVENT_CHANNELS.onMenuAction, 'window:unfullscreen'));
   mainWindow.on('focus', () => {
+    mainWindow.webContents.send(IPC_EVENT_CHANNELS.onWorkspaceChanged);
     void checkAuthStatesOnce({ readAppConfig, getMainWindow: () => activeMainWindow }).catch((err) => console.warn('[platform-auth] 聚焦时检测失败', err));
   });
 
@@ -122,6 +117,7 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
         { label: '新建文章', accelerator: 'CmdOrCtrl+N', click: (_m, _w, e) => sendMenuAction('file:new', acceleratorPayload(e)) },
         { label: '新建窗口', accelerator: 'CmdOrCtrl+Shift+N', click: () => createWindow() },
         { type: 'separator' },
+        { label: '打开文件...', click: () => sendMenuAction('file:openFile') },
         { label: '打开本地工作区...', accelerator: 'CmdOrCtrl+O', click: () => sendMenuAction('file:openWorkspace') },
         { label: '快速打开...', accelerator: 'CmdOrCtrl+Shift+O', click: () => sendMenuAction('file:quickOpen') },
         { label: '打开最近文件', submenu: recentSubmenu },
@@ -257,15 +253,24 @@ const ipcContext: MainIpcContext = {
   writeAppConfig,
   recordRecentWorkspace,
   resolveSafePath,
+  onWorkspacePathChanged: (dir) => workspaceWatcher.watch(dir),
+  consumePendingExternalFile: () => openFileBridge.consumePending(),
 };
 
-if (process.env.VMARK_USER_DATA_DIR) {
-  app.setPath('userData', process.env.VMARK_USER_DATA_DIR);
+function ensureMainWindow(): BrowserWindow | null {
+  if (!activeMainWindow || activeMainWindow.isDestroyed()) createWindow();
+  return activeMainWindow;
 }
 
-const hasSingleInstanceLock = setupSingleInstanceLock(() => activeMainWindow);
+if (process.env.VMARK_USER_DATA_DIR) app.setPath('userData', process.env.VMARK_USER_DATA_DIR);
+
+const hasSingleInstanceLock = setupSingleInstanceLock(() => activeMainWindow, (argv) => {
+  const target = extractOpenTargetFromArgv(argv, app.getAppPath());
+  if (target) openFileBridge.queueOrSend(target, ensureMainWindow);
+});
 
 if (hasSingleInstanceLock) {
+  registerOpenFileAppEvents(openFileBridge, ensureMainWindow);
   app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.vmark.desktop');
     app.userAgentFallback = CHROME_DESKTOP_UA;
@@ -289,22 +294,20 @@ if (hasSingleInstanceLock) {
       }
     });
 
-    app.on('browser-window-created', (_, window) => {
-      optimizer.watchWindowShortcuts(window);
-    });
+    app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window));
 
     buildApplicationMenu();
     registerAllIpcHandlers(ipcContext);
     createWindow();
+    void readAppConfig().then((cfg) => workspaceWatcher.watch(cfg.workspacePath));
     void checkInstallLocationOnStartup(activeMainWindow);
     startHeartbeatEngine(ipcContext);
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
+    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
   });
 }
 
+app.on('will-quit', () => workspaceWatcher.close());
 app.on('window-all-closed', () => {
   stopHeartbeatEngine();
   if (process.platform !== 'darwin') app.quit();

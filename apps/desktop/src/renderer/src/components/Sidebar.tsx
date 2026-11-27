@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ArticleMeta, ArticleSearchResult, OutlineNode } from '@vcat/shared';
+import type { SidebarExternalFileActions } from '../features/workspace-tree';
 import { SidebarContentViews } from './sidebar/SidebarContentViews';
 import { SidebarContextMenus, type SidebarContextMenu } from './sidebar/SidebarContextMenus';
 import { SidebarFooterBar } from './sidebar/SidebarFooterBar';
@@ -9,6 +10,7 @@ import {
   handleSidebarAsideKeyDown,
   handleSidebarFolderClick,
   handleSidebarListKeyDown,
+  handleSidebarRootDrop,
   startSidebarMarqueeSelection,
 } from './sidebar/sidebarInteractions';
 import { SidebarTabHeader } from './sidebar/SidebarTabHeader';
@@ -47,6 +49,7 @@ interface SidebarProps {
   canRedoFileOp?: boolean;
   onUndoFileOp?: () => Promise<void>;
   onRedoFileOp?: () => Promise<void>;
+  fileActions?: SidebarExternalFileActions;
 }
 
 /** Left macOS full-height sidebar with File Tree, Outline, Content Search, Drag-Move & Popover Menu. */
@@ -83,6 +86,7 @@ export function Sidebar({
   canRedoFileOp = false,
   onUndoFileOp,
   onRedoFileOp,
+  fileActions,
 }: SidebarProps) {
   const [sortBy, setSortBy] = useState<'name' | 'time'>('name');
   const [fileViewMode, setFileViewMode] = useState<'tree' | 'list'>('tree');
@@ -237,16 +241,10 @@ export function Sidebar({
     <>
       <aside
         ref={asideRef} data-vcat-file-tree={sideTab === 'files' ? '1' : '0'}
-        onKeyDown={(e) =>
-          handleSidebarAsideKeyDown({
-            e,
-            sideTab,
-            renamingPath,
-            creatingItem,
-            onUndoFileOp,
-            onRedoFileOp,
-          })
-        }
+        onKeyDown={(e) => handleSidebarAsideKeyDown({
+          e, sideTab, renamingPath, creatingItem, selectedPaths, folders, activeArticle,
+          onUndoFileOp, onRedoFileOp, onCopyFiles: fileActions?.onCopyFiles, onPasteFiles: fileActions?.onPasteFiles,
+        })}
         style={{
           width: open ? `${width}px` : '0px',
           opacity: open ? 1 : 0,
@@ -305,23 +303,8 @@ export function Sidebar({
             e.preventDefault();
             setContextMenu({ type: 'empty', x: e.clientX, y: e.clientY });
           }}
-          onDragOver={(e) => {
-            if (sideTab === 'files') e.preventDefault();
-          }}
-          onDrop={(e) => {
-            if (sideTab !== 'files') return;
-            e.preventDefault();
-            setDragOverFolder(null);
-            const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
-            if (folderPath && folderPath.includes('/')) {
-              void onMoveFolder(folderPath, '');
-              return;
-            }
-            const sourcePath = e.dataTransfer.getData('text/plain');
-            if (sourcePath && sourcePath.includes('/')) {
-              void onMoveArticle(sourcePath, '');
-            }
-          }}
+          onDragOver={(e) => { if (sideTab === 'files') e.preventDefault(); }}
+          onDrop={(e) => handleSidebarRootDrop({ e, sideTab, setDragOverFolder, onImportExternalFiles: fileActions?.onImportExternalFiles, onMoveFolder, onMoveArticle })}
           onMouseDown={(e) =>
             startSidebarMarqueeSelection({
               e,
@@ -375,6 +358,7 @@ export function Sidebar({
             onSetDragOverFolder={setDragOverFolder}
             onMoveFolder={onMoveFolder}
             onMoveArticle={onMoveArticle}
+            onImportExternalFiles={fileActions?.onImportExternalFiles}
             onRenameStart={handleRenameStart}
             onRenameDraftChange={setRenameDraft}
             onRenameSubmit={handleRenameSubmit}
@@ -462,6 +446,7 @@ export function Sidebar({
         onDeleteFolder={onDeleteFolder}
         onBatchDeleteItems={onBatchDeleteItems}
         onRefreshWorkspace={onRefreshWorkspace}
+        fileActions={fileActions}
       />
     </>
   );

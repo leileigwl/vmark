@@ -61,6 +61,7 @@ export interface EditorWorkspaceParams {
   openPublishModal: () => void;
   handleSaveArticle: (content: string, silent?: boolean) => Promise<void>;
   handleSelectWorkspace: () => Promise<void>;
+  handleOpenExternalFile?: () => Promise<void>;
   handleCreateBlankArticle: () => Promise<void>;
   openArticle: (meta: ArticleMeta, cfg?: undefined, searchKeyword?: string) => Promise<void>;
   clearRecentArticles: () => void;
@@ -85,6 +86,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
     openPublishModal,
     handleSaveArticle,
     handleSelectWorkspace,
+    handleOpenExternalFile,
     handleCreateBlankArticle,
     openArticle,
     clearRecentArticles,
@@ -205,6 +207,7 @@ export function useEditorWorkspace(params: EditorWorkspaceParams) {
       if (action.startsWith('editor:') && action !== 'editor:find' && shouldBlockEditorCommand()) return;
       if (MENU_KEY_ECHO[action] && !runOnce(action)) return;
       if (action === 'file:new') void handleCreateBlankArticle();
+      else if (action === 'file:openFile') void handleOpenExternalFile?.();
       else if (action === 'file:openWorkspace') void handleSelectWorkspace();
       else if (action === 'file:save') {
         const latest = editorRef.current?.getValue() ?? markdown;

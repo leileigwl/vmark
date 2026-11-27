@@ -44,20 +44,18 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
     expect(calls.weixin.weixinSquareCoverImagePath).toBe(COMMON);
   });
 
-  test('其他平台：只有封面比例和通用封面不同的平台（小红书 3:4）在自己的块里出现「为该平台单独设置封面」，知乎/掘金（16:9）没有', async ({ page }) => {
-    await openPublishWith(page, { ...base, selected: ['zhihu', 'juejin', 'xiaohongshu'], saved: { ...base.saved, juejinCategoryId: '6809637769959178254', tags: ['写作'], digest: '一'.repeat(60) } });
-    await expect(page.getByTestId('general-section')).not.toContainText('3:4'); // 通用区不出现比例，入口在小红书块里
+  test('小红书/抖音/知乎/掘金均不设「单独封面」入口，直接使用通用封面原图', async ({ page }) => {
+    await openPublishWith(page, { ...base, auth: { ...base.auth, douyin: true }, selected: ['zhihu', 'juejin', 'xiaohongshu', 'douyin'], saved: { ...base.saved, juejinCategoryId: '6809637769959178254', tags: ['写作'], digest: '一'.repeat(60) } });
+    await expect(page.getByTestId('general-section')).not.toContainText('3:4');
     const social = page.getByTestId('section-social');
     await social.getByRole('button', { expanded: false }).click();
-    const entries = social.getByTestId('own-cover-entries');
-    await expect(entries.getByRole('button', { name: '为小红书单独设置封面' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /为知乎|为掘金/ })).toHaveCount(0);
-    await entries.getByTestId('own-cover-input-xiaohongshu').setInputFiles(PNG);
-    await expect(entries.getByTestId('own-cover-xiaohongshu').getByTestId('cover-focus')).toBeVisible();
+    await expect(social.getByTestId('own-cover-entries')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /为知乎|为掘金|为小红书|为抖音/ })).toHaveCount(0);
     await page.getByTestId('publish-start').click();
-    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(3);
+    await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(4);
     const calls = await publishedCalls(page);
-    expect(calls.xiaohongshu.socialCoverImagePath).toMatch(/assets\/up\.png$/);
+    expect(calls.xiaohongshu.socialCoverImagePath).toBe(COMMON);
+    expect(calls.douyin.socialCoverImagePath).toBe(COMMON);
     expect(calls.zhihu.coverImageUrl).toBe(COMMON);
     expect(calls.juejin.coverImageUrl).toBe(COMMON);
   });
@@ -81,7 +79,7 @@ test.describe('单独封面：通用封面仍是默认；公众号和封面比�
       await page.getByTestId('cover-input').setInputFiles(PNG);
       const social = page.getByTestId('section-social');
       await social.getByRole('button', { expanded: false }).click();
-      await social.getByTestId('own-cover-entries').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await social.evaluate((el) => el.scrollIntoView({ block: 'center' }));
       await shot(page, testInfo, `own-cover-entries-${mode}`);
       const wx = page.getByTestId('section-weixin');
       await wx.getByRole('button', { expanded: false }).click();
