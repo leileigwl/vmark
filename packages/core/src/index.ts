@@ -78,7 +78,7 @@ export async function scanWorkspaceArticles(rootDir: string): Promise<ArticleMet
         if (!IGNORED_DIRS.has(entry.name)) {
           await walk(fullPath);
         }
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+      } else if (entry.isFile() && /\.(md|markdown)$/i.test(entry.name)) {
         const [stat, content] = await Promise.all([
           fs.stat(fullPath),
           fs.readFile(fullPath, 'utf-8'),

@@ -21,9 +21,9 @@ test('公众号不再有作者 / 阅读原文：新草稿没有这两个字段�
   assert.equal(payload.sourceUrl, undefined);
 });
 
-test('哪些平台有「单独封面」入口：封面比例和通用封面（16:9）不同的平台——公众号、小红书、抖音', () => {
+test('哪些平台有「单独封面」入口：仅公众号（小红书/抖音后台自带封面裁切，不再设单独封面入口）', () => {
   const eligible = PLATFORM_SPECS.filter(ownCoverEligible).map((s) => s.id);
-  assert.deepEqual(eligible, ['weixin', 'xiaohongshu', 'douyin']);
+  assert.deepEqual(eligible, ['weixin']);
 });
 
 test('公众号封面：单独封面优先，其次通用封面，再次正文首图；单独封面只给公众号', () => {
@@ -56,11 +56,11 @@ test('推送：公众号按单独封面的焦点裁 2.35:1 与 1:1；其他平�
   assert.equal(common.weixinSquareCoverImagePath, 'assets/g.jpg@1:1@60,70');
 });
 
-test('小红书单独封面：裁 3:4 插到卡片最前，抖音仍用通用封面', async () => {
+test('小红书/抖音：直接用通用封面原图插到卡片最前，不做 3:4 裁剪', async () => {
   const d = draft({ coverUpload: 'assets/g.jpg', ownCovers: setOwnCover(draft(), 'xiaohongshu', 'assets/xhs.jpg') });
   const cache = new Map();
-  assert.equal((await buildPayload(d, MD, 'xiaohongshu', '', crop, cache)).socialCoverImagePath, 'assets/xhs.jpg@3:4@50,50');
-  assert.equal((await buildPayload(d, MD, 'douyin', '', crop, cache)).socialCoverImagePath, 'assets/g.jpg@3:4@50,50');
+  assert.equal((await buildPayload(d, MD, 'xiaohongshu', '', crop, cache)).socialCoverImagePath, 'assets/g.jpg');
+  assert.equal((await buildPayload(d, MD, 'douyin', '', crop, cache)).socialCoverImagePath, 'assets/g.jpg');
 });
 
 test('迁移：旧版本记住的公众号单独封面与焦点保留下来；旧版小红书/抖音分区上传的封面也保留给这两个平台', () => {

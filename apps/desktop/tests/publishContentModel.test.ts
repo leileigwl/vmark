@@ -37,7 +37,7 @@ test('小红书/抖音封面用通用封面（插到第一张卡前）；没传�
   assert.deepEqual(coverFor(draft(), SPEC_BY_ID.douyin!, './assets/a.png'), { kind: 'card' });
 });
 
-test('推送内容：公众号不带作者与阅读原文；小红书用截取后的通用标题、通用标签、通用封面（按焦点裁 3:4），不传正文；知乎只用通用值', async () => {
+test('推送内容：公众号不带作者与阅读原文；小红书用截取后的通用标题、通用标签、通用封面原图（平台自带裁切），不传正文；知乎只用通用值', async () => {
   const d = draft({ coverUpload: 'assets/general.jpg', coverFocus: { x: 30, y: 40 } });
   const crop2: CoverCropper = async (src, ratio, f) => `${src}@${ratio}@${f.x},${f.y}`;
   const cache = new Map();
@@ -51,7 +51,7 @@ test('推送内容：公众号不带作者与阅读原文；小红书用截取�
   assert.equal(xhs.title, [...LONG].slice(0, 20).join(''));
   assert.equal(xhs.socialBody, undefined, '正文由主进程从文章生成纯文本');
   assert.deepEqual(xhs.tags, ['独立开发', '效率']);
-  assert.equal(xhs.socialCoverImagePath, 'assets/general.jpg@3:4@30,40');
+  assert.equal(xhs.socialCoverImagePath, 'assets/general.jpg');
   assert.equal(xhs.coverImageUrl, undefined);
   // 没传通用封面：第一张卡片就是封面
   const plain = await buildPayload(draft(), MD, 'douyin', '', crop, new Map());
@@ -76,6 +76,6 @@ test('合并本地记住的设置：丢弃旧版的公众号作者/阅读原文�
   for (const k of ['weixinAuthor', 'weixinSourceUrl', 'social', 'weixin']) assert.equal(k in merged, false, k);
   assert.equal(merged.title, '记住的标题');
   assert.equal(resolveFor(merged, 'xiaohongshu').title, [...'记住的标题'].slice(0, 20).join(''));
-  assert.deepEqual(coverFor(merged, SPEC_BY_ID.xiaohongshu!, ''), { kind: 'upload', src: 'assets/xhs.jpg' });
+  assert.deepEqual(coverFor(merged, SPEC_BY_ID.xiaohongshu!, ''), { kind: 'card' });
   assert.deepEqual(coverFor(merged, SPEC_BY_ID.weixin!, ''), { kind: 'upload', src: 'assets/wx.jpg' });
 });

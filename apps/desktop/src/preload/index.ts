@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   IPC_EVENT_CHANNELS,
   IPC_INVOKE_CHANNELS,
@@ -97,6 +97,36 @@ const api: ElectronAPI = {
     ipcRenderer.on(IPC_EVENT_CHANNELS.onAppUpdateState, handler);
     return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onAppUpdateState, handler);
   },
+  openExternalFile: (filePath?: string) =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.openExternalFile, filePath),
+  consumePendingExternalFile: () =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.consumePendingExternalFile),
+  importExternalFiles: (filePaths: string[], targetFolder?: string) =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.importExternalFiles, filePaths, targetFolder),
+  copyFilesToClipboard: (relativePaths: string[]) =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.copyFilesToClipboard, relativePaths),
+  pasteClipboardFiles: (targetFolder?: string) =>
+    ipcRenderer.invoke(IPC_INVOKE_CHANNELS.pasteClipboardFiles, targetFolder),
+  hasClipboardFiles: () => ipcRenderer.invoke(IPC_INVOKE_CHANNELS.hasClipboardFiles),
+  onWorkspaceChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on(IPC_EVENT_CHANNELS.onWorkspaceChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onWorkspaceChanged, handler);
+  },
+  onOpenExternalFile: (callback: (filePath: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, filePath: string) => callback(filePath);
+    ipcRenderer.on(IPC_EVENT_CHANNELS.onOpenExternalFile, handler);
+    return () => ipcRenderer.removeListener(IPC_EVENT_CHANNELS.onOpenExternalFile, handler);
+  },
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);
+contextBridge.exposeInMainWorld('electronFileBridge', {
+  getPathForFile: (file: File) => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
+});

@@ -37,6 +37,7 @@ interface SidebarContentViewsProps {
   onSetDragOverFolder: (folder: string | null) => void;
   onMoveFolder: (oldFolder: string, targetParent: string) => Promise<void>;
   onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
+  onImportExternalFiles?: (filePaths: string[], targetFolder?: string) => Promise<void>;
   onRenameStart: (art: ArticleMeta) => void;
   onRenameDraftChange: (draft: string) => void;
   onRenameSubmit: (oldPath: string) => Promise<void>;
@@ -78,6 +79,7 @@ export function SidebarContentViews({
   onSetDragOverFolder,
   onMoveFolder,
   onMoveArticle,
+  onImportExternalFiles,
   onRenameStart,
   onRenameDraftChange,
   onRenameSubmit,
@@ -208,6 +210,7 @@ export function SidebarContentViews({
             onSetDragOverFolder={onSetDragOverFolder}
             onMoveFolder={onMoveFolder}
             onMoveArticle={onMoveArticle}
+            onImportExternalFiles={onImportExternalFiles}
             onArticleClick={onArticleItemClick}
             onFolderClick={onFolderClick}
             onRenameStart={onRenameStart}

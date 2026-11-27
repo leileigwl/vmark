@@ -14,7 +14,7 @@ test('封面指引：每种平台的文案与比例都来自 platformSpecs', () 
     '公众号：可选 · 列表大图 2.35:1 + 转发小图 1:1 · 不传用正文首图自动裁',
     '知乎、掘金、CSDN、B 站：可选 · 列表右侧小图 16:9 · 不传就不放',
     '百家号、微博：必需 · 16:9 · 不传用正文首图',
-    '小红书、抖音：可选 · 第一张卡片就是封面 3:4 · 传了插到卡片最前',
+    '小红书、抖音：可选 · 第一张卡片就是封面 3:4 · 传了原图插到卡片最前（平台自带裁切）',
   ]);
   // 比例与 spec.cover.ratios 一致，不另写一份
   for (const l of lines) for (const id of l.ids) assert.deepEqual(l.slots.map((s) => s.ratio), SPEC_BY_ID[id]?.cover?.ratios);

@@ -60,9 +60,9 @@ export const SPEC_BY_ID = Object.fromEntries(PLATFORM_SPECS.map((s) => [s.id, s]
 /** 通用封面按大多数文章平台的 16:9 来设计；主比例与它不同的平台（公众号 2.35:1、小红书/抖音 3:4）可以单独设一张封面。 */
 export const COMMON_COVER_RATIO: CoverRatio = '16:9';
 
-/** 该平台是否显示「单独封面」入口：有封面项且主比例与通用封面不同，完全由 spec 决定。 */
+/** 通用封面按大多数文章平台的 16:9 来设计；主比例与它不同且平台不自带裁切入口的平台（公众号 2.35:1）可以单独设一张封面。小红书/抖音后台自带封面裁切，不设单独封面入口。 */
 export function ownCoverEligible(spec: PlatformSpec): boolean {
-  return !!spec.cover && spec.cover.ratios[0] !== COMMON_COVER_RATIO;
+  return !!spec.cover && spec.cover.mode !== 'card' && spec.cover.ratios[0] !== COMMON_COVER_RATIO;
 }
 
 export const RATIO_VALUE: Record<CoverRatio, number> = { '2.35:1': 2.35, '16:9': 16 / 9, '3:4': 3 / 4, '1:1': 1 };
@@ -75,7 +75,7 @@ const COVER_GUIDE: Record<CoverMode, { required: boolean; label: Partial<Record<
   weixin: { required: false, label: { '2.35:1': '列表大图', '1:1': '转发小图' }, fallback: '不传用正文首图自动裁' },
   optional: { required: false, label: { '16:9': '列表右侧小图' }, fallback: '不传就不放' },
   required: { required: true, label: {}, fallback: '不传用正文首图' },
-  card: { required: false, label: { '3:4': '第一张卡片就是封面' }, fallback: '传了插到卡片最前' },
+  card: { required: false, label: { '3:4': '第一张卡片就是封面' }, fallback: '传了原图插到卡片最前（平台自带裁切）' },
 };
 
 /** 比例旁的悬停提示：比例来自各平台常见显示方式。 */

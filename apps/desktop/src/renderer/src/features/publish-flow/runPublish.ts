@@ -35,15 +35,20 @@ export async function buildPayload(
   let coverPath: string | undefined;
   let squarePath: string | undefined;
   if (cover?.kind === 'upload' && spec?.cover) {
-    const focus = coverFocusFor(draft, spec);
-    const cropOnce = (ratio: CoverRatio) => {
-      const key = `${cover.src}|${ratio}|${focus.x},${focus.y}`;
-      if (!cache.has(key)) cache.set(key, crop(cover.src, ratio, focus).catch(() => cover.src));
-      return cache.get(key);
-    };
-    coverPath = await cropOnce(spec.cover.ratios[0]);
-    // 公众号 1:1 转发图也按焦点裁，不再交给公众号从 2.35:1 居中裁
-    if (spec.cover.mode === 'weixin') squarePath = await cropOnce('1:1');
+    if (spec.cover.mode === 'card') {
+      // 小红书/抖音后台自带封面裁切，直接使用原图插在第 1 张。
+      coverPath = cover.src;
+    } else {
+      const focus = coverFocusFor(draft, spec);
+      const cropOnce = (ratio: CoverRatio) => {
+        const key = `${cover.src}|${ratio}|${focus.x},${focus.y}`;
+        if (!cache.has(key)) cache.set(key, crop(cover.src, ratio, focus).catch(() => cover.src));
+        return cache.get(key);
+      };
+      coverPath = await cropOnce(spec.cover.ratios[0]);
+      // 公众号 1:1 转发图也按焦点裁，不再交给公众号从 2.35:1 居中裁
+      if (spec.cover.mode === 'weixin') squarePath = await cropOnce('1:1');
+    }
   } else if (cover?.kind === 'body') {
     coverPath = cover.src;
   }

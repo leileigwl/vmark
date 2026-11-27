@@ -18,8 +18,10 @@ import {
   type ArticleOpsCtx,
 } from './articleOps';
 import { executeRedoOp, executeUndoOp, type FileHistoryOp } from './fileHistory';
+import { extractDroppedFilePaths, isExternalFileDrag, useExternalWorkspaceOps, type SidebarExternalFileActions } from './externalFileOps';
 import { useSaveBaseline } from './saveBaseline';
 
+export { extractDroppedFilePaths, isExternalFileDrag, type SidebarExternalFileActions };
 export type { FileHistoryOp };
 
 export interface WorkspaceTreeParams {
@@ -86,7 +88,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     window.electronAPI?.setRecentFiles?.([]);
   }
 
-  async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig, searchKeyword?: string) {
+  async function openArticle(meta: ArticleMeta, cfgOverride?: StartupConfig, searchKeyword?: string, force = false) {
     const tryJumpToSearch = (keyword: string) => {
       let attempts = 0;
       const timer = setInterval(() => {
@@ -103,7 +105,13 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
       }, 60);
     };
 
-    if (activeArticle?.relativePath === meta.relativePath) {
+    const sameArticle =
+      activeArticle !== null &&
+      activeArticle.relativePath === meta.relativePath &&
+      (activeArticle.fullPath === undefined ||
+        meta.fullPath === undefined ||
+        activeArticle.fullPath === meta.fullPath);
+    if (!force && sameArticle) {
       if (searchKeyword) tryJumpToSearch(searchKeyword);
       return;
     }
@@ -216,9 +224,23 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     }
   }
 
-  useEffect(() => {
-    void refreshWorkspace();
-  }, []);
+  const { handleOpenExternalFile, sidebarFileActions } = useExternalWorkspaceOps({
+    activeArticle,
+    openArticle,
+    flushActiveArticle,
+    refreshWorkspace,
+    setWorkspacePath,
+    setRecentWorkspaces,
+    setArticles,
+    setFolders,
+    setGitStatus,
+    setImageBed,
+    setStartupConfig,
+    setActiveArticle,
+    setMarkdown,
+    setActiveViewEditor,
+    showToast,
+  });
 
   useEffect(() => {
     window.electronAPI?.setRecentFiles?.(recentArticlePaths);
@@ -468,5 +490,7 @@ export function useWorkspaceTree(params: WorkspaceTreeParams) {
     handleUndoFileOp,
     handleRedoFileOp,
     handleGitPush,
+    handleOpenExternalFile,
+    sidebarFileActions,
   };
 }
