@@ -71,8 +71,8 @@ Actions → `Release / Package Desktop App` → **Run workflow** → `tag` 填�
 
 ## 七、签名与公证（以后要做时）
 
-现在三平台都不签名：macOS 首次打开要「仍要打开」，且 **macOS 自动更新要求应用已签名**，未签名时只能手动下载新版；Windows 会有 SmartScreen 提示。
-启用时只改两处：`apps/desktop/package.json` 去掉 `mac.identity: null` 并加 `mac.notarize: true`；release.yml 的 Package 步骤把 `CSC_IDENTITY_AUTO_DISCOVERY` 换成下列 secret：
+现在 macOS 构建通过 `apps/desktop/scripts/after-pack-mac-adhoc.cjs` 在打包后执行 ad-hoc（`-`）深度重签名并校验，保证应用包签名结构完整；但由于暂未接入 Apple Developer ID 证书与公证（`notarize`），浏览器下载后仍会带有隔离属性，用户首次打开需按 README 指引执行 `xattr -cr /Applications/Vmark.app`。另外 **macOS 自动更新要求正式签名**，未正式签名时只能手动下载新版；Windows 会有 SmartScreen 提示。
+启用正式签名与公证时，只需改两处：`apps/desktop/package.json` 去掉 `mac.identity: null` 并加 `mac.notarize: true`（`afterPack` 钩子检测到 `CSC_LINK` 后会自动跳过 ad-hoc 重签）；`release.yml` 的 Package 步骤把 `CSC_IDENTITY_AUTO_DISCOVERY` 换成下列 secret：
 
 | secret | 用途 |
 | :--- | :--- |

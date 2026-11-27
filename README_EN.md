@@ -47,7 +47,7 @@
 1. **Automatic Image Re-Hosting Without Touching Your Source File**
    - Copying Markdown into web editors often leaves broken images behind. When you push drafts, Vmark automatically uploads your local `./assets/` images and external image links to each platform's own media host — leaving your original `.md` file on disk completely untouched.
 2. **Built-In Browser Flow for Xiaohongshu & Douyin: 3:4 Visual Cards Ready in Drafts**
-   - Plain text screenshots rarely look great on visual feeds. Vmark renders your article directly into crisp **3:4 visual cards** (inspired by open-source community card-notebook designs, thoughtfully integrated here — huge thanks to those creators), paginating straight from your content without extra filler covers, then fills cards, title, text, and `#tags` into both draft boxes so you are one click away from publishing.
+   - Plain text screenshots rarely look great on visual feeds. Vmark renders your article directly into crisp **3:4 visual cards** (inspired by the open-source project [geekfoxcharlie/XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard) ([live demo](https://xhs-textcard.site/))), paginating straight from your content without extra filler covers, then fills cards, title, text, and `#tags` into both draft boxes so you are one click away from publishing.
 3. **"Select All Ready": Fill Shared Info Once, Keep Platform Options Separate**
    - Automatically checks which platforms are signed in and highlights any missing item (such as a WeChat cover or Juejin category) without blocking the rest;
    - Enter **title, summary, and tags** once to reuse everywhere, while platform-specific options stay cleanly separate; send to all ready platforms at once or pick just one.
@@ -79,7 +79,7 @@ Even when you aren't publishing, Vmark feels clean and pleasant for everyday doc
 - **📖 Edit & Read-Only Modes + Image Zoom**: Switch to a distraction-free **Read-Only Mode** anytime; click any image while reading to **zoom in, zoom out, or reset**.
 - **⌨️ Natural Keyboard Flow**: Press **`/`** for the slash command menu, use **`Tab` / `Shift+Tab`** to jump table cells or indent lists, and edit smoothly across blocks.
 - **📐 Ready for Technical Notes**: Built-in **Mermaid diagrams**, **KaTeX math**, tables, syntax-highlighted code blocks, `[!NOTE]` / `[!TIP]` callouts, plus smart **16:9 / 2.35:1 / 1:1 / 3:4** cover cropping.
-- **🎨 24 Light & Dark Themes + Custom CSS (Community Attribution)**: Inspired by great community visual designs, offering 24 curated light and dark themes plus custom `.css` import — even the login bar adapts live to your theme.
+- **🎨 24 Light & Dark Themes + Custom CSS**: Inspired by the color palettes of [webkubor/typora-Bloom-theme](https://github.com/webkubor/typora-Bloom-theme) ([live preview](https://bloom.webkubor.online/)), offering 24 curated light and dark themes plus custom `.css` import — even the login bar adapts live to your theme.
 - **🗂️ Clean Folder & File Management**: Switch folders anytime, create blank notes, **batch-delete old drafts**, jump via the **clickable outline**, reveal files in your **OS file manager**, and pull published cloud articles back as plain `.md` files with no cloud lock-in.
 
 <div align="center">
@@ -96,9 +96,31 @@ Grab the installer from [GitHub Releases](https://github.com/leileigwl/vmark/rel
 
 | OS | Status | Format | Notes |
 | :--- | :--- | :--- | :--- |
-| **macOS** (Apple Silicon / Intel) | **Primary (End-to-End Verified)** | `.dmg` / `.zip` | Drag to `Applications`; if Gatekeeper warns on unsigned builds, allow via System Settings → Privacy & Security |
+| **macOS** (Apple Silicon / Intel) | **Primary (End-to-End Verified)** | `.dmg` / `.zip` | Drag to `Applications`; if macOS says the app is "damaged", see the [macOS Installation Guide](#-macos-says-vmarkapp-is-damaged-and-cant-be-opened) below |
 | **Windows** (x64) | Experimental (Ongoing) | `.exe` | Early CI builds; deeper shortcut & portal polish coming next |
 | **Linux** (Ubuntu / Debian) | Experimental (Ongoing) | `.AppImage` / `.deb` | Make `.AppImage` executable or install via `dpkg -i` |
+
+### 🍎 macOS says "Vmark.app is damaged and can't be opened"?
+
+> [!NOTE]
+> **Why does this happen?** Vmark does not yet pay for an Apple Developer ID certificate (\$99/year) and notarization. When you download an app through a browser, macOS attaches a `com.apple.quarantine` attribute. On Apple Silicon and recent macOS versions, Gatekeeper blocks un-notarized apps with **"Vmark.app is damaged and can't be opened. You should move it to the Bin."** — and **does not show an "Open Anyway" button** in System Settings → Privacy & Security. The app is not actually corrupted (you can verify its checksum against `SHA256SUMS.txt` on the [GitHub Releases](https://github.com/leileigwl/vmark/releases/latest) page).
+
+Run these 4 steps once after installing:
+
+1. Open the downloaded `.dmg` and drag `Vmark.app` into **Applications**.
+2. Open **Terminal** and remove the quarantine attribute:
+   ```bash
+   xattr -cr /Applications/Vmark.app
+   ```
+3. If Terminal reports `Permission denied`, run it with `sudo` (enter your Mac login password; characters will not echo as you type, then press Enter):
+   ```bash
+   sudo xattr -cr /Applications/Vmark.app
+   ```
+4. Launch **Vmark** normally.
+
+> 💡 If your macOS version instead shows **"cannot be opened because the developer cannot be verified"**, you can allow it at the bottom of **System Settings → Privacy & Security → Open Anyway**.
+>
+> 🔄 **Upgrading Without Duplicates**: When updating to a newer release on macOS, drag `Vmark.app` into **Applications** and choose **Replace** (not *Keep Both*, so you don't end up with `Vmark 2.app` duplicates). Your local Markdown files, themes, and account sessions live in separate app data folders and are preserved across upgrades. On Windows, running the newer `.exe` installer upgrades in place automatically.
 
 ### What's Next
 - Deeper real-device testing and ergonomics on **Windows & Linux**;
@@ -134,6 +156,20 @@ pnpm typecheck && pnpm test && pnpm build
   A: All 10 content platforms default to saving in your **Draft Box**, so nothing goes public until you click publish yourself. Credentials stay encrypted locally on your machine with no third-party relay server.
 - **Q: How do Xiaohongshu & Douyin work, and which OS is best today?**  
   A: Vmark turns your article into **3:4 visual cards** with formatted text and `#tags`, then saves them straight into Xiaohongshu and Douyin's draft boxes via its built-in browser. **macOS** is the primary verified platform right now; Windows and Linux are experimental.
+- **Q: macOS says "Vmark.app is damaged and can't be opened", and there is no "Open Anyway" button in Privacy & Security. What should I do?**  
+  A: Open-source builds are not notarized by Apple yet, so browser-downloaded builds receive a macOS quarantine flag (you can verify integrity via `SHA256SUMS.txt` on the Release page). Drag `Vmark.app` into `Applications`, then run `xattr -cr /Applications/Vmark.app` in Terminal (prefix with `sudo` if permission is denied). See the [macOS Installation Guide](#-macos-says-vmarkapp-is-damaged-and-cant-be-opened) above.
+
+---
+
+## 📚 References
+
+Vmark's card layouts, color palettes, and multi-platform publishing architecture take inspiration from the following open-source projects:
+
+- [geekfoxcharlie/XHS-TextCard](https://github.com/geekfoxcharlie/XHS-TextCard) ([live demo](https://xhs-textcard.site/)): 3:4 visual card layouts and notebook/magazine design reference for Xiaohongshu / Douyin
+- [webkubor/typora-Bloom-theme](https://github.com/webkubor/typora-Bloom-theme) ([live preview](https://bloom.webkubor.online/)): 24 light/dark eye-care Bloom theme color palette reference
+- [wechatsync/Wechatsync](https://github.com/wechatsync/Wechatsync): Multi-platform article sync mechanism and content adaptation reference
+- [crawlab-team/artipub](https://github.com/crawlab-team/artipub): Write-once publish-everywhere workflow and platform integration reference
+- [terwer/siyuan-plugin-publisher](https://github.com/terwer/siyuan-plugin-publisher): Open-source desktop publisher architecture and multi-platform adapter reference
 
 ---
 

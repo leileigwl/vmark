@@ -28,6 +28,7 @@
     "appId": "com.vmark.desktop",
     "productName": "Vmark",
     "executableName": "vmark",
+    "afterPack": "./scripts/after-pack-mac-adhoc.cjs",
     "publish": [
       {
         "provider": "github",
