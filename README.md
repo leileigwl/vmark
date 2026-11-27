@@ -14,7 +14,7 @@
 [![License: AGPL-3.0 / Commercial](https://img.shields.io/badge/License-AGPL--3.0%20%2F%20Commercial-1c1917.svg)](LICENSE)
 [![Platform: macOS Primary | Win & Linux Experimental](https://img.shields.io/badge/OS-macOS%20(%E4%B8%BB%E5%8A%9B%E6%8E%A8%E8%8D%90)%20%7C%20Windows%20%C2%B7%20Linux%20(%E5%AE%9E%E9%AA%8C%E6%80%A7)-3b7cc4.svg)](https://github.com/leileigwl/vmark/releases/latest)
 
-[官方网站](https://vmark.leileigwl.cn) · [下载最新版](https://github.com/leileigwl/vmark/releases/latest) · [功能演示](#-功能演示) · [一键多平台草稿箱](#-为什么大家用-vmark-发文章更省心) · [日常写作体验](#-不发布时它也是一本顺手的桌面文档本) · [常见问题](#-常见问题-faq)
+[官方网站](https://vmark.leileigwl.cn) · [下载最新版](https://github.com/leileigwl/vmark/releases/latest) · [功能演示](#-功能演示) · [一键多平台草稿箱](#-为什么大家用-vmark-发文章更省心) · [日常写作体验](#-不发布时它也是一本顺手的桌面文档本) · [常见问题](#-常见问题-faq) · [LINUX DO 社区](https://linux.do)
 
 <br />
 
@@ -136,6 +136,12 @@ pnpm typecheck && pnpm test && pnpm build
   A：不会乱发。目前 10 个内容平台全部默认只写入**草稿箱**，发不发由你在平台后台最后点确认；账号只在你本地电脑的独立空间加密保存，不经过任何第三方服务器。
 - **Q：小红书和抖音这种图文平台怎么推？现在哪个系统最稳？**  
   A：Vmark 会把文章自动排成一套 **3:4 视觉图文卡片**，加上整理好的标题、正文和话题，自动帮你填进小红书和抖音的草稿箱。目前 **macOS** 已跑通全部流程最稳，Windows 和 Linux 还在持续打磨。
+
+---
+
+## 🤝 友情链接
+
+- [LINUX DO](https://linux.do)：Vmark 认可并参与 LINUX DO 社区，感谢佬友们的反馈与支持。
 
 ---
 

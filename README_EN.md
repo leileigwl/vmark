@@ -137,6 +137,12 @@ pnpm typecheck && pnpm test && pnpm build
 
 ---
 
+## 🤝 Friendly Links
+
+- [LINUX DO](https://linux.do): Vmark supports and takes part in the LINUX DO community.
+
+---
+
 ## 📄 Dual License (Open Source + Commercial)
 
 Vmark is dual-licensed under **GNU AGPL-3.0-only** and a **Commercial License**:
