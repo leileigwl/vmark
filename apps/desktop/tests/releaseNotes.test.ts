@@ -27,6 +27,7 @@ test('renderNotes：正式版写变更范围和校验说明，不带预发布提
   assert.match(md, /^# Vmark v0\.5\.0 · 2026-11-26/);
   assert.match(md, /`v0\.4\.0\.\.v0\.5\.0`/);
   assert.match(md, /sha256sum -c SHA256SUMS\.txt/);
+  assert.match(md, /xattr -cr \/Applications\/Vmark\.app/);
   assert.doesNotMatch(md, /预发布/);
   assert.doesNotMatch(md, /Merge pull request/);
 });

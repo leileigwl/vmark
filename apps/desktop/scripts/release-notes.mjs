@@ -43,7 +43,7 @@ export function renderNotes({ tag, previous, commits, date }) {
     '## 📦 下载与安装',
     '| 系统 | 文件 | 说明 |',
     '| :--- | :--- | :--- |',
-    '| macOS（Apple 芯片） | `.dmg` / `-mac.zip` | 拖入「应用程序」；未签名版本首次打开如被拦截，到「系统设置 → 隐私与安全性」点「仍要打开」，或执行 `xattr -dr com.apple.quarantine /Applications/Vmark.app` |',
+    '| macOS（Apple 芯片） | `.dmg` / `-mac.zip` | 拖入「应用程序」；未公证版本首次打开若提示「已损坏，无法打开」（隐私与安全性里可能无「仍要打开」），在终端执行 `xattr -cr /Applications/Vmark.app`（权限不足时加 `sudo `）即可正常打开 |',
     '| Windows 10/11（x64） | `Vmark-Setup-*.exe` | 双击安装；SmartScreen 提示时点「更多信息 → 仍要运行」 |',
     '| Linux（x64） | `.AppImage` / `.deb` | `chmod +x Vmark-*.AppImage` 后运行，或 `sudo dpkg -i Vmark-*.deb` |',
     '',

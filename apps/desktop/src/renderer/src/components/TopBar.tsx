@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Clock, Edit3, Eye, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
+import { Clock, Edit3, Eye, Info, PanelLeft, Send, Settings, Table2 } from 'lucide-react';
 import type { ArticleMeta } from '@vcat/shared';
 import { Button, cn } from '../ui';
 
@@ -16,6 +16,7 @@ interface TopBarProps {
   onToggleReadOnly: () => void;
   onOpenQuickOpen: () => void;
   onSetActiveView: (view: 'editor' | 'manager' | 'settings') => void;
+  onOpenAbout?: () => void;
   onOpenPublishModal: () => void;
 }
 
@@ -38,6 +39,7 @@ export function TopBar({
   onToggleReadOnly,
   onOpenQuickOpen,
   onSetActiveView,
+  onOpenAbout,
   onOpenPublishModal,
 }: TopBarProps) {
   const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
@@ -108,6 +110,18 @@ export function TopBar({
         >
           <Settings />
         </Button>
+        {onOpenAbout && (
+          <Button
+            variant="ghost"
+            size="icon"
+            title="关于 Vmark / 检查更新"
+            aria-label="关于 Vmark"
+            onClick={onOpenAbout}
+            className={ICON_BUTTON}
+          >
+            <Info />
+          </Button>
+        )}
         <Button variant="primary" size="sm" className="ml-1.5 h-7 gap-1 text-[12px] [&_svg]:size-3" onClick={onOpenPublishModal}>
           <Send />
           发布

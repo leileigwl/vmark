@@ -4,31 +4,16 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { getRevealInFileManagerLabel, IPC_EVENT_CHANNELS } from '@vcat/shared';
-import {
-  readAppConfig,
-  recordRecentWorkspace,
-  resolveSafePath,
-  writeAppConfig,
-  type MainIpcContext,
-} from './ipc/context';
-import {
-  CHROME_DESKTOP_UA,
-  checkAuthStatesOnce,
-  startHeartbeatEngine,
-  stopHeartbeatEngine,
-} from './ipc/platform-auth/index';
+import { readAppConfig, recordRecentWorkspace, resolveSafePath, writeAppConfig, type MainIpcContext } from './ipc/context';
+import { CHROME_DESKTOP_UA, checkAuthStatesOnce, startHeartbeatEngine, stopHeartbeatEngine } from './ipc/platform-auth/index';
 import { registerAllIpcHandlers } from './ipc/registry';
 import { protectEditorWindow } from './editorSafety';
+import { checkInstallLocationOnStartup, configureAboutPanel, setupSingleInstanceLock } from './installGuard';
 import { acceleratorPayload } from './menuAccelerator';
 
 export { CHROME_DESKTOP_UA };
 
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'vcat-asset',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true },
-  },
-]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'vcat-asset', privileges: { standard: true, secure: true, supportFetchAPI: true, bypassCSP: true } }]);
 
 function getAppIconPath(): string | undefined {
   const candidates = [
@@ -120,7 +105,8 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
           {
             label: 'Vmark',
             submenu: [
-              { label: '关于 Vmark（维记）', role: 'about' as const },
+              { label: '关于 Vmark（维记）', click: () => sendMenuAction('app:about') },
+              { label: '检查更新...', click: () => sendMenuAction('app:checkUpdate') },
               { type: 'separator' as const },
               { label: '偏好设置...', accelerator: 'Cmd+,', click: (_m: unknown, _w: unknown, e: Electron.KeyboardEvent) => sendMenuAction('view:settings', acceleratorPayload(e)) },
               { type: 'separator' as const },
@@ -255,6 +241,9 @@ function buildApplicationMenu(recentFiles: string[] = currentRecentFiles): void 
       ],
     },
     { label: '窗口', role: 'windowMenu' },
+    ...(!isMac
+      ? [{ label: '帮助', submenu: [{ label: '关于 Vmark（维记）', click: () => sendMenuAction('app:about') }, { label: '检查更新...', click: () => sendMenuAction('app:checkUpdate') }] }]
+      : []),
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -274,41 +263,47 @@ if (process.env.VMARK_USER_DATA_DIR) {
   app.setPath('userData', process.env.VMARK_USER_DATA_DIR);
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.vcat.publisher');
-  app.userAgentFallback = CHROME_DESKTOP_UA;
+const hasSingleInstanceLock = setupSingleInstanceLock(() => activeMainWindow);
 
-  if (process.platform === 'darwin') {
-    const iconPath = getAppIconPath();
-    if (iconPath) app.dock?.setIcon(iconPath);
-  }
+if (hasSingleInstanceLock) {
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId('com.vmark.desktop');
+    app.userAgentFallback = CHROME_DESKTOP_UA;
+    configureAboutPanel();
 
-  protocol.handle('vcat-asset', async (request) => {
-    const cfg = await readAppConfig();
-    if (!cfg.workspacePath) return new Response('Workspace not configured', { status: 404 });
-    const url = new URL(request.url);
-    const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
-    try {
-      const target = resolveSafePath(cfg.workspacePath, relPath);
-      return net.fetch(pathToFileURL(target).toString());
-    } catch {
-      return new Response('Forbidden', { status: 403 });
+    if (process.platform === 'darwin') {
+      const iconPath = getAppIconPath();
+      if (iconPath) app.dock?.setIcon(iconPath);
     }
-  });
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window);
-  });
+    protocol.handle('vcat-asset', async (request) => {
+      const cfg = await readAppConfig();
+      if (!cfg.workspacePath) return new Response('Workspace not configured', { status: 404 });
+      const url = new URL(request.url);
+      const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+      try {
+        const target = resolveSafePath(cfg.workspacePath, relPath);
+        return net.fetch(pathToFileURL(target).toString());
+      } catch {
+        return new Response('Forbidden', { status: 403 });
+      }
+    });
 
-  buildApplicationMenu();
-  registerAllIpcHandlers(ipcContext);
-  createWindow();
-  startHeartbeatEngine(ipcContext);
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window);
+    });
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    buildApplicationMenu();
+    registerAllIpcHandlers(ipcContext);
+    createWindow();
+    void checkInstallLocationOnStartup(activeMainWindow);
+    startHeartbeatEngine(ipcContext);
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   stopHeartbeatEngine();
