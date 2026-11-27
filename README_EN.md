@@ -96,9 +96,29 @@ Grab the installer from [GitHub Releases](https://github.com/leileigwl/vmark/rel
 
 | OS | Status | Format | Notes |
 | :--- | :--- | :--- | :--- |
-| **macOS** (Apple Silicon / Intel) | **Primary (End-to-End Verified)** | `.dmg` / `.zip` | Drag to `Applications`; if Gatekeeper warns on unsigned builds, allow via System Settings → Privacy & Security |
+| **macOS** (Apple Silicon / Intel) | **Primary (End-to-End Verified)** | `.dmg` / `.zip` | Drag to `Applications`; if macOS says the app is "damaged", see the [macOS Installation Guide](#-macos-says-vmarkapp-is-damaged-and-cant-be-opened) below |
 | **Windows** (x64) | Experimental (Ongoing) | `.exe` | Early CI builds; deeper shortcut & portal polish coming next |
 | **Linux** (Ubuntu / Debian) | Experimental (Ongoing) | `.AppImage` / `.deb` | Make `.AppImage` executable or install via `dpkg -i` |
+
+### 🍎 macOS says "Vmark.app is damaged and can't be opened"?
+
+> [!NOTE]
+> **Why does this happen?** Vmark does not yet pay for an Apple Developer ID certificate (\$99/year) and notarization. When you download an app through a browser, macOS attaches a `com.apple.quarantine` attribute. On Apple Silicon and recent macOS versions, Gatekeeper blocks un-notarized apps with **"Vmark.app is damaged and can't be opened. You should move it to the Bin."** — and **does not show an "Open Anyway" button** in System Settings → Privacy & Security. The app is not actually corrupted (you can verify its checksum against `SHA256SUMS.txt` on the [GitHub Releases](https://github.com/leileigwl/vmark/releases/latest) page).
+
+Run these 4 steps once after installing:
+
+1. Open the downloaded `.dmg` and drag `Vmark.app` into **Applications**.
+2. Open **Terminal** and remove the quarantine attribute:
+   ```bash
+   xattr -cr /Applications/Vmark.app
+   ```
+3. If Terminal reports `Permission denied`, run it with `sudo` (enter your Mac login password; characters will not echo as you type, then press Enter):
+   ```bash
+   sudo xattr -cr /Applications/Vmark.app
+   ```
+4. Launch **Vmark** normally.
+
+> 💡 If your macOS version instead shows **"cannot be opened because the developer cannot be verified"**, you can allow it at the bottom of **System Settings → Privacy & Security → Open Anyway**.
 
 ### What's Next
 - Deeper real-device testing and ergonomics on **Windows & Linux**;
@@ -134,6 +154,8 @@ pnpm typecheck && pnpm test && pnpm build
   A: All 10 content platforms default to saving in your **Draft Box**, so nothing goes public until you click publish yourself. Credentials stay encrypted locally on your machine with no third-party relay server.
 - **Q: How do Xiaohongshu & Douyin work, and which OS is best today?**  
   A: Vmark turns your article into **3:4 visual cards** with formatted text and `#tags`, then saves them straight into Xiaohongshu and Douyin's draft boxes via its built-in browser. **macOS** is the primary verified platform right now; Windows and Linux are experimental.
+- **Q: macOS says "Vmark.app is damaged and can't be opened", and there is no "Open Anyway" button in Privacy & Security. What should I do?**  
+  A: Open-source builds are not notarized by Apple yet, so browser-downloaded builds receive a macOS quarantine flag (you can verify integrity via `SHA256SUMS.txt` on the Release page). Drag `Vmark.app` into `Applications`, then run `xattr -cr /Applications/Vmark.app` in Terminal (prefix with `sudo` if permission is denied). See the [macOS Installation Guide](#-macos-says-vmarkapp-is-damaged-and-cant-be-opened) above.
 
 ---
 

@@ -98,9 +98,29 @@
 
 | 操作系统 | 推荐程度 | 安装包格式 | 说明 |
 | :--- | :--- | :--- | :--- |
-| **macOS** (Apple Silicon / Intel) | **主力推荐（已真机全链路验证）** | `.dmg` / `.zip` | 拖入 `Applications` 即可；首次打开若提示未签名，在「系统设置 → 隐私与安全性」点「仍要打开」 |
+| **macOS** (Apple Silicon / Intel) | **主力推荐（已真机全链路验证）** | `.dmg` / `.zip` | 拖入 `Applications` 即可；首次打开若提示「已损坏」，见下方 [macOS 安装指引](#-macos-首次打开提示已损坏无法打开怎么办) |
 | **Windows** (x64) | 实验版本（后续重点完善） | `.exe` | 自动构建提供尝鲜，后续跟进快捷键、界面与多平台兼容性 |
 | **Linux** (Ubuntu / Debian) | 实验版本（后续重点完善） | `.AppImage` / `.deb` | 赋予执行权限直接运行或 `dpkg -i` 安装 |
+
+### 🍎 macOS 首次打开提示「已损坏，无法打开」怎么办？
+
+> [!NOTE]
+> **为什么会这样？** Vmark 目前尚未购买每年 \$99 的 Apple Developer 签名与公证服务。通过浏览器下载安装包时，macOS 会为文件打上安全隔离标记（`com.apple.quarantine`）；在 Apple Silicon（M 系列芯片）及较新版本的 macOS 上，未公证应用会被 Gatekeeper 直接拦截并提示 **「“Vmark.app” 已损坏，无法打开。你应该将它移到废纸篓。」**，且「系统设置 → 隐私与安全性」里**不会出现「仍要打开」按钮**。应用本身并未损坏（你可以在 [GitHub Releases](https://github.com/leileigwl/vmark/releases/latest) 页面核对 `SHA256SUMS.txt` 校验值）。
+
+按以下 4 步即可正常打开（仅需首次安装时执行一次）：
+
+1. 打开下载的 `.dmg`，将 `Vmark.app` 拖入 **应用程序（Applications）** 文件夹。
+2. 打开系统自带的 **终端（Terminal）**，执行以下命令清除隔离属性：
+   ```bash
+   xattr -cr /Applications/Vmark.app
+   ```
+3. 如果终端提示 `Permission denied`（权限不足），请使用 `sudo` 执行（输入 Mac 开机密码，输入过程屏幕不会显示字符，输完直接回车）：
+   ```bash
+   sudo xattr -cr /Applications/Vmark.app
+   ```
+4. 完成后即可正常双击打开 **Vmark**。
+
+> 💡 如果你的系统版本提示的是 **「无法验证开发者」** 而非「已损坏」，也可以前往「系统设置 → 隐私与安全性」页面最下方点击 **「仍要打开」**。
 
 ### 接下来还会继续做
 - 重点打磨 **Windows / Linux 跨平台实机体验**；
@@ -136,6 +156,8 @@ pnpm typecheck && pnpm test && pnpm build
   A：不会乱发。目前 10 个内容平台全部默认只写入**草稿箱**，发不发由你在平台后台最后点确认；账号只在你本地电脑的独立空间加密保存，不经过任何第三方服务器。
 - **Q：小红书和抖音这种图文平台怎么推？现在哪个系统最稳？**  
   A：Vmark 会把文章自动排成一套 **3:4 视觉图文卡片**，加上整理好的标题、正文和话题，自动帮你填进小红书和抖音的草稿箱。目前 **macOS** 已跑通全部流程最稳，Windows 和 Linux 还在持续打磨。
+- **Q：macOS 首次打开提示「“Vmark.app” 已损坏，无法打开」，隐私与安全性里也没有「仍要打开」怎么办？**  
+  A：这是因为开源版本暂未进行 Apple 官方公证，浏览器下载时被系统加上了安全隔离属性（应用文件本身是完好的，可核对 Release 里的 `SHA256SUMS.txt`）。先将 `Vmark.app` 拖入「应用程序」，再打开终端执行 `xattr -cr /Applications/Vmark.app`（若提示权限不足则加 `sudo`）即可正常打开，详见上方 [macOS 安装指引](#-macos-首次打开提示已损坏无法打开怎么办)。
 
 ---
 
