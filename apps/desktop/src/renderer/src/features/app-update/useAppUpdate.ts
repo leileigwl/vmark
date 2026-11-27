@@ -24,9 +24,12 @@ function writeSkippedVersion(version: string | null): void {
 export interface AppUpdateController {
   state: AppUpdateState | null;
   dialogOpen: boolean;
+  aboutOpen: boolean;
   hasVisibleBadge: boolean;
   openDialog: () => void;
   closeDialog: () => void;
+  openAbout: () => void;
+  closeAbout: () => void;
   checkNow: () => Promise<void>;
   startDownload: () => Promise<void>;
   installNow: () => Promise<void>;
@@ -34,10 +37,11 @@ export interface AppUpdateController {
   skipCurrentVersion: () => void;
 }
 
-/** Manages silent startup update checks, TopBar badge visibility, and update dialog actions. */
+/** Manages silent startup update checks, TopBar badge visibility, About dialog, and update actions. */
 export function useAppUpdate(): AppUpdateController {
   const [state, setState] = useState<AppUpdateState | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [skippedVersion, setSkippedVersion] = useState<string | null>(() => readSkippedVersion());
 
   useEffect(() => {
@@ -82,9 +86,22 @@ export function useAppUpdate(): AppUpdateController {
         setSkippedVersion(null);
         writeSkippedVersion(null);
       }
+      setAboutOpen(false);
       setDialogOpen(true);
     }
   }, [skippedVersion]);
+
+  useEffect(() => {
+    const unbind = window.electronAPI?.onMenuAction?.((action) => {
+      if (action === 'app:about') {
+        setAboutOpen(true);
+      } else if (action === 'app:checkUpdate') {
+        setAboutOpen(true);
+        void checkNow();
+      }
+    });
+    return () => unbind?.();
+  }, [checkNow]);
 
   const startDownload = useCallback(async () => {
     const next = await window.electronAPI?.downloadAppUpdate?.();
@@ -114,9 +131,12 @@ export function useAppUpdate(): AppUpdateController {
   return {
     state,
     dialogOpen,
+    aboutOpen,
     hasVisibleBadge,
     openDialog: () => setDialogOpen(true),
     closeDialog: () => setDialogOpen(false),
+    openAbout: () => setAboutOpen(true),
+    closeAbout: () => setAboutOpen(false),
     checkNow,
     startDownload,
     installNow,

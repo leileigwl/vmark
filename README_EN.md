@@ -119,6 +119,8 @@ Run these 4 steps once after installing:
 4. Launch **Vmark** normally.
 
 > 💡 If your macOS version instead shows **"cannot be opened because the developer cannot be verified"**, you can allow it at the bottom of **System Settings → Privacy & Security → Open Anyway**.
+>
+> 🔄 **Upgrading Without Duplicates**: When updating to a newer release on macOS, drag `Vmark.app` into **Applications** and choose **Replace** (not *Keep Both*, so you don't end up with `Vmark 2.app` duplicates). Your local Markdown files, themes, and account sessions live in separate app data folders and are preserved across upgrades. On Windows, running the newer `.exe` installer upgrades in place automatically.
 
 ### What's Next
 - Deeper real-device testing and ergonomics on **Windows & Linux**;

@@ -157,4 +157,34 @@ test.describe('应用更新检测、顶栏徽章与增量更新弹窗', () => {
     await page.getByRole('button', { name: '检查更新' }).click();
     await expect(page.getByText('当前已是最新版本')).toBeVisible();
   });
+
+  test('顶栏右上角常驻关于按钮：展示版本、作者 leileigwl 并可手动检查更新', async ({ page }) => {
+    await setupWithUpdateMock(page, {
+      startupResult: {
+        status: 'idle',
+        currentVersion: '0.3.0',
+        mode: 'manual',
+      },
+      manualResult: {
+        status: 'not-available',
+        currentVersion: '0.3.0',
+        mode: 'manual',
+      },
+    });
+
+    const aboutBtn = page.getByRole('button', { name: '关于 Vmark' });
+    await expect(aboutBtn).toBeVisible();
+    await aboutBtn.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('关于 Vmark（维记）');
+    await expect(dialog).toContainText('v0.3.0');
+    await expect(dialog).toContainText('leileigwl');
+
+    await dialog.getByRole('button', { name: '检查更新' }).click();
+    await expect(dialog).toContainText('当前已是最新版本');
+    const calls = await page.evaluate(() => (window as unknown as { __vcatUpdateCalls: string[] }).__vcatUpdateCalls);
+    expect(calls).toContain('check:manual');
+  });
 });

@@ -82,7 +82,7 @@ export function UpdateDialog({ controller }: { controller: AppUpdateController }
 
         {!isAuto && state.status === 'available' && (
           <p className="text-[11.5px] text-muted">
-            将打开系统浏览器直链下载当前平台安装包，下载完成后替换应用即可完成升级。
+            将打开系统浏览器直链下载当前平台安装包；macOS 拖入「应用程序」时请选择「替换」覆盖旧版（不会丢失本地文章与账号配置）。
           </p>
         )}
 

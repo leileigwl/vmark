@@ -8,7 +8,7 @@ import { SettingsView, type SettingCategory } from './components/SettingsView';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { VditorEditor, type VditorEditorHandle } from './components/VditorEditor';
-import { SettingsUpdateCard, UpdateBadge, UpdateDialog, useAppUpdate } from './features/app-update';
+import { AboutDialog, SettingsUpdateCard, UpdateBadge, UpdateDialog, useAppUpdate } from './features/app-update';
 import { useAuthSettings } from './features/auth-settings';
 import { useEditorWorkspace } from './features/editor-ir';
 import { usePublishDrawer } from './features/publish-drawer';
@@ -177,6 +177,7 @@ export default function App() {
           onToggleReadOnly={() => setReadOnly((v) => !v)}
           onOpenQuickOpen={() => setQuickOpenModalOpen(true)}
           onSetActiveView={setActiveView}
+          onOpenAbout={appUpdate.openAbout}
           onOpenPublishModal={() => setPublishModalOpen(true)}
         />
 
@@ -405,6 +406,7 @@ export default function App() {
         onSelectWorkspace={() => void ws.handleSelectWorkspace()}
         onClearRecent={ws.clearRecentArticles}
       />
+      <AboutDialog controller={appUpdate} />
       <UpdateDialog controller={appUpdate} />
     </div>
   );
