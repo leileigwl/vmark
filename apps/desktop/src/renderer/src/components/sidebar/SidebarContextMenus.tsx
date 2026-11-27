@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { getRevealInFileManagerLabel, type ArticleMeta } from '@vcat/shared';
+import type { SidebarExternalFileActions } from '../../features/workspace-tree';
 
 export type SidebarContextMenu =
   | { type: 'file'; x: number; y: number; article: ArticleMeta }
@@ -25,12 +26,9 @@ interface SidebarContextMenusProps {
   onDeleteFolder?: (folderPath: string) => Promise<void>;
   onBatchDeleteItems?: (articles: ArticleMeta[], folders: string[]) => Promise<void>;
   onRefreshWorkspace: () => Promise<void>;
+  fileActions?: SidebarExternalFileActions;
 }
 
-/**
- * Clamps context menu coordinates inside the viewport so menus opened near
- * the bottom or right edge never clip or hide batch-delete actions.
- */
 function useClampedPosition(anchor: { x: number; y: number } | null) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
@@ -41,415 +39,159 @@ function useClampedPosition(anchor: { x: number; y: number } | null) {
     const width = el?.offsetWidth ?? 192;
     const height = el?.offsetHeight ?? 260;
     const pad = 10;
-
     let left = anchor.x;
-    if (left + width > window.innerWidth - pad) {
-      left = Math.max(pad, window.innerWidth - width - pad);
-    }
-
+    if (left + width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - width - pad);
     let top = anchor.y;
     if (top + height > window.innerHeight - pad) {
       top = Math.max(pad, anchor.y - height);
-      if (top + height > window.innerHeight - pad) {
-        top = Math.max(pad, window.innerHeight - height - pad);
-      }
+      if (top + height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - height - pad);
     }
-
     setPos({ left, top });
   }, [anchor]);
 
   return { menuRef, pos };
 }
 
-export function SidebarContextMenus({
-  menu,
-  selectedPaths,
-  articles,
-  folders,
-  fileViewMode,
-  onCloseMenu,
-  onClearSelection,
-  onOpenArticle,
-  onStartCreateItem,
-  onOpenSearch,
-  onChangeFileViewMode,
-  onDuplicateArticle,
-  onRenameStart,
-  onDeleteArticle,
-  onBatchDeleteArticles,
-  onDeleteFolder,
-  onBatchDeleteItems,
-  onRefreshWorkspace,
-}: SidebarContextMenusProps) {
+function MenuBtn({
+  label,
+  onClick,
+  danger,
+  muted,
+  checked,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  muted?: boolean;
+  checked?: boolean;
+}) {
+  const cls = danger
+    ? 'font-medium text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white'
+    : muted
+      ? 'text-[var(--control-text-color)] hover:bg-[#007aff] hover:text-white'
+      : 'hover:bg-[#007aff] hover:text-white';
+  return (
+    <button type="button" onClick={onClick} className={`flex w-full items-center justify-between px-3.5 py-1 text-left ${cls}`}>
+      <span>{label}</span>
+      {checked ? <span>✓</span> : null}
+    </button>
+  );
+}
+
+const Divider = () => <div className="my-1 border-t border-[var(--border-color)]" />;
+
+export function SidebarContextMenus(props: SidebarContextMenusProps) {
+  const {
+    menu, selectedPaths, articles, folders, fileViewMode, onCloseMenu, onClearSelection,
+    onOpenArticle, onStartCreateItem, onOpenSearch, onChangeFileViewMode, onDuplicateArticle,
+    onRenameStart, onDeleteArticle, onBatchDeleteArticles, onDeleteFolder, onBatchDeleteItems,
+    onRefreshWorkspace, fileActions,
+  } = props;
   const { menuRef, pos } = useClampedPosition(menu);
   if (!menu) return null;
 
   const isBatch = selectedPaths.length > 1;
+  const runBatchDelete = () => {
+    onCloseMenu();
+    const fileTargets = articles.filter((a) => selectedPaths.includes(a.relativePath));
+    const folderTargets = folders.filter((f) => selectedPaths.includes(f));
+    onClearSelection();
+    if (folderTargets.length > 0 && onBatchDeleteItems) void onBatchDeleteItems(fileTargets, folderTargets);
+    else if (onBatchDeleteArticles && fileTargets.length > 0) void onBatchDeleteArticles(fileTargets);
+  };
 
+  const renderBatchMenu = (pasteDir: string, showCopyPaths: boolean) => (
+    <>
+      <div className="px-3.5 py-1 text-[11px] font-medium text-[var(--control-text-color)]">已选中 {selectedPaths.length} 项</div>
+      <MenuBtn label={`批量删除 (${selectedPaths.length} 项)...`} danger onClick={runBatchDelete} />
+      <MenuBtn label={`复制 (${selectedPaths.length} 项)`} onClick={() => { onCloseMenu(); void fileActions?.onCopyFiles(selectedPaths); }} />
+      <MenuBtn label="粘贴到当前目录" onClick={() => { onCloseMenu(); void fileActions?.onPasteFiles(pasteDir); }} />
+      {showCopyPaths ? (
+        <MenuBtn
+          label={`批量复制路径 (${selectedPaths.length} 篇)`}
+          onClick={() => {
+            const fullPaths = articles.filter((a) => selectedPaths.includes(a.relativePath)).map((a) => a.fullPath).join('\n');
+            void navigator.clipboard.writeText(fullPaths);
+            onCloseMenu();
+          }}
+        />
+      ) : null}
+      <Divider />
+      <MenuBtn label="取消多选" muted onClick={() => { onClearSelection(); onCloseMenu(); }} />
+    </>
+  );
+
+  const renderViewToggle = () => (
+    <>
+      <MenuBtn label="文档列表" checked={fileViewMode === 'list'} onClick={() => { onChangeFileViewMode(fileViewMode === 'list' ? 'tree' : 'list'); onCloseMenu(); }} />
+      <MenuBtn label="文档树" checked={fileViewMode === 'tree'} onClick={() => { onChangeFileViewMode('tree'); onCloseMenu(); }} />
+    </>
+  );
+
+  let body: React.ReactNode;
   if (menu.type === 'file') {
     const article = menu.article;
-    return (
-      <div
-        ref={menuRef}
-        data-sidebar-context-menu="1"
-        style={{ left: `${pos.left}px`, top: `${pos.top}px` }}
-        onClick={(e) => e.stopPropagation()}
-        className="fixed z-50 max-h-[calc(100vh-20px)] w-48 overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
-      >
-        {isBatch ? (
-          <>
-            <div className="px-3.5 py-1 text-[11px] font-medium text-[var(--control-text-color)]">
-              已选中 {selectedPaths.length} 项
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                const fileTargets = articles.filter((a) => selectedPaths.includes(a.relativePath));
-                const folderTargets = folders.filter((f) => selectedPaths.includes(f));
-                onClearSelection();
-                if (folderTargets.length > 0 && onBatchDeleteItems) {
-                  void onBatchDeleteItems(fileTargets, folderTargets);
-                } else if (onBatchDeleteArticles) {
-                  void onBatchDeleteArticles(fileTargets);
-                }
-              }}
-              className="block w-full px-3.5 py-1.5 text-left font-medium text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
-            >
-              批量删除 ({selectedPaths.length} 项)...
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const fullPaths = articles
-                  .filter((a) => selectedPaths.includes(a.relativePath))
-                  .map((a) => a.fullPath)
-                  .join('\n');
-                void navigator.clipboard.writeText(fullPaths);
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              批量复制路径 ({selectedPaths.length} 篇)
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                onClearSelection();
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left text-[var(--control-text-color)] hover:bg-[#007aff] hover:text-white"
-            >
-              取消多选
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenArticle(article);
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              打开
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                const parentDir = article.relativePath.includes('/')
-                  ? article.relativePath.split('/').slice(0, -1).join('/')
-                  : undefined;
-                onStartCreateItem('file', parentDir);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              新建文件
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                const parentDir = article.relativePath.includes('/')
-                  ? article.relativePath.split('/').slice(0, -1).join('/')
-                  : undefined;
-                onStartCreateItem('folder', parentDir);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              新建文件夹
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                onOpenSearch();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              搜索
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                onChangeFileViewMode(fileViewMode === 'list' ? 'tree' : 'list');
-                onCloseMenu();
-              }}
-              className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              <span>文档列表</span>
-              {fileViewMode === 'list' && <span>✓</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onChangeFileViewMode('tree');
-                onCloseMenu();
-              }}
-              className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              <span>文档树</span>
-              {fileViewMode === 'tree' && <span>✓</span>}
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                void onDuplicateArticle(article);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              创建副本
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                onRenameStart(article);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              重命名...
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                void onDeleteArticle(article);
-              }}
-              className="block w-full px-3.5 py-1 text-left text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
-            >
-              删除...
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard.writeText(article.fullPath);
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              复制文件路径
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void window.electronAPI.showInFinder(article.relativePath);
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              {getRevealInFileManagerLabel()}
-            </button>
-          </>
-        )}
-      </div>
+    const parentDir = article.relativePath.includes('/') ? article.relativePath.split('/').slice(0, -1).join('/') : undefined;
+    body = isBatch ? renderBatchMenu(parentDir ?? '', true) : (
+      <>
+        <MenuBtn label="打开" onClick={() => { onOpenArticle(article); onCloseMenu(); }} />
+        <MenuBtn label="新建文件" onClick={() => { onCloseMenu(); onStartCreateItem('file', parentDir); }} />
+        <MenuBtn label="新建文件夹" onClick={() => { onCloseMenu(); onStartCreateItem('folder', parentDir); }} />
+        <MenuBtn label="搜索" onClick={() => { onCloseMenu(); onOpenSearch(); }} />
+        <Divider />
+        {renderViewToggle()}
+        <Divider />
+        <MenuBtn label="复制" onClick={() => { onCloseMenu(); void fileActions?.onCopyFiles([article.relativePath]); }} />
+        <MenuBtn label="粘贴" onClick={() => { onCloseMenu(); void fileActions?.onPasteFiles(parentDir ?? ''); }} />
+        <MenuBtn label="创建副本" onClick={() => { onCloseMenu(); void onDuplicateArticle(article); }} />
+        <MenuBtn label="重命名..." onClick={() => { onCloseMenu(); onRenameStart(article); }} />
+        <MenuBtn label="删除..." danger onClick={() => { onCloseMenu(); void onDeleteArticle(article); }} />
+        <Divider />
+        <MenuBtn label="复制文件路径" onClick={() => { void navigator.clipboard.writeText(article.fullPath); onCloseMenu(); }} />
+        <MenuBtn label={getRevealInFileManagerLabel()} onClick={() => { void window.electronAPI.showInFinder(article.relativePath); onCloseMenu(); }} />
+      </>
     );
-  }
-
-  if (menu.type === 'folder') {
+  } else if (menu.type === 'folder') {
     const folderPath = menu.folderPath;
-    return (
-      <div
-        ref={menuRef}
-        data-sidebar-context-menu="1"
-        style={{ left: `${pos.left}px`, top: `${pos.top}px` }}
-        onClick={(e) => e.stopPropagation()}
-        className="fixed z-50 max-h-[calc(100vh-20px)] w-48 overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
-      >
-        {isBatch ? (
-          <>
-            <div className="px-3.5 py-1 text-[11px] font-medium text-[var(--control-text-color)]">
-              已选中 {selectedPaths.length} 项
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                const fileTargets = articles.filter((a) => selectedPaths.includes(a.relativePath));
-                const folderTargets = folders.filter((f) => selectedPaths.includes(f));
-                onClearSelection();
-                if (onBatchDeleteItems) {
-                  void onBatchDeleteItems(fileTargets, folderTargets);
-                } else if (onBatchDeleteArticles && fileTargets.length > 0) {
-                  void onBatchDeleteArticles(fileTargets);
-                }
-              }}
-              className="block w-full px-3.5 py-1.5 text-left font-medium text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
-            >
-              批量删除 ({selectedPaths.length} 项)...
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                onClearSelection();
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left text-[var(--control-text-color)] hover:bg-[#007aff] hover:text-white"
-            >
-              取消多选
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                onStartCreateItem('file', folderPath);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              新建文件
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                onStartCreateItem('folder', folderPath);
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              新建文件夹
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                onCloseMenu();
-                void onDeleteFolder?.(folderPath);
-              }}
-              className="block w-full px-3.5 py-1 text-left text-[#ff3b30] hover:bg-[#ff3b30] hover:text-white"
-            >
-              删除文件夹...
-            </button>
-            <div className="my-1 border-t border-[var(--border-color)]" />
-            <button
-              type="button"
-              onClick={() => {
-                void window.electronAPI.showInFinder(folderPath);
-                onCloseMenu();
-              }}
-              className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-            >
-              {getRevealInFileManagerLabel()}
-            </button>
-          </>
-        )}
-      </div>
+    body = isBatch ? renderBatchMenu(folderPath, false) : (
+      <>
+        <MenuBtn label="新建文件" onClick={() => { onCloseMenu(); onStartCreateItem('file', folderPath); }} />
+        <MenuBtn label="新建文件夹" onClick={() => { onCloseMenu(); onStartCreateItem('folder', folderPath); }} />
+        <Divider />
+        <MenuBtn label="复制" onClick={() => { onCloseMenu(); void fileActions?.onCopyFiles([folderPath]); }} />
+        <MenuBtn label="粘贴到此文件夹" onClick={() => { onCloseMenu(); void fileActions?.onPasteFiles(folderPath); }} />
+        <Divider />
+        <MenuBtn label="删除文件夹..." danger onClick={() => { onCloseMenu(); void onDeleteFolder?.(folderPath); }} />
+        <Divider />
+        <MenuBtn label={getRevealInFileManagerLabel()} onClick={() => { void window.electronAPI.showInFinder(folderPath); onCloseMenu(); }} />
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <MenuBtn label="新建文件" onClick={() => { onCloseMenu(); onStartCreateItem('file'); }} />
+        <MenuBtn label="新建文件夹" onClick={() => { onCloseMenu(); onStartCreateItem('folder'); }} />
+        <MenuBtn label="打开文件..." onClick={() => { onCloseMenu(); void fileActions?.onOpenExternalFile(); }} />
+        <MenuBtn label="粘贴" onClick={() => { onCloseMenu(); void fileActions?.onPasteFiles(''); }} />
+        <Divider />
+        <MenuBtn label="搜索" onClick={() => { onCloseMenu(); onOpenSearch(); }} />
+        <MenuBtn label="刷新" onClick={() => { onCloseMenu(); void onRefreshWorkspace(); }} />
+        <MenuBtn label={getRevealInFileManagerLabel()} onClick={() => { void window.electronAPI.showInFinder(); onCloseMenu(); }} />
+        <Divider />
+        {renderViewToggle()}
+      </>
     );
   }
 
-  // menu.type === 'empty'
   return (
     <div
       ref={menuRef}
       data-sidebar-context-menu="1"
       style={{ left: `${pos.left}px`, top: `${pos.top}px` }}
       onClick={(e) => e.stopPropagation()}
-      className="fixed z-50 max-h-[calc(100vh-20px)] w-44 overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md"
+      className={`fixed z-50 max-h-[calc(100vh-20px)] ${menu.type === 'empty' ? 'w-44' : 'w-48'} overflow-y-auto rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)]/95 py-1 text-[12.5px] text-[var(--text-main)] shadow-xl backdrop-blur-md`}
     >
-      <button
-        type="button"
-        onClick={() => {
-          onCloseMenu();
-          onStartCreateItem('file');
-        }}
-        className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        新建文件
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          onCloseMenu();
-          onStartCreateItem('folder');
-        }}
-        className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        新建文件夹
-      </button>
-      <div className="my-1 border-t border-[var(--border-color)]" />
-      <button
-        type="button"
-        onClick={() => {
-          onCloseMenu();
-          onOpenSearch();
-        }}
-        className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        搜索
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          onCloseMenu();
-          void onRefreshWorkspace();
-        }}
-        className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        刷新
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          void window.electronAPI.showInFinder();
-          onCloseMenu();
-        }}
-        className="block w-full px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        {getRevealInFileManagerLabel()}
-      </button>
-      <div className="my-1 border-t border-[var(--border-color)]" />
-      <button
-        type="button"
-        onClick={() => {
-          onChangeFileViewMode(fileViewMode === 'list' ? 'tree' : 'list');
-          onCloseMenu();
-        }}
-        className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        <span>文档列表</span>
-        {fileViewMode === 'list' && <span>✓</span>}
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          onChangeFileViewMode('tree');
-          onCloseMenu();
-        }}
-        className="flex w-full items-center justify-between px-3.5 py-1 text-left hover:bg-[#007aff] hover:text-white"
-      >
-        <span>文档树</span>
-        {fileViewMode === 'tree' && <span>✓</span>}
-      </button>
+      {body}
     </div>
   );
 }

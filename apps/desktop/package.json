@@ -29,6 +29,16 @@
     "productName": "Vmark",
     "executableName": "vmark",
     "afterPack": "./scripts/after-pack-mac-adhoc.cjs",
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown Document",
+        "role": "Editor"
+      }
+    ],
     "publish": [
       {
         "provider": "github",

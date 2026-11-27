@@ -8,6 +8,11 @@ export const IPC_INVOKE_CHANNELS = {
   switchWorkspace: 'workspace:switch',
   showInFinder: 'workspace:showInFinder',
   openWorkspaceLink: 'workspace:openLink',
+  openExternalFile: 'workspace:openExternalFile',
+  importExternalFiles: 'workspace:importExternalFiles',
+  copyFilesToClipboard: 'workspace:copyFilesToClipboard',
+  pasteClipboardFiles: 'workspace:pasteClipboardFiles',
+  hasClipboardFiles: 'workspace:hasClipboardFiles',
   listArticles: 'articles:list',
   readArticle: 'articles:read',
   saveArticle: 'articles:save',
@@ -57,6 +62,8 @@ export const IPC_EVENT_CHANNELS = {
   onMenuAction: 'menu:action',
   onPlatformAuthUpdated: 'platform:authStatesUpdated',
   onAppUpdateState: 'appUpdate:state',
+  onWorkspaceChanged: 'workspace:changed',
+  onOpenExternalFile: 'workspace:onOpenExternalFile',
 } as const;
 
 export type IpcInvokeMethod = keyof typeof IPC_INVOKE_CHANNELS;

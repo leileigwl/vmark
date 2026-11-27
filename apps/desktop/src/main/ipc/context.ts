@@ -99,4 +99,5 @@ export interface MainIpcContext {
   writeAppConfig: (config: AppConfig) => Promise<void>;
   recordRecentWorkspace: (cfg: AppConfig, dirPath: string) => void;
   resolveSafePath: (workspaceRoot: string, relativePath: string) => string;
+  onWorkspacePathChanged?: (dir: string | null) => void;
 }

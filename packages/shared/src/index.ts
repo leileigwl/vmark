@@ -256,6 +256,17 @@ export function getRevealInFileManagerLabel(platformHint?: string): string {
   return '在文件管理器中显示';
 }
 
+export interface OpenExternalFileResult {
+  workspacePath: string;
+  relativePath: string | null;
+}
+
+export interface ImportExternalFilesResult {
+  importedArticles: ArticleMeta[];
+  importedFolders: string[];
+  skipped: string[];
+}
+
 export interface ElectronAPI {
   selectWorkspace: () => Promise<string | null>;
   getWorkspacePath: () => Promise<string | null>;
@@ -324,4 +335,11 @@ export interface ElectronAPI {
   installAppUpdate?: () => Promise<{ ok: boolean; message?: string }>;
   openAppUpdateRelease?: () => Promise<boolean>;
   onAppUpdateState?: (callback: (state: AppUpdateState) => void) => () => void;
+  openExternalFile?: (filePath?: string) => Promise<OpenExternalFileResult | null>;
+  importExternalFiles?: (filePaths: string[], targetFolder?: string) => Promise<ImportExternalFilesResult>;
+  copyFilesToClipboard?: (relativePaths: string[]) => Promise<boolean>;
+  pasteClipboardFiles?: (targetFolder?: string) => Promise<ImportExternalFilesResult>;
+  hasClipboardFiles?: () => Promise<boolean>;
+  onWorkspaceChanged?: (callback: () => void) => () => void;
+  onOpenExternalFile?: (callback: (filePath: string) => void) => () => void;
 }

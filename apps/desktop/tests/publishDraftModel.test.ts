@@ -72,7 +72,7 @@ test('合并本地记住的设置时丢弃旧字段与未知平台', () => {
   assert.ok(!('coverCrops' in merged));
 });
 
-test('推送内容：上传封面按平台比例裁一次并复用；卡片平台也用通用封面（裁 3:4 插到最前）', async () => {
+test('推送内容：上传封面按平台比例裁一次并复用；卡片平台直接带通用封面原图（平台自带裁切）', async () => {
   const crops: string[] = [];
   const crop: CoverCropper = async (_src, ratio) => {
     crops.push(ratio);
@@ -88,9 +88,9 @@ test('推送内容：上传封面按平台比例裁一次并复用；卡片平�
   assert.equal(csdn.coverImageUrl, 'assets/crop-16:9.jpg');
   assert.equal(wx.coverImageUrl, 'assets/crop-2.35:1.jpg');
   assert.equal(xhs.coverImageUrl, undefined);
-  assert.equal(xhs.socialCoverImagePath, 'assets/crop-3:4.jpg');
+  assert.equal(xhs.socialCoverImagePath, 'assets/up.jpg');
   assert.equal(xhs.socialCoverRatio, '3:4');
-  assert.deepEqual(crops, ['16:9', '2.35:1', '1:1', '3:4']);
+  assert.deepEqual(crops, ['16:9', '2.35:1', '1:1']);
   assert.equal(wx.targets[0].mode, 'draft');
 });
 

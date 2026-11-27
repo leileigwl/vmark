@@ -17,7 +17,7 @@ test.describe('封面与缺项提示归位：通用缺项只在上方填写，�
     await expect(page.getByTestId('cover-hint')).toHaveText('推荐 16:9，公众号、百家号、微博需封面');
 
     await page.getByTestId('section-social').getByRole('button', { expanded: false }).click();
-    await expect(page.getByTestId('section-social')).toContainText('封面 3:4');
+    await expect(page.getByTestId('section-social')).toContainText('卡片 3:4');
 
     // 未上传封面时，不在下方「需要单独处理」重复弹出缺封面框；左侧行显示差 1 项
     await expect(page.getByTestId('attention-baijiahao')).toHaveCount(0);
@@ -48,8 +48,8 @@ test.describe('封面与缺项提示归位：通用缺项只在上方填写，�
       await page.getByTestId('attention-weibo').scrollIntoViewIfNeeded();
       await shot(page, testInfo, `cover-rows-${mode}`);
       await page.getByTestId('section-social').getByRole('button', { expanded: false }).click();
-      await expect(page.getByTestId('section-social')).toContainText('封面 3:4');
-      await page.getByTestId('section-social').getByText(/封面 3:4/).scrollIntoViewIfNeeded();
+      await expect(page.getByTestId('section-social')).toContainText('卡片 3:4');
+      await page.getByTestId('section-social').getByText(/卡片 3:4/).scrollIntoViewIfNeeded();
       await page.getByRole('dialog').locator('main').evaluate((m) => (m.scrollTop += 200));
       await shot(page, testInfo, `cover-social-${mode}`);
     });

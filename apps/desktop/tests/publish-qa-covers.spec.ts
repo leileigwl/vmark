@@ -35,7 +35,7 @@ async function failPlatforms(page: Page, failing: string[]) {
 }
 
 test.describe('A 层：封面与推草稿箱', () => {
-  test('公众号、小红书、抖音各自的单独封面互不串，知乎用通用封面；标题/正文对所有平台一致', async ({ page }) => {
+  test('公众号单独封面独立生效，知乎/小红书/抖音用通用封面；标题/正文对所有平台一致', async ({ page }) => {
     await openPublishWith(page, {
       md: MD,
       auth: AUTH,
@@ -45,8 +45,6 @@ test.describe('A 层：封面与推草稿箱', () => {
         coverUpload: COMMON,
         ownCovers: {
           weixin: { cover: 'assets/wx.png', focus: { x: 50, y: 50 } },
-          xiaohongshu: { cover: 'assets/xhs.png', focus: { x: 30, y: 40 } },
-          douyin: { cover: 'assets/dy.png', focus: { x: 70, y: 60 } },
         },
       },
     });
@@ -54,8 +52,8 @@ test.describe('A 层：封面与推草稿箱', () => {
     await expect(page.getByTestId('publish-results').locator('[data-state="ok"]')).toHaveCount(4);
     const calls = await publishedCalls(page);
     expect(calls.weixin.coverImageUrl).toBe('assets/wx.png');
-    expect(calls.xiaohongshu.socialCoverImagePath).toBe('assets/xhs.png');
-    expect(calls.douyin.socialCoverImagePath).toBe('assets/dy.png');
+    expect(calls.xiaohongshu.socialCoverImagePath).toBe(COMMON);
+    expect(calls.douyin.socialCoverImagePath).toBe(COMMON);
     expect(calls.zhihu.coverImageUrl).toBe(COMMON);
     const titles = new Set(Object.values(calls).map((c) => (c as unknown as { title?: string }).title));
     expect(titles.size).toBe(1);

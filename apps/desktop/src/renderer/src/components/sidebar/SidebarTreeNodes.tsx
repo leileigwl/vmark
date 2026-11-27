@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { ChevronDown, ChevronRight, FileText, Folder } from 'lucide-react';
 import type { ArticleMeta } from '@vcat/shared';
+import { extractDroppedFilePaths } from '../../features/workspace-tree';
 import type { TreeNode } from './sidebarTreeUtils';
 
 interface SidebarTreeNodesProps {
@@ -18,6 +19,7 @@ interface SidebarTreeNodesProps {
   onSetDragOverFolder: (dirPath: string | null) => void;
   onMoveFolder: (oldFolder: string, targetFolder: string) => Promise<void>;
   onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
+  onImportExternalFiles?: (filePaths: string[], targetFolder?: string) => Promise<void>;
   onArticleClick: (e: MouseEvent, article: ArticleMeta) => void;
   onFolderClick?: (e: MouseEvent, folderPath: string) => void;
   onRenameStart: (article: ArticleMeta) => void;
@@ -44,6 +46,7 @@ export function SidebarTreeNodes({
   onSetDragOverFolder,
   onMoveFolder,
   onMoveArticle,
+  onImportExternalFiles,
   onArticleClick,
   onFolderClick,
   onRenameStart,
@@ -90,6 +93,13 @@ export function SidebarTreeNodes({
                   e.preventDefault();
                   e.stopPropagation();
                   onSetDragOverFolder(null);
+                  const externalPaths = extractDroppedFilePaths(e.dataTransfer);
+                  if (externalPaths.length > 0 && onImportExternalFiles) {
+                    void onImportExternalFiles(externalPaths, node.path).then(() => {
+                      onExpandDir(node.path);
+                    });
+                    return;
+                  }
                   const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
                   if (folderPath) {
                     void onMoveFolder(folderPath, node.path);
@@ -135,6 +145,7 @@ export function SidebarTreeNodes({
                   onSetDragOverFolder={onSetDragOverFolder}
                   onMoveFolder={onMoveFolder}
                   onMoveArticle={onMoveArticle}
+                  onImportExternalFiles={onImportExternalFiles}
                   onArticleClick={onArticleClick}
                   onFolderClick={onFolderClick}
                   onRenameStart={onRenameStart}

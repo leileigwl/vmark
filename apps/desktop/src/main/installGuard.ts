@@ -5,19 +5,24 @@ import { findDuplicateMacApps } from './installGuardCore';
  * 启用全平台单实例锁（macOS & Windows）：避免重复启动多开，二次启动时唤起已有主窗口。
  * 当 `VMARK_USER_DATA_DIR` 存在（自动化隔离测试环境）时跳过锁定。
  */
-export function setupSingleInstanceLock(getMainWindow: () => BrowserWindow | null): boolean {
+export function setupSingleInstanceLock(
+  getMainWindow: () => BrowserWindow | null,
+  onSecondInstanceArgv?: (argv: string[]) => void
+): boolean {
   if (process.env.VMARK_USER_DATA_DIR) return true;
   const locked = app.requestSingleInstanceLock();
   if (!locked) {
     app.quit();
     return false;
   }
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     const win = getMainWindow();
-    if (!win || win.isDestroyed()) return;
-    if (win.isMinimized()) win.restore();
-    if (!win.isVisible()) win.show();
-    win.focus();
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      if (!win.isVisible()) win.show();
+      win.focus();
+    }
+    if (argv?.length) onSecondInstanceArgv?.(argv);
   });
   return true;
 }

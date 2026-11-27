@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -10,6 +10,12 @@ import {
   type ExportArticleOptions,
 } from '@vcat/shared';
 import { markdownToDocxBuffer } from '../../exportDocx';
+import {
+  copyExternalItemsIntoWorkspace,
+  readOsClipboardFilePaths,
+  resolveExternalOpenTarget,
+  writeOsClipboardFilePaths,
+} from '../../workspaceFileOps';
 import type { MainIpcContext } from '../context';
 
 const execFileAsync = promisify(execFile);
@@ -37,6 +43,7 @@ export function registerWorkspaceIpc(ctx: MainIpcContext): void {
     const cfg = await readAppConfig();
     recordRecentWorkspace(cfg, dirPath);
     await writeAppConfig(cfg);
+    ctx.onWorkspacePathChanged?.(cfg.workspacePath);
     return cfg.workspacePath;
   });
 
@@ -66,7 +73,69 @@ export function registerWorkspaceIpc(ctx: MainIpcContext): void {
     const cfg = await readAppConfig();
     recordRecentWorkspace(cfg, result.filePaths[0]);
     await writeAppConfig(cfg);
+    ctx.onWorkspacePathChanged?.(cfg.workspacePath);
     return cfg.workspacePath;
+  });
+
+  ipcMain.handle(IPC_INVOKE_CHANNELS.openExternalFile, async (_event, filePath?: string) => {
+    let targetPath = filePath?.trim();
+    if (!targetPath) {
+      const result = await dialog.showOpenDialog({
+        title: '打开 Markdown 文件',
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+        properties: ['openFile'],
+      });
+      if (result.canceled || result.filePaths.length === 0) return null;
+      targetPath = result.filePaths[0];
+    }
+    const cfg = await readAppConfig();
+    const resolved = await resolveExternalOpenTarget(cfg.workspacePath, targetPath);
+    if (cfg.workspacePath !== resolved.workspacePath) {
+      recordRecentWorkspace(cfg, resolved.workspacePath);
+      await writeAppConfig(cfg);
+      ctx.onWorkspacePathChanged?.(cfg.workspacePath);
+    }
+    return resolved;
+  });
+
+  ipcMain.handle(
+    IPC_INVOKE_CHANNELS.importExternalFiles,
+    async (_event, filePaths: string[], targetFolder?: string) => {
+      const cfg = await readAppConfig();
+      if (!cfg.workspacePath) throw new Error('Workspace not configured');
+      return copyExternalItemsIntoWorkspace(cfg.workspacePath, filePaths ?? [], targetFolder ?? '');
+    }
+  );
+
+  ipcMain.handle(IPC_INVOKE_CHANNELS.copyFilesToClipboard, async (_event, relativePaths: string[]) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) return false;
+    const absPaths: string[] = [];
+    for (const rel of relativePaths ?? []) {
+      try {
+        const abs = resolveSafePath(cfg.workspacePath, rel);
+        if (existsSync(abs)) absPaths.push(abs);
+      } catch {
+        // ignore invalid paths
+      }
+    }
+    if (absPaths.length === 0) return false;
+    writeOsClipboardFilePaths(clipboard, absPaths);
+    return true;
+  });
+
+  ipcMain.handle(IPC_INVOKE_CHANNELS.hasClipboardFiles, async () => {
+    return readOsClipboardFilePaths(clipboard).length > 0;
+  });
+
+  ipcMain.handle(IPC_INVOKE_CHANNELS.pasteClipboardFiles, async (_event, targetFolder?: string) => {
+    const cfg = await readAppConfig();
+    if (!cfg.workspacePath) throw new Error('Workspace not configured');
+    const paths = readOsClipboardFilePaths(clipboard);
+    if (paths.length === 0) {
+      return { importedArticles: [], importedFolders: [], skipped: [] };
+    }
+    return copyExternalItemsIntoWorkspace(cfg.workspacePath, paths, targetFolder ?? '');
   });
 
   ipcMain.handle(IPC_INVOKE_CHANNELS.getGitStatus, async () => {
@@ -122,7 +191,7 @@ export function registerWorkspaceIpc(ctx: MainIpcContext): void {
     try {
       const absFromArticle = resolveSafePath(cfg.workspacePath, candidateRel);
       if (existsSync(absFromArticle)) {
-        if (absFromArticle.endsWith('.md')) {
+        if (/\.(md|markdown)$/i.test(absFromArticle)) {
           return { ok: true, kind: 'article', relativePath: candidateRel };
         }
         await shell.openPath(absFromArticle);
@@ -130,7 +199,7 @@ export function registerWorkspaceIpc(ctx: MainIpcContext): void {
       }
       const absFromRoot = resolveSafePath(cfg.workspacePath, cleanHref);
       if (existsSync(absFromRoot)) {
-        if (absFromRoot.endsWith('.md')) {
+        if (/\.(md|markdown)$/i.test(absFromRoot)) {
           return { ok: true, kind: 'article', relativePath: cleanHref };
         }
         await shell.openPath(absFromRoot);

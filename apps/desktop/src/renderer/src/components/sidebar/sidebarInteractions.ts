@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { ArticleMeta } from '@vcat/shared';
+import { extractDroppedFilePaths } from '../../features/workspace-tree';
 
 interface SidebarListKeyParams {
   e: React.KeyboardEvent;
@@ -176,16 +177,45 @@ export function buildDefaultCreateDraft(
   return candidate;
 }
 
-/** Handles Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z file undo/redo shortcuts when the sidebar is focused. */
+/** Resolves target folder for pasting into the sidebar from current selection or active article. */
+export function resolveSidebarPasteDir(
+  selectedPaths: string[],
+  folders: string[],
+  activeArticle: ArticleMeta | null
+): string {
+  const first = selectedPaths[0];
+  if (first && folders.includes(first)) return first;
+  const refPath = first ?? activeArticle?.relativePath ?? '';
+  return refPath.includes('/') ? refPath.split('/').slice(0, -1).join('/') : '';
+}
+
+/** Handles Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Cmd/Ctrl+C and Cmd/Ctrl+V shortcuts when the sidebar is focused. */
 export function handleSidebarAsideKeyDown(params: {
   e: React.KeyboardEvent;
   sideTab: 'files' | 'outline';
   renamingPath: string | null;
   creatingItem: unknown;
+  selectedPaths?: string[];
+  folders?: string[];
+  activeArticle?: ArticleMeta | null;
   onUndoFileOp?: () => Promise<void>;
   onRedoFileOp?: () => Promise<void>;
+  onCopyFiles?: (relativePaths: string[]) => Promise<void>;
+  onPasteFiles?: (targetFolder?: string) => Promise<void>;
 }): void {
-  const { e, sideTab, renamingPath, creatingItem, onUndoFileOp, onRedoFileOp } = params;
+  const {
+    e,
+    sideTab,
+    renamingPath,
+    creatingItem,
+    selectedPaths = [],
+    folders = [],
+    activeArticle = null,
+    onUndoFileOp,
+    onRedoFileOp,
+    onCopyFiles,
+    onPasteFiles,
+  } = params;
   const target = e.target as HTMLElement | null;
   if (target?.closest('input, textarea')) return;
   if (sideTab !== 'files' || renamingPath || creatingItem) return;
@@ -203,7 +233,47 @@ export function handleSidebarAsideKeyDown(params: {
       e.preventDefault();
       e.stopPropagation();
       void onRedoFileOp?.();
+    } else if (k === 'c' && !e.shiftKey) {
+      const targets = selectedPaths.length > 0 ? selectedPaths : activeArticle ? [activeArticle.relativePath] : [];
+      if (targets.length > 0 && onCopyFiles) {
+        e.preventDefault();
+        e.stopPropagation();
+        void onCopyFiles(targets);
+      }
+    } else if (k === 'v' && !e.shiftKey && onPasteFiles) {
+      e.preventDefault();
+      e.stopPropagation();
+      void onPasteFiles(resolveSidebarPasteDir(selectedPaths, folders, activeArticle));
     }
+  }
+}
+
+/** Handles drops onto the sidebar root container (external OS files/folders or internal root moves). */
+export function handleSidebarRootDrop(params: {
+  e: React.DragEvent;
+  sideTab: 'files' | 'outline';
+  setDragOverFolder: (dir: string | null) => void;
+  onImportExternalFiles?: (filePaths: string[], targetFolder?: string) => Promise<void>;
+  onMoveFolder: (oldFolder: string, targetParent: string) => Promise<void>;
+  onMoveArticle: (oldPath: string, targetFolder: string) => Promise<void>;
+}): void {
+  const { e, sideTab, setDragOverFolder, onImportExternalFiles, onMoveFolder, onMoveArticle } = params;
+  if (sideTab !== 'files') return;
+  e.preventDefault();
+  setDragOverFolder(null);
+  const externalPaths = extractDroppedFilePaths(e.dataTransfer);
+  if (externalPaths.length > 0) {
+    void onImportExternalFiles?.(externalPaths, '');
+    return;
+  }
+  const folderPath = e.dataTransfer.getData('application/x-vcat-folder');
+  if (folderPath && folderPath.includes('/')) {
+    void onMoveFolder(folderPath, '');
+    return;
+  }
+  const sourcePath = e.dataTransfer.getData('text/plain');
+  if (sourcePath && sourcePath.includes('/')) {
+    void onMoveArticle(sourcePath, '');
   }
 }
 

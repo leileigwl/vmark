@@ -230,11 +230,6 @@ test.describe('全平台多比例真实配图与复杂正文全链路验证', ()
     const social = page.getByTestId('section-social');
     await social.getByRole('button', { expanded: false }).click();
     await expect(social).toContainText('卡片');
-    await social.getByTestId('own-cover-input-xiaohongshu').setInputFiles({
-      name: 'xhs-34.png',
-      mimeType: 'image/png',
-      buffer: png3x4,
-    });
 
     // 验证 1:1 方图也能顺利上传并通过焦点裁切（作为通用图再切回 16:9 以验证 4 种比例全覆盖）
     await page.getByTestId('cover-input').setInputFiles({
@@ -300,7 +295,7 @@ test.describe('全平台多比例真实配图与复杂正文全链路验证', ()
     expect(summary.weixin.squareRatio).toBeCloseTo(1.0, 1);
     expect(summary.zhihu.coverRatio).toBeCloseTo(1.78, 1);
     expect(summary.juejin.juejinCategoryId).toBe('cat-fe');
-    expect(summary.xiaohongshu.socialRatio).toBeCloseTo(0.75, 1);
-    expect(summary.douyin.socialRatio).toBeCloseTo(0.75, 1);
+    expect(summary.xiaohongshu.socialRatio).toBeCloseTo(1.78, 1);
+    expect(summary.douyin.socialRatio).toBeCloseTo(1.78, 1);
   });
 });
